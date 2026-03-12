@@ -1,0 +1,70 @@
+@reference "tailwindcss";
+
+.pe10-card {
+  @apply max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 p-8;
+}
+
+.pe10-card-header {
+  @apply flex items-baseline justify-between mb-6;
+}
+
+.pe10-ticker {
+  @apply text-2xl font-bold text-gray-900;
+}
+
+.pe10-name {
+  @apply text-sm text-gray-500;
+}
+
+.pe10-value-container {
+  @apply text-center py-6;
+}
+
+.pe10-label {
+  @apply text-sm font-medium text-gray-500 uppercase tracking-wide mb-1;
+}
+
+.pe10-value {
+  @apply text-6xl font-bold text-indigo-600;
+}
+
+.pe10-details {
+  @apply grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100;
+}
+
+.pe10-detail-item {
+  @apply text-center;
+}
+
+.pe10-detail-label {
+  @apply text-xs text-gray-500 uppercase tracking-wide;
+}
+
+.pe10-detail-value {
+  @apply text-lg font-semibold text-gray-900 mt-1;
+}
+
+.pe10-error {
+  @apply text-center text-gray-500 italic py-4;
+}
+
+.pe10-loading {
+  @apply max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 p-8
+    animate-pulse;
+}
+
+.pe10-loading-bar {
+  @apply h-8 bg-gray-200 rounded w-1/3 mx-auto mb-4;
+}
+
+.pe10-loading-bar-lg {
+  @apply h-16 bg-gray-200 rounded w-1/2 mx-auto mb-6;
+}
+
+.pe10-loading-bar-row {
+  @apply grid grid-cols-3 gap-4;
+}
+
+.pe10-loading-bar-sm {
+  @apply h-10 bg-gray-100 rounded;
+}

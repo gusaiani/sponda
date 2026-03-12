@@ -1,0 +1,46 @@
+from django.conf import settings
+from django.db import models
+
+
+class QuarterlyEarnings(models.Model):
+    ticker = models.CharField(max_length=10, db_index=True)
+    end_date = models.DateField()
+    net_income = models.BigIntegerField(null=True, blank=True)
+    eps = models.DecimalField(
+        max_digits=20, decimal_places=6, null=True, blank=True,
+        help_text="basicEarningsPerCommonShare from BRAPI",
+    )
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("ticker", "end_date")
+        ordering = ["-end_date"]
+
+    def __str__(self):
+        return f"{self.ticker} {self.end_date}"
+
+
+class IPCAIndex(models.Model):
+    date = models.DateField(unique=True)
+    accumulated_index = models.DecimalField(max_digits=20, decimal_places=6)
+
+    class Meta:
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"IPCA {self.date}: {self.accumulated_index}"
+
+
+class LookupLog(models.Model):
+    session_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE,
+    )
+    ticker = models.CharField(max_length=10)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+
+    def __str__(self):
+        return f"{self.session_key or self.user} → {self.ticker} @ {self.timestamp}"
