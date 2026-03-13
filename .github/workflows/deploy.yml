@@ -32,12 +32,19 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
-          host: poe.ma
+          host: 159.203.108.19
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/sponda
             git pull origin main
-            docker compose build --no-cache
-            docker compose up -d
-            docker compose exec web python manage.py collectstatic --noinput
+            source venv/bin/activate
+            pip install -r backend/requirements.txt
+            cd frontend
+            npm ci
+            npm run build
+            export DJANGO_SETTINGS_MODULE=config.settings.production
+            cd /opt/sponda/backend
+            python manage.py migrate --noinput
+            python manage.py collectstatic --noinput
+            systemctl restart sponda
