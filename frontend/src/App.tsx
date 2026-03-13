@@ -9,9 +9,6 @@ export function App() {
           <a href="/" className="app-logo">
             Sponda
           </a>
-          <a href="/signup" className="app-nav-link">
-            Criar Conta
-          </a>
         </div>
       </header>
       <main className="app-main">

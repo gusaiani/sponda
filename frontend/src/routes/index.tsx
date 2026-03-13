@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { SearchBar } from "../components/SearchBar";
 import { PE10Card, PE10CardLoading } from "../components/PE10Card";
-import { QuotaAlert } from "../components/QuotaAlert";
+import { PE10Explainer } from "../components/PE10Explainer";
 import { usePE10 } from "../hooks/usePE10";
 
 export function HomePage() {
@@ -18,12 +18,11 @@ export function HomePage() {
   return (
     <div>
       <h1 className="app-hero-title">Sponda</h1>
-      <p className="app-hero-subtitle">
-        PE10 (Shiller P/E) para ações brasileiras
-      </p>
+      <p className="app-hero-subtitle">PE10 para ações brasileiras</p>
 
-      <QuotaAlert />
       <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+
+      <PE10Explainer />
 
       {isLoading && <PE10CardLoading />}
       {data && !isLoading && <PE10Card data={data} />}

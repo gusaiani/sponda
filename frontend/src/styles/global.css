@@ -13,11 +13,11 @@
 }
 
 .app-logo {
-  @apply text-2xl font-bold text-indigo-600;
+  @apply text-2xl font-bold text-teal-600;
 }
 
 .app-nav-link {
-  @apply text-sm text-gray-600 hover:text-indigo-600 transition-colors;
+  @apply text-sm text-gray-600 hover:text-teal-600 transition-colors;
 }
 
 .app-main {

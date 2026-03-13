@@ -5,20 +5,28 @@ from decimal import Decimal
 from .models import IPCAIndex, QuarterlyEarnings
 
 
-def get_annual_eps(ticker: str, max_years: int = 10) -> list[dict]:
+def get_annual_eps(
+    ticker: str, shares_outstanding: Decimal | None = None, max_years: int = 10
+) -> list[dict]:
     """
     Get annual EPS by summing quarterly EPS for each calendar year.
+    Falls back to netIncome / shares_outstanding when EPS is null.
     Returns list of {"year": int, "eps": Decimal, "quarters": int} sorted by year desc.
     """
     quarters = QuarterlyEarnings.objects.filter(
         ticker=ticker.upper(),
-        eps__isnull=False,
     ).order_by("-end_date")[: max_years * 4]
 
     yearly = defaultdict(lambda: {"eps": Decimal("0"), "quarters": 0})
     for q in quarters:
+        # Always derive EPS from netIncome / shares_outstanding.
+        # BRAPI's basicEarningsPerCommonShare is unreliable (wrong scale).
+        if q.net_income is not None and shares_outstanding:
+            eps = Decimal(str(q.net_income)) / shares_outstanding
+        else:
+            continue
         year = q.end_date.year
-        yearly[year]["eps"] += q.eps
+        yearly[year]["eps"] += eps
         yearly[year]["quarters"] += 1
 
     result = [
@@ -28,25 +36,52 @@ def get_annual_eps(ticker: str, max_years: int = 10) -> list[dict]:
     return result[:max_years]
 
 
-def get_ipca_index_for_year(year: int) -> Decimal | None:
-    """Get the IPCA accumulated index closest to end of the given year."""
-    from datetime import date
+def get_ipca_adjustment_factors(years: list[int]) -> dict[int, Decimal]:
+    """
+    Build IPCA adjustment factors for each year.
 
-    entry = (
-        IPCAIndex.objects.filter(date__year__lte=year)
-        .order_by("-date")
-        .first()
-    )
-    return entry.accumulated_index if entry else None
+    Uses the December reading for each year (12-month accumulated rate).
+    Compounds rates from each year forward to bring historical earnings
+    to current purchasing power.
+
+    Returns {year: adjustment_factor} where factor >= 1 for past years.
+    """
+    if not years:
+        return {}
+
+    # Get all IPCA entries we need (December of each year + most recent)
+    all_entries = list(IPCAIndex.objects.order_by("date"))
+    if not all_entries:
+        return {}
+
+    # Build a map: year -> December annual rate (or closest available)
+    year_rates: dict[int, Decimal] = {}
+    for entry in all_entries:
+        y = entry.date.year
+        m = entry.date.month
+        # Prefer December; overwrite earlier months of same year
+        if y not in year_rates or m >= 12:
+            year_rates[y] = entry.annual_rate
+
+    # The most recent year's rate represents "current" inflation
+    most_recent_year = max(year_rates.keys())
+
+    # Compound adjustment: for year Y, multiply EPS by product of
+    # (1 + rate/100) for each year from Y+1 to most_recent_year
+    factors = {}
+    for year in years:
+        factor = Decimal("1")
+        for y in range(year + 1, most_recent_year + 1):
+            rate = year_rates.get(y, Decimal("0"))
+            factor *= (1 + rate / 100)
+        factors[year] = factor
+
+    return factors
 
 
-def get_current_ipca() -> Decimal | None:
-    """Get the most recent IPCA accumulated index."""
-    entry = IPCAIndex.objects.order_by("-date").first()
-    return entry.accumulated_index if entry else None
-
-
-def calculate_pe10(ticker: str, current_price: Decimal) -> dict:
+def calculate_pe10(
+    ticker: str, current_price: Decimal, shares_outstanding: Decimal | None = None
+) -> dict:
     """
     Calculate PE10 for a given ticker.
 
@@ -57,7 +92,7 @@ def calculate_pe10(ticker: str, current_price: Decimal) -> dict:
         label: str (e.g., "PE10" or "PE7")
         error: str or None
     """
-    annual_eps_data = get_annual_eps(ticker)
+    annual_eps_data = get_annual_eps(ticker, shares_outstanding=shares_outstanding)
 
     if not annual_eps_data:
         return {
@@ -66,29 +101,25 @@ def calculate_pe10(ticker: str, current_price: Decimal) -> dict:
             "years_of_data": 0,
             "label": "PE0",
             "error": "No earnings data available",
+            "annual_data": False,
         }
 
-    current_ipca = get_current_ipca()
-    adjusted_eps_values = []
+    years = [d["year"] for d in annual_eps_data]
+    ipca_factors = get_ipca_adjustment_factors(years)
 
+    adjusted_eps_values = []
     for year_data in annual_eps_data:
         eps = year_data["eps"]
         year = year_data["year"]
-
-        if current_ipca is not None:
-            year_ipca = get_ipca_index_for_year(year)
-            if year_ipca and year_ipca != 0:
-                adjusted_eps = eps * (current_ipca / year_ipca)
-            else:
-                adjusted_eps = eps
-        else:
-            # No IPCA data available — use nominal values
-            adjusted_eps = eps
-
-        adjusted_eps_values.append(adjusted_eps)
+        factor = ipca_factors.get(year, Decimal("1"))
+        adjusted_eps_values.append(eps * factor)
 
     years_of_data = len(adjusted_eps_values)
     label = f"PE{years_of_data}"
+
+    # Detect if using annual (1 record/year) vs quarterly (4 records/year)
+    avg_quarters = sum(d["quarters"] for d in annual_eps_data) / len(annual_eps_data)
+    annual_data = avg_quarters < 2
 
     avg_adjusted_eps = sum(adjusted_eps_values) / len(adjusted_eps_values)
 
@@ -99,6 +130,7 @@ def calculate_pe10(ticker: str, current_price: Decimal) -> dict:
             "years_of_data": years_of_data,
             "label": label,
             "error": "N/A — negative average earnings over the period",
+            "annual_data": annual_data,
         }
 
     pe10 = current_price / avg_adjusted_eps
@@ -109,4 +141,5 @@ def calculate_pe10(ticker: str, current_price: Decimal) -> dict:
         "years_of_data": years_of_data,
         "label": label,
         "error": None,
+        "annual_data": annual_data,
     }

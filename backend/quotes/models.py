@@ -22,13 +22,16 @@ class QuarterlyEarnings(models.Model):
 
 class IPCAIndex(models.Model):
     date = models.DateField(unique=True)
-    accumulated_index = models.DecimalField(max_digits=20, decimal_places=6)
+    annual_rate = models.DecimalField(
+        max_digits=10, decimal_places=4,
+        help_text="12-month accumulated IPCA rate (%)",
+    )
 
     class Meta:
         ordering = ["-date"]
 
     def __str__(self):
-        return f"IPCA {self.date}: {self.accumulated_index}"
+        return f"IPCA {self.date}: {self.annual_rate}%"
 
 
 class LookupLog(models.Model):

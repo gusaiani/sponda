@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: sponda
       POSTGRES_USER: sponda
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sponda}
-    ports:
-      - "5432:5432"
 
   web:
     build: .
@@ -18,21 +16,10 @@ services:
     depends_on:
       - db
     ports:
-      - "8000:8000"
+      - "8710:8000"
     command: >
       sh -c "python manage.py migrate --noinput &&
              gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
-
-  nginx:
-    image: nginx:alpine
-    volumes:
-      - ./nginx/sponda.conf:/etc/nginx/conf.d/default.conf
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-    ports:
-      - "80:80"
-      - "443:443"
-    depends_on:
-      - web
 
 volumes:
   postgres_data:

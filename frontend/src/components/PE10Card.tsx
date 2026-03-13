@@ -9,6 +9,7 @@ interface PE10Data {
   yearsOfData: number;
   label: string;
   error: string | null;
+  annualData: boolean;
 }
 
 interface PE10CardProps {
@@ -31,6 +32,13 @@ export function PE10Card({ data }: PE10CardProps) {
           <div className="pe10-error">{data.error}</div>
         )}
       </div>
+
+      {data.annualData && (
+        <div className="pe10-warning">
+          Atenção: usando demonstrações de resultado anuais. Dados trimestrais
+          indisponíveis para este ticker.
+        </div>
+      )}
 
       <div className="pe10-details">
         <div className="pe10-detail-item">

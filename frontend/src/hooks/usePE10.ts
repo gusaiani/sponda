@@ -9,6 +9,7 @@ interface PE10Result {
   yearsOfData: number;
   label: string;
   error: string | null;
+  annualData: boolean;
 }
 
 interface PE10Error {
@@ -17,19 +18,28 @@ interface PE10Error {
   used?: number;
 }
 
+async function parseJSON(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchPE10(ticker: string): Promise<PE10Result> {
   const response = await fetch(`/api/quote/${ticker}/`, {
     credentials: "include",
   });
 
-  if (response.status === 403) {
-    const data: PE10Error = await response.json();
-    throw new Error(data.error);
-  }
-
   if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.error || "Failed to fetch PE10 data");
+    const data = (await parseJSON(response)) as PE10Error | null;
+    const fallback =
+      response.status === 404
+        ? `Ticker "${ticker}" não encontrado. Verifique o código e tente novamente.`
+        : "Não foi possível obter os dados no momento. Tente novamente mais tarde.";
+    throw new Error(data?.error || fallback);
   }
 
   return response.json();

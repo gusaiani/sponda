@@ -34,55 +34,60 @@ def fetch_quote(ticker: str) -> dict:
 
 
 def fetch_income_statements(ticker: str) -> list[dict]:
-    """Fetch quarterly income statement history for a ticker."""
+    """Fetch income statement history for a ticker.
+
+    Tries quarterly first; falls back to annual if the BRAPI plan
+    doesn't include the quarterly module.
+    """
+    # Try quarterly first
+    try:
+        data = _get(
+            f"/quote/{ticker}",
+            params={"modules": "incomeStatementHistoryQuarterly"},
+        )
+        if not data.get("error"):
+            results = data.get("results", [])
+            if results:
+                statements = results[0].get("incomeStatementHistoryQuarterly", [])
+                if statements:
+                    return statements
+    except BRAPIError:
+        pass
+
+    # Fall back to annual
     data = _get(
         f"/quote/{ticker}",
-        params={"modules": "incomeStatementHistoryQuarterly"},
+        params={"modules": "incomeStatementHistory"},
     )
     results = data.get("results", [])
     if not results:
         raise BRAPIError(f"No results for ticker {ticker}")
-
-    statements = (
-        results[0]
-        .get("incomeStatementHistoryQuarterly", {})
-        .get("incomeStatementHistory", [])
-    )
-    return statements
+    return results[0].get("incomeStatementHistory", [])
 
 
-def sync_quarterly_earnings(ticker: str) -> list[QuarterlyEarnings]:
-    """Fetch and store quarterly earnings for a ticker from BRAPI."""
+def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
+    """Fetch and store earnings for a ticker from BRAPI.
+
+    Works with both quarterly and annual income statements.
+    """
     statements = fetch_income_statements(ticker)
     earnings = []
 
     for stmt in statements:
-        end_date_raw = stmt.get("endDate", {})
-        if isinstance(end_date_raw, dict):
-            fmt = end_date_raw.get("fmt")
-        else:
-            fmt = str(end_date_raw)[:10]
-
-        if not fmt:
+        end_date_str = stmt.get("endDate", "")[:10]
+        if not end_date_str:
             continue
 
-        end_date = date.fromisoformat(fmt)
-        eps_raw = stmt.get("basicEarningsPerCommonShare", {})
+        end_date = date.fromisoformat(end_date_str)
+
         eps_value = None
-        if isinstance(eps_raw, dict):
-            raw = eps_raw.get("raw")
-            if raw is not None:
-                eps_value = Decimal(str(raw))
-        elif eps_raw is not None:
+        eps_raw = stmt.get("basicEarningsPerCommonShare")
+        if eps_raw is not None:
             eps_value = Decimal(str(eps_raw))
 
-        net_income_raw = stmt.get("netIncome", {})
         net_income_value = None
-        if isinstance(net_income_raw, dict):
-            raw = net_income_raw.get("raw")
-            if raw is not None:
-                net_income_value = int(raw)
-        elif net_income_raw is not None:
+        net_income_raw = stmt.get("netIncome")
+        if net_income_raw is not None:
             net_income_value = int(net_income_raw)
 
         obj, _ = QuarterlyEarnings.objects.update_or_create(
@@ -99,9 +104,9 @@ def sync_quarterly_earnings(ticker: str) -> list[QuarterlyEarnings]:
 
 
 def fetch_ipca_data() -> list[dict]:
-    """Fetch IPCA accumulated index from BRAPI."""
-    data = _get("/v2/inflation/prime-rate/historical")
-    return data.get("primeRate", [])
+    """Fetch IPCA historical data from BRAPI."""
+    data = _get("/v2/inflation", params={"country": "ipca", "historical": "true"})
+    return data.get("inflation", [])
 
 
 def sync_ipca() -> int:
@@ -109,14 +114,18 @@ def sync_ipca() -> int:
     records = fetch_ipca_data()
     count = 0
     for record in records:
-        record_date = record.get("date", "")[:10]
+        date_str = record.get("date", "")
         value = record.get("value")
-        if not record_date or value is None:
+        if not date_str or value is None:
             continue
 
+        # BRAPI returns dates as "dd/mm/yyyy"
+        day, month, year = date_str.split("/")
+        record_date = date(int(year), int(month), int(day))
+
         IPCAIndex.objects.update_or_create(
-            date=date.fromisoformat(record_date),
-            defaults={"accumulated_index": Decimal(str(value))},
+            date=record_date,
+            defaults={"annual_rate": Decimal(str(value))},
         )
         count += 1
     return count

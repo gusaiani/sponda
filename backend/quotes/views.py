@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .brapi import BRAPIError, fetch_quote, sync_quarterly_earnings
+from .brapi import BRAPIError, fetch_quote, sync_earnings
 from .models import LookupLog, QuarterlyEarnings
 from .pe10 import calculate_pe10
 
@@ -21,11 +21,6 @@ class PE10View(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
-        # Rate limiting
-        limit_error = self._check_rate_limit(request)
-        if limit_error:
-            return limit_error
-
         # Ensure we have fresh data (< 24h old)
         self._ensure_fresh_data(ticker)
 
@@ -33,15 +28,28 @@ class PE10View(APIView):
         try:
             quote = fetch_quote(ticker)
         except BRAPIError as e:
+            msg = str(e)
+            if "No results" in msg:
+                return Response(
+                    {"error": f'Ticker "{ticker}" não encontrado. Verifique o código e tente novamente.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
             return Response(
-                {"error": str(e)}, status=status.HTTP_502_BAD_GATEWAY
+                {"error": "Não foi possível obter os dados no momento. Tente novamente mais tarde."},
+                status=status.HTTP_502_BAD_GATEWAY,
             )
 
         current_price = Decimal(str(quote.get("regularMarketPrice", 0)))
         name = quote.get("longName") or quote.get("shortName") or ticker
 
+        # Derive shares outstanding from marketCap / price for EPS fallback
+        shares_outstanding = None
+        market_cap = quote.get("marketCap")
+        if market_cap and current_price:
+            shares_outstanding = Decimal(str(market_cap)) / current_price
+
         # Calculate PE10
-        result = calculate_pe10(ticker, current_price)
+        result = calculate_pe10(ticker, current_price, shares_outstanding)
 
         # Log the lookup
         self._log_lookup(request, ticker)
@@ -55,6 +63,7 @@ class PE10View(APIView):
             "yearsOfData": result["years_of_data"],
             "label": result["label"],
             "error": result["error"],
+            "annualData": result["annual_data"],
         })
 
     def _check_rate_limit(self, request):
@@ -102,6 +111,6 @@ class PE10View(APIView):
 
         if not has_fresh:
             try:
-                sync_quarterly_earnings(ticker)
+                sync_earnings(ticker)
             except BRAPIError:
                 pass  # Use whatever cached data we have

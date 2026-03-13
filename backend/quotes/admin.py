@@ -11,7 +11,7 @@ class QuarterlyEarningsAdmin(admin.ModelAdmin):
 
 @admin.register(IPCAIndex)
 class IPCAIndexAdmin(admin.ModelAdmin):
-    list_display = ("date", "accumulated_index")
+    list_display = ("date", "annual_rate")
 
 
 @admin.register(LookupLog)

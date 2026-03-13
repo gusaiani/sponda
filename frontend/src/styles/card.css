@@ -25,7 +25,34 @@
 }
 
 .pe10-value {
-  @apply text-6xl font-bold text-indigo-600;
+  @apply text-6xl font-bold text-teal-600;
+}
+
+.pe10-warning {
+  @apply text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mt-4 text-center;
+}
+
+.pe10-explainer-wrapper {
+  @apply max-w-2xl mx-auto mb-8;
+}
+
+.pe10-explainer-toggle {
+  @apply w-full text-center text-sm text-teal-600 hover:text-teal-800
+    cursor-pointer bg-transparent border-none py-2 font-medium
+    flex items-center justify-center gap-1 transition-colors;
+}
+
+.pe10-explainer-chevron {
+  @apply inline-block text-xs transition-transform duration-200 -translate-y-px;
+}
+
+.pe10-explainer-chevron-open {
+  @apply rotate-180 translate-y-px;
+}
+
+.pe10-explainer {
+  @apply text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-lg px-5 py-4
+    mt-1 space-y-3;
 }
 
 .pe10-details {
