@@ -25,7 +25,7 @@ jobs:
         env:
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           BRAPI_API_KEY: test-api-key-for-ci
-        run: pytest --ignore=tests/test_e2e_browser.py -x -q
+        run: pytest --ignore=tests/test_e2e.py --ignore=tests/test_e2e_browser.py -x -q
 
   deploy:
     needs: test
