@@ -11,13 +11,14 @@ def get_annual_eps(
     """
     Get annual EPS by summing quarterly EPS for each calendar year.
     Falls back to netIncome / shares_outstanding when EPS is null.
-    Returns list of {"year": int, "eps": Decimal, "quarters": int} sorted by year desc.
+    Returns list of {"year": int, "eps": Decimal, "quarters": int,
+                     "quarterly_detail": list} sorted by year desc.
     """
     quarters = QuarterlyEarnings.objects.filter(
         ticker=ticker.upper(),
     ).order_by("-end_date")[: max_years * 4]
 
-    yearly = defaultdict(lambda: {"eps": Decimal("0"), "quarters": 0})
+    yearly = defaultdict(lambda: {"eps": Decimal("0"), "quarters": 0, "quarterly_detail": []})
     for q in quarters:
         # Always derive EPS from netIncome / shares_outstanding.
         # BRAPI's basicEarningsPerCommonShare is unreliable (wrong scale).
@@ -28,9 +29,19 @@ def get_annual_eps(
         year = q.end_date.year
         yearly[year]["eps"] += eps
         yearly[year]["quarters"] += 1
+        yearly[year]["quarterly_detail"].append({
+            "end_date": q.end_date.isoformat(),
+            "net_income": q.net_income,
+            "eps": round(float(eps), 6),
+        })
 
     result = [
-        {"year": year, "eps": data["eps"], "quarters": data["quarters"]}
+        {
+            "year": year,
+            "eps": data["eps"],
+            "quarters": data["quarters"],
+            "quarterly_detail": sorted(data["quarterly_detail"], key=lambda x: x["end_date"]),
+        }
         for year, data in sorted(yearly.items(), reverse=True)
     ]
     return result[:max_years]
@@ -102,17 +113,28 @@ def calculate_pe10(
             "label": "PE0",
             "error": "No earnings data available",
             "annual_data": False,
+            "calculation_details": [],
         }
 
     years = [d["year"] for d in annual_eps_data]
     ipca_factors = get_ipca_adjustment_factors(years)
 
     adjusted_eps_values = []
+    yearly_breakdown = []
     for year_data in annual_eps_data:
         eps = year_data["eps"]
         year = year_data["year"]
         factor = ipca_factors.get(year, Decimal("1"))
-        adjusted_eps_values.append(eps * factor)
+        adjusted_eps = eps * factor
+        adjusted_eps_values.append(adjusted_eps)
+        yearly_breakdown.append({
+            "year": year,
+            "nominalEPS": round(float(eps), 6),
+            "ipcaFactor": round(float(factor), 6),
+            "adjustedEPS": round(float(adjusted_eps), 6),
+            "quarters": year_data["quarters"],
+            "quarterlyDetail": year_data["quarterly_detail"],
+        })
 
     years_of_data = len(adjusted_eps_values)
     label = f"PE{years_of_data}"
@@ -123,23 +145,26 @@ def calculate_pe10(
 
     avg_adjusted_eps = sum(adjusted_eps_values) / len(adjusted_eps_values)
 
+    base_result = {
+        "years_of_data": years_of_data,
+        "label": label,
+        "annual_data": annual_data,
+        "calculation_details": yearly_breakdown,
+    }
+
     if avg_adjusted_eps <= 0:
         return {
+            **base_result,
             "pe10": None,
             "avg_adjusted_eps": float(avg_adjusted_eps),
-            "years_of_data": years_of_data,
-            "label": label,
             "error": "N/A — negative average earnings over the period",
-            "annual_data": annual_data,
         }
 
     pe10 = current_price / avg_adjusted_eps
 
     return {
+        **base_result,
         "pe10": round(float(pe10), 2),
         "avg_adjusted_eps": round(float(avg_adjusted_eps), 2),
-        "years_of_data": years_of_data,
-        "label": label,
         "error": None,
-        "annual_data": annual_data,
     }

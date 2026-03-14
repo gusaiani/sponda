@@ -59,11 +59,13 @@ class PE10View(APIView):
             "name": name,
             "pe10": result["pe10"],
             "currentPrice": float(current_price),
+            "marketCap": market_cap,
             "avgAdjustedEPS": result["avg_adjusted_eps"],
             "yearsOfData": result["years_of_data"],
             "label": result["label"],
             "error": result["error"],
             "annualData": result["annual_data"],
+            "calculationDetails": result["calculation_details"],
         })
 
     def _check_rate_limit(self, request):

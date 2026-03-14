@@ -1,15 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
 
+interface QuarterlyDetail {
+  end_date: string;
+  net_income: number;
+  eps: number;
+}
+
+interface YearlyBreakdown {
+  year: number;
+  nominalEPS: number;
+  ipcaFactor: number;
+  adjustedEPS: number;
+  quarters: number;
+  quarterlyDetail: QuarterlyDetail[];
+}
+
 interface PE10Result {
   ticker: string;
   name: string;
   pe10: number | null;
   currentPrice: number;
+  marketCap: number | null;
   avgAdjustedEPS: number | null;
   yearsOfData: number;
   label: string;
   error: string | null;
   annualData: boolean;
+  calculationDetails: YearlyBreakdown[];
 }
 
 interface PE10Error {
