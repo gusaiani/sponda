@@ -17,15 +17,27 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
         run: pip install -r backend/requirements.txt
+
+      - name: Install Playwright browsers
+        run: python -m playwright install --with-deps chromium
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci && npm run build
 
       - name: Run tests
         working-directory: backend
         env:
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           BRAPI_API_KEY: test-api-key-for-ci
-        run: pytest --ignore=tests/test_e2e.py --ignore=tests/test_e2e_browser.py -x -q
+        run: pytest -x -q
 
   deploy:
     needs: test
