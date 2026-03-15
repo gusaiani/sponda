@@ -53,8 +53,8 @@ jobs:
           script: |
             set -e
             cd /opt/sponda
+            git fetch origin main
             git reset --hard origin/main
-            git pull origin main
             source venv/bin/activate
             pip install -r backend/requirements.txt
             cd frontend
