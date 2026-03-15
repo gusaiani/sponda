@@ -1,33 +1,90 @@
 @import "tailwindcss";
 
+@theme {
+  --color-ink: #0f1f3d;
+  --color-accent: #1a4a8a;
+  --color-muted: #5a6f8a;
+  --color-border: #c0cedd;
+}
+
 .app-container {
-  @apply min-h-screen bg-gray-50 text-gray-900;
+  @apply min-h-screen bg-white text-[--color-ink];
+  font-family: Georgia, 'Times New Roman', Times, serif;
 }
 
 .app-header {
-  @apply bg-white border-b border-gray-200 py-4 px-6;
+  @apply border-b py-5 px-6;
+  border-color: var(--color-border);
 }
 
 .app-header-inner {
-  @apply max-w-4xl mx-auto flex items-center justify-between;
+  @apply max-w-[880px] mx-auto flex items-center justify-between;
 }
 
 .app-logo {
-  @apply text-2xl font-bold text-teal-600;
+  font-family: 'DM Serif Display', Georgia, serif;
+  @apply text-2xl font-normal tracking-wide;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.app-logo:hover {
+  color: var(--color-accent);
 }
 
 .app-nav-link {
-  @apply text-sm text-gray-600 hover:text-teal-600 transition-colors;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs uppercase tracking-widest transition-colors;
+  color: var(--color-muted);
+}
+
+.app-nav-link:hover {
+  color: var(--color-accent);
 }
 
 .app-main {
-  @apply max-w-4xl mx-auto py-12 px-4;
+  @apply max-w-[880px] mx-auto py-12 px-4;
 }
 
 .app-hero-title {
-  @apply text-4xl font-bold text-center mb-2;
+  font-family: 'DM Serif Display', Georgia, serif;
+  @apply text-4xl font-normal text-center mb-2 tracking-wide;
+  color: var(--color-ink);
 }
 
 .app-hero-subtitle {
-  @apply text-lg text-gray-500 text-center mb-10;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs text-center mb-10 uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-muted);
+}
+
+.app-footer {
+  @apply py-8 text-center;
+  border-top: 1px solid var(--color-border);
+}
+
+.app-footer-logo-link {
+  @apply block mx-auto mb-3;
+  width: 42px;
+}
+
+.app-footer-logo {
+  @apply w-full h-auto block;
+}
+
+.app-footer-text {
+  font-family: 'DM Mono', monospace;
+  @apply text-xs;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.app-footer-link {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.app-footer-link:hover {
+  text-decoration: underline;
 }

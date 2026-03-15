@@ -14,6 +14,17 @@ export function App() {
       <main className="app-main">
         <Outlet />
       </main>
+      <footer className="app-footer">
+        <a href="https://poe.ma" className="app-footer-logo-link">
+          <img src="/poema-logo.jpg" alt="Poema" className="app-footer-logo" />
+        </a>
+        <p className="app-footer-text">
+          Uma ferramenta da{" "}
+          <a href="https://poe.ma" className="app-footer-link">
+            Poema Parceria de Investimentos
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }

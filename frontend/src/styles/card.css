@@ -1,7 +1,8 @@
 @reference "tailwindcss";
 
 .pe10-card {
-  @apply max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 p-8;
+  @apply max-w-2xl mx-auto bg-white p-8;
+  border: 1px solid var(--color-border);
 }
 
 .pe10-card-header {
@@ -9,11 +10,15 @@
 }
 
 .pe10-ticker {
-  @apply text-2xl font-bold text-gray-900;
+  font-family: 'DM Mono', monospace;
+  @apply text-2xl font-normal;
+  color: var(--color-ink);
 }
 
 .pe10-name {
-  @apply text-sm text-gray-500;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs;
+  color: var(--color-muted);
 }
 
 .pe10-value-container {
@@ -21,15 +26,24 @@
 }
 
 .pe10-label {
-  @apply text-sm font-medium text-gray-500 uppercase tracking-wide mb-1;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs font-normal uppercase mb-1;
+  letter-spacing: 0.18em;
+  color: var(--color-muted);
 }
 
 .pe10-value {
-  @apply text-6xl font-bold text-teal-600;
+  font-family: 'DM Serif Display', Georgia, serif;
+  @apply text-6xl font-normal;
+  color: var(--color-ink);
 }
 
 .pe10-warning {
-  @apply text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mt-4 text-center;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs px-4 py-3 mt-4 text-center;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
 }
 
 .pe10-explainer-wrapper {
@@ -37,9 +51,16 @@
 }
 
 .pe10-explainer-toggle {
-  @apply w-full text-center text-sm text-teal-600 hover:text-teal-800
-    cursor-pointer bg-transparent border-none py-2 font-medium
-    flex items-center justify-center gap-1 transition-colors;
+  font-family: 'DM Mono', monospace;
+  @apply w-full text-center text-xs
+    cursor-pointer bg-transparent border-none py-2 font-normal
+    flex items-center justify-center gap-1 transition-colors uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-accent);
+}
+
+.pe10-explainer-toggle:hover {
+  color: var(--color-ink);
 }
 
 .pe10-explainer-chevron {
@@ -51,12 +72,14 @@
 }
 
 .pe10-explainer {
-  @apply text-sm text-gray-600 leading-relaxed bg-gray-50 rounded-lg px-5 py-4
-    mt-1 space-y-3;
+  @apply text-base leading-relaxed px-0 py-4 mt-1 space-y-3;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  color: var(--color-ink);
 }
 
 .pe10-details {
-  @apply grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100;
+  @apply grid grid-cols-3 gap-4 mt-6 pt-6;
+  border-top: 1px solid var(--color-border);
 }
 
 .pe10-detail-item {
@@ -64,20 +87,27 @@
 }
 
 .pe10-detail-label {
-  @apply text-xs text-gray-500 uppercase tracking-wide;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-muted);
 }
 
 .pe10-detail-value {
-  @apply text-lg font-semibold text-gray-900 mt-1;
+  font-family: 'DM Mono', monospace;
+  @apply text-lg font-normal mt-1;
+  color: var(--color-ink);
 }
 
 .pe10-error {
-  @apply text-center text-gray-500 italic py-4;
+  @apply text-center italic py-4;
+  color: var(--color-muted);
 }
 
 .pe10-loading {
-  @apply max-w-2xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 p-8
+  @apply max-w-2xl mx-auto bg-white p-8
     animate-pulse;
+  border: 1px solid var(--color-border);
 }
 
 .pe10-loading-bar {
@@ -98,13 +128,21 @@
 
 /* Calculation details (expandable) */
 .pe10-calc-wrapper {
-  @apply mt-6 pt-4 border-t border-gray-100;
+  @apply mt-6 pt-4;
+  border-top: 1px solid var(--color-border);
 }
 
 .pe10-calc-toggle {
-  @apply w-full text-center text-sm text-teal-600 hover:text-teal-800
-    cursor-pointer bg-transparent border-none py-2 font-medium
-    flex items-center justify-center gap-1 transition-colors;
+  font-family: 'DM Mono', monospace;
+  @apply w-full text-center text-xs
+    cursor-pointer bg-transparent border-none py-2 font-normal
+    flex items-center justify-center gap-1 transition-colors uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-accent);
+}
+
+.pe10-calc-toggle:hover {
+  color: var(--color-ink);
 }
 
 .pe10-calc-details {
@@ -112,62 +150,92 @@
 }
 
 .pe10-calc-title {
-  @apply text-base font-semibold text-gray-800 mb-4;
+  font-family: 'DM Serif Display', Georgia, serif;
+  @apply text-xl font-normal mb-4;
+  color: var(--color-ink);
 }
 
 .pe10-calc-section {
-  @apply bg-gray-50 rounded-lg px-4 py-3;
+  @apply px-0 py-3;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pe10-calc-section:last-child {
+  border-bottom: none;
 }
 
 .pe10-calc-section-title {
-  @apply text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs font-normal uppercase mb-3;
+  letter-spacing: 0.14em;
+  color: var(--color-muted);
 }
 
 .pe10-calc-table {
-  @apply w-full text-left;
+  font-family: 'DM Mono', monospace;
+  @apply w-full text-left text-sm;
 }
 
 .pe10-calc-table th {
-  @apply text-xs font-medium text-gray-400 uppercase tracking-wide pb-2 border-b border-gray-200;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs font-normal uppercase pb-2;
+  letter-spacing: 0.14em;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-ink);
+  font-size: 9px;
 }
 
 .pe10-calc-table td {
-  @apply py-1.5 text-gray-700;
+  @apply py-1.5;
+  color: var(--color-ink);
 }
 
 .pe10-calc-year-row {
-  @apply border-b border-gray-100;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .pe10-calc-expand-btn {
-  @apply bg-transparent border-none cursor-pointer text-gray-400 hover:text-teal-600
+  @apply bg-transparent border-none cursor-pointer
     p-1 transition-colors text-xs;
+  color: var(--color-muted);
+}
+
+.pe10-calc-expand-btn:hover {
+  color: var(--color-accent);
 }
 
 .pe10-calc-quarter-row {
-  @apply bg-gray-100/50;
+  background: #f8fafc;
 }
 
 .pe10-calc-quarter-row td {
-  @apply text-xs text-gray-500 py-1;
+  font-family: 'DM Mono', monospace;
+  @apply text-xs py-1;
+  color: var(--color-muted);
 }
 
 .pe10-calc-quarter-label {
-  @apply pl-4 font-medium text-gray-500;
+  @apply pl-4 font-normal;
+  color: var(--color-muted);
 }
 
 .pe10-calc-formula {
-  @apply flex justify-between items-center py-1 text-gray-700;
+  font-family: 'DM Mono', monospace;
+  @apply flex justify-between items-center py-1;
+  color: var(--color-ink);
 }
 
 .pe10-calc-formula-val {
-  @apply font-semibold text-gray-900;
+  @apply font-normal;
+  color: var(--color-ink);
 }
 
 .pe10-calc-result {
-  @apply border-t border-gray-300 mt-2 pt-2 text-base font-bold text-teal-700;
+  @apply mt-2 pt-2 text-base font-normal;
+  border-top: 1px solid var(--color-ink);
+  color: var(--color-ink);
 }
 
 .pe10-calc-result .pe10-calc-formula-val {
-  @apply text-teal-700;
+  color: var(--color-ink);
 }
