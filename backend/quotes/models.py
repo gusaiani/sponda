@@ -54,7 +54,11 @@ class BalanceSheet(models.Model):
     end_date = models.DateField()
     total_debt = models.BigIntegerField(
         null=True, blank=True,
-        help_text="Dívida bruta (short + long term debt)",
+        help_text="Dívida bruta (empréstimos + arrendamentos)",
+    )
+    total_lease = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Arrendamentos (leasing CP + LP)",
     )
     total_liabilities = models.BigIntegerField(
         null=True, blank=True,

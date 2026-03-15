@@ -1,7 +1,7 @@
 @reference "tailwindcss";
 
 .pe10-card {
-  @apply max-w-2xl mx-auto bg-white p-8;
+  @apply max-w-3xl mx-auto bg-white p-8;
   border: 1px solid var(--color-border);
 }
 
@@ -31,7 +31,13 @@
 }
 
 .metrics-row {
-  @apply grid grid-cols-2 gap-8 pt-6 pb-2;
+  @apply grid grid-cols-1 gap-6 pt-6 pb-4;
+}
+
+@media (min-width: 640px) {
+  .metrics-row {
+    @apply grid-cols-2 gap-8;
+  }
 }
 
 .metric-value-container {
@@ -42,31 +48,30 @@
   @apply flex flex-col items-center;
 }
 
-.metric-toggle {
+.info-btn {
+  @apply inline-flex items-center justify-center
+    w-4 h-4 rounded-full cursor-pointer
+    text-[9px] leading-none font-normal
+    transition-colors ml-1;
   font-family: 'DM Mono', monospace;
-  @apply w-full text-center text-xs
-    cursor-pointer bg-transparent py-2 mt-2 font-normal
-    flex items-center justify-center gap-1.5 transition-colors uppercase;
-  letter-spacing: 0.14em;
-  color: var(--color-accent);
-  border: none;
-  outline: none;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  padding: 0 0 0 2px;
 }
 
-.metric-toggle:focus,
-.metric-toggle:focus-visible {
+.info-btn:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.info-btn:focus,
+.info-btn:focus-visible {
   outline: none;
   box-shadow: none;
-}
-
-.metric-toggle-icon {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-.metric-toggle:hover {
-  color: var(--color-ink);
 }
 
 /* Modal */
@@ -118,6 +123,7 @@
   @apply text-xs font-normal uppercase mb-1;
   letter-spacing: 0.18em;
   color: var(--color-muted);
+  white-space: nowrap;
 }
 
 .pe10-label-note {
@@ -133,9 +139,18 @@
   color: var(--color-ink);
 }
 
+@media (min-width: 640px) {
+  .leverage-row-3col {
+    @apply grid-cols-3;
+  }
+}
+
+.leverage-row-top .pe10-value {
+  @apply text-4xl;
+}
+
 .leverage-row {
-  @apply mt-0 pb-2;
-  padding-top: 30px;
+  @apply mt-0;
   border-top: 1px solid var(--color-border);
 }
 
@@ -143,9 +158,12 @@
   @apply text-4xl;
 }
 
-.leverage-toggle {
-  @apply mx-auto mt-0 mb-6;
+@media (min-width: 640px) {
+  .valuation-row {
+    @apply grid-cols-3;
+  }
 }
+
 
 .pe10-warning {
   font-family: 'DM Mono', monospace;
@@ -156,7 +174,7 @@
 }
 
 .pe10-explainer-wrapper {
-  @apply max-w-2xl mx-auto mb-8;
+  @apply max-w-3xl mx-auto mb-8;
 }
 
 .pe10-explainer-toggle {
@@ -214,7 +232,7 @@
 }
 
 .pe10-loading {
-  @apply max-w-2xl mx-auto bg-white p-8
+  @apply max-w-3xl mx-auto bg-white p-8
     animate-pulse;
   border: 1px solid var(--color-border);
 }

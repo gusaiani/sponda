@@ -201,10 +201,41 @@ def fetch_balance_sheets(ticker: str) -> list[dict]:
     return results[0].get("balanceSheetHistory", [])
 
 
+def _fetch_annual_lease_data(ticker: str) -> dict[str, tuple[int | None, int | None]]:
+    """Fetch lease fields from annual balance sheets (keyed by endDate).
+
+    The quarterly BRAPI module often omits leaseFinancing fields, but the
+    annual module includes them.  Returns {end_date_str: (lease_current, lease_long)}.
+    """
+    try:
+        data = _get(
+            f"/quote/{ticker}",
+            params={"modules": "balanceSheetHistory"},
+        )
+        results = data.get("results", [])
+        if not results:
+            return {}
+        stmts = results[0].get("balanceSheetHistory", [])
+    except BRAPIError:
+        return {}
+
+    out: dict[str, tuple[int | None, int | None]] = {}
+    for stmt in stmts:
+        ed = stmt.get("endDate", "")[:10]
+        lc = stmt.get("leaseFinancing")
+        ll = stmt.get("longTermLeaseFinancing")
+        if lc is not None or ll is not None:
+            out[ed] = (lc, ll)
+    return out
+
+
 def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
     """Fetch and store balance sheet data for a ticker from BRAPI."""
     statements = fetch_balance_sheets(ticker)
     sheets = []
+
+    # Pre-fetch annual lease data in case quarterly doesn't have it
+    annual_lease: dict[str, tuple[int | None, int | None]] | None = None
 
     for stmt in statements:
         end_date_str = stmt.get("endDate", "")[:10]
@@ -213,12 +244,28 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
 
         end_date = date.fromisoformat(end_date_str)
 
-        # Gross debt: loans + financing (current + non-current) + lease financing
+        # Gross debt: loansAndFinancing already includes leasing in BRAPI
+        # (BRAPI's loansAndFinancing = financiamentos + arrendamentos)
         loans_current = stmt.get("loansAndFinancing")
         loans_long = stmt.get("longTermLoansAndFinancing")
         lease_current = stmt.get("leaseFinancing")
         lease_long = stmt.get("longTermLeaseFinancing")
-        debt_parts = [loans_current, loans_long, lease_current, lease_long]
+
+        # If quarterly has no lease fields, try annual for the same date
+        if lease_current is None and lease_long is None:
+            if annual_lease is None:
+                annual_lease = _fetch_annual_lease_data(ticker)
+            if end_date_str in annual_lease:
+                lease_current, lease_long = annual_lease[end_date_str]
+
+        lease_parts = [lease_current, lease_long]
+        if any(p is not None for p in lease_parts):
+            total_lease = sum(int(p) for p in lease_parts if p is not None)
+        else:
+            total_lease = None
+
+        # total_debt = loans (which already include leases) — do NOT add lease again
+        debt_parts = [loans_current, loans_long]
         if any(p is not None for p in debt_parts):
             total_debt = sum(int(p) for p in debt_parts if p is not None)
         else:
@@ -242,6 +289,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
             end_date=end_date,
             defaults={
                 "total_debt": total_debt,
+                "total_lease": total_lease,
                 "total_liabilities": total_liab,
                 "stockholders_equity": equity,
             },

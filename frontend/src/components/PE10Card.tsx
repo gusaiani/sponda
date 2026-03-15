@@ -54,10 +54,12 @@ interface QuoteData {
   pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
   // Leverage
   debtToEquity: number | null;
+  debtExLeaseToEquity: number | null;
   liabilitiesToEquity: number | null;
   leverageError: string | null;
   leverageDate: string | null;
   totalDebt: number | null;
+  totalLease: number | null;
   totalLiabilities: number | null;
   stockholdersEquity: number | null;
   // Debt coverage
@@ -67,11 +69,22 @@ interface QuoteData {
   peg: number | null;
   earningsCAGR: number | null;
   pegError: string | null;
+  // PFCLG
+  pfcfPeg: number | null;
+  fcfCAGR: number | null;
+  pfcfPegError: string | null;
 }
 
 interface PE10CardProps {
   data: QuoteData;
 }
+
+type ModalKey =
+  | "debtToEquity" | "debtExLease" | "liabToEquity"
+  | "debtToEarnings" | "debtToFCF"
+  | "pl10" | "peg" | "cagrEarnings"
+  | "pfcl10" | "pfclg" | "cagrFCF"
+  | null;
 
 /** Map backend labels (PE10, PFCF7…) to Portuguese equivalents */
 function ptLabel(label: string): string {
@@ -95,6 +108,16 @@ function formatQuarterLabel(dateStr: string): string {
   const [year, month] = dateStr.split("-").map(Number);
   const q = Math.ceil(month / 3);
   return `${q}T${year}`;
+}
+
+/* ── Inline ? button ── */
+
+function InfoBtn({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="info-btn" onClick={onClick} type="button" aria-label="Mais informações">
+      ?
+    </button>
+  );
 }
 
 /* ── Modal ── */
@@ -126,9 +149,215 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-/* ── P/L10 "Entenda melhor" ── */
+/* ── Balance sheet components helper ── */
 
-function PL10Details({ data }: { data: QuoteData }) {
+function BalanceSheetComponents({ data }: { data: QuoteData }) {
+  if (data.stockholdersEquity === null) return null;
+  return (
+    <div className="pe10-calc-details">
+      {data.leverageDate && (
+        <div className="pe10-calc-section">
+          <div className="pe10-calc-section-title">Data do balanço</div>
+          <div className="pe10-calc-formula">
+            <span>Referência</span>
+            <span className="pe10-calc-formula-val">{data.leverageDate}</span>
+          </div>
+        </div>
+      )}
+      <div className="pe10-calc-section">
+        <div className="pe10-calc-section-title">Componentes</div>
+        {data.totalDebt !== null && (
+          <div className="pe10-calc-formula">
+            <span>Dívida Bruta</span>
+            <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+          </div>
+        )}
+        {data.totalLease !== null && (
+          <div className="pe10-calc-formula">
+            <span>Arrendamentos (Leasing)</span>
+            <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLease)}</span>
+          </div>
+        )}
+        {data.totalLiabilities !== null && (
+          <div className="pe10-calc-formula">
+            <span>Passivo Total</span>
+            <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLiabilities)}</span>
+          </div>
+        )}
+        <div className="pe10-calc-formula">
+          <span>Patrimônio Líquido</span>
+          <span className="pe10-calc-formula-val">{formatLargeNumber(data.stockholdersEquity)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Per-metric modal content ── */
+
+function DebtToEquityInfo({ data }: { data: QuoteData }) {
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>Dívida Bruta / PL</strong> mede quanto da estrutura de capital
+          da empresa é financiada por dívida em relação ao patrimônio dos
+          acionistas. Valores altos indicam maior alavancagem financeira e,
+          portanto, maior risco em cenários adversos.
+        </p>
+        <p>
+          Compare entre empresas do mesmo setor. Setores como infraestrutura e
+          bancos operam naturalmente com alavancagem mais elevada.
+        </p>
+      </div>
+      <BalanceSheetComponents data={data} />
+      {data.debtToEquity !== null && data.stockholdersEquity !== null && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-formula">
+              <span>{formatLargeNumber(data.totalDebt!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+              <span className="pe10-calc-formula-val">= {br(data.debtToEquity, 2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function DebtExLeaseInfo({ data }: { data: QuoteData }) {
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>Dív - Arrend. / PL</strong> é a dívida bruta excluindo
+          arrendamentos (leasing) dividida pelo patrimônio líquido. Com a adoção
+          do IFRS 16, obrigações de leasing passaram a ser registradas como
+          dívida no balanço. Excluí-las mostra a alavancagem financeira "pura",
+          sem o componente operacional de arrendamentos.
+        </p>
+      </div>
+      <BalanceSheetComponents data={data} />
+      {data.debtExLeaseToEquity !== null && data.totalDebt !== null && data.stockholdersEquity !== null && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-formula">
+              <span>({formatLargeNumber(data.totalDebt)} − {formatLargeNumber(data.totalLease ?? 0)}) ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+              <span className="pe10-calc-formula-val">= {br(data.debtExLeaseToEquity, 2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function LiabToEquityInfo({ data }: { data: QuoteData }) {
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>Passivo / PL</strong> considera todas as obrigações da empresa
+          (não apenas dívidas financeiras, mas também fornecedores, tributos,
+          provisões etc.) em relação ao patrimônio líquido. Valores elevados
+          sugerem dependência de capital de terceiros.
+        </p>
+        <p>
+          É uma medida mais ampla que Dív. Bruta / PL. Compare sempre entre
+          empresas do mesmo setor.
+        </p>
+      </div>
+      <BalanceSheetComponents data={data} />
+      {data.liabilitiesToEquity !== null && data.stockholdersEquity !== null && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-formula">
+              <span>{formatLargeNumber(data.totalLiabilities!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+              <span className="pe10-calc-formula-val">= {br(data.liabilitiesToEquity, 2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function DebtToEarningsInfo({ data }: { data: QuoteData }) {
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>Dív. Bruta / Lucro Médio</strong> indica quantos anos de lucro
+          líquido médio (ajustado pela inflação, últimos 10 anos) seriam
+          necessários para quitar a dívida bruta. Quanto menor, mais confortável.
+        </p>
+        <p>
+          A média de 10 anos suaviza ciclos econômicos e resultados atípicos.
+          N/A indica lucro médio negativo no período.
+        </p>
+      </div>
+      {data.totalDebt !== null && data.debtToAvgEarnings !== null && data.avgAdjustedNetIncome !== null && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-formula">
+              <span>Dívida Bruta</span>
+              <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+            </div>
+            <div className="pe10-calc-formula">
+              <span>Lucro Líquido Médio Ajustado ({data.pe10YearsOfData}a)</span>
+              <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedNetIncome)}</span>
+            </div>
+            <div className="pe10-calc-formula pe10-calc-result">
+              <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedNetIncome)}</span>
+              <span className="pe10-calc-formula-val">= {br(data.debtToAvgEarnings, 2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function DebtToFCFInfo({ data }: { data: QuoteData }) {
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>Dív. Bruta / FCL Médio</strong> indica quantos anos de fluxo de
+          caixa livre médio (ajustado pela inflação, últimos 10 anos) seriam
+          necessários para quitar a dívida bruta. Como o FCL representa dinheiro
+          que de fato entra no caixa, tende a ser mais conservador que o
+          indicador baseado em lucro.
+        </p>
+      </div>
+      {data.totalDebt !== null && data.debtToAvgFCF !== null && data.avgAdjustedFCF !== null && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-formula">
+              <span>Dívida Bruta</span>
+              <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+            </div>
+            <div className="pe10-calc-formula">
+              <span>FCL Médio Ajustado ({data.pfcf10YearsOfData}a)</span>
+              <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedFCF)}</span>
+            </div>
+            <div className="pe10-calc-formula pe10-calc-result">
+              <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedFCF)}</span>
+              <span className="pe10-calc-formula-val">= {br(data.debtToAvgFCF, 2)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function PL10Info({ data }: { data: QuoteData }) {
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
   const label = ptLabel(data.pe10Label);
   const hasCalc = data.pe10CalculationDetails.length > 0;
@@ -140,22 +369,15 @@ function PL10Details({ data }: { data: QuoteData }) {
     <>
       <div className="modal-explainer">
         <p>
-          O <strong>{label}</strong> (também conhecido como <strong>CAPE</strong>)
-          é o índice preço/lucro calculado sobre a média dos lucros reais
-          (ajustados pela inflação) dos últimos 10 anos.
+          O <strong>{label}</strong> (CAPE) é o preço/lucro calculado sobre a
+          média dos lucros reais (ajustados pela inflação) dos últimos 10 anos.
+          Suaviza oscilações cíclicas e mostra quanto o mercado paga por real de
+          lucro de forma mais estável.
         </p>
         <p>
-          Ao suavizar oscilações cíclicas de curto prazo, o {label} oferece uma
-          visão mais estável de quanto o mercado está pagando por cada real de
-          lucro. Valores elevados sugerem que o ativo pode estar caro em
-          relação ao seu histórico de rentabilidade, enquanto valores baixos
-          podem indicar oportunidades.
-        </p>
-        <p>
-          <strong>Atenção:</strong> para empresas em forte crescimento ou
-          declínio, o {label} pode levar a conclusões equivocadas, já que a média
-          de 10 anos não reflete a trajetória recente dos lucros. Use-o como
-          um dos fatores da análise, não como critério único.
+          Valores elevados sugerem ativo caro; valores baixos podem indicar
+          oportunidades. Para empresas em forte crescimento ou declínio, a média
+          de 10 anos pode não refletir a trajetória recente.
         </p>
       </div>
 
@@ -241,9 +463,7 @@ function PL10Details({ data }: { data: QuoteData }) {
   );
 }
 
-/* ── P/FCL10 "Entenda melhor" ── */
-
-function PFCL10Details({ data }: { data: QuoteData }) {
+function PFCL10Info({ data }: { data: QuoteData }) {
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
   const label = ptLabel(data.pfcf10Label);
   const hasCalc = data.pfcf10CalculationDetails.length > 0;
@@ -255,28 +475,14 @@ function PFCL10Details({ data }: { data: QuoteData }) {
     <>
       <div className="modal-explainer">
         <p>
-          O <strong>{label}</strong> é o índice preço/fluxo de caixa livre
-          calculado sobre a média do fluxo de caixa livre real (ajustado pela
-          inflação) dos últimos 10 anos.
+          O <strong>{label}</strong> é o preço/fluxo de caixa livre calculado
+          sobre a média do FCL real (ajustado pela inflação) dos últimos 10 anos.
+          FCL = fluxo de caixa operacional + fluxo de caixa de investimento.
         </p>
         <p>
-          <strong>Fluxo de caixa livre (FCL)</strong> é o caixa que a empresa
-          de fato gera após seus investimentos. Aqui, definimos FCL como
-          fluxo de caixa operacional + fluxo de caixa de investimento.
-        </p>
-        <p>
-          <strong>Qual a diferença entre FCL e lucro?</strong> O lucro líquido
-          é um número contábil que inclui itens não-monetários como depreciação,
-          amortização e provisões. Uma empresa pode reportar lucro alto mas gerar
-          pouco caixa — ou vice-versa. O FCL mostra quanto dinheiro realmente
-          entrou (ou saiu) do caixa, o que é mais difícil de manipular e mais
-          relevante para quem quer saber o que a empresa pode distribuir aos
-          acionistas ou reinvestir.
-        </p>
-        <p>
-          O {label} complementa o {ptLabel(data.pe10Label)}: comparar os dois
-          indicadores para uma mesma empresa revela se os lucros reportados se
-          traduzem em geração real de caixa.
+          Diferente do lucro contábil, o FCL mostra quanto dinheiro realmente
+          entrou no caixa — mais difícil de manipular. Compare o {label} com
+          o {ptLabel(data.pe10Label)} para ver se lucros se traduzem em caixa.
         </p>
       </div>
 
@@ -366,138 +572,51 @@ function PFCL10Details({ data }: { data: QuoteData }) {
   );
 }
 
-/* ── Leverage "Entenda melhor" ── */
+function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fcf" }) {
+  const isEarnings = variant === "earnings";
+  const label = isEarnings ? "PEG" : "PFCLG";
+  const baseLabel = isEarnings ? ptLabel(data.pe10Label) : ptLabel(data.pfcf10Label);
+  const baseValue = isEarnings ? data.pe10 : data.pfcf10;
+  const cagr = isEarnings ? data.earningsCAGR : data.fcfCAGR;
+  const peg = isEarnings ? data.peg : data.pfcfPeg;
+  const metricName = isEarnings ? "lucros" : "fluxo de caixa livre";
 
-function LeverageDetails({ data }: { data: QuoteData }) {
   return (
     <>
       <div className="modal-explainer">
         <p>
-          <strong>Dívida Bruta / PL</strong> mede quanto da estrutura de capital
-          da empresa é financiada por dívida em relação ao patrimônio dos
-          acionistas. Valores altos indicam maior alavancagem financeira e,
-          portanto, maior risco em cenários adversos.
+          O <strong>{label}</strong>, popularizado por Peter Lynch, relaciona o
+          múltiplo de {metricName} com o crescimento real da empresa:
+          {" "}<strong>{baseLabel}</strong> ÷ <strong>CAGR</strong> {isEarnings ? "dos lucros reais" : "do FCL real"}.
         </p>
         <p>
-          <strong>Passivo / PL</strong> é uma medida mais ampla: considera todas
-          as obrigações da empresa (não apenas dívidas financeiras, mas também
-          fornecedores, tributos, provisões etc.) em relação ao patrimônio
-          líquido. Valores elevados sugerem que a empresa depende mais de
-          capital de terceiros do que de capital próprio.
+          Abaixo de 1 sugere preço atrativo em relação ao crescimento. Acima de
+          1, o mercado pode estar pagando caro. Só é calculável quando o {baseLabel} é
+          positivo e houve crescimento no período.
         </p>
-        <p>
-          <strong>Atenção:</strong> estes indicadores devem ser comparados entre
-          empresas do mesmo setor. Setores como infraestrutura e bancos operam
-          naturalmente com alavancagem mais elevada.
-        </p>
+        {!isEarnings && (
+          <p>
+            O PFCLG complementa o PEG: usa fluxo de caixa livre em vez de lucro
+            contábil — mais difícil de manipular.
+          </p>
+        )}
       </div>
 
-      {data.stockholdersEquity !== null && (
+      {peg !== null && baseValue !== null && cagr !== null && (
         <div className="pe10-calc-details">
-          <h4 className="pe10-calc-title">Valores do balanço</h4>
-          {data.leverageDate && (
-            <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">Data do balanço</div>
-              <div className="pe10-calc-formula">
-                <span>Referência</span>
-                <span className="pe10-calc-formula-val">{data.leverageDate}</span>
-              </div>
-            </div>
-          )}
-
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Componentes</div>
-            {data.totalDebt !== null && (
-              <div className="pe10-calc-formula">
-                <span>Dívida Bruta</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
-              </div>
-            )}
-            {data.totalLiabilities !== null && (
-              <div className="pe10-calc-formula">
-                <span>Passivo Total</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLiabilities)}</span>
-              </div>
-            )}
+            <div className="pe10-calc-section-title">Cálculo</div>
             <div className="pe10-calc-formula">
-              <span>Patrimônio Líquido</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(data.stockholdersEquity)}</span>
-            </div>
-          </div>
-
-          {data.debtToEquity !== null && (
-            <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">Dívida Bruta / PL</div>
-              <div className="pe10-calc-formula">
-                <span>{formatLargeNumber(data.totalDebt!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
-                <span className="pe10-calc-formula-val">= {br(data.debtToEquity, 2)}</span>
-              </div>
-            </div>
-          )}
-
-          {data.liabilitiesToEquity !== null && (
-            <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">Passivo / PL</div>
-              <div className="pe10-calc-formula">
-                <span>{formatLargeNumber(data.totalLiabilities!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
-                <span className="pe10-calc-formula-val">= {br(data.liabilitiesToEquity, 2)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </>
-  );
-}
-
-/* ── PEG "Entenda melhor" ── */
-
-function PEGDetails({ data }: { data: QuoteData }) {
-  const pl10Label = ptLabel(data.pe10Label);
-  return (
-    <>
-      <div className="modal-explainer">
-        <p>
-          O <strong>PEG</strong> (Price/Earnings to Growth), popularizado por
-          Peter Lynch, relaciona o múltiplo de lucros com o crescimento real
-          da empresa. Aqui, usamos o <strong>{pl10Label}</strong> (ajustado pela
-          inflação) dividido pelo <strong>CAGR</strong> (taxa de crescimento
-          anual composta) dos lucros reais no mesmo período.
-        </p>
-        <p>
-          Um PEG abaixo de 1 sugere que o preço está atrativo em relação ao
-          crescimento. Acima de 1, o mercado pode estar pagando caro pelo
-          crescimento esperado. Valores muito baixos merecem investigação —
-          podem indicar oportunidade ou deterioração futura dos lucros.
-        </p>
-        <p>
-          <strong>Atenção:</strong> o PEG só é calculável quando o {pl10Label} é
-          positivo e os lucros reais cresceram no período. Se a empresa encolheu
-          ou teve prejuízo, o PEG não se aplica.
-        </p>
-      </div>
-
-      {data.peg !== null && data.pe10 !== null && data.earningsCAGR !== null && (
-        <div className="pe10-calc-details">
-          <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
-
-          <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Componentes</div>
-            <div className="pe10-calc-formula">
-              <span>{pl10Label}</span>
-              <span className="pe10-calc-formula-val">{br(data.pe10, 2)}</span>
+              <span>{baseLabel}</span>
+              <span className="pe10-calc-formula-val">{br(baseValue, 2)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>CAGR dos lucros reais</span>
-              <span className="pe10-calc-formula-val">{br(data.earningsCAGR, 2)}%</span>
+              <span>CAGR {isEarnings ? "lucros reais" : "FCL real"}</span>
+              <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
             </div>
-          </div>
-
-          <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">PEG</div>
-            <div className="pe10-calc-formula">
-              <span>{br(data.pe10, 2)} ÷ {br(data.earningsCAGR, 2)}</span>
-              <span className="pe10-calc-formula-val">= {br(data.peg, 2)}</span>
+            <div className="pe10-calc-formula pe10-calc-result">
+              <span>{br(baseValue, 2)} ÷ {br(cagr, 2)}</span>
+              <span className="pe10-calc-formula-val">= {br(peg, 2)}</span>
             </div>
           </div>
         </div>
@@ -506,98 +625,66 @@ function PEGDetails({ data }: { data: QuoteData }) {
   );
 }
 
-/* ── Debt Coverage "Entenda melhor" ── */
-
-function DebtCoverageDetails({ data }: { data: QuoteData }) {
+function CAGRInfo({ variant }: { variant: "earnings" | "fcf" }) {
+  const isEarnings = variant === "earnings";
   return (
-    <>
-      <div className="modal-explainer">
-        <p>
-          <strong>Dív. Bruta / Lucro Médio</strong> indica quantos anos de lucro
-          líquido médio (ajustado pela inflação, últimos 10 anos) seriam
-          necessários para quitar a dívida bruta da empresa. Quanto menor, mais
-          confortável a situação.
-        </p>
-        <p>
-          <strong>Dív. Bruta / FCL Médio</strong> é a mesma ideia, mas usando o
-          fluxo de caixa livre médio em vez do lucro contábil. Como o FCL
-          representa o dinheiro que de fato entra no caixa, este indicador tende
-          a ser mais conservador e realista.
-        </p>
-        <p>
-          <strong>Por que usar a média de 10 anos?</strong> Suaviza ciclos
-          econômicos e resultados atípicos, dando uma visão mais estável da
-          capacidade de pagamento da empresa ao longo do tempo.
-        </p>
-        <p>
-          <strong>Atenção:</strong> valores negativos ou N/A indicam que a
-          empresa não gerou lucro ou caixa positivo em média no período, o que
-          torna a métrica inaplicável. Compare sempre empresas do mesmo setor.
-        </p>
-      </div>
-
-      {data.totalDebt !== null && (
-        <div className="pe10-calc-details">
-          <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
-
-          <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Componentes</div>
-            <div className="pe10-calc-formula">
-              <span>Dívida Bruta</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
-            </div>
-            {data.avgAdjustedNetIncome !== null && (
-              <div className="pe10-calc-formula">
-                <span>Lucro Líquido Médio Ajustado ({data.pe10YearsOfData}a)</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedNetIncome)}</span>
-              </div>
-            )}
-            {data.avgAdjustedFCF !== null && (
-              <div className="pe10-calc-formula">
-                <span>FCL Médio Ajustado ({data.pfcf10YearsOfData}a)</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedFCF)}</span>
-              </div>
-            )}
-          </div>
-
-          {data.debtToAvgEarnings !== null && data.avgAdjustedNetIncome !== null && (
-            <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">Dív. Bruta / Lucro Médio</div>
-              <div className="pe10-calc-formula">
-                <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedNetIncome)}</span>
-                <span className="pe10-calc-formula-val">= {br(data.debtToAvgEarnings, 2)}</span>
-              </div>
-            </div>
-          )}
-
-          {data.debtToAvgFCF !== null && data.avgAdjustedFCF !== null && (
-            <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">Dív. Bruta / FCL Médio</div>
-              <div className="pe10-calc-formula">
-                <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedFCF)}</span>
-                <span className="pe10-calc-formula-val">= {br(data.debtToAvgFCF, 2)}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </>
+    <div className="modal-explainer">
+      <p>
+        <strong>CAGR</strong> (taxa de crescimento anual composta) mede o
+        crescimento real {isEarnings ? "dos lucros líquidos" : "do fluxo de caixa livre"} ao
+        longo do período disponível, ajustado pela inflação (IPCA).
+      </p>
+      <p>
+        O cálculo compara o {isEarnings ? "lucro" : "FCL"} ajustado do ano mais
+        antigo com o mais recente: CAGR = (valor final / valor inicial)^(1/n) − 1.
+        Valores negativos indicam que {isEarnings ? "os lucros" : "o FCL"} encolheram
+        em termos reais.
+      </p>
+    </div>
   );
 }
+
+/* ── Modal content router ── */
+
+function ModalContent({ modalKey, data }: { modalKey: ModalKey; data: QuoteData }) {
+  switch (modalKey) {
+    case "debtToEquity": return <DebtToEquityInfo data={data} />;
+    case "debtExLease": return <DebtExLeaseInfo data={data} />;
+    case "liabToEquity": return <LiabToEquityInfo data={data} />;
+    case "debtToEarnings": return <DebtToEarningsInfo data={data} />;
+    case "debtToFCF": return <DebtToFCFInfo data={data} />;
+    case "pl10": return <PL10Info data={data} />;
+    case "peg": return <PEGInfo data={data} variant="earnings" />;
+    case "cagrEarnings": return <CAGRInfo variant="earnings" />;
+    case "pfcl10": return <PFCL10Info data={data} />;
+    case "pfclg": return <PEGInfo data={data} variant="fcf" />;
+    case "cagrFCF": return <CAGRInfo variant="fcf" />;
+    default: return null;
+  }
+}
+
+const MODAL_TITLES: Record<string, (data: QuoteData) => string> = {
+  debtToEquity: () => "Dív. Bruta / PL",
+  debtExLease: () => "Dív - Arrend. / PL",
+  liabToEquity: () => "Passivo / PL",
+  debtToEarnings: () => "Dív. Bruta / Lucro Médio",
+  debtToFCF: () => "Dív. Bruta / FCL Médio",
+  pl10: (d) => ptLabel(d.pe10Label),
+  peg: () => "PEG",
+  cagrEarnings: () => "CAGR Lucros",
+  pfcl10: (d) => ptLabel(d.pfcf10Label),
+  pfclg: () => "PFCLG",
+  cagrFCF: () => "CAGR FCL",
+};
 
 /* ── Main Card ── */
 
 export function PE10Card({ data }: PE10CardProps) {
-  const [showPL10, setShowPL10] = useState(false);
-  const [showPFCL10, setShowPFCL10] = useState(false);
-  const [showLeverage, setShowLeverage] = useState(false);
-  const [showDebtCoverage, setShowDebtCoverage] = useState(false);
-  const [showPEG, setShowPEG] = useState(false);
+  const [activeModal, setActiveModal] = useState<ModalKey>(null);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
-
-  const hasLeverage = data.debtToEquity !== null || data.liabilitiesToEquity !== null;
+  const open = (key: ModalKey) => setActiveModal(key);
 
   return (
     <div className="pe10-card">
@@ -615,10 +702,10 @@ export function PE10Card({ data }: PE10CardProps) {
       </div>
 
       {/* Leverage metrics (defensive — top) */}
-      <div className="metrics-row">
+      <div className={`metrics-row leverage-row-top ${data.debtExLeaseToEquity !== null ? "leverage-row-3col" : ""}`}>
         <div className="metric-block">
           <div className="metric-value-container">
-            <div className="pe10-label">Dív. Bruta / PL</div>
+            <div className="pe10-label">Dív. Bruta / PL <InfoBtn onClick={() => open("debtToEquity")} /></div>
             {data.debtToEquity !== null ? (
               <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
             ) : (
@@ -626,9 +713,17 @@ export function PE10Card({ data }: PE10CardProps) {
             )}
           </div>
         </div>
+        {data.debtExLeaseToEquity !== null && (
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">Dív - Arrend. / PL <InfoBtn onClick={() => open("debtExLease")} /></div>
+              <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
+            </div>
+          </div>
+        )}
         <div className="metric-block">
           <div className="metric-value-container">
-            <div className="pe10-label">Passivo / PL</div>
+            <div className="pe10-label">Passivo / PL <InfoBtn onClick={() => open("liabToEquity")} /></div>
             {data.liabilitiesToEquity !== null ? (
               <div className="pe10-value">{br(data.liabilitiesToEquity, 2)}</div>
             ) : (
@@ -637,26 +732,12 @@ export function PE10Card({ data }: PE10CardProps) {
           </div>
         </div>
       </div>
-      {hasLeverage && (
-        <button
-          className="metric-toggle leverage-toggle"
-          onClick={() => setShowLeverage(true)}
-        >
-          <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-          Entenda melhor
-        </button>
-      )}
-      {showLeverage && (
-        <Modal title={`Alavancagem — ${data.name}`} onClose={() => setShowLeverage(false)}>
-          <LeverageDetails data={data} />
-        </Modal>
-      )}
 
       {/* Debt coverage metrics */}
       <div className="metrics-row leverage-row">
         <div className="metric-block">
           <div className="metric-value-container">
-            <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média 10a</span></div>
+            <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média 10a</span> <InfoBtn onClick={() => open("debtToEarnings")} /></div>
             {data.debtToAvgEarnings !== null ? (
               <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
             ) : (
@@ -666,7 +747,7 @@ export function PE10Card({ data }: PE10CardProps) {
         </div>
         <div className="metric-block">
           <div className="metric-value-container">
-            <div className="pe10-label">Dív. Bruta / FCL <span className="pe10-label-note">média 10a</span></div>
+            <div className="pe10-label">Dív. Bruta / FCL <span className="pe10-label-note">média 10a</span> <InfoBtn onClick={() => open("debtToFCF")} /></div>
             {data.debtToAvgFCF !== null ? (
               <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
             ) : (
@@ -675,75 +756,22 @@ export function PE10Card({ data }: PE10CardProps) {
           </div>
         </div>
       </div>
-      <button
-        className="metric-toggle leverage-toggle"
-        onClick={() => setShowDebtCoverage(true)}
-      >
-        <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-        Entenda melhor
-      </button>
-      {showDebtCoverage && (
-        <Modal title={`Cobertura da Dívida — ${data.name}`} onClose={() => setShowDebtCoverage(false)}>
-          <DebtCoverageDetails data={data} />
-        </Modal>
-      )}
 
-      {/* Price metrics (valuation — bottom) */}
-      <div className="metrics-row leverage-row">
-        {/* P/L10 */}
+      {/* Earnings row: P/L10, PEG, CAGR Lucros */}
+      <div className="metrics-row leverage-row valuation-row">
         <div className="metric-block">
           <div className="metric-value-container">
-            <div className="pe10-label">{pl10Label}</div>
+            <div className="pe10-label">{pl10Label} <InfoBtn onClick={() => open("pl10")} /></div>
             {data.pe10 !== null ? (
               <div className="pe10-value">{br(data.pe10, 1)}</div>
             ) : (
               <div className="pe10-error">{data.pe10Error}</div>
             )}
           </div>
-          <button
-            className="metric-toggle"
-            onClick={() => setShowPL10(true)}
-          >
-            <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-            Entenda melhor
-          </button>
-          {showPL10 && (
-            <Modal title={`${pl10Label} — ${data.name}`} onClose={() => setShowPL10(false)}>
-              <PL10Details data={data} />
-            </Modal>
-          )}
         </div>
-
-        {/* P/FCL10 */}
         <div className="metric-block">
           <div className="metric-value-container">
-            <div className="pe10-label">{pfcl10Label}</div>
-            {data.pfcf10 !== null ? (
-              <div className="pe10-value">{br(data.pfcf10, 1)}</div>
-            ) : (
-              <div className="pe10-error">{data.pfcf10Error}</div>
-            )}
-          </div>
-          <button
-            className="metric-toggle"
-            onClick={() => setShowPFCL10(true)}
-          >
-            <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-            Entenda melhor
-          </button>
-          {showPFCL10 && (
-            <Modal title={`${pfcl10Label} — ${data.name}`} onClose={() => setShowPFCL10(false)}>
-              <PFCL10Details data={data} />
-            </Modal>
-          )}
-        </div>
-      </div>
-
-      {/* PEG */}
-      <div className="metrics-row leverage-row">
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">PEG <span className="pe10-label-note">Lynch</span></div>
+            <div className="pe10-label">PEG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("peg")} /></div>
             {data.peg !== null ? (
               <div className="pe10-value">{br(data.peg, 2)}</div>
             ) : (
@@ -753,7 +781,7 @@ export function PE10Card({ data }: PE10CardProps) {
         </div>
         <div className="metric-block">
           <div className="metric-value-container">
-            <div className="pe10-label">CAGR Lucros <span className="pe10-label-note">real</span></div>
+            <div className="pe10-label">CAGR Lucros <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrEarnings")} /></div>
             {data.earningsCAGR !== null ? (
               <div className="pe10-value">{br(data.earningsCAGR, 1)}%</div>
             ) : (
@@ -762,18 +790,40 @@ export function PE10Card({ data }: PE10CardProps) {
           </div>
         </div>
       </div>
-      <button
-        className="metric-toggle leverage-toggle"
-        onClick={() => setShowPEG(true)}
-      >
-        <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-        Entenda melhor
-      </button>
-      {showPEG && (
-        <Modal title={`PEG — ${data.name}`} onClose={() => setShowPEG(false)}>
-          <PEGDetails data={data} />
-        </Modal>
-      )}
+
+      {/* FCF row: P/FCL10, PFCLG, CAGR FCL */}
+      <div className="metrics-row leverage-row valuation-row">
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">{pfcl10Label} <InfoBtn onClick={() => open("pfcl10")} /></div>
+            {data.pfcf10 !== null ? (
+              <div className="pe10-value">{br(data.pfcf10, 1)}</div>
+            ) : (
+              <div className="pe10-error">{data.pfcf10Error}</div>
+            )}
+          </div>
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">PFCLG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("pfclg")} /></div>
+            {data.pfcfPeg !== null ? (
+              <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
+            ) : (
+              <div className="pe10-error">{data.pfcfPegError || "N/A"}</div>
+            )}
+          </div>
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">CAGR FCL <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrFCF")} /></div>
+            {data.fcfCAGR !== null ? (
+              <div className="pe10-value">{br(data.fcfCAGR, 1)}%</div>
+            ) : (
+              <div className="pe10-error">N/A</div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (
         <div className="pe10-warning">
@@ -804,6 +854,15 @@ export function PE10Card({ data }: PE10CardProps) {
           </div>
         </div>
       </div>
+
+      {activeModal && (
+        <Modal
+          title={`${MODAL_TITLES[activeModal]?.(data) ?? ""} — ${data.name}`}
+          onClose={() => setActiveModal(null)}
+        >
+          <ModalContent modalKey={activeModal} data={data} />
+        </Modal>
+      )}
     </div>
   );
 }

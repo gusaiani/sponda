@@ -13,6 +13,7 @@ from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarning
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
+from .pfcf_peg import calculate_pfcf_peg
 
 
 import re
@@ -93,6 +94,7 @@ class PE10View(APIView):
         pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal)
         leverage_result = calculate_leverage(ticker)
         peg_result = calculate_peg(ticker, pe10_result["pe10"])
+        pfcf_peg_result = calculate_pfcf_peg(ticker, pfcf10_result["pfcf10"])
 
         # Debt / average earnings and debt / average FCF
         total_debt = leverage_result["totalDebt"]
@@ -134,10 +136,12 @@ class PE10View(APIView):
             "pfcf10CalculationDetails": pfcf10_result["calculation_details"],
             # Leverage
             "debtToEquity": leverage_result["debtToEquity"],
+            "debtExLeaseToEquity": leverage_result["debtExLeaseToEquity"],
             "liabilitiesToEquity": leverage_result["liabilitiesToEquity"],
             "leverageError": leverage_result["leverageError"],
             "leverageDate": leverage_result["leverageDate"],
             "totalDebt": leverage_result["totalDebt"],
+            "totalLease": leverage_result["totalLease"],
             "totalLiabilities": leverage_result["totalLiabilities"],
             "stockholdersEquity": leverage_result["stockholdersEquity"],
             # Debt coverage
@@ -147,6 +151,10 @@ class PE10View(APIView):
             "peg": peg_result["peg"],
             "earningsCAGR": peg_result["earningsCAGR"],
             "pegError": peg_result["pegError"],
+            # PFCLG
+            "pfcfPeg": pfcf_peg_result["pfcfPeg"],
+            "fcfCAGR": pfcf_peg_result["fcfCAGR"],
+            "pfcfPegError": pfcf_peg_result["pfcfPegError"],
         })
 
     def _check_rate_limit(self, request):
