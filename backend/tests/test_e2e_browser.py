@@ -101,7 +101,7 @@ class TestBrowserSearch:
     def test_homepage_loads(self, page: Page, url):
         page.goto(url)
         expect(page.get_by_role("heading", name="Sponda")).to_be_visible()
-        expect(page.locator("text=PE10").first).to_be_visible()
+        expect(page.locator("text=investidores em valor").first).to_be_visible()
 
     def test_search_bar_is_visible(self, page: Page, url):
         page.goto(url)
@@ -119,8 +119,8 @@ class TestBrowserSearch:
         # Should show the company name
         expect(page.locator(".pe10-name", has_text="Test Company VALE3")).to_be_visible()
 
-        # Should show PE10 label
-        expect(page.locator(".pe10-label", has_text="PE10")).to_be_visible()
+        # Should show P/L10 label
+        expect(page.locator(".pe10-label", has_text="P/L10")).to_be_visible()
 
     def test_search_shows_price(self, page: Page, url):
         page.goto(url)
