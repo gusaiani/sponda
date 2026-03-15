@@ -151,10 +151,14 @@ class PE10View(APIView):
             "peg": peg_result["peg"],
             "earningsCAGR": peg_result["earningsCAGR"],
             "pegError": peg_result["pegError"],
+            "earningsCAGRMethod": peg_result["earningsCAGRMethod"],
+            "earningsCAGRExcludedYears": peg_result["earningsCAGRExcludedYears"],
             # PFCLG
             "pfcfPeg": pfcf_peg_result["pfcfPeg"],
             "fcfCAGR": pfcf_peg_result["fcfCAGR"],
             "pfcfPegError": pfcf_peg_result["pfcfPegError"],
+            "fcfCAGRMethod": pfcf_peg_result["fcfCAGRMethod"],
+            "fcfCAGRExcludedYears": pfcf_peg_result["fcfCAGRExcludedYears"],
         })
 
     def _check_rate_limit(self, request):
