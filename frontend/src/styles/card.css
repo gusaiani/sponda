@@ -31,7 +31,13 @@
 }
 
 .metrics-row {
-  @apply grid grid-cols-2 gap-8 pt-6 pb-4;
+  @apply grid grid-cols-1 gap-6 pt-6 pb-4;
+}
+
+@media (min-width: 640px) {
+  .metrics-row {
+    @apply grid-cols-2 gap-8;
+  }
 }
 
 .metric-value-container {
@@ -133,8 +139,10 @@
   color: var(--color-ink);
 }
 
-.leverage-row-top {
-  @apply grid-cols-3;
+@media (min-width: 640px) {
+  .leverage-row-top {
+    @apply grid-cols-3;
+  }
 }
 
 .leverage-row-top .pe10-value {
@@ -150,8 +158,10 @@
   @apply text-4xl;
 }
 
-.valuation-row {
-  @apply grid-cols-3;
+@media (min-width: 640px) {
+  .valuation-row {
+    @apply grid-cols-3;
+  }
 }
 
 
