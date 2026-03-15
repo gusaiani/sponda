@@ -54,10 +54,12 @@ interface QuoteData {
   pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
   // Leverage
   debtToEquity: number | null;
+  debtExLeaseToEquity: number | null;
   liabilitiesToEquity: number | null;
   leverageError: string | null;
   leverageDate: string | null;
   totalDebt: number | null;
+  totalLease: number | null;
   totalLiabilities: number | null;
   stockholdersEquity: number | null;
   // Debt coverage
@@ -67,6 +69,10 @@ interface QuoteData {
   peg: number | null;
   earningsCAGR: number | null;
   pegError: string | null;
+  // PFCLG
+  pfcfPeg: number | null;
+  fcfCAGR: number | null;
+  pfcfPegError: string | null;
 }
 
 interface PE10CardProps {
@@ -379,6 +385,13 @@ function LeverageDetails({ data }: { data: QuoteData }) {
           portanto, maior risco em cenários adversos.
         </p>
         <p>
+          <strong>Dív. s/ Arrend. / PL</strong> é a mesma métrica, mas
+          excluindo arrendamentos (leasing) da dívida bruta. Com a adoção do
+          IFRS 16, obrigações de leasing passaram a ser registradas como
+          dívida no balanço. Excluí-las permite uma visão da alavancagem
+          financeira "pura", sem o componente operacional de arrendamentos.
+        </p>
+        <p>
           <strong>Passivo / PL</strong> é uma medida mais ampla: considera todas
           as obrigações da empresa (não apenas dívidas financeiras, mas também
           fornecedores, tributos, provisões etc.) em relação ao patrimônio
@@ -413,6 +426,12 @@ function LeverageDetails({ data }: { data: QuoteData }) {
                 <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
               </div>
             )}
+            {data.totalLease !== null && (
+              <div className="pe10-calc-formula">
+                <span>Arrendamentos (Leasing)</span>
+                <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLease)}</span>
+              </div>
+            )}
             {data.totalLiabilities !== null && (
               <div className="pe10-calc-formula">
                 <span>Passivo Total</span>
@@ -435,6 +454,16 @@ function LeverageDetails({ data }: { data: QuoteData }) {
             </div>
           )}
 
+          {data.debtExLeaseToEquity !== null && data.totalDebt !== null && (
+            <div className="pe10-calc-section">
+              <div className="pe10-calc-section-title">Dív. s/ Arrend. / PL</div>
+              <div className="pe10-calc-formula">
+                <span>({formatLargeNumber(data.totalDebt)} − {formatLargeNumber(data.totalLease ?? 0)}) ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+                <span className="pe10-calc-formula-val">= {br(data.debtExLeaseToEquity, 2)}</span>
+              </div>
+            </div>
+          )}
+
           {data.liabilitiesToEquity !== null && (
             <div className="pe10-calc-section">
               <div className="pe10-calc-section-title">Passivo / PL</div>
@@ -452,52 +481,67 @@ function LeverageDetails({ data }: { data: QuoteData }) {
 
 /* ── PEG "Entenda melhor" ── */
 
-function PEGDetails({ data }: { data: QuoteData }) {
-  const pl10Label = ptLabel(data.pe10Label);
+function PEGDetails({ data, variant }: { data: QuoteData; variant: "earnings" | "fcf" }) {
+  const isEarnings = variant === "earnings";
+  const label = isEarnings ? "PEG" : "PFCLG";
+  const baseLabel = isEarnings ? ptLabel(data.pe10Label) : ptLabel(data.pfcf10Label);
+  const baseValue = isEarnings ? data.pe10 : data.pfcf10;
+  const cagr = isEarnings ? data.earningsCAGR : data.fcfCAGR;
+  const peg = isEarnings ? data.peg : data.pfcfPeg;
+  const cagrName = isEarnings ? "CAGR dos lucros reais" : "CAGR do FCL real";
+  const metricName = isEarnings ? "lucros" : "fluxo de caixa livre";
+
   return (
     <>
       <div className="modal-explainer">
         <p>
-          O <strong>PEG</strong> (Price/Earnings to Growth), popularizado por
-          Peter Lynch, relaciona o múltiplo de lucros com o crescimento real
-          da empresa. Aqui, usamos o <strong>{pl10Label}</strong> (ajustado pela
-          inflação) dividido pelo <strong>CAGR</strong> (taxa de crescimento
-          anual composta) dos lucros reais no mesmo período.
+          O <strong>{label}</strong> ({isEarnings ? "Price/Earnings to Growth" : "Price/FCF to Growth"}),
+          popularizado por Peter Lynch, relaciona o múltiplo de {metricName} com
+          o crescimento real da empresa. Aqui, usamos o <strong>{baseLabel}</strong> (ajustado
+          pela inflação) dividido pelo <strong>CAGR</strong> (taxa de crescimento
+          anual composta) {isEarnings ? "dos lucros reais" : "do FCL real"} no mesmo período.
         </p>
         <p>
-          Um PEG abaixo de 1 sugere que o preço está atrativo em relação ao
+          Um {label} abaixo de 1 sugere que o preço está atrativo em relação ao
           crescimento. Acima de 1, o mercado pode estar pagando caro pelo
           crescimento esperado. Valores muito baixos merecem investigação —
-          podem indicar oportunidade ou deterioração futura dos lucros.
+          podem indicar oportunidade ou deterioração futura.
         </p>
+        {!isEarnings && (
+          <p>
+            O PFCLG complementa o PEG: enquanto o PEG usa lucro contábil, o
+            PFCLG usa fluxo de caixa livre — mais difícil de manipular e mais
+            próximo da geração real de caixa.
+          </p>
+        )}
         <p>
-          <strong>Atenção:</strong> o PEG só é calculável quando o {pl10Label} é
-          positivo e os lucros reais cresceram no período. Se a empresa encolheu
-          ou teve prejuízo, o PEG não se aplica.
+          <strong>Atenção:</strong> o {label} só é calculável quando o {baseLabel} é
+          positivo e {isEarnings ? "os lucros reais cresceram" : "o FCL real cresceu"} no
+          período. Se a empresa encolheu ou teve {isEarnings ? "prejuízo" : "FCL negativo"}, o {label} não se aplica.
         </p>
       </div>
 
-      {data.peg !== null && data.pe10 !== null && data.earningsCAGR !== null && (
+      {peg !== null && baseValue !== null && cagr !== null && (
         <div className="pe10-calc-details">
           <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
 
           <div className="pe10-calc-section">
             <div className="pe10-calc-section-title">Componentes</div>
             <div className="pe10-calc-formula">
-              <span>{pl10Label}</span>
-              <span className="pe10-calc-formula-val">{br(data.pe10, 2)}</span>
+              <span>{baseLabel}</span>
+              <span className="pe10-calc-formula-val">{br(baseValue, 2)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>CAGR dos lucros reais</span>
-              <span className="pe10-calc-formula-val">{br(data.earningsCAGR, 2)}%</span>
+              <span>{cagrName}</span>
+              <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
             </div>
           </div>
 
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">PEG</div>
+            <div className="pe10-calc-section-title">{label}</div>
             <div className="pe10-calc-formula">
-              <span>{br(data.pe10, 2)} ÷ {br(data.earningsCAGR, 2)}</span>
-              <span className="pe10-calc-formula-val">= {br(data.peg, 2)}</span>
+              <span>{br(baseValue, 2)} ÷ {br(cagr, 2)}</span>
+              <span className="pe10-calc-formula-val">= {br(peg, 2)}</span>
             </div>
           </div>
         </div>
@@ -593,11 +637,12 @@ export function PE10Card({ data }: PE10CardProps) {
   const [showLeverage, setShowLeverage] = useState(false);
   const [showDebtCoverage, setShowDebtCoverage] = useState(false);
   const [showPEG, setShowPEG] = useState(false);
+  const [showPFCLG, setShowPFCLG] = useState(false);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
 
-  const hasLeverage = data.debtToEquity !== null || data.liabilitiesToEquity !== null;
+  const hasLeverage = data.debtToEquity !== null || data.debtExLeaseToEquity !== null || data.liabilitiesToEquity !== null;
 
   return (
     <div className="pe10-card">
@@ -615,12 +660,22 @@ export function PE10Card({ data }: PE10CardProps) {
       </div>
 
       {/* Leverage metrics (defensive — top) */}
-      <div className="metrics-row">
+      <div className="metrics-row leverage-row-top">
         <div className="metric-block">
           <div className="metric-value-container">
             <div className="pe10-label">Dív. Bruta / PL</div>
             {data.debtToEquity !== null ? (
               <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
+            ) : (
+              <div className="pe10-error">{data.leverageError || "N/A"}</div>
+            )}
+          </div>
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">Dív. s/ Arrend. / PL</div>
+            {data.debtExLeaseToEquity !== null ? (
+              <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
             ) : (
               <div className="pe10-error">{data.leverageError || "N/A"}</div>
             )}
@@ -688,9 +743,8 @@ export function PE10Card({ data }: PE10CardProps) {
         </Modal>
       )}
 
-      {/* Price metrics (valuation — bottom) */}
-      <div className="metrics-row leverage-row">
-        {/* P/L10 */}
+      {/* Earnings row: P/L10, PEG, CAGR Lucros */}
+      <div className="metrics-row leverage-row valuation-row">
         <div className="metric-block">
           <div className="metric-value-container">
             <div className="pe10-label">{pl10Label}</div>
@@ -700,10 +754,7 @@ export function PE10Card({ data }: PE10CardProps) {
               <div className="pe10-error">{data.pe10Error}</div>
             )}
           </div>
-          <button
-            className="metric-toggle"
-            onClick={() => setShowPL10(true)}
-          >
+          <button className="metric-toggle" onClick={() => setShowPL10(true)}>
             <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
             Entenda melhor
           </button>
@@ -713,34 +764,6 @@ export function PE10Card({ data }: PE10CardProps) {
             </Modal>
           )}
         </div>
-
-        {/* P/FCL10 */}
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">{pfcl10Label}</div>
-            {data.pfcf10 !== null ? (
-              <div className="pe10-value">{br(data.pfcf10, 1)}</div>
-            ) : (
-              <div className="pe10-error">{data.pfcf10Error}</div>
-            )}
-          </div>
-          <button
-            className="metric-toggle"
-            onClick={() => setShowPFCL10(true)}
-          >
-            <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-            Entenda melhor
-          </button>
-          {showPFCL10 && (
-            <Modal title={`${pfcl10Label} — ${data.name}`} onClose={() => setShowPFCL10(false)}>
-              <PFCL10Details data={data} />
-            </Modal>
-          )}
-        </div>
-      </div>
-
-      {/* PEG */}
-      <div className="metrics-row leverage-row">
         <div className="metric-block">
           <div className="metric-value-container">
             <div className="pe10-label">PEG <span className="pe10-label-note">Lynch</span></div>
@@ -750,6 +773,15 @@ export function PE10Card({ data }: PE10CardProps) {
               <div className="pe10-error">{data.pegError || "N/A"}</div>
             )}
           </div>
+          <button className="metric-toggle" onClick={() => setShowPEG(true)}>
+            <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            Entenda melhor
+          </button>
+          {showPEG && (
+            <Modal title={`PEG — ${data.name}`} onClose={() => setShowPEG(false)}>
+              <PEGDetails data={data} variant="earnings" />
+            </Modal>
+          )}
         </div>
         <div className="metric-block">
           <div className="metric-value-container">
@@ -762,18 +794,58 @@ export function PE10Card({ data }: PE10CardProps) {
           </div>
         </div>
       </div>
-      <button
-        className="metric-toggle leverage-toggle"
-        onClick={() => setShowPEG(true)}
-      >
-        <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-        Entenda melhor
-      </button>
-      {showPEG && (
-        <Modal title={`PEG — ${data.name}`} onClose={() => setShowPEG(false)}>
-          <PEGDetails data={data} />
-        </Modal>
-      )}
+
+      {/* FCF row: P/FCL10, PFCLG, CAGR FCL */}
+      <div className="metrics-row leverage-row valuation-row">
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">{pfcl10Label}</div>
+            {data.pfcf10 !== null ? (
+              <div className="pe10-value">{br(data.pfcf10, 1)}</div>
+            ) : (
+              <div className="pe10-error">{data.pfcf10Error}</div>
+            )}
+          </div>
+          <button className="metric-toggle" onClick={() => setShowPFCL10(true)}>
+            <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            Entenda melhor
+          </button>
+          {showPFCL10 && (
+            <Modal title={`${pfcl10Label} — ${data.name}`} onClose={() => setShowPFCL10(false)}>
+              <PFCL10Details data={data} />
+            </Modal>
+          )}
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">PFCLG <span className="pe10-label-note">Lynch</span></div>
+            {data.pfcfPeg !== null ? (
+              <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
+            ) : (
+              <div className="pe10-error">{data.pfcfPegError || "N/A"}</div>
+            )}
+          </div>
+          <button className="metric-toggle" onClick={() => setShowPFCLG(true)}>
+            <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            Entenda melhor
+          </button>
+          {showPFCLG && (
+            <Modal title={`PFCLG — ${data.name}`} onClose={() => setShowPFCLG(false)}>
+              <PEGDetails data={data} variant="fcf" />
+            </Modal>
+          )}
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">CAGR FCL <span className="pe10-label-note">real</span></div>
+            {data.fcfCAGR !== null ? (
+              <div className="pe10-value">{br(data.fcfCAGR, 1)}%</div>
+            ) : (
+              <div className="pe10-error">N/A</div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (
         <div className="pe10-warning">

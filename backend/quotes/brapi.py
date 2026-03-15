@@ -218,6 +218,12 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         loans_long = stmt.get("longTermLoansAndFinancing")
         lease_current = stmt.get("leaseFinancing")
         lease_long = stmt.get("longTermLeaseFinancing")
+        lease_parts = [lease_current, lease_long]
+        if any(p is not None for p in lease_parts):
+            total_lease = sum(int(p) for p in lease_parts if p is not None)
+        else:
+            total_lease = None
+
         debt_parts = [loans_current, loans_long, lease_current, lease_long]
         if any(p is not None for p in debt_parts):
             total_debt = sum(int(p) for p in debt_parts if p is not None)
@@ -242,6 +248,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
             end_date=end_date,
             defaults={
                 "total_debt": total_debt,
+                "total_lease": total_lease,
                 "total_liabilities": total_liab,
                 "stockholders_equity": equity,
             },

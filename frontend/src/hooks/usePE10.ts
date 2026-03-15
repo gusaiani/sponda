@@ -54,10 +54,12 @@ interface QuoteResult {
   pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
   // Leverage
   debtToEquity: number | null;
+  debtExLeaseToEquity: number | null;
   liabilitiesToEquity: number | null;
   leverageError: string | null;
   leverageDate: string | null;
   totalDebt: number | null;
+  totalLease: number | null;
   totalLiabilities: number | null;
   stockholdersEquity: number | null;
   // Debt coverage
@@ -67,6 +69,10 @@ interface QuoteResult {
   peg: number | null;
   earningsCAGR: number | null;
   pegError: string | null;
+  // PFCLG
+  pfcfPeg: number | null;
+  fcfCAGR: number | null;
+  pfcfPegError: string | null;
 }
 
 interface QuoteError {
@@ -92,11 +98,12 @@ const DEFAULTS: Partial<QuoteResult> = {
   pe10CalculationDetails: [], pe10AnnualData: false,
   pfcf10: null, avgAdjustedFCF: null, pfcf10Error: null,
   pfcf10CalculationDetails: [], pfcf10AnnualData: false,
-  debtToEquity: null, liabilitiesToEquity: null,
+  debtToEquity: null, debtExLeaseToEquity: null, liabilitiesToEquity: null,
   leverageError: null, leverageDate: null,
-  totalDebt: null, totalLiabilities: null, stockholdersEquity: null,
+  totalDebt: null, totalLease: null, totalLiabilities: null, stockholdersEquity: null,
   debtToAvgEarnings: null, debtToAvgFCF: null,
   peg: null, earningsCAGR: null, pegError: null,
+  pfcfPeg: null, fcfCAGR: null, pfcfPegError: null,
 };
 
 async function fetchQuote(ticker: string): Promise<QuoteResult> {
