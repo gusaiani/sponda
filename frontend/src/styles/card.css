@@ -140,7 +140,7 @@
 }
 
 @media (min-width: 640px) {
-  .leverage-row-top {
+  .leverage-row-3col {
     @apply grid-cols-3;
   }
 }

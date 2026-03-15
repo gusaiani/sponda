@@ -231,7 +231,7 @@ function DebtExLeaseInfo({ data }: { data: QuoteData }) {
     <>
       <div className="modal-explainer">
         <p>
-          <strong>Dív. s/ Arrend. / PL</strong> é a dívida bruta excluindo
+          <strong>Dív - Arrend. / PL</strong> é a dívida bruta excluindo
           arrendamentos (leasing) dividida pelo patrimônio líquido. Com a adoção
           do IFRS 16, obrigações de leasing passaram a ser registradas como
           dívida no balanço. Excluí-las mostra a alavancagem financeira "pura",
@@ -665,7 +665,7 @@ function ModalContent({ modalKey, data }: { modalKey: ModalKey; data: QuoteData 
 
 const MODAL_TITLES: Record<string, (data: QuoteData) => string> = {
   debtToEquity: () => "Dív. Bruta / PL",
-  debtExLease: () => "Dív. s/ Arrend. / PL",
+  debtExLease: () => "Dív - Arrend. / PL",
   liabToEquity: () => "Passivo / PL",
   debtToEarnings: () => "Dív. Bruta / Lucro Médio",
   debtToFCF: () => "Dív. Bruta / FCL Médio",
@@ -702,7 +702,7 @@ export function PE10Card({ data }: PE10CardProps) {
       </div>
 
       {/* Leverage metrics (defensive — top) */}
-      <div className="metrics-row leverage-row-top">
+      <div className={`metrics-row leverage-row-top ${data.debtExLeaseToEquity !== null ? "leverage-row-3col" : ""}`}>
         <div className="metric-block">
           <div className="metric-value-container">
             <div className="pe10-label">Dív. Bruta / PL <InfoBtn onClick={() => open("debtToEquity")} /></div>
@@ -713,16 +713,14 @@ export function PE10Card({ data }: PE10CardProps) {
             )}
           </div>
         </div>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">Dív. s/ Arrend. / PL <InfoBtn onClick={() => open("debtExLease")} /></div>
-            {data.debtExLeaseToEquity !== null ? (
+        {data.debtExLeaseToEquity !== null && (
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">Dív - Arrend. / PL <InfoBtn onClick={() => open("debtExLease")} /></div>
               <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
-            ) : (
-              <div className="pe10-error">{data.leverageError || "N/A"}</div>
-            )}
+            </div>
           </div>
-        </div>
+        )}
         <div className="metric-block">
           <div className="metric-value-container">
             <div className="pe10-label">Passivo / PL <InfoBtn onClick={() => open("liabToEquity")} /></div>

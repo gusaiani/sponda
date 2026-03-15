@@ -244,7 +244,8 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
 
         end_date = date.fromisoformat(end_date_str)
 
-        # Gross debt: loans + financing (current + non-current) + lease financing
+        # Gross debt: loansAndFinancing already includes leasing in BRAPI
+        # (BRAPI's loansAndFinancing = financiamentos + arrendamentos)
         loans_current = stmt.get("loansAndFinancing")
         loans_long = stmt.get("longTermLoansAndFinancing")
         lease_current = stmt.get("leaseFinancing")
@@ -263,7 +264,8 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         else:
             total_lease = None
 
-        debt_parts = [loans_current, loans_long, lease_current, lease_long]
+        # total_debt = loans (which already include leases) — do NOT add lease again
+        debt_parts = [loans_current, loans_long]
         if any(p is not None for p in debt_parts):
             total_debt = sum(int(p) for p in debt_parts if p is not None)
         else:
