@@ -51,7 +51,9 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e
             cd /opt/sponda
+            git reset --hard origin/main
             git pull origin main
             source venv/bin/activate
             pip install -r backend/requirements.txt

@@ -66,7 +66,6 @@ class PE10View(APIView):
             "error": result["error"],
             "annualData": result["annual_data"],
             "calculationDetails": result["calculation_details"],
-            "_version": "2026-03-14a",
         })
 
     def _check_rate_limit(self, request):
