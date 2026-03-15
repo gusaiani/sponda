@@ -17,14 +17,14 @@ export function App() {
             Poema Parceria de Investimentos
           </a>
         </p>
-        <p className="app-footer-text app-footer-performance">
+        <a href="https://poe.ma" className="app-footer-link app-footer-performance">
           Retorno acumulado da Poema: 355,64% vs Ibovespa: 167,55% (jan/2017–dez/2025).
           <br />
           Resultados passados não garantem resultados futuros.
-        </p>
-        <p className="app-footer-text app-footer-cta">
+        </a>
+        <a href="https://poe.ma" className="app-footer-link app-footer-cta">
           Procuramos parceiros com visão de longo prazo.
-        </p>
+        </a>
       </footer>
     </div>
   );
