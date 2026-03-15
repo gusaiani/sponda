@@ -65,4 +65,10 @@ jobs:
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
             python manage.py refresh_ipca
+            python manage.py refresh_tickers
+            # Install systemd timer for daily data refresh
+            cp /opt/sponda/systemd/sponda-refresh.service /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-refresh.timer /etc/systemd/system/
+            systemctl daemon-reload
+            systemctl enable --now sponda-refresh.timer
             systemctl restart sponda

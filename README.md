@@ -65,7 +65,8 @@ cp ../.env.example ../.env
 
 # Run migrations and start server
 python manage.py migrate
-python manage.py refresh_ipca   # fetch IPCA data
+python manage.py refresh_ipca     # fetch IPCA data
+python manage.py refresh_tickers  # fetch B3 ticker list
 python manage.py runserver
 ```
 
@@ -103,6 +104,20 @@ docker compose build
 docker compose run --rm web python manage.py migrate --noinput
 docker compose up -d
 ```
+
+## Scheduled Tasks
+
+A systemd timer (`sponda-refresh.timer`) runs daily at 06:00 UTC to refresh IPCA and ticker data from BRAPI. It is installed automatically on deploy. To check status:
+
+```bash
+systemctl status sponda-refresh.timer    # next run time
+journalctl -u sponda-refresh.service     # last run logs
+```
+
+| Command | Purpose | Frequency |
+|---|---|---|
+| `refresh_ipca` | Sync IPCA inflation index | Daily |
+| `refresh_tickers` | Sync B3 ticker list (~2,300 stocks) | Daily |
 
 ## Rate Limiting
 
