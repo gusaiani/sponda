@@ -1,13 +1,40 @@
 # Sponda
 
-PE10 (Shiller P/E) calculator for Brazilian stocks. Uses [BRAPI](https://brapi.dev) for financial data and IPCA inflation index.
+Financial indicators for Brazilian stocks. Uses [BRAPI](https://brapi.dev) for financial data and IPCA inflation index.
 
-## What is PE10?
+## Indicators
 
-PE10 (also known as CAPE or Shiller P/E) smooths earnings volatility by averaging 10 years of inflation-adjusted earnings per share (EPS). This makes it more reliable than single-year P/E ratios for identifying overvalued or undervalued companies.
+### PE10 (Shiller P/E)
+
+Smooths earnings volatility by averaging 10 years of inflation-adjusted net income. More reliable than single-year P/E for identifying overvalued or undervalued companies.
 
 ```
-PE10 = Current Price / Average Inflation-Adjusted Annual EPS (10 years)
+PE10 = Market Cap / Average Inflation-Adjusted Annual Net Income (10 years)
+```
+
+### PFCF10 (Price/Free Cash Flow 10-year)
+
+Same 10-year averaging approach, but using free cash flow instead of earnings. Reveals whether reported profits translate into real cash generation.
+
+```
+PFCF10 = Market Cap / Average Inflation-Adjusted Annual FCF (10 years)
+FCF = Operating Cash Flow + Investing Cash Flow
+```
+
+### Dívida Bruta / PL (Gross Debt to Equity)
+
+Point-in-time ratio measuring how much of the company's capital structure is financed by debt relative to shareholders' equity. Uses the most recent balance sheet.
+
+```
+Dívida Bruta / PL = Total Debt / Stockholders' Equity
+```
+
+### Passivo / PL (Liabilities to Equity)
+
+Broader measure that considers all obligations (not just financial debt) relative to equity. Includes suppliers, taxes, provisions, etc.
+
+```
+Passivo / PL = Total Liabilities / Stockholders' Equity
 ```
 
 ## Stack

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from quotes.models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
 @pytest.fixture
@@ -107,5 +107,17 @@ def sample_cash_flows(db):
             )
     QuarterlyCashFlow.objects.bulk_create(records)
     return records
+
+
+@pytest.fixture
+def sample_balance_sheet(db):
+    """Create a recent balance sheet for PETR4."""
+    return BalanceSheet.objects.create(
+        ticker="PETR4",
+        end_date=date(2025, 9, 30),
+        total_debt=300_000_000_000,
+        total_liabilities=500_000_000_000,
+        stockholders_equity=200_000_000_000,
+    )
 
 
