@@ -90,11 +90,18 @@
 }
 
 .app-footer-performance {
-  @apply mt-4;
+  @apply block mt-4;
+  font-family: 'DM Mono', monospace;
   font-size: 0.65rem;
   line-height: 1.6;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
 }
 
 .app-footer-cta {
-  @apply mt-2 font-semibold;
+  @apply block mt-2 font-semibold;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
 }
