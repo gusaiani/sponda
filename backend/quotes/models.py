@@ -74,6 +74,21 @@ class BalanceSheet(models.Model):
         return f"{self.ticker} {self.end_date} BS"
 
 
+class Ticker(models.Model):
+    symbol = models.CharField(max_length=20, unique=True, db_index=True)
+    name = models.CharField(max_length=200, blank=True, default="")
+    sector = models.CharField(max_length=100, blank=True, default="")
+    type = models.CharField(max_length=50, blank=True, default="")
+    logo = models.URLField(max_length=500, blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["symbol"]
+
+    def __str__(self):
+        return f"{self.symbol} — {self.name}"
+
+
 class LookupLog(models.Model):
     session_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     user = models.ForeignKey(

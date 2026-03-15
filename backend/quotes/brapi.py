@@ -5,7 +5,7 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
-from .models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+from .models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 
 
 class BRAPIError(Exception):
@@ -273,6 +273,41 @@ def sync_ipca() -> int:
         IPCAIndex.objects.update_or_create(
             date=record_date,
             defaults={"annual_rate": Decimal(str(value))},
+        )
+        count += 1
+    return count
+
+
+def fetch_ticker_list() -> list[dict]:
+    """Fetch all tickers from BRAPI quote list (paginated)."""
+    all_stocks = []
+    for page in range(1, 5):  # Safety cap at 4 pages
+        data = _get("/quote/list", params={"page": page, "limit": 1000})
+        stocks = data.get("stocks", [])
+        if not stocks:
+            break
+        all_stocks.extend(stocks)
+        if not data.get("hasNextPage", False):
+            break
+    return all_stocks
+
+
+def sync_tickers() -> int:
+    """Fetch all tickers from BRAPI and upsert into the Ticker model."""
+    stocks = fetch_ticker_list()
+    count = 0
+    for stock in stocks:
+        symbol = (stock.get("stock") or "").strip().upper()
+        if not symbol:
+            continue
+        Ticker.objects.update_or_create(
+            symbol=symbol,
+            defaults={
+                "name": stock.get("name") or "",
+                "sector": stock.get("sector") or "",
+                "type": stock.get("type") or "",
+                "logo": stock.get("logo") or "",
+            },
         )
         count += 1
     return count
