@@ -69,10 +69,14 @@ interface QuoteData {
   peg: number | null;
   earningsCAGR: number | null;
   pegError: string | null;
+  earningsCAGRMethod: "endpoint" | "regression" | null;
+  earningsCAGRExcludedYears: number[];
   // PFCLG
   pfcfPeg: number | null;
   fcfCAGR: number | null;
   pfcfPegError: string | null;
+  fcfCAGRMethod: "endpoint" | "regression" | null;
+  fcfCAGRExcludedYears: number[];
 }
 
 interface PE10CardProps {
@@ -579,6 +583,8 @@ function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fc
   const baseValue = isEarnings ? data.pe10 : data.pfcf10;
   const cagr = isEarnings ? data.earningsCAGR : data.fcfCAGR;
   const peg = isEarnings ? data.peg : data.pfcfPeg;
+  const method = isEarnings ? data.earningsCAGRMethod : data.fcfCAGRMethod;
+  const excludedYears = isEarnings ? data.earningsCAGRExcludedYears : data.fcfCAGRExcludedYears;
   const metricName = isEarnings ? "lucros" : "fluxo de caixa livre";
 
   return (
@@ -611,7 +617,7 @@ function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fc
               <span className="pe10-calc-formula-val">{br(baseValue, 2)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>CAGR {isEarnings ? "lucros reais" : "FCL real"}</span>
+              <span>CAGR {isEarnings ? "lucros reais" : "FCL real"}{method === "regression" ? " (regressão)" : ""}</span>
               <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
@@ -619,28 +625,71 @@ function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fc
               <span className="pe10-calc-formula-val">= {br(peg, 2)}</span>
             </div>
           </div>
+          {method === "regression" && excludedYears.length > 0 && (
+            <div className="pe10-calc-section">
+              <div className="pe10-calc-section-title">Nota</div>
+              <p className="modal-note">
+                Anos com {isEarnings ? "lucro" : "FCL"} negativo/zero ({excludedYears.join(", ")}) foram
+                excluídos. O CAGR foi estimado por regressão log-linear sobre os
+                demais anos — método mais robusto que o cálculo ponto a ponto.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </>
   );
 }
 
-function CAGRInfo({ variant }: { variant: "earnings" | "fcf" }) {
+function CAGRInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fcf" }) {
   const isEarnings = variant === "earnings";
+  const method = isEarnings ? data.earningsCAGRMethod : data.fcfCAGRMethod;
+  const excludedYears = isEarnings ? data.earningsCAGRExcludedYears : data.fcfCAGRExcludedYears;
+  const cagr = isEarnings ? data.earningsCAGR : data.fcfCAGR;
+
   return (
-    <div className="modal-explainer">
-      <p>
-        <strong>CAGR</strong> (taxa de crescimento anual composta) mede o
-        crescimento real {isEarnings ? "dos lucros líquidos" : "do fluxo de caixa livre"} ao
-        longo do período disponível, ajustado pela inflação (IPCA).
-      </p>
-      <p>
-        O cálculo compara o {isEarnings ? "lucro" : "FCL"} ajustado do ano mais
-        antigo com o mais recente: CAGR = (valor final / valor inicial)^(1/n) − 1.
-        Valores negativos indicam que {isEarnings ? "os lucros" : "o FCL"} encolheram
-        em termos reais.
-      </p>
-    </div>
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>CAGR</strong> (taxa de crescimento anual composta) mede o
+          crescimento real {isEarnings ? "dos lucros líquidos" : "do fluxo de caixa livre"} ao
+          longo do período disponível, ajustado pela inflação (IPCA).
+        </p>
+        {method === "endpoint" && (
+          <p>
+            O cálculo compara o {isEarnings ? "lucro" : "FCL"} ajustado do ano mais
+            antigo com o mais recente: CAGR = (valor final / valor inicial)^(1/n) − 1.
+            Valores negativos indicam que {isEarnings ? "os lucros" : "o FCL"} encolheram
+            em termos reais.
+          </p>
+        )}
+        {method === "regression" && (
+          <p>
+            Como houve anos com {isEarnings ? "lucro" : "FCL"} negativo ou zero
+            ({excludedYears.join(", ")}), o CAGR foi estimado por <strong>regressão
+            log-linear</strong> sobre os anos positivos — método mais robusto que usa
+            todos os dados disponíveis em vez de depender apenas dos pontos extremos.
+          </p>
+        )}
+        {method === null && (
+          <p>
+            O cálculo compara o {isEarnings ? "lucro" : "FCL"} ajustado do ano mais
+            antigo com o mais recente: CAGR = (valor final / valor inicial)^(1/n) − 1.
+          </p>
+        )}
+      </div>
+      {cagr !== null && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Resultado</div>
+            <div className="pe10-calc-formula">
+              <span>CAGR {isEarnings ? "lucros reais" : "FCL real"}{method === "regression" ? " (regressão)" : ""}</span>
+              <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -655,10 +704,10 @@ function ModalContent({ modalKey, data }: { modalKey: ModalKey; data: QuoteData 
     case "debtToFCF": return <DebtToFCFInfo data={data} />;
     case "pl10": return <PL10Info data={data} />;
     case "peg": return <PEGInfo data={data} variant="earnings" />;
-    case "cagrEarnings": return <CAGRInfo variant="earnings" />;
+    case "cagrEarnings": return <CAGRInfo data={data} variant="earnings" />;
     case "pfcl10": return <PFCL10Info data={data} />;
     case "pfclg": return <PEGInfo data={data} variant="fcf" />;
-    case "cagrFCF": return <CAGRInfo variant="fcf" />;
+    case "cagrFCF": return <CAGRInfo data={data} variant="fcf" />;
     default: return null;
   }
 }

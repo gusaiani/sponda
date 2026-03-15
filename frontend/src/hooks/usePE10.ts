@@ -69,10 +69,14 @@ interface QuoteResult {
   peg: number | null;
   earningsCAGR: number | null;
   pegError: string | null;
+  earningsCAGRMethod: "endpoint" | "regression" | null;
+  earningsCAGRExcludedYears: number[];
   // PFCLG
   pfcfPeg: number | null;
   fcfCAGR: number | null;
   pfcfPegError: string | null;
+  fcfCAGRMethod: "endpoint" | "regression" | null;
+  fcfCAGRExcludedYears: number[];
 }
 
 interface QuoteError {
@@ -103,7 +107,9 @@ const DEFAULTS: Partial<QuoteResult> = {
   totalDebt: null, totalLease: null, totalLiabilities: null, stockholdersEquity: null,
   debtToAvgEarnings: null, debtToAvgFCF: null,
   peg: null, earningsCAGR: null, pegError: null,
+  earningsCAGRMethod: null, earningsCAGRExcludedYears: [],
   pfcfPeg: null, fcfCAGR: null, pfcfPegError: null,
+  fcfCAGRMethod: null, fcfCAGRExcludedYears: [],
 };
 
 async function fetchQuote(ticker: string): Promise<QuoteResult> {
