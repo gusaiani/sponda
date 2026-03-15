@@ -28,6 +28,14 @@ def sample_tickers(db):
     ]
 
 
+@pytest.fixture
+def sample_tickers_mixed(db):
+    return [
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock"),
+        Ticker.objects.create(symbol="KNRI11", name="Kinea Renda", type="fund"),
+    ]
+
+
 MOCK_TICKER_LIST_PAGE_1 = {
     "stocks": [
         {"stock": "PETR4", "name": "PETROLEO BRASILEIRO S.A. PETROBRAS", "sector": "Energy Minerals", "type": "stock", "logo": "https://example.com/petr4.svg"},
@@ -112,6 +120,21 @@ class TestSyncTickers:
         sync_tickers()
         assert Ticker.objects.filter(symbol="PETR4").exists()
 
+    @patch("quotes.brapi.fetch_ticker_list")
+    def test_skips_fractional_tickers(self, mock_fetch, db):
+        mock_fetch.return_value = [
+            {"stock": "PETR4", "name": "Petrobras"},
+            {"stock": "PETR4F", "name": "Petrobras Frac"},
+            {"stock": "VALE3", "name": "Vale"},
+            {"stock": "VALE3F", "name": "Vale Frac"},
+        ]
+        count = sync_tickers()
+        assert count == 2
+        assert Ticker.objects.filter(symbol="PETR4").exists()
+        assert not Ticker.objects.filter(symbol="PETR4F").exists()
+        assert Ticker.objects.filter(symbol="VALE3").exists()
+        assert not Ticker.objects.filter(symbol="VALE3F").exists()
+
 
 class TestTickerListEndpoint:
     def test_returns_ticker_list(self, api_client, sample_tickers):
@@ -140,3 +163,23 @@ class TestTickerListEndpoint:
     def test_has_cache_header(self, api_client, sample_tickers):
         response = api_client.get("/api/tickers/")
         assert "max-age=3600" in response["Cache-Control"]
+
+    def test_excludes_fractional_tickers(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock")
+        Ticker.objects.create(symbol="PETR4F", name="Petrobras Frac", type="stock")
+        Ticker.objects.create(symbol="VALE3", name="Vale", type="stock")
+        response = api_client.get("/api/tickers/")
+        symbols = [t["symbol"] for t in response.json()]
+        assert "PETR4" in symbols
+        assert "VALE3" in symbols
+        assert "PETR4F" not in symbols
+
+    def test_excludes_non_stock_types(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock")
+        Ticker.objects.create(symbol="KNRI11", name="Kinea Renda", type="fund")
+        Ticker.objects.create(symbol="BOVA11", name="iShares Ibov", type="bdr")
+        response = api_client.get("/api/tickers/")
+        symbols = [t["symbol"] for t in response.json()]
+        assert "PETR4" in symbols
+        assert "KNRI11" not in symbols
+        assert "BOVA11" not in symbols

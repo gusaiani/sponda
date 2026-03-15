@@ -1,4 +1,5 @@
 """BRAPI API client for fetching stock data and IPCA index."""
+import re
 from datetime import date
 from decimal import Decimal
 
@@ -299,6 +300,9 @@ def sync_tickers() -> int:
     for stock in stocks:
         symbol = (stock.get("stock") or "").strip().upper()
         if not symbol:
+            continue
+        # Skip fractional shares (e.g. PETR4F, VALE3F)
+        if re.match(r"^[A-Z]+\d+F$", symbol):
             continue
         Ticker.objects.update_or_create(
             symbol=symbol,
