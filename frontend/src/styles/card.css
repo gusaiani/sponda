@@ -121,6 +121,20 @@
   color: var(--color-ink);
 }
 
+.leverage-row {
+  @apply mt-0;
+  padding-top: 30px;
+  border-top: 1px solid var(--color-border);
+}
+
+.leverage-row .pe10-value {
+  @apply text-4xl;
+}
+
+.leverage-toggle {
+  @apply mx-auto;
+}
+
 .pe10-warning {
   font-family: 'DM Mono', monospace;
   @apply text-xs px-4 py-3 mt-4 text-center;

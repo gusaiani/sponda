@@ -51,6 +51,14 @@ interface QuoteData {
   pfcf10Error: string | null;
   pfcf10AnnualData: boolean;
   pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
+  // Leverage
+  debtToEquity: number | null;
+  liabilitiesToEquity: number | null;
+  leverageError: string | null;
+  leverageDate: string | null;
+  totalDebt: number | null;
+  totalLiabilities: number | null;
+  stockholdersEquity: number | null;
 }
 
 interface PE10CardProps {
@@ -345,14 +353,101 @@ function PFCL10Details({ data }: { data: QuoteData }) {
   );
 }
 
+/* ── Leverage "Entenda melhor" ── */
+
+function LeverageDetails({ data }: { data: QuoteData }) {
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>Dívida Bruta / PL</strong> mede quanto da estrutura de capital
+          da empresa é financiada por dívida em relação ao patrimônio dos
+          acionistas. Valores altos indicam maior alavancagem financeira e,
+          portanto, maior risco em cenários adversos.
+        </p>
+        <p>
+          <strong>Passivo / PL</strong> é uma medida mais ampla: considera todas
+          as obrigações da empresa (não apenas dívidas financeiras, mas também
+          fornecedores, tributos, provisões etc.) em relação ao patrimônio
+          líquido. Valores elevados sugerem que a empresa depende mais de
+          capital de terceiros do que de capital próprio.
+        </p>
+        <p>
+          <strong>Atenção:</strong> estes indicadores devem ser comparados entre
+          empresas do mesmo setor. Setores como infraestrutura e bancos operam
+          naturalmente com alavancagem mais elevada.
+        </p>
+      </div>
+
+      {data.stockholdersEquity !== null && (
+        <div className="pe10-calc-details">
+          <h4 className="pe10-calc-title">Valores do balanço</h4>
+          {data.leverageDate && (
+            <div className="pe10-calc-section">
+              <div className="pe10-calc-section-title">Data do balanço</div>
+              <div className="pe10-calc-formula">
+                <span>Referência</span>
+                <span className="pe10-calc-formula-val">{data.leverageDate}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Componentes</div>
+            {data.totalDebt !== null && (
+              <div className="pe10-calc-formula">
+                <span>Dívida Bruta</span>
+                <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+              </div>
+            )}
+            {data.totalLiabilities !== null && (
+              <div className="pe10-calc-formula">
+                <span>Passivo Total</span>
+                <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLiabilities)}</span>
+              </div>
+            )}
+            <div className="pe10-calc-formula">
+              <span>Patrimônio Líquido</span>
+              <span className="pe10-calc-formula-val">{formatLargeNumber(data.stockholdersEquity)}</span>
+            </div>
+          </div>
+
+          {data.debtToEquity !== null && (
+            <div className="pe10-calc-section">
+              <div className="pe10-calc-section-title">Dívida Bruta / PL</div>
+              <div className="pe10-calc-formula">
+                <span>{formatLargeNumber(data.totalDebt!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+                <span className="pe10-calc-formula-val">= {data.debtToEquity.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          {data.liabilitiesToEquity !== null && (
+            <div className="pe10-calc-section">
+              <div className="pe10-calc-section-title">Passivo / PL</div>
+              <div className="pe10-calc-formula">
+                <span>{formatLargeNumber(data.totalLiabilities!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+                <span className="pe10-calc-formula-val">= {data.liabilitiesToEquity.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ── Main Card ── */
 
 export function PE10Card({ data }: PE10CardProps) {
   const [showPL10, setShowPL10] = useState(false);
   const [showPFCL10, setShowPFCL10] = useState(false);
+  const [showLeverage, setShowLeverage] = useState(false);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
+
+  const hasLeverage = data.debtToEquity !== null || data.liabilitiesToEquity !== null;
 
   return (
     <div className="pe10-card">
@@ -411,6 +506,44 @@ export function PE10Card({ data }: PE10CardProps) {
           )}
         </div>
       </div>
+
+      {/* Leverage metrics */}
+      <div className="metrics-row leverage-row">
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">Dív. Bruta / PL</div>
+            {data.debtToEquity !== null ? (
+              <div className="pe10-value">{data.debtToEquity.toFixed(2)}</div>
+            ) : (
+              <div className="pe10-error">{data.leverageError || "N/A"}</div>
+            )}
+          </div>
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">Passivo / PL</div>
+            {data.liabilitiesToEquity !== null ? (
+              <div className="pe10-value">{data.liabilitiesToEquity.toFixed(2)}</div>
+            ) : (
+              <div className="pe10-error">{data.leverageError || "N/A"}</div>
+            )}
+          </div>
+        </div>
+      </div>
+      {hasLeverage && (
+        <button
+          className="metric-toggle leverage-toggle"
+          onClick={() => setShowLeverage(true)}
+        >
+          <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          Entenda melhor
+        </button>
+      )}
+      {showLeverage && (
+        <Modal title={`Alavancagem — ${data.name}`} onClose={() => setShowLeverage(false)}>
+          <LeverageDetails data={data} />
+        </Modal>
+      )}
 
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (
         <div className="pe10-warning">

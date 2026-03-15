@@ -6,7 +6,8 @@ from unittest.mock import patch
 import pytest
 from django.test import Client
 
-from quotes.models import LookupLog, QuarterlyEarnings
+from quotes.models import BalanceSheet, LookupLog, QuarterlyEarnings
+from quotes.views import _clean_company_name
 
 
 @pytest.fixture
@@ -24,6 +25,29 @@ def mock_brapi_quote():
     }
 
 
+class TestCleanCompanyName:
+    def test_strips_sa_pfd(self):
+        assert _clean_company_name("Petroleo Brasileiro SA Pfd") == "Petroleo Brasileiro"
+
+    def test_strips_sa_dot(self):
+        assert _clean_company_name("Eucatex S.A. Industria E Comercio") == "Eucatex"
+
+    def test_strips_sa(self):
+        assert _clean_company_name("Vale SA") == "Vale"
+
+    def test_keeps_ticker_unchanged(self):
+        assert _clean_company_name("PETR3") == "PETR3"
+
+    def test_keeps_cia_at_start(self):
+        assert _clean_company_name("Cia Siderurgica Nacional") == "Cia Siderurgica Nacional"
+
+    def test_handles_on_nm(self):
+        assert _clean_company_name("WEG SA ON NM") == "WEG"
+
+    def test_b3_with_suffix(self):
+        assert _clean_company_name("B3 SA - Brasil Bolsa Balcao") == "B3"
+
+
 class TestHealthEndpoint:
     def test_returns_200(self, api_client, db):
         response = api_client.get("/api/health/")
@@ -33,10 +57,12 @@ class TestHealthEndpoint:
 
 class TestPE10Endpoint:
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_returns_pe10_data(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/")
@@ -49,11 +75,12 @@ class TestPE10Endpoint:
         assert data["pe10Label"] == "PE10"
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_returns_pfcf10_data(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client,
-        sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/")
@@ -64,11 +91,12 @@ class TestPE10Endpoint:
         assert data["pfcf10Label"] == "PFCF10"
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_pfcf10_includes_calculation_details(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client,
-        sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/")
@@ -82,11 +110,12 @@ class TestPE10Endpoint:
         assert "quarterlyDetail" in first
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_pfcf10_avg_adjusted_fcf_returned(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client,
-        sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/")
@@ -95,11 +124,12 @@ class TestPE10Endpoint:
         assert data["avgAdjustedFCF"] > 0
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_pfcf10_null_without_cash_flow_data(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client,
-        sample_earnings, sample_ipca, mock_brapi_quote
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):
         """PFCF10 is null when there are no cash flow records."""
         mock_quote.return_value = mock_brapi_quote
@@ -110,20 +140,24 @@ class TestPE10Endpoint:
         assert data["pfcf10Error"] is not None
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_logs_lookup(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         api_client.get("/api/quote/PETR4/")
         assert LookupLog.objects.filter(ticker="PETR4").count() == 1
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_ticker_is_uppercased(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/petr4/")
@@ -131,9 +165,12 @@ class TestPE10Endpoint:
         assert response.json()["ticker"] == "PETR4"
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
-    def test_handles_brapi_error(self, mock_sync, mock_sync_cf, mock_quote, api_client, db):
+    def test_handles_brapi_error(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, api_client, db
+    ):
         from quotes.brapi import BRAPIError
 
         mock_quote.side_effect = BRAPIError("Service unavailable")
@@ -141,10 +178,12 @@ class TestPE10Endpoint:
         assert response.status_code == 502
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_returns_no_data_for_unknown_ticker(
-        self, mock_sync, mock_sync_cf, mock_quote, api_client, db, sample_ipca
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, db, sample_ipca
     ):
         mock_quote.return_value = {
             "symbol": "FAKE3",
@@ -159,7 +198,40 @@ class TestPE10Endpoint:
         assert data["pe10YearsOfData"] == 0
         assert data["pfcf10"] is None
         assert data["pfcf10YearsOfData"] == 0
+        assert data["debtToEquity"] is None
+        assert data["liabilitiesToEquity"] is None
 
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_leverage_data(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, sample_balance_sheet, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["debtToEquity"] == 1.5
+        assert data["liabilitiesToEquity"] == 2.5
+        assert data["leverageDate"] == "2025-09-30"
+        assert data["leverageError"] is None
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_leverage_null_without_balance_sheet(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/")
+        data = response.json()
+        assert data["debtToEquity"] is None
+        assert data["liabilitiesToEquity"] is None
+        assert data["leverageError"] is not None
 
 
 class TestSignupEndpoint:

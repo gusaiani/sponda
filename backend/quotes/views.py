@@ -7,10 +7,28 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .brapi import BRAPIError, fetch_quote, sync_cash_flows, sync_earnings
-from .models import LookupLog, QuarterlyCashFlow, QuarterlyEarnings
+from .brapi import BRAPIError, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .leverage import calculate_leverage
+from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings
 from .pe10 import calculate_pe10
 from .pfcf10 import calculate_pfcf10
+
+
+import re
+
+
+def _clean_company_name(name: str) -> str:
+    """Strip legal suffixes and ticker-like noise from a company name.
+
+    'Petroleo Brasileiro SA Pfd' → 'Petroleo Brasileiro'
+    'Eucatex S.A. Industria E Comercio' → 'Eucatex'
+    'PETR3' (ticker as name) → 'PETR3' (unchanged — no suffix to strip)
+    """
+    # Remove common Brazilian legal suffixes and share class markers
+    suffixes = r"(?:S[\./]?A\.?|Ltda\.?|Cia\.?|Pfd|ON|PN|NM|N[12]|EDJ)"
+    # Remove from first suffix onward (greedy: keeps the meaningful part)
+    cleaned = re.split(rf"\s+{suffixes}(?:\s|$)", name, maxsplit=1, flags=re.IGNORECASE)[0]
+    return cleaned.strip() or name
 
 
 class HealthView(APIView):
@@ -41,7 +59,9 @@ class PE10View(APIView):
             )
 
         current_price = Decimal(str(quote.get("regularMarketPrice", 0)))
-        name = quote.get("shortName") or quote.get("longName") or ticker
+        name = _clean_company_name(
+            quote.get("longName") or quote.get("shortName") or ticker
+        )
         market_cap = quote.get("marketCap")
 
         if not market_cap or not current_price:
@@ -52,9 +72,10 @@ class PE10View(APIView):
 
         market_cap_decimal = Decimal(str(market_cap))
 
-        # Calculate both metrics
+        # Calculate metrics
         pe10_result = calculate_pe10(ticker, market_cap_decimal)
         pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal)
+        leverage_result = calculate_leverage(ticker)
 
         # Log the lookup
         self._log_lookup(request, ticker)
@@ -80,6 +101,14 @@ class PE10View(APIView):
             "pfcf10Error": pfcf10_result["error"],
             "pfcf10AnnualData": pfcf10_result["annual_data_flag"],
             "pfcf10CalculationDetails": pfcf10_result["calculation_details"],
+            # Leverage
+            "debtToEquity": leverage_result["debtToEquity"],
+            "liabilitiesToEquity": leverage_result["liabilitiesToEquity"],
+            "leverageError": leverage_result["leverageError"],
+            "leverageDate": leverage_result["leverageDate"],
+            "totalDebt": leverage_result["totalDebt"],
+            "totalLiabilities": leverage_result["totalLiabilities"],
+            "stockholdersEquity": leverage_result["stockholdersEquity"],
         })
 
     def _check_rate_limit(self, request):
@@ -137,5 +166,14 @@ class PE10View(APIView):
         if not has_fresh_cf:
             try:
                 sync_cash_flows(ticker)
+            except BRAPIError:
+                pass
+
+        has_fresh_bs = BalanceSheet.objects.filter(
+            ticker=ticker, fetched_at__gte=cutoff
+        ).exists()
+        if not has_fresh_bs:
+            try:
+                sync_balance_sheets(ticker)
             except BRAPIError:
                 pass

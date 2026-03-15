@@ -5,7 +5,7 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
-from .models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+from .models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
 class BRAPIError(Exception):
@@ -166,6 +166,88 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         cash_flows.append(obj)
 
     return cash_flows
+
+
+def fetch_balance_sheets(ticker: str) -> list[dict]:
+    """Fetch balance sheet history for a ticker.
+
+    Tries quarterly first; falls back to annual if the BRAPI plan
+    doesn't include the quarterly module.
+    """
+    # Try quarterly first
+    try:
+        data = _get(
+            f"/quote/{ticker}",
+            params={"modules": "balanceSheetHistoryQuarterly"},
+        )
+        if not data.get("error"):
+            results = data.get("results", [])
+            if results:
+                statements = results[0].get("balanceSheetHistoryQuarterly", [])
+                if statements:
+                    return statements
+    except BRAPIError:
+        pass
+
+    # Fall back to annual
+    data = _get(
+        f"/quote/{ticker}",
+        params={"modules": "balanceSheetHistory"},
+    )
+    results = data.get("results", [])
+    if not results:
+        raise BRAPIError(f"No results for ticker {ticker}")
+    return results[0].get("balanceSheetHistory", [])
+
+
+def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
+    """Fetch and store balance sheet data for a ticker from BRAPI."""
+    statements = fetch_balance_sheets(ticker)
+    sheets = []
+
+    for stmt in statements:
+        end_date_str = stmt.get("endDate", "")[:10]
+        if not end_date_str:
+            continue
+
+        end_date = date.fromisoformat(end_date_str)
+
+        # Gross debt: loans + financing (current + non-current) + lease financing
+        loans_current = stmt.get("loansAndFinancing")
+        loans_long = stmt.get("longTermLoansAndFinancing")
+        lease_current = stmt.get("leaseFinancing")
+        lease_long = stmt.get("longTermLeaseFinancing")
+        debt_parts = [loans_current, loans_long, lease_current, lease_long]
+        if any(p is not None for p in debt_parts):
+            total_debt = sum(int(p) for p in debt_parts if p is not None)
+        else:
+            total_debt = None
+
+        # Total liabilities: current + non-current
+        # (BRAPI's totalLiab field is unreliable — equals totalAssets)
+        current_liab = stmt.get("currentLiabilities")
+        noncurrent_liab = stmt.get("nonCurrentLiabilities")
+        if current_liab is not None or noncurrent_liab is not None:
+            total_liab = int(current_liab or 0) + int(noncurrent_liab or 0)
+        else:
+            total_liab = None
+
+        equity = stmt.get("shareholdersEquity")
+        if equity is not None:
+            equity = int(equity)
+
+        obj, _ = BalanceSheet.objects.update_or_create(
+            ticker=ticker.upper(),
+            end_date=end_date,
+            defaults={
+                "total_debt": total_debt,
+                "total_liabilities": total_liab,
+                "stockholders_equity": equity,
+            },
+        )
+        sheets.append(obj)
+
+    return sheets
 
 
 def fetch_ipca_data() -> list[dict]:

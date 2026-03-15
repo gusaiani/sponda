@@ -49,6 +49,31 @@ class QuarterlyCashFlow(models.Model):
         return f"{self.ticker} {self.end_date} CF"
 
 
+class BalanceSheet(models.Model):
+    ticker = models.CharField(max_length=10, db_index=True)
+    end_date = models.DateField()
+    total_debt = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Dívida bruta (short + long term debt)",
+    )
+    total_liabilities = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Passivo total",
+    )
+    stockholders_equity = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Patrimônio líquido",
+    )
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("ticker", "end_date")
+        ordering = ["-end_date"]
+
+    def __str__(self):
+        return f"{self.ticker} {self.end_date} BS"
+
+
 class LookupLog(models.Model):
     session_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     user = models.ForeignKey(

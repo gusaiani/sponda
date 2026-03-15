@@ -1,0 +1,68 @@
+"""Leverage indicators from the most recent balance sheet."""
+from .models import BalanceSheet
+
+
+def calculate_leverage(ticker: str) -> dict:
+    """
+    Calculate leverage ratios from the most recent balance sheet.
+
+    Returns:
+    - debtToEquity: Dívida Bruta / Patrimônio Líquido
+    - liabilitiesToEquity: Passivo Total / Patrimônio Líquido
+    """
+    latest = (
+        BalanceSheet.objects.filter(ticker=ticker.upper())
+        .order_by("-end_date")
+        .first()
+    )
+
+    if not latest:
+        return {
+            "debtToEquity": None,
+            "liabilitiesToEquity": None,
+            "leverageError": "Dados de balanço indisponíveis",
+            "leverageDate": None,
+            "totalDebt": None,
+            "totalLiabilities": None,
+            "stockholdersEquity": None,
+        }
+
+    equity = latest.stockholders_equity
+    total_debt = latest.total_debt
+    total_liab = latest.total_liabilities
+    end_date = latest.end_date.isoformat()
+
+    base = {
+        "leverageDate": end_date,
+        "totalDebt": total_debt,
+        "totalLiabilities": total_liab,
+        "stockholdersEquity": equity,
+    }
+
+    if equity is None or equity == 0:
+        return {
+            **base,
+            "debtToEquity": None,
+            "liabilitiesToEquity": None,
+            "leverageError": "Patrimônio líquido indisponível ou zero",
+        }
+
+    error = None
+    debt_to_equity = None
+    liab_to_equity = None
+
+    if total_debt is not None:
+        debt_to_equity = round(total_debt / equity, 2)
+
+    if total_liab is not None:
+        liab_to_equity = round(total_liab / equity, 2)
+
+    if debt_to_equity is None and liab_to_equity is None:
+        error = "Dados de dívida e passivo indisponíveis"
+
+    return {
+        **base,
+        "debtToEquity": debt_to_equity,
+        "liabilitiesToEquity": liab_to_equity,
+        "leverageError": error,
+    }

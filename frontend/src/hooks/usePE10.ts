@@ -51,6 +51,14 @@ interface QuoteResult {
   pfcf10Error: string | null;
   pfcf10AnnualData: boolean;
   pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
+  // Leverage
+  debtToEquity: number | null;
+  liabilitiesToEquity: number | null;
+  leverageError: string | null;
+  leverageDate: string | null;
+  totalDebt: number | null;
+  totalLiabilities: number | null;
+  stockholdersEquity: number | null;
 }
 
 interface QuoteError {
