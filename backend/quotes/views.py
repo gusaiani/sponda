@@ -41,15 +41,18 @@ class PE10View(APIView):
 
         current_price = Decimal(str(quote.get("regularMarketPrice", 0)))
         name = quote.get("longName") or quote.get("shortName") or ticker
-
-        # Derive shares outstanding from marketCap / price for EPS fallback
-        shares_outstanding = None
         market_cap = quote.get("marketCap")
-        if market_cap and current_price:
-            shares_outstanding = Decimal(str(market_cap)) / current_price
 
-        # Calculate PE10
-        result = calculate_pe10(ticker, current_price, shares_outstanding)
+        if not market_cap or not current_price:
+            return Response(
+                {"error": "Dados de mercado indisponíveis para este ticker."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        market_cap_decimal = Decimal(str(market_cap))
+
+        # Calculate PE10 using Market Cap / Avg Adjusted Net Income
+        result = calculate_pe10(ticker, market_cap_decimal)
 
         # Log the lookup
         self._log_lookup(request, ticker)
@@ -60,11 +63,11 @@ class PE10View(APIView):
             "pe10": result["pe10"],
             "currentPrice": float(current_price),
             "marketCap": market_cap,
-            "avgAdjustedEPS": result["avg_adjusted_eps"],
+            "avgAdjustedNetIncome": result["avg_adjusted_net_income"],
             "yearsOfData": result["years_of_data"],
             "label": result["label"],
             "error": result["error"],
-            "annualData": result["annual_data"],
+            "annualData": result["annual_data_flag"],
             "calculationDetails": result["calculation_details"],
         })
 

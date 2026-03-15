@@ -64,4 +64,5 @@ jobs:
             cd /opt/sponda/backend
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
+            python manage.py refresh_ipca
             systemctl restart sponda

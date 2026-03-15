@@ -3,14 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 interface QuarterlyDetail {
   end_date: string;
   net_income: number;
-  eps: number;
 }
 
 interface YearlyBreakdown {
   year: number;
-  nominalEPS: number;
+  nominalNetIncome: number;
   ipcaFactor: number;
-  adjustedEPS: number;
+  adjustedNetIncome: number;
   quarters: number;
   quarterlyDetail: QuarterlyDetail[];
 }
@@ -21,7 +20,7 @@ interface PE10Result {
   pe10: number | null;
   currentPrice: number;
   marketCap: number | null;
-  avgAdjustedEPS: number | null;
+  avgAdjustedNetIncome: number | null;
   yearsOfData: number;
   label: string;
   error: string | null;

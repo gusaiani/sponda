@@ -5,40 +5,32 @@ from decimal import Decimal
 from .models import IPCAIndex, QuarterlyEarnings
 
 
-def get_annual_eps(
-    ticker: str, shares_outstanding: Decimal | None = None, max_years: int = 10
-) -> list[dict]:
+def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
     """
-    Get annual EPS by summing quarterly EPS for each calendar year.
-    Falls back to netIncome / shares_outstanding when EPS is null.
-    Returns list of {"year": int, "eps": Decimal, "quarters": int,
+    Get annual net income by summing quarterly net income for each calendar year.
+    Returns list of {"year": int, "net_income": Decimal, "quarters": int,
                      "quarterly_detail": list} sorted by year desc.
     """
     quarters = QuarterlyEarnings.objects.filter(
         ticker=ticker.upper(),
     ).order_by("-end_date")[: max_years * 4]
 
-    yearly = defaultdict(lambda: {"eps": Decimal("0"), "quarters": 0, "quarterly_detail": []})
+    yearly = defaultdict(lambda: {"net_income": Decimal("0"), "quarters": 0, "quarterly_detail": []})
     for q in quarters:
-        # Always derive EPS from netIncome / shares_outstanding.
-        # BRAPI's basicEarningsPerCommonShare is unreliable (wrong scale).
-        if q.net_income is not None and shares_outstanding:
-            eps = Decimal(str(q.net_income)) / shares_outstanding
-        else:
+        if q.net_income is None:
             continue
         year = q.end_date.year
-        yearly[year]["eps"] += eps
+        yearly[year]["net_income"] += q.net_income
         yearly[year]["quarters"] += 1
         yearly[year]["quarterly_detail"].append({
             "end_date": q.end_date.isoformat(),
             "net_income": q.net_income,
-            "eps": round(float(eps), 6),
         })
 
     result = [
         {
             "year": year,
-            "eps": data["eps"],
+            "net_income": data["net_income"],
             "quarters": data["quarters"],
             "quarterly_detail": sorted(data["quarterly_detail"], key=lambda x: x["end_date"]),
         }
@@ -77,7 +69,7 @@ def get_ipca_adjustment_factors(years: list[int]) -> dict[int, Decimal]:
     # The most recent year's rate represents "current" inflation
     most_recent_year = max(year_rates.keys())
 
-    # Compound adjustment: for year Y, multiply EPS by product of
+    # Compound adjustment: for year Y, multiply earnings by product of
     # (1 + rate/100) for each year from Y+1 to most_recent_year
     factors = {}
     for year in years:
@@ -90,81 +82,82 @@ def get_ipca_adjustment_factors(years: list[int]) -> dict[int, Decimal]:
     return factors
 
 
-def calculate_pe10(
-    ticker: str, current_price: Decimal, shares_outstanding: Decimal | None = None
-) -> dict:
+def calculate_pe10(ticker: str, market_cap: Decimal) -> dict:
     """
-    Calculate PE10 for a given ticker.
+    Calculate PE10 for a given ticker using Market Cap / Avg Adjusted Net Income.
+
+    PE10 = Market Cap / Average Inflation-Adjusted Annual Net Income (10 years)
 
     Returns dict with:
-        pe10: Decimal or None
-        avg_adjusted_eps: Decimal or None
+        pe10: float or None
+        avg_adjusted_net_income: float or None
         years_of_data: int
         label: str (e.g., "PE10" or "PE7")
         error: str or None
+        calculation_details: list of yearly breakdowns
     """
-    annual_eps_data = get_annual_eps(ticker, shares_outstanding=shares_outstanding)
+    annual_data = get_annual_earnings(ticker)
 
-    if not annual_eps_data:
+    if not annual_data:
         return {
             "pe10": None,
-            "avg_adjusted_eps": None,
+            "avg_adjusted_net_income": None,
             "years_of_data": 0,
             "label": "PE0",
             "error": "No earnings data available",
-            "annual_data": False,
+            "annual_data_flag": False,
             "calculation_details": [],
         }
 
-    years = [d["year"] for d in annual_eps_data]
+    years = [d["year"] for d in annual_data]
     ipca_factors = get_ipca_adjustment_factors(years)
 
-    adjusted_eps_values = []
+    adjusted_values = []
     yearly_breakdown = []
-    for year_data in annual_eps_data:
-        eps = year_data["eps"]
+    for year_data in annual_data:
+        net_income = year_data["net_income"]
         year = year_data["year"]
         factor = ipca_factors.get(year, Decimal("1"))
-        adjusted_eps = eps * factor
-        adjusted_eps_values.append(adjusted_eps)
+        adjusted = net_income * factor
+        adjusted_values.append(adjusted)
         yearly_breakdown.append({
             "year": year,
-            "nominalEPS": round(float(eps), 6),
+            "nominalNetIncome": float(net_income),
             "ipcaFactor": round(float(factor), 6),
-            "adjustedEPS": round(float(adjusted_eps), 6),
+            "adjustedNetIncome": float(adjusted),
             "quarters": year_data["quarters"],
             "quarterlyDetail": year_data["quarterly_detail"],
         })
 
-    years_of_data = len(adjusted_eps_values)
+    years_of_data = len(adjusted_values)
     label = f"PE{years_of_data}"
 
     # Detect if using annual (1 record/year) vs quarterly (4 records/year)
-    avg_quarters = sum(d["quarters"] for d in annual_eps_data) / len(annual_eps_data)
-    annual_data = avg_quarters < 2
+    avg_quarters = sum(d["quarters"] for d in annual_data) / len(annual_data)
+    annual_data_flag = avg_quarters < 2
 
-    avg_adjusted_eps = sum(adjusted_eps_values) / len(adjusted_eps_values)
+    avg_adjusted = sum(adjusted_values) / len(adjusted_values)
 
     base_result = {
         "years_of_data": years_of_data,
         "label": label,
-        "annual_data": annual_data,
+        "annual_data_flag": annual_data_flag,
         "calculation_details": yearly_breakdown,
     }
 
-    if avg_adjusted_eps <= 0:
+    if avg_adjusted <= 0:
         return {
             **base_result,
             "pe10": None,
-            "avg_adjusted_eps": float(avg_adjusted_eps),
+            "avg_adjusted_net_income": float(avg_adjusted),
             "error": "N/A — negative average earnings over the period",
         }
 
-    pe10 = current_price / avg_adjusted_eps
+    pe10 = market_cap / avg_adjusted
 
     return {
         **base_result,
         "pe10": round(float(pe10), 2),
-        "avg_adjusted_eps": round(float(avg_adjusted_eps), 2),
+        "avg_adjusted_net_income": float(avg_adjusted),
         "error": None,
     }

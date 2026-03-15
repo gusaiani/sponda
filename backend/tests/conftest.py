@@ -66,7 +66,3 @@ def sample_ipca(db):
     return entries
 
 
-@pytest.fixture
-def shares_outstanding():
-    """Approximate Petrobras shares outstanding."""
-    return Decimal("13_000_000_000")
