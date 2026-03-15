@@ -11,6 +11,7 @@ from .brapi import BRAPIError, fetch_quote, sync_balance_sheets, sync_cash_flows
 from .leverage import calculate_leverage
 from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .pe10 import calculate_pe10
+from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 
 
@@ -91,6 +92,7 @@ class PE10View(APIView):
         pe10_result = calculate_pe10(ticker, market_cap_decimal)
         pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal)
         leverage_result = calculate_leverage(ticker)
+        peg_result = calculate_peg(ticker, pe10_result["pe10"])
 
         # Debt / average earnings and debt / average FCF
         total_debt = leverage_result["totalDebt"]
@@ -141,6 +143,10 @@ class PE10View(APIView):
             # Debt coverage
             "debtToAvgEarnings": debt_to_avg_earnings,
             "debtToAvgFCF": debt_to_avg_fcf,
+            # PEG
+            "peg": peg_result["peg"],
+            "earningsCAGR": peg_result["earningsCAGR"],
+            "pegError": peg_result["pegError"],
         })
 
     def _check_rate_limit(self, request):
