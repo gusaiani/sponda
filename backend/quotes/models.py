@@ -34,6 +34,21 @@ class IPCAIndex(models.Model):
         return f"IPCA {self.date}: {self.annual_rate}%"
 
 
+class QuarterlyCashFlow(models.Model):
+    ticker = models.CharField(max_length=10, db_index=True)
+    end_date = models.DateField()
+    operating_cash_flow = models.BigIntegerField(null=True, blank=True)
+    investment_cash_flow = models.BigIntegerField(null=True, blank=True)
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("ticker", "end_date")
+        ordering = ["-end_date"]
+
+    def __str__(self):
+        return f"{self.ticker} {self.end_date} CF"
+
+
 class LookupLog(models.Model):
     session_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     user = models.ForeignKey(

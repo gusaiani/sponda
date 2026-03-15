@@ -53,13 +53,14 @@ class TestE2EWithLiveServer:
         pass
 
     @patch("quotes.views.fetch_quote", side_effect=_mock_fetch_quote)
+    @patch("quotes.views.sync_cash_flows", side_effect=_mock_sync)
     @patch("quotes.views.sync_earnings", side_effect=_mock_sync)
-    def test_search_returns_pe10(self, _mock1, _mock2, page: Page, live_server):
+    def test_search_returns_pe10(self, _mock1, _mock2, _mock3, page: Page, live_server):
         response = page.request.get(f"{live_server.url}/api/quote/VALE3/")
         data = response.json()
         assert data["ticker"] == "VALE3"
         assert data["pe10"] is not None
-        assert data["yearsOfData"] == 10
+        assert data["pe10YearsOfData"] == 10
 
     def test_health_endpoint(self, page: Page, live_server):
         response = page.request.get(f"{live_server.url}/api/health/")

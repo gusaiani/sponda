@@ -11,18 +11,101 @@
 
 .pe10-ticker {
   font-family: 'DM Mono', monospace;
+  @apply text-sm font-normal;
+  color: var(--color-muted);
+}
+
+.pe10-name {
+  font-family: 'DM Serif Display', Georgia, serif;
   @apply text-2xl font-normal;
   color: var(--color-ink);
 }
 
-.pe10-name {
+.pe10-value-container {
+  @apply text-center py-6;
+}
+
+.metrics-row {
+  @apply grid grid-cols-2 gap-8 py-6;
+}
+
+.metric-value-container {
+  @apply text-center;
+}
+
+.metric-block {
+  @apply flex flex-col items-center;
+}
+
+.metric-toggle {
   font-family: 'DM Mono', monospace;
-  @apply text-xs;
+  @apply w-full text-center text-xs
+    cursor-pointer bg-transparent py-2 mt-2 font-normal
+    flex items-center justify-center gap-1.5 transition-colors uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-accent);
+  border: none;
+  outline: none;
+}
+
+.metric-toggle:focus,
+.metric-toggle:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.metric-toggle-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.metric-toggle:hover {
+  color: var(--color-ink);
+}
+
+/* Modal */
+.modal-overlay {
+  @apply fixed inset-0 z-50 flex items-center justify-center;
+  background: rgba(15, 31, 61, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.modal-content {
+  @apply bg-white w-full max-h-[85vh] overflow-y-auto relative;
+  max-width: 680px;
+  margin: 1rem;
+  border: 1px solid var(--color-border);
+}
+
+.modal-header {
+  @apply flex items-baseline justify-between px-8 pt-8 pb-4;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-title {
+  font-family: 'DM Serif Display', Georgia, serif;
+  @apply text-xl font-normal;
+  color: var(--color-ink);
+}
+
+.modal-close {
+  @apply bg-transparent border-none cursor-pointer text-2xl leading-none;
   color: var(--color-muted);
 }
 
-.pe10-value-container {
-  @apply text-center py-6;
+.modal-close:hover {
+  color: var(--color-ink);
+}
+
+.modal-body {
+  @apply px-8 py-6;
+}
+
+.modal-explainer {
+  @apply text-base leading-relaxed space-y-3 mb-6;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  color: var(--color-ink);
 }
 
 .pe10-label {

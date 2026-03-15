@@ -33,9 +33,10 @@ class TestHealthEndpoint:
 
 class TestPE10Endpoint:
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_returns_pe10_data(
-        self, mock_sync, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
+        self, mock_sync, mock_sync_cf, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/")
@@ -44,22 +45,39 @@ class TestPE10Endpoint:
         assert data["ticker"] == "PETR4"
         assert data["pe10"] is not None
         assert data["currentPrice"] == 45.0
-        assert data["yearsOfData"] == 10
-        assert data["label"] == "PE10"
+        assert data["pe10YearsOfData"] == 10
+        assert data["pe10Label"] == "PE10"
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_pfcf10_data(
+        self, mock_sync, mock_sync_cf, mock_quote, api_client,
+        sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["pfcf10"] is not None
+        assert data["pfcf10YearsOfData"] == 10
+        assert data["pfcf10Label"] == "PFCF10"
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_logs_lookup(
-        self, mock_sync, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
+        self, mock_sync, mock_sync_cf, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         api_client.get("/api/quote/PETR4/")
         assert LookupLog.objects.filter(ticker="PETR4").count() == 1
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_ticker_is_uppercased(
-        self, mock_sync, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
+        self, mock_sync, mock_sync_cf, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/petr4/")
@@ -67,8 +85,9 @@ class TestPE10Endpoint:
         assert response.json()["ticker"] == "PETR4"
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
-    def test_handles_brapi_error(self, mock_sync, mock_quote, api_client, db):
+    def test_handles_brapi_error(self, mock_sync, mock_sync_cf, mock_quote, api_client, db):
         from quotes.brapi import BRAPIError
 
         mock_quote.side_effect = BRAPIError("Service unavailable")
@@ -76,9 +95,10 @@ class TestPE10Endpoint:
         assert response.status_code == 502
 
     @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
     def test_returns_no_data_for_unknown_ticker(
-        self, mock_sync, mock_quote, api_client, db, sample_ipca
+        self, mock_sync, mock_sync_cf, mock_quote, api_client, db, sample_ipca
     ):
         mock_quote.return_value = {
             "symbol": "FAKE3",
@@ -90,7 +110,9 @@ class TestPE10Endpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["pe10"] is None
-        assert data["yearsOfData"] == 0
+        assert data["pe10YearsOfData"] == 0
+        assert data["pfcf10"] is None
+        assert data["pfcf10YearsOfData"] == 0
 
 
 

@@ -1,34 +1,59 @@
 import { useQuery } from "@tanstack/react-query";
 
-interface QuarterlyDetail {
+interface QuarterlyEarningsDetail {
   end_date: string;
   net_income: number;
 }
 
-interface YearlyBreakdown {
+interface PE10YearlyBreakdown {
   year: number;
   nominalNetIncome: number;
   ipcaFactor: number;
   adjustedNetIncome: number;
   quarters: number;
-  quarterlyDetail: QuarterlyDetail[];
+  quarterlyDetail: QuarterlyEarningsDetail[];
 }
 
-interface PE10Result {
+interface QuarterlyCFDetail {
+  end_date: string;
+  operating_cash_flow: number;
+  investment_cash_flow: number;
+  fcf: number;
+}
+
+interface PFCF10YearlyBreakdown {
+  year: number;
+  nominalFCF: number;
+  ipcaFactor: number;
+  adjustedFCF: number;
+  quarters: number;
+  quarterlyDetail: QuarterlyCFDetail[];
+}
+
+interface QuoteResult {
   ticker: string;
   name: string;
-  pe10: number | null;
   currentPrice: number;
   marketCap: number | null;
+  // PE10
+  pe10: number | null;
   avgAdjustedNetIncome: number | null;
-  yearsOfData: number;
-  label: string;
-  error: string | null;
-  annualData: boolean;
-  calculationDetails: YearlyBreakdown[];
+  pe10YearsOfData: number;
+  pe10Label: string;
+  pe10Error: string | null;
+  pe10AnnualData: boolean;
+  pe10CalculationDetails: PE10YearlyBreakdown[];
+  // PFCF10
+  pfcf10: number | null;
+  avgAdjustedFCF: number | null;
+  pfcf10YearsOfData: number;
+  pfcf10Label: string;
+  pfcf10Error: string | null;
+  pfcf10AnnualData: boolean;
+  pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
 }
 
-interface PE10Error {
+interface QuoteError {
   error: string;
   limit?: number;
   used?: number;
@@ -44,13 +69,13 @@ async function parseJSON(response: Response): Promise<unknown> {
   }
 }
 
-async function fetchPE10(ticker: string): Promise<PE10Result> {
+async function fetchQuote(ticker: string): Promise<QuoteResult> {
   const response = await fetch(`/api/quote/${ticker}/`, {
     credentials: "include",
   });
 
   if (!response.ok) {
-    const data = (await parseJSON(response)) as PE10Error | null;
+    const data = (await parseJSON(response)) as QuoteError | null;
     const fallback =
       response.status === 404
         ? `Ticker "${ticker}" não encontrado. Verifique o código e tente novamente.`
@@ -64,7 +89,7 @@ async function fetchPE10(ticker: string): Promise<PE10Result> {
 export function usePE10(ticker: string | null) {
   return useQuery({
     queryKey: ["pe10", ticker],
-    queryFn: () => fetchPE10(ticker!),
+    queryFn: () => fetchQuote(ticker!),
     enabled: !!ticker,
     retry: false,
     staleTime: 5 * 60 * 1000,

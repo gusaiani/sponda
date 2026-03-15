@@ -7,9 +7,10 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .brapi import BRAPIError, fetch_quote, sync_earnings
-from .models import LookupLog, QuarterlyEarnings
+from .brapi import BRAPIError, fetch_quote, sync_cash_flows, sync_earnings
+from .models import LookupLog, QuarterlyCashFlow, QuarterlyEarnings
 from .pe10 import calculate_pe10
+from .pfcf10 import calculate_pfcf10
 
 
 class HealthView(APIView):
@@ -51,8 +52,9 @@ class PE10View(APIView):
 
         market_cap_decimal = Decimal(str(market_cap))
 
-        # Calculate PE10 using Market Cap / Avg Adjusted Net Income
-        result = calculate_pe10(ticker, market_cap_decimal)
+        # Calculate both metrics
+        pe10_result = calculate_pe10(ticker, market_cap_decimal)
+        pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal)
 
         # Log the lookup
         self._log_lookup(request, ticker)
@@ -60,15 +62,24 @@ class PE10View(APIView):
         return Response({
             "ticker": ticker,
             "name": name,
-            "pe10": result["pe10"],
             "currentPrice": float(current_price),
             "marketCap": market_cap,
-            "avgAdjustedNetIncome": result["avg_adjusted_net_income"],
-            "yearsOfData": result["years_of_data"],
-            "label": result["label"],
-            "error": result["error"],
-            "annualData": result["annual_data_flag"],
-            "calculationDetails": result["calculation_details"],
+            # PE10
+            "pe10": pe10_result["pe10"],
+            "avgAdjustedNetIncome": pe10_result["avg_adjusted_net_income"],
+            "pe10YearsOfData": pe10_result["years_of_data"],
+            "pe10Label": pe10_result["label"],
+            "pe10Error": pe10_result["error"],
+            "pe10AnnualData": pe10_result["annual_data_flag"],
+            "pe10CalculationDetails": pe10_result["calculation_details"],
+            # PFCF10
+            "pfcf10": pfcf10_result["pfcf10"],
+            "avgAdjustedFCF": pfcf10_result["avg_adjusted_fcf"],
+            "pfcf10YearsOfData": pfcf10_result["years_of_data"],
+            "pfcf10Label": pfcf10_result["label"],
+            "pfcf10Error": pfcf10_result["error"],
+            "pfcf10AnnualData": pfcf10_result["annual_data_flag"],
+            "pfcf10CalculationDetails": pfcf10_result["calculation_details"],
         })
 
     def _check_rate_limit(self, request):
@@ -110,12 +121,21 @@ class PE10View(APIView):
 
     def _ensure_fresh_data(self, ticker):
         cutoff = timezone.now() - timedelta(hours=24)
-        has_fresh = QuarterlyEarnings.objects.filter(
+
+        has_fresh_earnings = QuarterlyEarnings.objects.filter(
             ticker=ticker, fetched_at__gte=cutoff
         ).exists()
-
-        if not has_fresh:
+        if not has_fresh_earnings:
             try:
                 sync_earnings(ticker)
             except BRAPIError:
-                pass  # Use whatever cached data we have
+                pass
+
+        has_fresh_cf = QuarterlyCashFlow.objects.filter(
+            ticker=ticker, fetched_at__gte=cutoff
+        ).exists()
+        if not has_fresh_cf:
+            try:
+                sync_cash_flows(ticker)
+            except BRAPIError:
+                pass

@@ -5,7 +5,7 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
-from .models import IPCAIndex, QuarterlyEarnings
+from .models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
 class BRAPIError(Exception):
@@ -101,6 +101,71 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         earnings.append(obj)
 
     return earnings
+
+
+def fetch_cash_flow_statements(ticker: str) -> list[dict]:
+    """Fetch cash flow statement history for a ticker.
+
+    Tries quarterly first; falls back to annual if the BRAPI plan
+    doesn't include the quarterly module.
+    """
+    # Try quarterly first
+    try:
+        data = _get(
+            f"/quote/{ticker}",
+            params={"modules": "cashflowHistoryQuarterly"},
+        )
+        if not data.get("error"):
+            results = data.get("results", [])
+            if results:
+                statements = results[0].get("cashflowHistoryQuarterly", [])
+                if statements:
+                    return statements
+    except BRAPIError:
+        pass
+
+    # Fall back to annual
+    data = _get(
+        f"/quote/{ticker}",
+        params={"modules": "cashflowHistory"},
+    )
+    results = data.get("results", [])
+    if not results:
+        raise BRAPIError(f"No results for ticker {ticker}")
+    return results[0].get("cashflowHistory", [])
+
+
+def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
+    """Fetch and store cash flow data for a ticker from BRAPI."""
+    statements = fetch_cash_flow_statements(ticker)
+    cash_flows = []
+
+    for stmt in statements:
+        end_date_str = stmt.get("endDate", "")[:10]
+        if not end_date_str:
+            continue
+
+        end_date = date.fromisoformat(end_date_str)
+
+        operating_cf = stmt.get("operatingCashFlow")
+        if operating_cf is not None:
+            operating_cf = int(operating_cf)
+
+        investment_cf = stmt.get("investmentCashFlow")
+        if investment_cf is not None:
+            investment_cf = int(investment_cf)
+
+        obj, _ = QuarterlyCashFlow.objects.update_or_create(
+            ticker=ticker.upper(),
+            end_date=end_date,
+            defaults={
+                "operating_cash_flow": operating_cf,
+                "investment_cash_flow": investment_cf,
+            },
+        )
+        cash_flows.append(obj)
+
+    return cash_flows
 
 
 def fetch_ipca_data() -> list[dict]:
