@@ -57,6 +57,7 @@ jobs:
             git reset --hard origin/main
             source venv/bin/activate
             pip install -r backend/requirements.txt
+            command -v n >/dev/null || npm install -g n
             n lts -y
             hash -r
             cd frontend
