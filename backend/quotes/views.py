@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 
 from .brapi import BRAPIError, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .leverage import calculate_leverage
-from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings
+from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .pe10 import calculate_pe10
 from .pfcf10 import calculate_pfcf10
 
@@ -29,6 +29,14 @@ def _clean_company_name(name: str) -> str:
     # Remove from first suffix onward (greedy: keeps the meaningful part)
     cleaned = re.split(rf"\s+{suffixes}(?:\s|$)", name, maxsplit=1, flags=re.IGNORECASE)[0]
     return cleaned.strip() or name
+
+
+class TickerListView(APIView):
+    def get(self, request):
+        tickers = Ticker.objects.values("symbol", "name", "sector", "type", "logo")
+        response = Response(list(tickers))
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
 
 
 class HealthView(APIView):

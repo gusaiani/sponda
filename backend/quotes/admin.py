@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import BalanceSheet, IPCAIndex, LookupLog, QuarterlyEarnings
+from .models import BalanceSheet, IPCAIndex, LookupLog, QuarterlyEarnings, Ticker
 
 
 @admin.register(QuarterlyEarnings)
@@ -18,6 +18,13 @@ class IPCAIndexAdmin(admin.ModelAdmin):
 class BalanceSheetAdmin(admin.ModelAdmin):
     list_display = ("ticker", "end_date", "total_debt", "total_liabilities", "stockholders_equity", "fetched_at")
     list_filter = ("ticker",)
+
+
+@admin.register(Ticker)
+class TickerAdmin(admin.ModelAdmin):
+    list_display = ("symbol", "name", "sector", "type", "updated_at")
+    list_filter = ("type", "sector")
+    search_fields = ("symbol", "name")
 
 
 @admin.register(LookupLog)

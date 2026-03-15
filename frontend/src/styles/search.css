@@ -42,3 +42,39 @@
   background: #ffffff;
   color: var(--color-ink);
 }
+
+/* Autocomplete dropdown */
+.search-dropdown {
+  @apply absolute left-0 right-0 z-50 overflow-y-auto;
+  top: 100%;
+  max-height: 320px;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-top: none;
+}
+
+.search-dropdown-item {
+  font-family: 'DM Mono', monospace;
+  @apply flex items-center gap-3 px-5 py-2.5 cursor-pointer text-sm transition-colors;
+  color: var(--color-ink);
+}
+
+.search-dropdown-item:hover,
+.search-dropdown-item--active {
+  background: #f8fafc;
+}
+
+.search-dropdown-logo {
+  @apply w-5 h-5 rounded-sm flex-shrink-0 object-contain;
+}
+
+.search-dropdown-symbol {
+  @apply font-normal flex-shrink-0;
+  color: var(--color-ink);
+  min-width: 5ch;
+}
+
+.search-dropdown-name {
+  @apply truncate;
+  color: var(--color-muted);
+}
