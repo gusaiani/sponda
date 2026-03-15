@@ -85,6 +85,20 @@ async function parseJSON(response: Response): Promise<unknown> {
   }
 }
 
+/** Default values for nullable fields — prevents undefined from crashing renders */
+const DEFAULTS: Partial<QuoteResult> = {
+  marketCap: null,
+  pe10: null, avgAdjustedNetIncome: null, pe10Error: null,
+  pe10CalculationDetails: [], pe10AnnualData: false,
+  pfcf10: null, avgAdjustedFCF: null, pfcf10Error: null,
+  pfcf10CalculationDetails: [], pfcf10AnnualData: false,
+  debtToEquity: null, liabilitiesToEquity: null,
+  leverageError: null, leverageDate: null,
+  totalDebt: null, totalLiabilities: null, stockholdersEquity: null,
+  debtToAvgEarnings: null, debtToAvgFCF: null,
+  peg: null, earningsCAGR: null, pegError: null,
+};
+
 async function fetchQuote(ticker: string): Promise<QuoteResult> {
   const response = await fetch(`/api/quote/${ticker}/`, {
     credentials: "include",
@@ -99,7 +113,8 @@ async function fetchQuote(ticker: string): Promise<QuoteResult> {
     throw new Error(data?.error || fallback);
   }
 
-  return response.json();
+  const raw = await response.json();
+  return { ...DEFAULTS, ...raw } as QuoteResult;
 }
 
 export function usePE10(ticker: string | null) {
