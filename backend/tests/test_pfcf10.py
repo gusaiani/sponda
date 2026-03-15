@@ -66,7 +66,7 @@ class TestCalculatePFCF10:
         result = calculate_pfcf10("FAKE3", Decimal("100_000_000_000"))
         assert result["pfcf10"] is None
         assert result["years_of_data"] == 0
-        assert result["error"] == "No cash flow data available"
+        assert result["error"] == "Sem dados de fluxo de caixa disponíveis"
 
     def test_negative_average_fcf(self, db, sample_ipca):
         for year in [2024, 2025]:

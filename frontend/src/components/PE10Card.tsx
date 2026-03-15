@@ -35,6 +35,7 @@ interface PFCF10YearlyBreakdown {
 interface QuoteData {
   ticker: string;
   name: string;
+  logo: string;
   currentPrice: number;
   marketCap: number | null;
   pe10: number | null;
@@ -59,6 +60,9 @@ interface QuoteData {
   totalDebt: number | null;
   totalLiabilities: number | null;
   stockholdersEquity: number | null;
+  // Debt coverage
+  debtToAvgEarnings: number | null;
+  debtToAvgFCF: number | null;
 }
 
 interface PE10CardProps {
@@ -437,12 +441,92 @@ function LeverageDetails({ data }: { data: QuoteData }) {
   );
 }
 
+/* ── Debt Coverage "Entenda melhor" ── */
+
+function DebtCoverageDetails({ data }: { data: QuoteData }) {
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          <strong>Dív. Bruta / Lucro Médio</strong> indica quantos anos de lucro
+          líquido médio (ajustado pela inflação, últimos 10 anos) seriam
+          necessários para quitar a dívida bruta da empresa. Quanto menor, mais
+          confortável a situação.
+        </p>
+        <p>
+          <strong>Dív. Bruta / FCL Médio</strong> é a mesma ideia, mas usando o
+          fluxo de caixa livre médio em vez do lucro contábil. Como o FCL
+          representa o dinheiro que de fato entra no caixa, este indicador tende
+          a ser mais conservador e realista.
+        </p>
+        <p>
+          <strong>Por que usar a média de 10 anos?</strong> Suaviza ciclos
+          econômicos e resultados atípicos, dando uma visão mais estável da
+          capacidade de pagamento da empresa ao longo do tempo.
+        </p>
+        <p>
+          <strong>Atenção:</strong> valores negativos ou N/A indicam que a
+          empresa não gerou lucro ou caixa positivo em média no período, o que
+          torna a métrica inaplicável. Compare sempre empresas do mesmo setor.
+        </p>
+      </div>
+
+      {data.totalDebt !== null && (
+        <div className="pe10-calc-details">
+          <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
+
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Componentes</div>
+            <div className="pe10-calc-formula">
+              <span>Dívida Bruta</span>
+              <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+            </div>
+            {data.avgAdjustedNetIncome !== null && (
+              <div className="pe10-calc-formula">
+                <span>Lucro Líquido Médio Ajustado ({data.pe10YearsOfData}a)</span>
+                <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedNetIncome)}</span>
+              </div>
+            )}
+            {data.avgAdjustedFCF !== null && (
+              <div className="pe10-calc-formula">
+                <span>FCL Médio Ajustado ({data.pfcf10YearsOfData}a)</span>
+                <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedFCF)}</span>
+              </div>
+            )}
+          </div>
+
+          {data.debtToAvgEarnings !== null && data.avgAdjustedNetIncome !== null && (
+            <div className="pe10-calc-section">
+              <div className="pe10-calc-section-title">Dív. Bruta / Lucro Médio</div>
+              <div className="pe10-calc-formula">
+                <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedNetIncome)}</span>
+                <span className="pe10-calc-formula-val">= {data.debtToAvgEarnings.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+
+          {data.debtToAvgFCF !== null && data.avgAdjustedFCF !== null && (
+            <div className="pe10-calc-section">
+              <div className="pe10-calc-section-title">Dív. Bruta / FCL Médio</div>
+              <div className="pe10-calc-formula">
+                <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedFCF)}</span>
+                <span className="pe10-calc-formula-val">= {data.debtToAvgFCF.toFixed(2)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ── Main Card ── */
 
 export function PE10Card({ data }: PE10CardProps) {
   const [showPL10, setShowPL10] = useState(false);
   const [showPFCL10, setShowPFCL10] = useState(false);
   const [showLeverage, setShowLeverage] = useState(false);
+  const [showDebtCoverage, setShowDebtCoverage] = useState(false);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
@@ -452,12 +536,94 @@ export function PE10Card({ data }: PE10CardProps) {
   return (
     <div className="pe10-card">
       <div className="pe10-card-header">
+        {data.logo && (
+          <img
+            className="pe10-logo"
+            src={data.logo}
+            alt=""
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
         <span className="pe10-name">{data.name}</span>
         <span className="pe10-ticker">{data.ticker}</span>
       </div>
 
-      {/* Two metrics side by side */}
+      {/* Leverage metrics (defensive — top) */}
       <div className="metrics-row">
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">Dív. Bruta / PL</div>
+            {data.debtToEquity !== null ? (
+              <div className="pe10-value">{data.debtToEquity.toFixed(2)}</div>
+            ) : (
+              <div className="pe10-error">{data.leverageError || "N/A"}</div>
+            )}
+          </div>
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">Passivo / PL</div>
+            {data.liabilitiesToEquity !== null ? (
+              <div className="pe10-value">{data.liabilitiesToEquity.toFixed(2)}</div>
+            ) : (
+              <div className="pe10-error">{data.leverageError || "N/A"}</div>
+            )}
+          </div>
+        </div>
+      </div>
+      {hasLeverage && (
+        <button
+          className="metric-toggle leverage-toggle"
+          onClick={() => setShowLeverage(true)}
+        >
+          <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+          Entenda melhor
+        </button>
+      )}
+      {showLeverage && (
+        <Modal title={`Alavancagem — ${data.name}`} onClose={() => setShowLeverage(false)}>
+          <LeverageDetails data={data} />
+        </Modal>
+      )}
+
+      {/* Debt coverage metrics */}
+      <div className="metrics-row leverage-row">
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média 10a</span></div>
+            {data.debtToAvgEarnings !== null ? (
+              <div className="pe10-value">{data.debtToAvgEarnings.toFixed(1)}</div>
+            ) : (
+              <div className="pe10-error">N/A</div>
+            )}
+          </div>
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">Dív. Bruta / FCL <span className="pe10-label-note">média 10a</span></div>
+            {data.debtToAvgFCF !== null ? (
+              <div className="pe10-value">{data.debtToAvgFCF.toFixed(1)}</div>
+            ) : (
+              <div className="pe10-error">N/A</div>
+            )}
+          </div>
+        </div>
+      </div>
+      <button
+        className="metric-toggle leverage-toggle"
+        onClick={() => setShowDebtCoverage(true)}
+      >
+        <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        Entenda melhor
+      </button>
+      {showDebtCoverage && (
+        <Modal title={`Cobertura da Dívida — ${data.name}`} onClose={() => setShowDebtCoverage(false)}>
+          <DebtCoverageDetails data={data} />
+        </Modal>
+      )}
+
+      {/* Price metrics (valuation — bottom) */}
+      <div className="metrics-row leverage-row">
         {/* P/L10 */}
         <div className="metric-block">
           <div className="metric-value-container">
@@ -506,44 +672,6 @@ export function PE10Card({ data }: PE10CardProps) {
           )}
         </div>
       </div>
-
-      {/* Leverage metrics */}
-      <div className="metrics-row leverage-row">
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">Dív. Bruta / PL</div>
-            {data.debtToEquity !== null ? (
-              <div className="pe10-value">{data.debtToEquity.toFixed(2)}</div>
-            ) : (
-              <div className="pe10-error">{data.leverageError || "N/A"}</div>
-            )}
-          </div>
-        </div>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">Passivo / PL</div>
-            {data.liabilitiesToEquity !== null ? (
-              <div className="pe10-value">{data.liabilitiesToEquity.toFixed(2)}</div>
-            ) : (
-              <div className="pe10-error">{data.leverageError || "N/A"}</div>
-            )}
-          </div>
-        </div>
-      </div>
-      {hasLeverage && (
-        <button
-          className="metric-toggle leverage-toggle"
-          onClick={() => setShowLeverage(true)}
-        >
-          <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
-          Entenda melhor
-        </button>
-      )}
-      {showLeverage && (
-        <Modal title={`Alavancagem — ${data.name}`} onClose={() => setShowLeverage(false)}>
-          <LeverageDetails data={data} />
-        </Modal>
-      )}
 
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (
         <div className="pe10-warning">

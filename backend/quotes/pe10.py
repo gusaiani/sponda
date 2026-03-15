@@ -104,7 +104,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal) -> dict:
             "avg_adjusted_net_income": None,
             "years_of_data": 0,
             "label": "PE0",
-            "error": "No earnings data available",
+            "error": "Sem dados de lucro disponíveis",
             "annual_data_flag": False,
             "calculation_details": [],
         }
@@ -150,7 +150,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal) -> dict:
             **base_result,
             "pe10": None,
             "avg_adjusted_net_income": float(avg_adjusted),
-            "error": "N/A — negative average earnings over the period",
+            "error": "N/A — lucro médio negativo no período",
         }
 
     pe10 = market_cap / avg_adjusted

@@ -33,6 +33,7 @@ interface PFCF10YearlyBreakdown {
 interface QuoteResult {
   ticker: string;
   name: string;
+  logo: string;
   currentPrice: number;
   marketCap: number | null;
   // PE10
@@ -59,6 +60,9 @@ interface QuoteResult {
   totalDebt: number | null;
   totalLiabilities: number | null;
   stockholdersEquity: number | null;
+  // Debt coverage
+  debtToAvgEarnings: number | null;
+  debtToAvgFCF: number | null;
 }
 
 interface QuoteError {
