@@ -63,6 +63,10 @@ interface QuoteResult {
   // Debt coverage
   debtToAvgEarnings: number | null;
   debtToAvgFCF: number | null;
+  // PEG
+  peg: number | null;
+  earningsCAGR: number | null;
+  pegError: string | null;
 }
 
 interface QuoteError {

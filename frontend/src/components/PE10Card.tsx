@@ -63,6 +63,10 @@ interface QuoteData {
   // Debt coverage
   debtToAvgEarnings: number | null;
   debtToAvgFCF: number | null;
+  // PEG
+  peg: number | null;
+  earningsCAGR: number | null;
+  pegError: string | null;
 }
 
 interface PE10CardProps {
@@ -74,12 +78,17 @@ function ptLabel(label: string): string {
   return label.replace(/^PE/, "P/L").replace(/^PFCF/, "P/FCL");
 }
 
+/** Replace decimal dot with comma for Brazilian notation */
+function br(n: number, digits: number): string {
+  return n.toFixed(digits).replace(".", ",");
+}
+
 function formatLargeNumber(value: number): string {
   const abs = Math.abs(value);
-  if (abs >= 1e9) return `R$ ${(value / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `R$ ${(value / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `R$ ${(value / 1e3).toFixed(1)}K`;
-  return `R$ ${value.toFixed(0)}`;
+  if (abs >= 1e9) return `R$ ${br(value / 1e9, 2)}B`;
+  if (abs >= 1e6) return `R$ ${br(value / 1e6, 2)}M`;
+  if (abs >= 1e3) return `R$ ${br(value / 1e3, 1)}K`;
+  return `R$ ${br(value, 0)}`;
 }
 
 function formatQuarterLabel(dateStr: string): string {
@@ -172,7 +181,7 @@ function PL10Details({ data }: { data: QuoteData }) {
                     <tr key={year.year} className="pe10-calc-year-row">
                       <td>{year.year}</td>
                       <td>{formatLargeNumber(year.nominalNetIncome)}</td>
-                      <td>{year.ipcaFactor.toFixed(4)}×</td>
+                      <td>{br(year.ipcaFactor, 4)}×</td>
                       <td>{formatLargeNumber(year.adjustedNetIncome)}</td>
                       <td>
                         <button
@@ -222,7 +231,7 @@ function PL10Details({ data }: { data: QuoteData }) {
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
                 <span>= {label}</span>
-                <span className="pe10-calc-formula-val">{data.pe10.toFixed(2)}</span>
+                <span className="pe10-calc-formula-val">{br(data.pe10, 2)}</span>
               </div>
             </div>
           )}
@@ -293,7 +302,7 @@ function PFCL10Details({ data }: { data: QuoteData }) {
                     <tr key={year.year} className="pe10-calc-year-row">
                       <td>{year.year}</td>
                       <td>{formatLargeNumber(year.nominalFCF)}</td>
-                      <td>{year.ipcaFactor.toFixed(4)}×</td>
+                      <td>{br(year.ipcaFactor, 4)}×</td>
                       <td>{formatLargeNumber(year.adjustedFCF)}</td>
                       <td>
                         <button
@@ -347,7 +356,7 @@ function PFCL10Details({ data }: { data: QuoteData }) {
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
                 <span>= {label}</span>
-                <span className="pe10-calc-formula-val">{data.pfcf10.toFixed(2)}</span>
+                <span className="pe10-calc-formula-val">{br(data.pfcf10, 2)}</span>
               </div>
             </div>
           )}
@@ -421,7 +430,7 @@ function LeverageDetails({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">Dívida Bruta / PL</div>
               <div className="pe10-calc-formula">
                 <span>{formatLargeNumber(data.totalDebt!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
-                <span className="pe10-calc-formula-val">= {data.debtToEquity.toFixed(2)}</span>
+                <span className="pe10-calc-formula-val">= {br(data.debtToEquity, 2)}</span>
               </div>
             </div>
           )}
@@ -431,10 +440,66 @@ function LeverageDetails({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">Passivo / PL</div>
               <div className="pe10-calc-formula">
                 <span>{formatLargeNumber(data.totalLiabilities!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
-                <span className="pe10-calc-formula-val">= {data.liabilitiesToEquity.toFixed(2)}</span>
+                <span className="pe10-calc-formula-val">= {br(data.liabilitiesToEquity, 2)}</span>
               </div>
             </div>
           )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ── PEG "Entenda melhor" ── */
+
+function PEGDetails({ data }: { data: QuoteData }) {
+  const pl10Label = ptLabel(data.pe10Label);
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>
+          O <strong>PEG</strong> (Price/Earnings to Growth), popularizado por
+          Peter Lynch, relaciona o múltiplo de lucros com o crescimento real
+          da empresa. Aqui, usamos o <strong>{pl10Label}</strong> (ajustado pela
+          inflação) dividido pelo <strong>CAGR</strong> (taxa de crescimento
+          anual composta) dos lucros reais no mesmo período.
+        </p>
+        <p>
+          Um PEG abaixo de 1 sugere que o preço está atrativo em relação ao
+          crescimento. Acima de 1, o mercado pode estar pagando caro pelo
+          crescimento esperado. Valores muito baixos merecem investigação —
+          podem indicar oportunidade ou deterioração futura dos lucros.
+        </p>
+        <p>
+          <strong>Atenção:</strong> o PEG só é calculável quando o {pl10Label} é
+          positivo e os lucros reais cresceram no período. Se a empresa encolheu
+          ou teve prejuízo, o PEG não se aplica.
+        </p>
+      </div>
+
+      {data.peg !== null && data.pe10 !== null && data.earningsCAGR !== null && (
+        <div className="pe10-calc-details">
+          <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
+
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">Componentes</div>
+            <div className="pe10-calc-formula">
+              <span>{pl10Label}</span>
+              <span className="pe10-calc-formula-val">{br(data.pe10, 2)}</span>
+            </div>
+            <div className="pe10-calc-formula">
+              <span>CAGR dos lucros reais</span>
+              <span className="pe10-calc-formula-val">{br(data.earningsCAGR, 2)}%</span>
+            </div>
+          </div>
+
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">PEG</div>
+            <div className="pe10-calc-formula">
+              <span>{br(data.pe10, 2)} ÷ {br(data.earningsCAGR, 2)}</span>
+              <span className="pe10-calc-formula-val">= {br(data.peg, 2)}</span>
+            </div>
+          </div>
         </div>
       )}
     </>
@@ -500,7 +565,7 @@ function DebtCoverageDetails({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">Dív. Bruta / Lucro Médio</div>
               <div className="pe10-calc-formula">
                 <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedNetIncome)}</span>
-                <span className="pe10-calc-formula-val">= {data.debtToAvgEarnings.toFixed(2)}</span>
+                <span className="pe10-calc-formula-val">= {br(data.debtToAvgEarnings, 2)}</span>
               </div>
             </div>
           )}
@@ -510,7 +575,7 @@ function DebtCoverageDetails({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">Dív. Bruta / FCL Médio</div>
               <div className="pe10-calc-formula">
                 <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedFCF)}</span>
-                <span className="pe10-calc-formula-val">= {data.debtToAvgFCF.toFixed(2)}</span>
+                <span className="pe10-calc-formula-val">= {br(data.debtToAvgFCF, 2)}</span>
               </div>
             </div>
           )}
@@ -527,6 +592,7 @@ export function PE10Card({ data }: PE10CardProps) {
   const [showPFCL10, setShowPFCL10] = useState(false);
   const [showLeverage, setShowLeverage] = useState(false);
   const [showDebtCoverage, setShowDebtCoverage] = useState(false);
+  const [showPEG, setShowPEG] = useState(false);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
@@ -554,7 +620,7 @@ export function PE10Card({ data }: PE10CardProps) {
           <div className="metric-value-container">
             <div className="pe10-label">Dív. Bruta / PL</div>
             {data.debtToEquity !== null ? (
-              <div className="pe10-value">{data.debtToEquity.toFixed(2)}</div>
+              <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
             ) : (
               <div className="pe10-error">{data.leverageError || "N/A"}</div>
             )}
@@ -564,7 +630,7 @@ export function PE10Card({ data }: PE10CardProps) {
           <div className="metric-value-container">
             <div className="pe10-label">Passivo / PL</div>
             {data.liabilitiesToEquity !== null ? (
-              <div className="pe10-value">{data.liabilitiesToEquity.toFixed(2)}</div>
+              <div className="pe10-value">{br(data.liabilitiesToEquity, 2)}</div>
             ) : (
               <div className="pe10-error">{data.leverageError || "N/A"}</div>
             )}
@@ -592,7 +658,7 @@ export function PE10Card({ data }: PE10CardProps) {
           <div className="metric-value-container">
             <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média 10a</span></div>
             {data.debtToAvgEarnings !== null ? (
-              <div className="pe10-value">{data.debtToAvgEarnings.toFixed(1)}</div>
+              <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
             ) : (
               <div className="pe10-error">N/A</div>
             )}
@@ -602,7 +668,7 @@ export function PE10Card({ data }: PE10CardProps) {
           <div className="metric-value-container">
             <div className="pe10-label">Dív. Bruta / FCL <span className="pe10-label-note">média 10a</span></div>
             {data.debtToAvgFCF !== null ? (
-              <div className="pe10-value">{data.debtToAvgFCF.toFixed(1)}</div>
+              <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
             ) : (
               <div className="pe10-error">N/A</div>
             )}
@@ -629,7 +695,7 @@ export function PE10Card({ data }: PE10CardProps) {
           <div className="metric-value-container">
             <div className="pe10-label">{pl10Label}</div>
             {data.pe10 !== null ? (
-              <div className="pe10-value">{data.pe10.toFixed(1)}</div>
+              <div className="pe10-value">{br(data.pe10, 1)}</div>
             ) : (
               <div className="pe10-error">{data.pe10Error}</div>
             )}
@@ -653,7 +719,7 @@ export function PE10Card({ data }: PE10CardProps) {
           <div className="metric-value-container">
             <div className="pe10-label">{pfcl10Label}</div>
             {data.pfcf10 !== null ? (
-              <div className="pe10-value">{data.pfcf10.toFixed(1)}</div>
+              <div className="pe10-value">{br(data.pfcf10, 1)}</div>
             ) : (
               <div className="pe10-error">{data.pfcf10Error}</div>
             )}
@@ -673,6 +739,42 @@ export function PE10Card({ data }: PE10CardProps) {
         </div>
       </div>
 
+      {/* PEG */}
+      <div className="metrics-row leverage-row">
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">PEG <span className="pe10-label-note">Lynch</span></div>
+            {data.peg !== null ? (
+              <div className="pe10-value">{br(data.peg, 2)}</div>
+            ) : (
+              <div className="pe10-error">{data.pegError || "N/A"}</div>
+            )}
+          </div>
+        </div>
+        <div className="metric-block">
+          <div className="metric-value-container">
+            <div className="pe10-label">CAGR Lucros <span className="pe10-label-note">real</span></div>
+            {data.earningsCAGR !== null ? (
+              <div className="pe10-value">{br(data.earningsCAGR, 1)}%</div>
+            ) : (
+              <div className="pe10-error">N/A</div>
+            )}
+          </div>
+        </div>
+      </div>
+      <button
+        className="metric-toggle leverage-toggle"
+        onClick={() => setShowPEG(true)}
+      >
+        <svg className="metric-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        Entenda melhor
+      </button>
+      {showPEG && (
+        <Modal title={`PEG — ${data.name}`} onClose={() => setShowPEG(false)}>
+          <PEGDetails data={data} />
+        </Modal>
+      )}
+
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (
         <div className="pe10-warning">
           Atenção: usando demonstrações anuais. Dados trimestrais
@@ -684,7 +786,7 @@ export function PE10Card({ data }: PE10CardProps) {
         <div className="pe10-detail-item">
           <div className="pe10-detail-label">Preço Atual</div>
           <div className="pe10-detail-value">
-            R$ {data.currentPrice.toFixed(2)}
+            R$ {br(data.currentPrice, 2)}
           </div>
         </div>
         <div className="pe10-detail-item">

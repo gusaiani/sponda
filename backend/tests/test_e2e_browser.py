@@ -137,7 +137,7 @@ class TestBrowserSearch:
         page.locator("button[type='submit']").click()
 
         # Should show current price
-        expect(page.locator("text=R$ 50.00")).to_be_visible(timeout=10000)
+        expect(page.locator("text=R$ 50,00")).to_be_visible(timeout=10000)
 
     def test_search_shows_pfcf10_label(self, page: Page, url):
         page.goto(url)
