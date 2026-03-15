@@ -115,6 +115,7 @@
   @apply text-xs font-normal uppercase mb-1;
   letter-spacing: 0.18em;
   color: var(--color-muted);
+  white-space: nowrap;
 }
 
 .pe10-label-note {
