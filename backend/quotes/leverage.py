@@ -59,8 +59,8 @@ def calculate_leverage(ticker: str) -> dict:
 
     if total_debt is not None:
         debt_to_equity = round(total_debt / equity, 2)
-        lease = total_lease or 0
-        debt_ex_lease_to_equity = round((total_debt - lease) / equity, 2)
+        if total_lease is not None:
+            debt_ex_lease_to_equity = round((total_debt - total_lease) / equity, 2)
 
     if total_liab is not None:
         liab_to_equity = round(total_liab / equity, 2)
