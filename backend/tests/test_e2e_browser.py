@@ -32,7 +32,7 @@ def _brapi_quote_callback(request):
             {
                 "symbol": ticker,
                 "longName": f"Test Company {ticker}",
-                "shortName": ticker,
+                "shortName": f"{ticker} SA",
                 "regularMarketPrice": 50.0,
                 "marketCap": 500_000_000_000,
                 "incomeStatementHistoryQuarterly": [],
@@ -126,7 +126,7 @@ class TestBrowserSearch:
         expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
 
         # Should show the company name
-        expect(page.locator(".pe10-name", has_text="Test Company VALE3")).to_be_visible()
+        expect(page.locator(".pe10-name", has_text="VALE3 SA")).to_be_visible()
 
         # Should show P/L10 label
         expect(page.locator(".pe10-label", has_text="P/L10")).to_be_visible()
