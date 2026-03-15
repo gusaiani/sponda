@@ -33,7 +33,7 @@ def _clean_company_name(name: str) -> str:
 
 class TickerListView(APIView):
     def get(self, request):
-        tickers = Ticker.objects.values("symbol", "name", "sector", "type", "logo")
+        tickers = Ticker.objects.filter(type="stock").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "sector", "type", "logo")
         response = Response(list(tickers))
         response["Cache-Control"] = "public, max-age=3600"
         return response

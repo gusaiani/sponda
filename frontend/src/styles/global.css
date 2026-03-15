@@ -88,3 +88,13 @@
 .app-footer-link:hover {
   text-decoration: underline;
 }
+
+.app-footer-performance {
+  @apply mt-4;
+  font-size: 0.65rem;
+  line-height: 1.6;
+}
+
+.app-footer-cta {
+  @apply mt-2 font-semibold;
+}
