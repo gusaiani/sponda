@@ -56,7 +56,7 @@ function CalculationDetails({ data }: { data: PE10Data }) {
 
   return (
     <div className="pe10-calc-details">
-      <h4 className="pe10-calc-title">Memória de Cálculo</h4>
+      <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
 
       {/* Step 1: Yearly earnings table */}
       <div className="pe10-calc-section">
@@ -193,7 +193,7 @@ export function PE10Card({ data }: PE10CardProps) {
             className="pe10-calc-toggle"
             onClick={() => setShowDetails(!showDetails)}
           >
-            Memória de cálculo
+            Como é feito o cálculo
             <span className={`pe10-explainer-chevron ${showDetails ? "pe10-explainer-chevron-open" : ""}`}>
               ▼
             </span>
