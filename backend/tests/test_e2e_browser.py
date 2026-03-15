@@ -163,7 +163,7 @@ class TestBrowserSearch:
 
         # Wait for card, then click first "Entenda melhor"
         expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
-        page.locator(".metric-toggle").first.click()
+        page.locator(".info-btn").first.click()
 
         # Modal should appear with explainer content
         expect(page.locator(".modal-overlay")).to_be_visible()
@@ -175,7 +175,7 @@ class TestBrowserSearch:
         page.locator("button[type='submit']").click()
 
         expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
-        page.locator(".metric-toggle").first.click()
+        page.locator(".info-btn").first.click()
         expect(page.locator(".modal-overlay")).to_be_visible()
 
         # Close via the X button
