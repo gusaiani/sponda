@@ -31,7 +31,7 @@
 }
 
 .metrics-row {
-  @apply grid grid-cols-2 gap-8 pt-6 pb-2;
+  @apply grid grid-cols-2 gap-8 py-6;
 }
 
 .metric-value-container {
@@ -132,7 +132,7 @@
 }
 
 .leverage-row-top {
-  @apply grid-cols-3 pb-2;
+  @apply grid-cols-3;
 }
 
 .leverage-row-top .pe10-value {
@@ -140,8 +140,7 @@
 }
 
 .leverage-row {
-  @apply mt-0 pb-2;
-  padding-top: 30px;
+  @apply mt-0;
   border-top: 1px solid var(--color-border);
 }
 
