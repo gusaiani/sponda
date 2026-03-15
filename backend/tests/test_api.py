@@ -66,6 +66,52 @@ class TestPE10Endpoint:
     @patch("quotes.views.fetch_quote")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
+    def test_pfcf10_includes_calculation_details(
+        self, mock_sync, mock_sync_cf, mock_quote, api_client,
+        sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/")
+        data = response.json()
+        details = data["pfcf10CalculationDetails"]
+        assert len(details) == 10
+        first = details[0]
+        assert "nominalFCF" in first
+        assert "ipcaFactor" in first
+        assert "adjustedFCF" in first
+        assert "quarterlyDetail" in first
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_pfcf10_avg_adjusted_fcf_returned(
+        self, mock_sync, mock_sync_cf, mock_quote, api_client,
+        sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/")
+        data = response.json()
+        assert data["avgAdjustedFCF"] is not None
+        assert data["avgAdjustedFCF"] > 0
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_pfcf10_null_without_cash_flow_data(
+        self, mock_sync, mock_sync_cf, mock_quote, api_client,
+        sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        """PFCF10 is null when there are no cash flow records."""
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/")
+        data = response.json()
+        assert data["pfcf10"] is None
+        assert data["pfcf10YearsOfData"] == 0
+        assert data["pfcf10Error"] is not None
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
     def test_logs_lookup(
         self, mock_sync, mock_sync_cf, mock_quote, api_client, sample_earnings, sample_ipca, mock_brapi_quote
     ):

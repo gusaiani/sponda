@@ -41,7 +41,7 @@ class PE10View(APIView):
             )
 
         current_price = Decimal(str(quote.get("regularMarketPrice", 0)))
-        name = quote.get("longName") or quote.get("shortName") or ticker
+        name = quote.get("shortName") or quote.get("longName") or ticker
         market_cap = quote.get("marketCap")
 
         if not market_cap or not current_price:

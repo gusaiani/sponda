@@ -14,7 +14,7 @@ import pytest
 import responses
 from playwright.sync_api import Page, expect
 
-from quotes.models import IPCAIndex, QuarterlyEarnings
+from quotes.models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
@@ -71,6 +71,15 @@ def seed_data(db):
             date=date(year, 12, 1),
             annual_rate=Decimal("4.5"),
         )
+    quarter_ends_cf = [(3, 31), (6, 30), (9, 30), (12, 31)]
+    for year in range(2016, 2026):
+        for month, day in quarter_ends_cf:
+            QuarterlyCashFlow.objects.create(
+                ticker="VALE3",
+                end_date=date(year, month, day),
+                operating_cash_flow=20_000_000_000,
+                investment_cash_flow=-8_000_000_000,
+            )
 
 
 @pytest.fixture
@@ -129,6 +138,49 @@ class TestBrowserSearch:
 
         # Should show current price
         expect(page.locator("text=R$ 50.00")).to_be_visible(timeout=10000)
+
+    def test_search_shows_pfcf10_label(self, page: Page, url):
+        page.goto(url)
+        page.locator("input[placeholder*='ticker']").fill("VALE3")
+        page.locator("button[type='submit']").click()
+
+        # Should show P/FCL10 label alongside P/L10
+        expect(page.locator(".pe10-label", has_text="P/FCL10")).to_be_visible(timeout=10000)
+
+    def test_search_shows_both_metrics(self, page: Page, url):
+        page.goto(url)
+        page.locator("input[placeholder*='ticker']").fill("VALE3")
+        page.locator("button[type='submit']").click()
+
+        # Both metric labels should be visible
+        expect(page.locator(".pe10-label", has_text="P/L10")).to_be_visible(timeout=10000)
+        expect(page.locator(".pe10-label", has_text="P/FCL10")).to_be_visible()
+
+    def test_entenda_melhor_opens_modal(self, page: Page, url):
+        page.goto(url)
+        page.locator("input[placeholder*='ticker']").fill("VALE3")
+        page.locator("button[type='submit']").click()
+
+        # Wait for card, then click first "Entenda melhor"
+        expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
+        page.locator(".metric-toggle").first.click()
+
+        # Modal should appear with explainer content
+        expect(page.locator(".modal-overlay")).to_be_visible()
+        expect(page.locator(".modal-content")).to_be_visible()
+
+    def test_modal_closes_on_x_button(self, page: Page, url):
+        page.goto(url)
+        page.locator("input[placeholder*='ticker']").fill("VALE3")
+        page.locator("button[type='submit']").click()
+
+        expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
+        page.locator(".metric-toggle").first.click()
+        expect(page.locator(".modal-overlay")).to_be_visible()
+
+        # Close via the X button
+        page.locator(".modal-close").click()
+        expect(page.locator(".modal-overlay")).not_to_be_visible()
 
     def test_search_shows_years_of_data(self, page: Page, url):
         page.goto(url)
