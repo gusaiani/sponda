@@ -6,6 +6,7 @@ import {
 import { App } from "./App";
 import { HomePage } from "./routes/index";
 import { SignupPage } from "./routes/signup";
+import { TickerPage } from "./routes/$ticker";
 
 const rootRoute = createRootRoute({
   component: App,
@@ -23,7 +24,13 @@ const signupRoute = createRoute({
   component: SignupPage,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, signupRoute]);
+const tickerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/$ticker",
+  component: TickerPage,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, signupRoute, tickerRoute]);
 
 export const router = createRouter({ routeTree });
 

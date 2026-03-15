@@ -1,0 +1,34 @@
+@reference "tailwindcss";
+
+.share-container {
+  @apply flex flex-col items-center mt-10 pt-6;
+  border-top: 1px solid var(--color-border);
+}
+
+.share-label {
+  font-family: 'DM Mono', monospace;
+  @apply text-xs uppercase mb-3;
+  letter-spacing: 0.14em;
+  color: var(--color-muted);
+}
+
+.share-buttons {
+  @apply flex items-center gap-3;
+}
+
+.share-btn {
+  @apply flex items-center justify-center
+    w-9 h-9 rounded-full transition-all duration-200 cursor-pointer;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+.share-btn:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.share-icon {
+  @apply w-4 h-4;
+}
