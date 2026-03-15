@@ -93,7 +93,7 @@ class TestCalculatePE10:
         assert result["pe10"] is None
         assert result["years_of_data"] == 0
         assert result["label"] == "PE0"
-        assert result["error"] == "No earnings data available"
+        assert result["error"] == "Sem dados de lucro disponíveis"
 
     def test_negative_average_earnings(self, db, sample_ipca):
         # Create only losing years
@@ -108,7 +108,7 @@ class TestCalculatePE10:
                 )
         result = calculate_pe10("LOSS3", Decimal("50_000_000_000"))
         assert result["pe10"] is None
-        assert "negative" in result["error"].lower()
+        assert "negativo" in result["error"].lower()
 
     def test_fewer_than_10_years(self, db, sample_ipca):
         # Create only 3 years of data

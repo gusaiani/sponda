@@ -80,10 +80,30 @@ class PE10View(APIView):
 
         market_cap_decimal = Decimal(str(market_cap))
 
+        # Get logo from Ticker table
+        logo = ""
+        try:
+            logo = Ticker.objects.values_list("logo", flat=True).get(symbol=ticker)
+        except Ticker.DoesNotExist:
+            pass
+
         # Calculate metrics
         pe10_result = calculate_pe10(ticker, market_cap_decimal)
         pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal)
         leverage_result = calculate_leverage(ticker)
+
+        # Debt / average earnings and debt / average FCF
+        total_debt = leverage_result["totalDebt"]
+        avg_earnings = pe10_result["avg_adjusted_net_income"]
+        avg_fcf = pfcf10_result["avg_adjusted_fcf"]
+
+        debt_to_avg_earnings = None
+        if total_debt is not None and avg_earnings and avg_earnings > 0:
+            debt_to_avg_earnings = round(total_debt / avg_earnings, 2)
+
+        debt_to_avg_fcf = None
+        if total_debt is not None and avg_fcf and avg_fcf > 0:
+            debt_to_avg_fcf = round(total_debt / avg_fcf, 2)
 
         # Log the lookup
         self._log_lookup(request, ticker)
@@ -91,6 +111,7 @@ class PE10View(APIView):
         return Response({
             "ticker": ticker,
             "name": name,
+            "logo": logo,
             "currentPrice": float(current_price),
             "marketCap": market_cap,
             # PE10
@@ -117,6 +138,9 @@ class PE10View(APIView):
             "totalDebt": leverage_result["totalDebt"],
             "totalLiabilities": leverage_result["totalLiabilities"],
             "stockholdersEquity": leverage_result["stockholdersEquity"],
+            # Debt coverage
+            "debtToAvgEarnings": debt_to_avg_earnings,
+            "debtToAvgFCF": debt_to_avg_fcf,
         })
 
     def _check_rate_limit(self, request):

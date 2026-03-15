@@ -6,7 +6,12 @@
 }
 
 .pe10-card-header {
-  @apply flex items-baseline justify-between mb-6;
+  @apply flex items-center justify-between mb-6;
+}
+
+.pe10-logo {
+  @apply w-8 h-8 rounded-full object-cover mr-3;
+  flex-shrink: 0;
 }
 
 .pe10-ticker {
@@ -17,7 +22,7 @@
 
 .pe10-name {
   font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-2xl font-normal;
+  @apply text-2xl font-normal flex-1;
   color: var(--color-ink);
 }
 
@@ -26,7 +31,7 @@
 }
 
 .metrics-row {
-  @apply grid grid-cols-2 gap-8 py-6;
+  @apply grid grid-cols-2 gap-8 pt-6 pb-2;
 }
 
 .metric-value-container {
@@ -115,6 +120,13 @@
   color: var(--color-muted);
 }
 
+.pe10-label-note {
+  @apply normal-case;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
 .pe10-value {
   font-family: 'DM Serif Display', Georgia, serif;
   @apply text-6xl font-normal;
@@ -122,7 +134,7 @@
 }
 
 .leverage-row {
-  @apply mt-0;
+  @apply mt-0 pb-2;
   padding-top: 30px;
   border-top: 1px solid var(--color-border);
 }
@@ -132,7 +144,7 @@
 }
 
 .leverage-toggle {
-  @apply mx-auto;
+  @apply mx-auto mt-0 mb-6;
 }
 
 .pe10-warning {

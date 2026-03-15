@@ -60,7 +60,7 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal) -> dict:
             "avg_adjusted_fcf": None,
             "years_of_data": 0,
             "label": "PFCF0",
-            "error": "No cash flow data available",
+            "error": "Sem dados de fluxo de caixa disponíveis",
             "annual_data_flag": False,
             "calculation_details": [],
         }
