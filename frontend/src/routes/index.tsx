@@ -17,7 +17,7 @@ export function HomePage() {
       <h1 className="app-hero-title">Sponda</h1>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
-      <SearchBar onSearch={handleSearch} isLoading={false} />
+      <SearchBar onSearch={handleSearch} isLoading={false} autoFocus />
 
       <ShareButtons />
     </div>

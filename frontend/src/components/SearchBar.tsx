@@ -6,9 +6,10 @@ import "../styles/search.css";
 interface SearchBarProps {
   onSearch: (ticker: string) => void;
   isLoading: boolean;
+  autoFocus?: boolean;
 }
 
-export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
+export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
   const [input, setInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -98,6 +99,7 @@ export function SearchBar({ onSearch, isLoading }: SearchBarProps) {
           onKeyDown={handleKeyDown}
           onFocus={() => input.trim() && setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+          autoFocus={autoFocus}
         />
         <button
           type="submit"
