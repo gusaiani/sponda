@@ -10,7 +10,7 @@
 
 .search-input {
   font-family: 'DM Mono', monospace;
-  @apply w-full px-5 py-3 text-base
+  @apply w-full px-5 py-3 pr-28 text-base
     focus:outline-none;
   border: 1px solid var(--color-border);
   color: var(--color-ink);
