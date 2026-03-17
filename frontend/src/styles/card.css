@@ -7,7 +7,7 @@
 
 @media (min-width: 640px) {
   .pe10-card {
-    @apply p-8;
+    @apply p-8 rounded-xl;
     border: 1px solid var(--color-border);
   }
 }
@@ -166,7 +166,7 @@
 
 .leverage-row {
   @apply mt-0;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid #dce6ef;
 }
 
 .leverage-row .pe10-value {
@@ -221,7 +221,7 @@
 
 .pe10-details {
   @apply flex flex-col gap-2 mt-6 pt-6;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid #dce6ef;
 }
 
 @media (min-width: 640px) {
@@ -273,7 +273,7 @@
 
 @media (min-width: 640px) {
   .pe10-loading {
-    @apply p-8;
+    @apply p-8 rounded-xl;
     border: 1px solid var(--color-border);
   }
 }
