@@ -2,7 +2,6 @@
 
 .share-container {
   @apply flex flex-col items-center mt-10 pt-6;
-  border-top: 1px solid var(--color-border);
 }
 
 .share-label {
