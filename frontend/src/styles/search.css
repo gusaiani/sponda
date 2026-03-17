@@ -10,7 +10,7 @@
 
 .search-input {
   font-family: 'DM Mono', monospace;
-  @apply w-full px-5 py-3 pr-28 text-base rounded-full
+  @apply w-full px-5 py-3 pr-28 text-base rounded-lg
     focus:outline-none;
   border: 1px solid var(--color-border);
   color: var(--color-ink);
@@ -29,7 +29,7 @@
 .search-button {
   font-family: 'DM Mono', monospace;
   @apply absolute right-2 top-1/2 -translate-y-1/2
-    px-5 py-2 text-xs font-normal uppercase rounded-full
+    px-5 py-2 text-xs font-normal uppercase rounded-md
     transition-colors
     disabled:opacity-50 disabled:cursor-not-allowed;
   letter-spacing: 0.14em;
@@ -45,7 +45,7 @@
 
 /* Autocomplete dropdown */
 .search-dropdown {
-  @apply absolute left-0 right-0 z-50 overflow-y-auto rounded-2xl;
+  @apply absolute left-0 right-0 z-50 overflow-y-auto rounded-lg;
   top: calc(100% + 4px);
   max-height: 320px;
   background: #ffffff;

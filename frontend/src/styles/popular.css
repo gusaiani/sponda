@@ -1,7 +1,8 @@
 @reference "tailwindcss";
 
 .popular-grid {
-  @apply grid grid-cols-4 gap-y-6 gap-x-2 max-w-3xl mx-auto mt-8 mb-4;
+  @apply grid grid-cols-4 gap-y-6 gap-x-2 max-w-3xl mx-auto mb-4;
+  margin-top: 72px;
 }
 
 @media (min-width: 640px) {
