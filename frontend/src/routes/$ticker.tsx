@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
 import { PE10Card, PE10CardLoading } from "../components/PE10Card";
 import { ShareButtons } from "../components/ShareButtons";
@@ -19,7 +19,7 @@ export function TickerPage() {
 
   return (
     <div>
-      <h1 className="app-hero-title">Sponda</h1>
+      <Link to="/" className="app-hero-title-link"><h1 className="app-hero-title">Sponda</h1></Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
       <SearchBar onSearch={handleSearch} isLoading={isLoading} />

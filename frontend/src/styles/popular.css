@@ -1,0 +1,39 @@
+@reference "tailwindcss";
+
+.popular-grid {
+  @apply grid grid-cols-4 gap-y-6 gap-x-2 max-w-3xl mx-auto mt-8 mb-4;
+}
+
+@media (min-width: 640px) {
+  .popular-grid {
+    @apply grid-cols-8 gap-y-8 gap-x-4;
+  }
+}
+
+.popular-item {
+  @apply flex flex-col items-center gap-1.5;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.popular-item:hover {
+  opacity: 0.7;
+}
+
+.popular-logo {
+  @apply w-10 h-10 rounded-full object-cover;
+  border: 1px solid var(--color-border);
+}
+
+.popular-logo-placeholder {
+  @apply w-10 h-10 rounded-full;
+  background: #f0f4f8;
+  border: 1px solid var(--color-border);
+}
+
+.popular-name {
+  font-family: 'DM Mono', monospace;
+  @apply text-xs font-normal;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
