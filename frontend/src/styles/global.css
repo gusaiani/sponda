@@ -56,11 +56,12 @@
   font-family: 'DM Mono', monospace;
   @apply text-xs text-center mb-10 uppercase;
   letter-spacing: 0.16em;
+  line-height: 1.8;
   color: var(--color-muted);
 }
 
 .app-footer {
-  @apply py-8 text-center;
+  @apply py-8 px-6 text-center;
   border-top: 1px solid var(--color-border);
 }
 

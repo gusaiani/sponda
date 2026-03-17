@@ -1,8 +1,15 @@
 @reference "tailwindcss";
 
 .pe10-card {
-  @apply max-w-3xl mx-auto bg-white p-8;
-  border: 1px solid var(--color-border);
+  @apply max-w-3xl mx-auto bg-white px-2 py-6;
+  border: none;
+}
+
+@media (min-width: 640px) {
+  .pe10-card {
+    @apply p-8;
+    border: 1px solid var(--color-border);
+  }
 }
 
 .pe10-card-header {
@@ -18,6 +25,8 @@
   font-family: 'DM Mono', monospace;
   @apply text-sm font-normal;
   color: var(--color-muted);
+  position: relative;
+  top: 3px;
 }
 
 .pe10-name {
@@ -211,12 +220,31 @@
 }
 
 .pe10-details {
-  @apply grid grid-cols-3 gap-4 mt-6 pt-6;
+  @apply flex flex-col gap-2 mt-6 pt-6;
   border-top: 1px solid var(--color-border);
 }
 
+@media (min-width: 640px) {
+  .pe10-details {
+    @apply grid grid-cols-3 gap-4;
+    flex-direction: unset;
+  }
+  .pe10-detail-item {
+    @apply text-center;
+  }
+  .pe10-detail-value {
+    @apply mt-1;
+  }
+}
+
 .pe10-detail-item {
-  @apply text-center;
+  @apply flex items-baseline justify-between;
+}
+
+@media (min-width: 640px) {
+  .pe10-detail-item {
+    @apply block;
+  }
 }
 
 .pe10-detail-label {
@@ -228,7 +256,7 @@
 
 .pe10-detail-value {
   font-family: 'DM Mono', monospace;
-  @apply text-lg font-normal mt-1;
+  @apply text-lg font-normal;
   color: var(--color-ink);
 }
 
@@ -238,9 +266,16 @@
 }
 
 .pe10-loading {
-  @apply max-w-3xl mx-auto bg-white p-8
+  @apply max-w-3xl mx-auto bg-white px-2 py-6
     animate-pulse;
-  border: 1px solid var(--color-border);
+  border: none;
+}
+
+@media (min-width: 640px) {
+  .pe10-loading {
+    @apply p-8;
+    border: 1px solid var(--color-border);
+  }
 }
 
 .pe10-loading-bar {
