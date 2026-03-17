@@ -46,6 +46,12 @@
   @apply max-w-[880px] mx-auto py-12 px-4;
 }
 
+.app-hero-title-link {
+  text-decoration: none;
+  color: inherit;
+  @apply block;
+}
+
 .app-hero-title {
   font-family: 'DM Serif Display', Georgia, serif;
   @apply text-4xl font-normal text-center mb-2 tracking-wide;

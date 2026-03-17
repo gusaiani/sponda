@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
+import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
 
 export function HomePage() {
@@ -14,10 +15,12 @@ export function HomePage() {
 
   return (
     <div>
-      <h1 className="app-hero-title">Sponda</h1>
+      <Link to="/" className="app-hero-title-link"><h1 className="app-hero-title">Sponda</h1></Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
       <SearchBar onSearch={handleSearch} isLoading={false} autoFocus />
+
+      <PopularCompanies />
 
       <ShareButtons />
     </div>
