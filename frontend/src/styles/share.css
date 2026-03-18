@@ -5,9 +5,9 @@
 }
 
 .share-label {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs uppercase mb-3;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   color: var(--color-muted);
 }
 

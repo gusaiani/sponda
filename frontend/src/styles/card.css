@@ -1,14 +1,15 @@
 @reference "tailwindcss";
 
 .pe10-card {
-  @apply max-w-3xl mx-auto bg-white px-2 py-6;
+  @apply max-w-3xl mx-auto px-2 py-6;
+  background: #ffffff;
   border: none;
 }
 
 @media (min-width: 640px) {
   .pe10-card {
     @apply p-8 rounded-xl;
-    border: 1px solid var(--color-border);
+    border: 1px solid #d8e0ee;
   }
 }
 
@@ -23,7 +24,7 @@
 }
 
 .pe10-ticker {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-sm font-normal;
   color: var(--color-muted);
   position: relative;
@@ -31,8 +32,8 @@
 }
 
 .pe10-name {
-  font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-2xl font-normal flex-1;
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-semibold flex-1;
   color: var(--color-ink);
 }
 
@@ -42,11 +43,11 @@
 }
 
 .card-section-heading {
-  font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-sm font-normal uppercase tracking-wide mb-1;
-  letter-spacing: 0.12em;
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm font-normal mb-1;
+  letter-spacing: 0;
   color: var(--color-muted);
-  border-bottom: 1px solid var(--color-ink);
+  border-bottom: 1px solid var(--color-accent);
   padding-bottom: 0.35rem;
 }
 
@@ -60,7 +61,7 @@
 }
 
 .years-slider-bound {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs;
   color: var(--color-muted);
   min-width: 1.5rem;
@@ -91,7 +92,7 @@
 }
 
 .years-slider-caption {
-  font-family: Georgia, 'Times New Roman', Times, serif;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs leading-relaxed text-center mt-3;
   color: var(--color-muted);
 }
@@ -127,7 +128,7 @@
     w-4 h-4 rounded-full cursor-pointer
     text-[9px] leading-none font-normal
     transition-colors ml-1;
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   color: var(--color-muted);
   border: 1px solid var(--color-border);
   background: transparent;
@@ -156,7 +157,8 @@
 }
 
 .modal-content {
-  @apply bg-white w-full max-h-[85vh] overflow-y-auto relative;
+  @apply w-full max-h-[85vh] overflow-y-auto relative;
+  background: #ffffff;
   max-width: 680px;
   margin: 1rem;
   border: 1px solid var(--color-border);
@@ -168,8 +170,8 @@
 }
 
 .modal-title {
-  font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-xl font-normal;
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xl font-semibold;
   color: var(--color-ink);
 }
 
@@ -188,20 +190,21 @@
 
 .modal-explainer {
   @apply text-base leading-relaxed space-y-3 mb-6;
-  font-family: Georgia, 'Times New Roman', Times, serif;
+  font-family: 'Inter', system-ui, sans-serif;
   color: var(--color-ink);
 }
 
 .modal-note {
   @apply text-sm leading-relaxed;
-  font-family: Georgia, 'Times New Roman', Times, serif;
+  font-family: 'Inter', system-ui, sans-serif;
   color: var(--color-muted);
 }
 
 .pe10-label {
-  font-family: 'DM Mono', monospace;
-  @apply text-xs font-normal uppercase mb-1;
-  letter-spacing: 0.18em;
+  font-family: 'Source Code Pro', monospace;
+  @apply font-normal uppercase mb-1;
+  font-size: 14px;
+  letter-spacing: 0;
   color: var(--color-muted);
   white-space: nowrap;
 }
@@ -214,8 +217,8 @@
 }
 
 .pe10-value {
-  font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-4xl font-normal;
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-4xl font-light;
   color: var(--color-ink);
 }
 
@@ -231,7 +234,6 @@
 
 .leverage-row {
   @apply mt-0;
-  border-top: 1px solid #dce6ef;
 }
 
 .leverage-row .pe10-value {
@@ -246,7 +248,7 @@
 
 
 .pe10-warning {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs px-4 py-3 mt-4 text-center;
   color: #92400e;
   background: #fffbeb;
@@ -258,11 +260,11 @@
 }
 
 .pe10-explainer-toggle {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply w-full text-center text-xs
     cursor-pointer bg-transparent border-none py-2 font-normal
     flex items-center justify-center gap-1 transition-colors uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   color: var(--color-accent);
 }
 
@@ -280,7 +282,7 @@
 
 .pe10-explainer {
   @apply text-base leading-relaxed px-0 py-4 mt-1 space-y-3;
-  font-family: Georgia, 'Times New Roman', Times, serif;
+  font-family: 'Inter', system-ui, sans-serif;
   color: var(--color-ink);
 }
 
@@ -312,14 +314,14 @@
 }
 
 .pe10-detail-label {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   color: var(--color-muted);
 }
 
 .pe10-detail-value {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-lg font-normal;
   color: var(--color-ink);
 }
@@ -330,8 +332,9 @@
 }
 
 .pe10-loading {
-  @apply max-w-3xl mx-auto bg-white px-2 py-6
+  @apply max-w-3xl mx-auto px-2 py-6
     animate-pulse;
+  background: #ffffff;
   border: none;
 }
 
@@ -365,11 +368,11 @@
 }
 
 .pe10-calc-toggle {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply w-full text-center text-xs
     cursor-pointer bg-transparent border-none py-2 font-normal
     flex items-center justify-center gap-1 transition-colors uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   color: var(--color-accent);
 }
 
@@ -382,8 +385,8 @@
 }
 
 .pe10-calc-title {
-  font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-xl font-normal mb-4;
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xl font-semibold mb-4;
   color: var(--color-ink);
 }
 
@@ -397,21 +400,21 @@
 }
 
 .pe10-calc-section-title {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs font-normal uppercase mb-3;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   color: var(--color-muted);
 }
 
 .pe10-calc-table {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply w-full text-left text-sm;
 }
 
 .pe10-calc-table th {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs font-normal uppercase pb-2;
-  letter-spacing: 0.14em;
+  letter-spacing: 0;
   color: var(--color-muted);
   border-bottom: 1px solid var(--color-ink);
   font-size: 9px;
@@ -437,11 +440,11 @@
 }
 
 .pe10-calc-quarter-row {
-  background: #f8fafc;
+  background: #f5f7fb;
 }
 
 .pe10-calc-quarter-row td {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs py-1;
   color: var(--color-muted);
 }
@@ -452,7 +455,7 @@
 }
 
 .pe10-calc-formula {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply flex justify-between items-center py-1;
   color: var(--color-ink);
 }
