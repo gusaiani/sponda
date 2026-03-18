@@ -52,6 +52,7 @@ interface QuoteData {
   pfcf10Error: string | null;
   pfcf10AnnualData: boolean;
   pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
+  maxYearsAvailable: number;
   // Leverage
   debtToEquity: number | null;
   debtExLeaseToEquity: number | null;
@@ -81,6 +82,9 @@ interface QuoteData {
 
 interface PE10CardProps {
   data: QuoteData;
+  years: number;
+  maxYears: number;
+  onYearsChange: (years: number) => void;
 }
 
 type ModalKey =
@@ -728,7 +732,7 @@ const MODAL_TITLES: Record<string, (data: QuoteData) => string> = {
 
 /* ── Main Card ── */
 
-export function PE10Card({ data }: PE10CardProps) {
+export function PE10Card({ data, years, maxYears, onYearsChange }: PE10CardProps) {
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
 
   const pl10Label = ptLabel(data.pe10Label);
@@ -750,128 +754,163 @@ export function PE10Card({ data }: PE10CardProps) {
         <span className="pe10-ticker">{data.ticker}</span>
       </div>
 
-      {/* Leverage metrics (defensive — top) */}
-      <div className={`metrics-row leverage-row-top ${data.debtExLeaseToEquity !== null ? "leverage-row-3col" : ""}`}>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">Dív. Bruta / PL <InfoBtn onClick={() => open("debtToEquity")} /></div>
-            {data.debtToEquity !== null ? (
-              <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
-            ) : (
-              <div className="pe10-error">{data.leverageError || "N/A"}</div>
-            )}
-          </div>
-        </div>
-        {data.debtExLeaseToEquity !== null && (
+      {/* ── Section: Dívida ── */}
+      <div className="card-section">
+        <div className="card-section-heading">Endividamento</div>
+
+        {/* Leverage ratios */}
+        <div className={`metrics-row leverage-row-top ${data.debtExLeaseToEquity !== null ? "leverage-row-3col" : ""}`}>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">Dív - Arrend. / PL <InfoBtn onClick={() => open("debtExLease")} /></div>
-              <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
+              <div className="pe10-label">Dív. Bruta / PL <InfoBtn onClick={() => open("debtToEquity")} /></div>
+              {data.debtToEquity !== null ? (
+                <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
+              ) : (
+                <div className="pe10-error">{data.leverageError || "N/A"}</div>
+              )}
             </div>
           </div>
+          {data.debtExLeaseToEquity !== null && (
+            <div className="metric-block">
+              <div className="metric-value-container">
+                <div className="pe10-label">Dív - Arrend. / PL <InfoBtn onClick={() => open("debtExLease")} /></div>
+                <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
+              </div>
+            </div>
+          )}
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">Passivo / PL <InfoBtn onClick={() => open("liabToEquity")} /></div>
+              {data.liabilitiesToEquity !== null ? (
+                <div className="pe10-value">{br(data.liabilitiesToEquity, 2)}</div>
+              ) : (
+                <div className="pe10-error">{data.leverageError || "N/A"}</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Debt coverage */}
+        <div className="metrics-row leverage-row">
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média {data.pe10YearsOfData}a</span> <InfoBtn onClick={() => open("debtToEarnings")} /></div>
+              {data.debtToAvgEarnings !== null ? (
+                <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
+              ) : (
+                <div className="pe10-error">N/A</div>
+              )}
+            </div>
+          </div>
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">Dív. Bruta / FCL <span className="pe10-label-note">média {data.pfcf10YearsOfData}a</span> <InfoBtn onClick={() => open("debtToFCF")} /></div>
+              {data.debtToAvgFCF !== null ? (
+                <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
+              ) : (
+                <div className="pe10-error">N/A</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section: Preço em relação a resultados ── */}
+      <div className="card-section">
+        <div className="card-section-heading">Preço em relação a {years} {years === 1 ? "ano" : "anos"} de resultados</div>
+
+        {/* Earnings row: P/L10, PEG, CAGR Lucros */}
+        <div className="metrics-row valuation-row">
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">{pl10Label} <InfoBtn onClick={() => open("pl10")} /></div>
+              {data.pe10 !== null ? (
+                <div className="pe10-value">{br(data.pe10, 1)}</div>
+              ) : (
+                <div className="pe10-error">{data.pe10Error}</div>
+              )}
+            </div>
+          </div>
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">PEG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("peg")} /></div>
+              {data.peg !== null ? (
+                <div className="pe10-value">{br(data.peg, 2)}</div>
+              ) : (
+                <div className="pe10-error">{data.pegError || "N/A"}</div>
+              )}
+            </div>
+          </div>
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">CAGR Lucros <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrEarnings")} /></div>
+              {data.earningsCAGR !== null ? (
+                <div className="pe10-value">{br(data.earningsCAGR, 1)}%</div>
+              ) : (
+                <div className="pe10-error">N/A</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* FCF row: P/FCL10, PFCLG, CAGR FCL */}
+        <div className="metrics-row valuation-row">
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">{pfcl10Label} <InfoBtn onClick={() => open("pfcl10")} /></div>
+              {data.pfcf10 !== null ? (
+                <div className="pe10-value">{br(data.pfcf10, 1)}</div>
+              ) : (
+                <div className="pe10-error">{data.pfcf10Error}</div>
+              )}
+            </div>
+          </div>
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">PFCLG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("pfclg")} /></div>
+              {data.pfcfPeg !== null ? (
+                <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
+              ) : (
+                <div className="pe10-error">{data.pfcfPegError || "N/A"}</div>
+              )}
+            </div>
+          </div>
+          <div className="metric-block">
+            <div className="metric-value-container">
+              <div className="pe10-label">CAGR FCL <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrFCF")} /></div>
+              {data.fcfCAGR !== null ? (
+                <div className="pe10-value">{br(data.fcfCAGR, 1)}%</div>
+              ) : (
+                <div className="pe10-error">N/A</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Years slider */}
+        {maxYears > 1 && (
+          <div className="years-slider">
+            <div className="years-slider-track">
+              <span className="years-slider-bound">1</span>
+              <input
+                id="years-range"
+                type="range"
+                min={1}
+                max={maxYears}
+                step={1}
+                value={years}
+                onChange={(e) => onYearsChange(Number(e.target.value))}
+                className="years-slider-input"
+              />
+              <span className="years-slider-bound">{maxYears}</span>
+            </div>
+            <p className="years-slider-caption">
+              Analisando os últimos <strong>{years} {years === 1 ? "ano" : "anos"}</strong> de resultados.
+              Arraste para alterar o horizonte e ver como os indicadores de
+              valuation mudam conforme o período considerado.
+            </p>
+          </div>
         )}
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">Passivo / PL <InfoBtn onClick={() => open("liabToEquity")} /></div>
-            {data.liabilitiesToEquity !== null ? (
-              <div className="pe10-value">{br(data.liabilitiesToEquity, 2)}</div>
-            ) : (
-              <div className="pe10-error">{data.leverageError || "N/A"}</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Debt coverage metrics */}
-      <div className="metrics-row leverage-row">
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média 10a</span> <InfoBtn onClick={() => open("debtToEarnings")} /></div>
-            {data.debtToAvgEarnings !== null ? (
-              <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
-            ) : (
-              <div className="pe10-error">N/A</div>
-            )}
-          </div>
-        </div>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">Dív. Bruta / FCL <span className="pe10-label-note">média 10a</span> <InfoBtn onClick={() => open("debtToFCF")} /></div>
-            {data.debtToAvgFCF !== null ? (
-              <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
-            ) : (
-              <div className="pe10-error">N/A</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Earnings row: P/L10, PEG, CAGR Lucros */}
-      <div className="metrics-row leverage-row valuation-row">
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">{pl10Label} <InfoBtn onClick={() => open("pl10")} /></div>
-            {data.pe10 !== null ? (
-              <div className="pe10-value">{br(data.pe10, 1)}</div>
-            ) : (
-              <div className="pe10-error">{data.pe10Error}</div>
-            )}
-          </div>
-        </div>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">PEG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("peg")} /></div>
-            {data.peg !== null ? (
-              <div className="pe10-value">{br(data.peg, 2)}</div>
-            ) : (
-              <div className="pe10-error">{data.pegError || "N/A"}</div>
-            )}
-          </div>
-        </div>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">CAGR Lucros <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrEarnings")} /></div>
-            {data.earningsCAGR !== null ? (
-              <div className="pe10-value">{br(data.earningsCAGR, 1)}%</div>
-            ) : (
-              <div className="pe10-error">N/A</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* FCF row: P/FCL10, PFCLG, CAGR FCL */}
-      <div className="metrics-row leverage-row valuation-row">
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">{pfcl10Label} <InfoBtn onClick={() => open("pfcl10")} /></div>
-            {data.pfcf10 !== null ? (
-              <div className="pe10-value">{br(data.pfcf10, 1)}</div>
-            ) : (
-              <div className="pe10-error">{data.pfcf10Error}</div>
-            )}
-          </div>
-        </div>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">PFCLG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("pfclg")} /></div>
-            {data.pfcfPeg !== null ? (
-              <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
-            ) : (
-              <div className="pe10-error">{data.pfcfPegError || "N/A"}</div>
-            )}
-          </div>
-        </div>
-        <div className="metric-block">
-          <div className="metric-value-container">
-            <div className="pe10-label">CAGR FCL <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrFCF")} /></div>
-            {data.fcfCAGR !== null ? (
-              <div className="pe10-value">{br(data.fcfCAGR, 1)}%</div>
-            ) : (
-              <div className="pe10-error">N/A</div>
-            )}
-          </div>
-        </div>
       </div>
 
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (

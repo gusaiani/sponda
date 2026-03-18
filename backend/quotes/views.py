@@ -89,12 +89,13 @@ class PE10View(APIView):
         except Ticker.DoesNotExist:
             pass
 
-        # Calculate metrics
-        pe10_result = calculate_pe10(ticker, market_cap_decimal)
-        pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal)
+        # Calculate metrics — fetch all available years; frontend slices as needed
+        pe10_result = calculate_pe10(ticker, market_cap_decimal, max_years=50)
+        pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal, max_years=50)
+        max_years_available = max(pe10_result["years_of_data"], pfcf10_result["years_of_data"])
         leverage_result = calculate_leverage(ticker)
-        peg_result = calculate_peg(ticker, pe10_result["pe10"])
-        pfcf_peg_result = calculate_pfcf_peg(ticker, pfcf10_result["pfcf10"])
+        peg_result = calculate_peg(ticker, pe10_result["pe10"], max_years=50)
+        pfcf_peg_result = calculate_pfcf_peg(ticker, pfcf10_result["pfcf10"], max_years=50)
 
         # Debt / average earnings and debt / average FCF
         total_debt = leverage_result["totalDebt"]
@@ -118,6 +119,7 @@ class PE10View(APIView):
             "logo": logo,
             "currentPrice": float(current_price),
             "marketCap": market_cap,
+            "maxYearsAvailable": max_years_available,
             # PE10
             "pe10": pe10_result["pe10"],
             "avgAdjustedNetIncome": pe10_result["avg_adjusted_net_income"],

@@ -82,7 +82,7 @@ def get_ipca_adjustment_factors(years: list[int]) -> dict[int, Decimal]:
     return factors
 
 
-def calculate_pe10(ticker: str, market_cap: Decimal) -> dict:
+def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dict:
     """
     Calculate PE10 for a given ticker using Market Cap / Avg Adjusted Net Income.
 
@@ -96,7 +96,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal) -> dict:
         error: str or None
         calculation_details: list of yearly breakdowns
     """
-    annual_data = get_annual_earnings(ticker)
+    annual_data = get_annual_earnings(ticker, max_years=max_years)
 
     if not annual_data:
         return {

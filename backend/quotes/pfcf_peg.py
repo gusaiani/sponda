@@ -6,7 +6,7 @@ from .pe10 import get_ipca_adjustment_factors
 from .pfcf10 import get_annual_fcf
 
 
-def calculate_pfcf_peg(ticker: str, pfcf10: float | None) -> dict:
+def calculate_pfcf_peg(ticker: str, pfcf10: float | None, max_years: int = 10) -> dict:
     """
     Calculate PFCLG ratio: PFCF10 ÷ FCF CAGR (%).
 
@@ -31,7 +31,7 @@ def calculate_pfcf_peg(ticker: str, pfcf10: float | None) -> dict:
     if pfcf10 is None:
         return {**empty, "pfcfPegError": "PFCF10 indisponível"}
 
-    annual_data = get_annual_fcf(ticker)
+    annual_data = get_annual_fcf(ticker, max_years=max_years)
     if len(annual_data) < 2:
         return {**empty, "pfcfPegError": "Dados insuficientes para calcular crescimento"}
 
