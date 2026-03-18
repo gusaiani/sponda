@@ -46,6 +46,34 @@
   @apply max-w-[880px] mx-auto py-12 px-4;
 }
 
+.back-home-wrapper {
+  @apply relative max-w-3xl mx-auto;
+  height: 0;
+}
+
+.back-home-link {
+  font-family: 'DM Mono', monospace;
+  @apply absolute text-xs uppercase tracking-wide px-2;
+  letter-spacing: 0.10em;
+  color: var(--color-muted);
+  text-decoration: none;
+  top: -1.25rem;
+}
+
+.back-home-link:hover {
+  color: var(--color-accent);
+}
+
+@media (min-width: 640px) {
+  .back-home-link {
+    padding-left: calc(2rem - 20px);
+  }
+}
+
+.back-home-link:hover {
+  color: var(--color-accent);
+}
+
 .app-hero-title-link {
   text-decoration: none;
   color: inherit;
