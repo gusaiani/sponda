@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #0f1f3d;
-  --color-accent: #1a4a8a;
-  --color-muted: #5a6f8a;
-  --color-border: #c0cedd;
+  --color-ink: #0c1829;
+  --color-accent: #1e40af;
+  --color-muted: #5570a0;
+  --color-border: #d0daea;
 }
 
 .app-container {
-  @apply min-h-screen bg-white text-[--color-ink];
-  font-family: Georgia, 'Times New Roman', Times, serif;
+  @apply min-h-screen text-[--color-ink];
+  background: #f5f7fb;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .app-header {
@@ -22,8 +23,8 @@
 }
 
 .app-logo {
-  font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-2xl font-normal tracking-wide;
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-bold tracking-wide;
   color: var(--color-ink);
   text-decoration: none;
 }
@@ -33,7 +34,7 @@
 }
 
 .app-nav-link {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs uppercase tracking-widest transition-colors;
   color: var(--color-muted);
 }
@@ -52,7 +53,7 @@
 }
 
 .back-home-link {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply absolute text-xs uppercase tracking-wide px-2;
   letter-spacing: 0.10em;
   color: var(--color-muted);
@@ -81,15 +82,15 @@
 }
 
 .app-hero-title {
-  font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-4xl font-normal text-center mb-2 tracking-wide;
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-4xl font-bold text-center mb-2;
   color: var(--color-ink);
 }
 
 .app-hero-subtitle {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs text-center mb-10 uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   line-height: 1.8;
   color: var(--color-muted);
 }
@@ -116,7 +117,7 @@
 }
 
 .app-footer-text {
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   @apply text-xs;
   letter-spacing: 0.06em;
   color: var(--color-muted);
@@ -133,7 +134,7 @@
 
 .app-footer-performance {
   @apply block mt-4;
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   font-size: 0.65rem;
   line-height: 1.6;
   letter-spacing: 0.06em;
@@ -142,7 +143,7 @@
 
 .app-footer-cta {
   @apply block mt-2 font-semibold;
-  font-family: 'DM Mono', monospace;
+  font-family: 'Source Code Pro', monospace;
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   color: var(--color-accent);
