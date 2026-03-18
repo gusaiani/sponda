@@ -45,14 +45,14 @@ def get_annual_fcf(ticker: str, max_years: int = 10) -> list[dict]:
     return result[:max_years]
 
 
-def calculate_pfcf10(ticker: str, market_cap: Decimal) -> dict:
+def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dict:
     """
     Calculate PFCF10 for a given ticker using Market Cap / Avg Adjusted FCF.
 
     FCF = Operating Cash Flow + Investing Cash Flow
     PFCF10 = Market Cap / Average Inflation-Adjusted Annual FCF (10 years)
     """
-    annual_data = get_annual_fcf(ticker)
+    annual_data = get_annual_fcf(ticker, max_years=max_years)
 
     if not annual_data:
         return {

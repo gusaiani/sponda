@@ -13,7 +13,8 @@
 }
 
 .pe10-card-header {
-  @apply flex items-center justify-between mb-6;
+  @apply flex items-center justify-between;
+  margin-bottom: 3.4rem;
 }
 
 .pe10-logo {
@@ -32,6 +33,70 @@
 .pe10-name {
   font-family: 'DM Serif Display', Georgia, serif;
   @apply text-2xl font-normal flex-1;
+  color: var(--color-ink);
+}
+
+/* Section groupings */
+.card-section {
+  @apply mt-6;
+}
+
+.card-section-heading {
+  font-family: 'DM Serif Display', Georgia, serif;
+  @apply text-sm font-normal uppercase tracking-wide mb-1;
+  letter-spacing: 0.12em;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-ink);
+  padding-bottom: 0.35rem;
+}
+
+/* Years slider */
+.years-slider {
+  @apply mt-5 pt-4;
+}
+
+.years-slider-track {
+  @apply flex items-center gap-3;
+}
+
+.years-slider-bound {
+  font-family: 'DM Mono', monospace;
+  @apply text-xs;
+  color: var(--color-muted);
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.years-slider-input {
+  @apply flex-1 h-1 cursor-pointer appearance-none rounded-full;
+  background: var(--color-border);
+}
+
+.years-slider-input::-webkit-slider-thumb {
+  @apply appearance-none w-4 h-4 rounded-full;
+  background: var(--color-accent);
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.years-slider-input::-moz-range-thumb {
+  @apply w-4 h-4 rounded-full border-none;
+  background: var(--color-accent);
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.years-slider-input:focus {
+  outline: none;
+}
+
+.years-slider-caption {
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  @apply text-xs leading-relaxed text-center mt-3;
+  color: var(--color-muted);
+}
+
+.years-slider-caption strong {
   color: var(--color-ink);
 }
 
@@ -150,7 +215,7 @@
 
 .pe10-value {
   font-family: 'DM Serif Display', Georgia, serif;
-  @apply text-6xl font-normal;
+  @apply text-4xl font-normal;
   color: var(--color-ink);
 }
 
@@ -221,7 +286,6 @@
 
 .pe10-details {
   @apply flex flex-col gap-2 mt-6 pt-6;
-  border-top: 1px solid #dce6ef;
 }
 
 @media (min-width: 640px) {

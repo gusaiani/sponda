@@ -36,6 +36,7 @@ interface QuoteResult {
   logo: string;
   currentPrice: number;
   marketCap: number | null;
+  maxYearsAvailable: number;
   // PE10
   pe10: number | null;
   avgAdjustedNetIncome: number | null;
@@ -97,6 +98,7 @@ async function parseJSON(response: Response): Promise<unknown> {
 
 /** Default values for nullable fields — prevents undefined from crashing renders */
 const DEFAULTS: Partial<QuoteResult> = {
+  maxYearsAvailable: 10,
   marketCap: null,
   pe10: null, avgAdjustedNetIncome: null, pe10Error: null,
   pe10CalculationDetails: [], pe10AnnualData: false,
@@ -129,6 +131,8 @@ async function fetchQuote(ticker: string): Promise<QuoteResult> {
   const raw = await response.json();
   return { ...DEFAULTS, ...raw } as QuoteResult;
 }
+
+export type { QuoteResult };
 
 export function usePE10(ticker: string | null) {
   return useQuery({

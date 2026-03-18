@@ -5,7 +5,7 @@ from .cagr import compute_cagr
 from .pe10 import get_annual_earnings, get_ipca_adjustment_factors
 
 
-def calculate_peg(ticker: str, pe10: float | None) -> dict:
+def calculate_peg(ticker: str, pe10: float | None, max_years: int = 10) -> dict:
     """
     Calculate PEG ratio: PE10 ÷ earnings CAGR (%).
 
@@ -31,7 +31,7 @@ def calculate_peg(ticker: str, pe10: float | None) -> dict:
     if pe10 is None:
         return {**empty, "pegError": "PE10 indisponível"}
 
-    annual_data = get_annual_earnings(ticker)
+    annual_data = get_annual_earnings(ticker, max_years=max_years)
     if len(annual_data) < 2:
         return {**empty, "pegError": "Dados insuficientes para calcular crescimento"}
 
