@@ -740,19 +740,19 @@ export function PE10Card({ data, years, maxYears, onYearsChange }: PE10CardProps
   const open = (key: ModalKey) => setActiveModal(key);
 
   return (
-    <div className="pe10-card">
-      <div className="pe10-card-header">
+    <article className="pe10-card" aria-label={`Indicadores de ${data.name} (${data.ticker})`}>
+      <header className="pe10-card-header">
         {data.logo && (
           <img
             className="pe10-logo"
             src={data.logo}
-            alt=""
+            alt={`Logo ${data.name}`}
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
         )}
-        <span className="pe10-name">{data.name}</span>
+        <h2 className="pe10-name">{data.name}</h2>
         <span className="pe10-ticker">{data.ticker}</span>
-      </div>
+      </header>
 
       {/* ── Section: Dívida ── */}
       <div className="card-section">
@@ -951,7 +951,7 @@ export function PE10Card({ data, years, maxYears, onYearsChange }: PE10CardProps
           <ModalContent modalKey={activeModal} data={data} />
         </Modal>
       )}
-    </div>
+    </article>
   );
 }
 

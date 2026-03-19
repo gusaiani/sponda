@@ -88,11 +88,12 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
 
   return (
     <div className="search-container">
-      <form className="search-form" onSubmit={handleSubmit}>
+      <form className="search-form" role="search" onSubmit={handleSubmit}>
         <input
           ref={inputRef}
-          type="text"
+          type="search"
           className="search-input"
+          aria-label="Buscar empresa por ticker ou nome"
           placeholder="Ticker ou nome da empresa"
           value={input}
           onChange={(e) => handleChange(e.target.value)}

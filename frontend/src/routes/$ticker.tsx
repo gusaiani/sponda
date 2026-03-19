@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
@@ -20,6 +20,39 @@ export function TickerPage() {
   const maxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
   const effectiveYears = Math.min(years, maxYears);
 
+  // Dynamic page title and meta for SEO
+  useEffect(() => {
+    const companyName = fullData?.name;
+    if (companyName) {
+      document.title = `${upperTicker} ${companyName} — Sponda`;
+    } else {
+      document.title = `${upperTicker} — Sponda`;
+    }
+
+    const setMeta = (attr: string, key: string, content: string) => {
+      let el = document.querySelector(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute("content", content);
+    };
+
+    const desc = companyName
+      ? `Indicadores fundamentalistas de ${companyName} (${upperTicker}): P/L ajustado pela inflação, P/FCL, PEG, CAGR e alavancagem.`
+      : `Indicadores fundamentalistas de ${upperTicker} na Sponda.`;
+
+    setMeta("name", "description", desc);
+    setMeta("property", "og:title", `${upperTicker} ${companyName ?? ""} — Sponda`);
+    setMeta("property", "og:description", desc);
+    setMeta("property", "og:url", `https://sponda.com.br/${upperTicker}`);
+
+    return () => {
+      document.title = "Sponda — Indicadores de Empresas Brasileiras para Investidores em Valor";
+    };
+  }, [upperTicker, fullData?.name]);
+
   const derivedData = useMemo(
     () => fullData ? deriveForYears(fullData, effectiveYears) : null,
     [fullData, effectiveYears],
@@ -33,11 +66,11 @@ export function TickerPage() {
 
   return (
     <div>
-      <div className="back-home-wrapper">
-        <Link to="/" className="back-home-link" aria-label="Início">
+      <nav className="back-home-wrapper" aria-label="Navegação">
+        <Link to="/" className="back-home-link" aria-label="Voltar para a página inicial">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 14 15 14 15 21"/></svg>
         </Link>
-      </div>
+      </nav>
       <Link to="/" className="app-hero-title-link"><h1 className="app-hero-title">Sponda</h1></Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
