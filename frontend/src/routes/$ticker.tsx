@@ -20,7 +20,10 @@ export function TickerPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [years, setYears] = useState(DEFAULT_YEARS);
-  const [activeTab, setActiveTab] = useState<TabKey>("metrics");
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("aba") === "graficos" ? "charts" : "metrics";
+  });
   const { data: fullData, isLoading, error } = usePE10(upperTicker);
 
   // Lazy: only fetch when charts tab is active
