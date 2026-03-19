@@ -34,6 +34,19 @@ def fetch_quote(ticker: str) -> dict:
     return results[0]
 
 
+def fetch_historical_prices(ticker: str) -> list[dict]:
+    """Fetch monthly historical prices (max range) for a ticker.
+
+    Returns the historicalDataPrice list from BRAPI with fields like
+    date (unix timestamp), adjustedClose, etc.
+    """
+    data = _get(f"/quote/{ticker}", params={"range": "max", "interval": "1mo"})
+    results = data.get("results", [])
+    if not results:
+        raise BRAPIError(f"No results for ticker {ticker}")
+    return results[0].get("historicalDataPrice", [])
+
+
 def fetch_income_statements(ticker: str) -> list[dict]:
     """Fetch income statement history for a ticker.
 

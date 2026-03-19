@@ -3,11 +3,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
 import { PE10Card, PE10CardLoading } from "../components/PE10Card";
+import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesChart";
 import { ShareButtons } from "../components/ShareButtons";
 import { usePE10 } from "../hooks/usePE10";
+import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
 import { deriveForYears } from "../hooks/deriveForYears";
+import "../styles/chart.css";
 
 const DEFAULT_YEARS = 10;
+
+type TabKey = "metrics" | "charts";
 
 export function TickerPage() {
   const { ticker } = useParams({ strict: false }) as { ticker: string };
@@ -15,7 +20,15 @@ export function TickerPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [years, setYears] = useState(DEFAULT_YEARS);
+  const [activeTab, setActiveTab] = useState<TabKey>("metrics");
   const { data: fullData, isLoading, error } = usePE10(upperTicker);
+
+  // Lazy: only fetch when charts tab is active
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+    error: historyError,
+  } = useMultiplesHistory(upperTicker, activeTab === "charts");
 
   const maxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
   const effectiveYears = Math.min(years, maxYears);
@@ -38,7 +51,9 @@ export function TickerPage() {
 
   function handleSearch(newTicker: string) {
     queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
+    queryClient.invalidateQueries({ queryKey: ["multiples-history", newTicker] });
     setYears(DEFAULT_YEARS);
+    setActiveTab("metrics");
     navigate({ to: "/$ticker", params: { ticker: newTicker } });
   }
 
@@ -54,19 +69,64 @@ export function TickerPage() {
 
       <SearchBar onSearch={handleSearch} isLoading={isLoading} />
 
-      {isLoading && <PE10CardLoading />}
-      {derivedData && !isLoading && (
-        <PE10Card
-          data={derivedData}
-          years={effectiveYears}
-          maxYears={maxYears}
-          onYearsChange={setYears}
-        />
-      )}
-      {error && !isLoading && (
-        <div className="pe10-card">
-          <div className="pe10-error">{(error as Error).message}</div>
+      {/* Tabs */}
+      {!isLoading && !error && (
+        <div className="tabs-wrapper">
+          <button
+            className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
+            onClick={() => setActiveTab("metrics")}
+          >
+            Indicadores
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
+            onClick={() => setActiveTab("charts")}
+          >
+            Gráficos
+          </button>
         </div>
+      )}
+
+      {/* Metrics tab */}
+      {activeTab === "metrics" && (
+        <>
+          {isLoading && <PE10CardLoading />}
+          {derivedData && !isLoading && (
+            <PE10Card
+              data={derivedData}
+              years={effectiveYears}
+              maxYears={maxYears}
+              onYearsChange={setYears}
+            />
+          )}
+          {error && !isLoading && (
+            <div className="pe10-card">
+              <div className="pe10-error">{(error as Error).message}</div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Charts tab */}
+      {activeTab === "charts" && (
+        <>
+          {historyLoading && <MultiplesChartLoading />}
+          {historyData && !historyLoading && (
+            <MultiplesChart
+              data={historyData}
+              company={{
+                ticker: upperTicker,
+                name: fullData?.name ?? upperTicker,
+                logo: fullData?.logo ?? "",
+              }}
+            />
+          )}
+          {historyError && !historyLoading && (
+            <div className="chart-container">
+              <div className="chart-error">{(historyError as Error).message}</div>
+            </div>
+          )}
+        </>
       )}
 
       <ShareButtons

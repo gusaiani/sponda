@@ -1,0 +1,133 @@
+@reference "tailwindcss";
+
+/* Tab pills */
+.tabs-wrapper {
+  @apply max-w-3xl mx-auto flex justify-center gap-1 mb-6;
+}
+
+.tab-pill {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs font-normal px-4 py-1.5 cursor-pointer
+    border-none transition-colors uppercase;
+  letter-spacing: 0;
+  background: transparent;
+  color: var(--color-muted);
+  border-bottom: 2px solid transparent;
+}
+
+.tab-pill:hover {
+  color: var(--color-ink);
+}
+
+.tab-pill-active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+/* Chart container */
+.chart-container {
+  @apply max-w-3xl mx-auto px-2 py-6;
+  background: #ffffff;
+  border: none;
+}
+
+@media (min-width: 640px) {
+  .chart-container {
+    @apply p-8 rounded-xl;
+    border: 1px solid #d8e0ee;
+  }
+}
+
+.chart-panel {
+  @apply mb-6;
+}
+
+.chart-panel:last-child {
+  @apply mb-0;
+}
+
+.chart-panel-title {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs font-normal uppercase mb-2;
+  letter-spacing: 0;
+  color: var(--color-muted);
+}
+
+/* Multiple toggle pills */
+.multiple-toggle {
+  @apply flex justify-center gap-1 mb-4;
+}
+
+.multiple-pill {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs font-normal px-3 py-1 cursor-pointer
+    border transition-colors rounded-full;
+  border-color: var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.multiple-pill:hover {
+  color: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.multiple-pill-active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.chart-info-text {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs leading-relaxed mb-3 mt-1;
+  color: var(--color-muted);
+}
+
+.chart-empty {
+  @apply text-center italic py-12;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.chart-error {
+  @apply text-center italic py-8;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+}
+
+/* Recharts tooltip override */
+.chart-tooltip {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs px-3 py-2 rounded shadow-sm;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
+}
+
+.chart-tooltip-label {
+  @apply font-normal mb-1;
+  color: var(--color-muted);
+}
+
+/* Loading state */
+.chart-loading {
+  @apply max-w-3xl mx-auto px-2 py-6 animate-pulse;
+  background: #ffffff;
+  border: none;
+}
+
+@media (min-width: 640px) {
+  .chart-loading {
+    @apply p-8 rounded-xl;
+    border: 1px solid var(--color-border);
+  }
+}
+
+.chart-loading-bar {
+  @apply h-40 bg-gray-200 rounded mb-4;
+}
+
+.chart-loading-bar-sm {
+  @apply h-32 bg-gray-100 rounded;
+}

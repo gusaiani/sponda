@@ -9,9 +9,10 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .brapi import BRAPIError, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .brapi import BRAPIError, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .leverage import calculate_leverage
 from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from .multiples_history import compute_multiples_history
 from .og_image import generate_homepage_og_image, generate_og_image
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
@@ -46,12 +47,44 @@ class HealthView(APIView):
         return Response({"status": "ok"})
 
 
+def _ensure_fresh_data(ticker: str) -> None:
+    """Sync earnings, cash flows, and balance sheets if older than 24h."""
+    cutoff = timezone.now() - timedelta(hours=24)
+
+    has_fresh_earnings = QuarterlyEarnings.objects.filter(
+        ticker=ticker, fetched_at__gte=cutoff
+    ).exists()
+    if not has_fresh_earnings:
+        try:
+            sync_earnings(ticker)
+        except BRAPIError:
+            pass
+
+    has_fresh_cf = QuarterlyCashFlow.objects.filter(
+        ticker=ticker, fetched_at__gte=cutoff
+    ).exists()
+    if not has_fresh_cf:
+        try:
+            sync_cash_flows(ticker)
+        except BRAPIError:
+            pass
+
+    has_fresh_bs = BalanceSheet.objects.filter(
+        ticker=ticker, fetched_at__gte=cutoff
+    ).exists()
+    if not has_fresh_bs:
+        try:
+            sync_balance_sheets(ticker)
+        except BRAPIError:
+            pass
+
+
 class PE10View(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
         # Ensure we have fresh data (< 24h old)
-        self._ensure_fresh_data(ticker)
+        _ensure_fresh_data(ticker)
 
         # Fetch current price
         try:
@@ -200,35 +233,56 @@ class PE10View(APIView):
                 session_key=request.session.session_key, ticker=ticker
             )
 
-    def _ensure_fresh_data(self, ticker):
-        cutoff = timezone.now() - timedelta(hours=24)
 
-        has_fresh_earnings = QuarterlyEarnings.objects.filter(
-            ticker=ticker, fetched_at__gte=cutoff
-        ).exists()
-        if not has_fresh_earnings:
-            try:
-                sync_earnings(ticker)
-            except BRAPIError:
-                pass
+class MultiplesHistoryView(APIView):
+    """Return historical prices and year-end P/L, P/FCL multiples."""
 
-        has_fresh_cf = QuarterlyCashFlow.objects.filter(
-            ticker=ticker, fetched_at__gte=cutoff
-        ).exists()
-        if not has_fresh_cf:
-            try:
-                sync_cash_flows(ticker)
-            except BRAPIError:
-                pass
+    def get(self, request, ticker):
+        ticker = ticker.upper()
 
-        has_fresh_bs = BalanceSheet.objects.filter(
-            ticker=ticker, fetched_at__gte=cutoff
-        ).exists()
-        if not has_fresh_bs:
-            try:
-                sync_balance_sheets(ticker)
-            except BRAPIError:
-                pass
+        _ensure_fresh_data(ticker)
+
+        try:
+            quote = fetch_quote(ticker)
+        except BRAPIError as e:
+            msg = str(e)
+            if "No results" in msg:
+                return Response(
+                    {"error": f'Ticker "{ticker}" não encontrado.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            return Response(
+                {"error": "Não foi possível obter os dados no momento. Tente novamente mais tarde."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        current_price = float(quote.get("regularMarketPrice", 0))
+        market_cap = quote.get("marketCap")
+
+        if not market_cap or not current_price:
+            return Response(
+                {"error": "Dados de mercado indisponíveis para este ticker."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        try:
+            historical = fetch_historical_prices(ticker)
+        except BRAPIError:
+            return Response(
+                {"error": "Não foi possível obter os dados históricos. Tente novamente mais tarde."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        result = compute_multiples_history(
+            ticker=ticker,
+            historical_prices=historical,
+            market_cap=float(market_cap),
+            current_price=current_price,
+        )
+
+        response = Response(result)
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
 
 
 class OGImageView(APIView):

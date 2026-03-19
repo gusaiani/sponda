@@ -37,6 +37,20 @@ Broader measure that considers all obligations (not just financial debt) relativ
 Passivo / PL = Total Liabilities / Stockholders' Equity
 ```
 
+### Multiples History Chart
+
+Dual-panel chart showing historical adjusted prices alongside year-end P/L (Price/Earnings) and P/FCL (Price/Free Cash Flow) multiples. Helps visualize how a company's valuation has evolved over time relative to its stock price.
+
+**How it works:**
+- Fetches monthly historical prices from BRAPI (`range=max&interval=1mo`)
+- Approximates shares outstanding as `market_cap / current_price`
+- For each year with earnings/FCF data, calculates the year-end multiple: `(year_end_price × shares) / net_income` (or FCF)
+- Years with negative earnings or FCF show as gaps in the chart
+- Top panel shows adjusted prices (monthly); bottom panel shows the selected multiple (annual)
+- Toggle between P/L and P/FCL with pill buttons
+
+**API endpoint:** `GET /api/quote/<ticker>/multiples-history/`
+
 ## Stack
 
 - **Backend:** Django 5 + Django REST Framework + PostgreSQL
