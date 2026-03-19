@@ -1,7 +1,9 @@
+import re
 from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
@@ -10,13 +12,11 @@ from rest_framework.views import APIView
 from .brapi import BRAPIError, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .leverage import calculate_leverage
 from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from .og_image import generate_homepage_og_image, generate_og_image
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
-
-
-import re
 
 
 def _clean_company_name(name: str) -> str:
@@ -229,3 +229,49 @@ class PE10View(APIView):
                 sync_balance_sheets(ticker)
             except BRAPIError:
                 pass
+
+
+class OGImageView(APIView):
+    """Generate Open Graph images for social sharing."""
+
+    def get(self, request, ticker=None):
+        if ticker is None:
+            png = generate_homepage_og_image()
+            response = HttpResponse(png, content_type="image/png")
+            response["Cache-Control"] = "public, max-age=86400"
+            return response
+
+        ticker = ticker.upper()
+
+        try:
+            quote = fetch_quote(ticker)
+        except BRAPIError:
+            png = generate_og_image(ticker=ticker, name=ticker)
+            response = HttpResponse(png, content_type="image/png")
+            response["Cache-Control"] = "public, max-age=3600"
+            return response
+
+        name = _clean_company_name(
+            quote.get("longName") or quote.get("shortName") or ticker
+        )
+        market_cap = quote.get("marketCap")
+        market_cap_decimal = Decimal(str(market_cap)) if market_cap else None
+
+        pe10_result = calculate_pe10(ticker, market_cap_decimal) if market_cap_decimal else {}
+        pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal) if market_cap_decimal else {}
+        peg_result = calculate_peg(ticker, pe10_result.get("pe10")) if pe10_result else {}
+
+        png = generate_og_image(
+            ticker=ticker,
+            name=name,
+            pe10=pe10_result.get("pe10"),
+            pe10_label=pe10_result.get("label", "PE10"),
+            pfcf10=pfcf10_result.get("pfcf10"),
+            pfcf10_label=pfcf10_result.get("label", "PFCF10"),
+            peg=peg_result.get("peg"),
+            market_cap=float(market_cap) if market_cap else None,
+        )
+
+        response = HttpResponse(png, content_type="image/png")
+        response["Cache-Control"] = "public, max-age=3600"
+        return response

@@ -20,34 +20,12 @@ export function TickerPage() {
   const maxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
   const effectiveYears = Math.min(years, maxYears);
 
-  // Dynamic page title and meta for SEO
+  // Dynamic page title (OG tags are injected server-side for crawlers)
   useEffect(() => {
     const companyName = fullData?.name;
-    if (companyName) {
-      document.title = `${upperTicker} ${companyName} — Sponda`;
-    } else {
-      document.title = `${upperTicker} — Sponda`;
-    }
-
-    const setMeta = (attr: string, key: string, content: string) => {
-      let el = document.querySelector(`meta[${attr}="${key}"]`);
-      if (!el) {
-        el = document.createElement("meta");
-        el.setAttribute(attr, key);
-        document.head.appendChild(el);
-      }
-      el.setAttribute("content", content);
-    };
-
-    const desc = companyName
-      ? `Indicadores fundamentalistas de ${companyName} (${upperTicker}): P/L ajustado pela inflação, P/FCL, PEG, CAGR e alavancagem.`
-      : `Indicadores fundamentalistas de ${upperTicker} na Sponda.`;
-
-    setMeta("name", "description", desc);
-    setMeta("property", "og:title", `${upperTicker} ${companyName ?? ""} — Sponda`);
-    setMeta("property", "og:description", desc);
-    setMeta("property", "og:url", `https://sponda.com.br/${upperTicker}`);
-
+    document.title = companyName
+      ? `${upperTicker} ${companyName} — Sponda`
+      : `${upperTicker} — Sponda`;
     return () => {
       document.title = "Sponda — Indicadores de Empresas Brasileiras para Investidores em Valor";
     };
