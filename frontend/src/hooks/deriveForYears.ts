@@ -85,7 +85,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     if (avgAdjustedNetIncome > 0 && full.marketCap) {
       pe10 = Math.round((full.marketCap / avgAdjustedNetIncome) * 100) / 100;
     } else if (avgAdjustedNetIncome <= 0) {
-      pe10Error = "N/A — lucro médio negativo no período";
+      pe10Error = "lucro médio negativo";
     }
   } else {
     pe10Error = "Sem dados de lucro disponíveis";
@@ -102,7 +102,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     if (avgAdjustedFCF > 0 && full.marketCap) {
       pfcf10 = Math.round((full.marketCap / avgAdjustedFCF) * 100) / 100;
     } else if (avgAdjustedFCF <= 0) {
-      pfcf10Error = "N/A — fluxo de caixa livre médio negativo no período";
+      pfcf10Error = "FCL médio negativo";
     }
   } else {
     pfcf10Error = "Sem dados de fluxo de caixa disponíveis";
@@ -130,7 +130,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   } else if (earningsCagr.cagr === null) {
     pegError = earningsCagr.error;
   } else if (earningsCagr.cagr <= 0) {
-    pegError = "PEG não aplicável — crescimento negativo";
+    pegError = "crescimento negativo";
   } else {
     peg = Math.round((pe10 / earningsCagr.cagr) * 100) / 100;
   }
@@ -147,7 +147,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   } else if (fcfCagr.cagr === null) {
     pfcfPegError = fcfCagr.error;
   } else if (fcfCagr.cagr <= 0) {
-    pfcfPegError = "PFCLG não aplicável — crescimento negativo";
+    pfcfPegError = "crescimento negativo";
   } else {
     pfcfPeg = Math.round((pfcf10 / fcfCagr.cagr) * 100) / 100;
   }

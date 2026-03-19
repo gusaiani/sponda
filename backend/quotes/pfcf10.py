@@ -105,7 +105,7 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
             **base_result,
             "pfcf10": None,
             "avg_adjusted_fcf": float(avg_adjusted),
-            "error": "N/A — fluxo de caixa livre médio negativo no período",
+            "error": "FCL médio negativo",
         }
 
     pfcf10 = market_cap / avg_adjusted

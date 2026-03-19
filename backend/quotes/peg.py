@@ -61,7 +61,7 @@ def calculate_peg(ticker: str, pe10: float | None, max_years: int = 10) -> dict:
             "earningsCAGR": cagr,
             "earningsCAGRMethod": cagr_result["method"],
             "earningsCAGRExcludedYears": cagr_result["excluded_years"],
-            "pegError": "PEG não aplicável — crescimento negativo",
+            "pegError": "crescimento negativo",
         }
 
     peg = pe10 / cagr

@@ -60,7 +60,7 @@ def calculate_pfcf_peg(ticker: str, pfcf10: float | None, max_years: int = 10) -
             "fcfCAGR": cagr,
             "fcfCAGRMethod": cagr_result["method"],
             "fcfCAGRExcludedYears": cagr_result["excluded_years"],
-            "pfcfPegError": "PFCLG não aplicável — crescimento negativo",
+            "pfcfPegError": "crescimento negativo",
         }
 
     peg = pfcf10 / cagr

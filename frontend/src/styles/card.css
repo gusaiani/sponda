@@ -135,7 +135,7 @@
   vertical-align: middle;
   position: relative;
   top: -1px;
-  padding: 0 0 0 2px;
+  padding: 0 0 0 1px;
 }
 
 .info-btn:hover {
@@ -328,6 +328,7 @@
 
 .pe10-error {
   @apply text-center italic py-4;
+  font-size: 0.7rem;
   color: var(--color-muted);
 }
 

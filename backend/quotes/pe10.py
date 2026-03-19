@@ -150,7 +150,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
             **base_result,
             "pe10": None,
             "avg_adjusted_net_income": float(avg_adjusted),
-            "error": "N/A — lucro médio negativo no período",
+            "error": "lucro médio negativo",
         }
 
     pe10 = market_cap / avg_adjusted
