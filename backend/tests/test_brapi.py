@@ -7,6 +7,7 @@ import pytest
 
 from quotes.brapi import (
     BRAPIError,
+    fetch_historical_prices,
     fetch_income_statements,
     fetch_quote,
     sync_ipca,
@@ -79,6 +80,42 @@ class TestFetchQuote:
         mock_get.return_value = {"results": []}
         with pytest.raises(BRAPIError, match="No results"):
             fetch_quote("FAKE3")
+
+
+MOCK_HISTORICAL_RESPONSE = {
+    "results": [
+        {
+            "historicalDataPrice": [
+                {"date": 1704067200, "adjustedClose": 30.0},
+                {"date": 1706745600, "adjustedClose": 32.0},
+            ]
+        }
+    ]
+}
+
+
+class TestFetchHistoricalPrices:
+    @patch("quotes.brapi._get")
+    def test_returns_historical_data(self, mock_get):
+        mock_get.return_value = MOCK_HISTORICAL_RESPONSE
+        result = fetch_historical_prices("PETR4")
+        assert len(result) == 2
+        assert result[0]["adjustedClose"] == 30.0
+        mock_get.assert_called_once_with(
+            "/quote/PETR4", params={"range": "max", "interval": "1mo"}
+        )
+
+    @patch("quotes.brapi._get")
+    def test_raises_on_empty_results(self, mock_get):
+        mock_get.return_value = {"results": []}
+        with pytest.raises(BRAPIError, match="No results"):
+            fetch_historical_prices("FAKE3")
+
+    @patch("quotes.brapi._get")
+    def test_returns_empty_list_when_no_historical_data(self, mock_get):
+        mock_get.return_value = {"results": [{"historicalDataPrice": []}]}
+        result = fetch_historical_prices("PETR4")
+        assert result == []
 
 
 class TestFetchIncomeStatements:

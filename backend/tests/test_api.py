@@ -234,6 +234,103 @@ class TestPE10Endpoint:
         assert data["leverageError"] is not None
 
 
+MOCK_HISTORICAL_PRICES = [
+    {"date": 1704067200, "adjustedClose": 30.0},  # 2024-01-01
+    {"date": 1706745600, "adjustedClose": 32.0},  # 2024-02-01
+    {"date": 1735689600, "adjustedClose": 35.0},  # 2025-01-01
+    {"date": 1738368000, "adjustedClose": 37.0},  # 2025-02-01
+]
+
+
+class TestMultiplesHistoryEndpoint:
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_prices_and_multiples(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        api_client, sample_earnings, sample_cash_flows, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.return_value = MOCK_HISTORICAL_PRICES
+        response = api_client.get("/api/quote/PETR4/multiples-history/")
+        assert response.status_code == 200
+        data = response.json()
+        assert "prices" in data
+        assert "multiples" in data
+        assert "pl" in data["multiples"]
+        assert "pfcl" in data["multiples"]
+        assert len(data["prices"]) == 4
+
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_ticker_is_uppercased(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        api_client, sample_earnings, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.return_value = MOCK_HISTORICAL_PRICES
+        response = api_client.get("/api/quote/petr4/multiples-history/")
+        assert response.status_code == 200
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_404_for_unknown_ticker(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, api_client, db
+    ):
+        from quotes.brapi import BRAPIError
+        mock_quote.side_effect = BRAPIError("No results for ticker FAKE3")
+        response = api_client.get("/api/quote/FAKE3/multiples-history/")
+        assert response.status_code == 404
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_502_on_brapi_error(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, api_client, db
+    ):
+        from quotes.brapi import BRAPIError
+        mock_quote.side_effect = BRAPIError("Service unavailable")
+        response = api_client.get("/api/quote/PETR4/multiples-history/")
+        assert response.status_code == 502
+
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_502_when_historical_prices_fail(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        api_client, db, mock_brapi_quote
+    ):
+        from quotes.brapi import BRAPIError
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.side_effect = BRAPIError("Timeout")
+        response = api_client.get("/api/quote/PETR4/multiples-history/")
+        assert response.status_code == 502
+
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_has_cache_header(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        api_client, sample_earnings, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.return_value = MOCK_HISTORICAL_PRICES
+        response = api_client.get("/api/quote/PETR4/multiples-history/")
+        assert "max-age=3600" in response["Cache-Control"]
+
+
 class TestSignupEndpoint:
     def test_creates_user(self, api_client, db):
         response = api_client.post(
