@@ -4,6 +4,7 @@ import {
   Line,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
@@ -162,6 +163,7 @@ export function MultiplesChart({ data, company }: Props) {
             syncId="multiples"
             margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
           >
+            <CartesianGrid horizontal vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
             <XAxis
               dataKey="date"
               tick={{ fontSize: 10, fill: "#94a3b8" }}
@@ -213,6 +215,7 @@ export function MultiplesChart({ data, company }: Props) {
             syncId="multiples"
             margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
           >
+            <CartesianGrid horizontal vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
             <XAxis
               dataKey="year"
               tick={{ fontSize: 10, fill: "#94a3b8" }}

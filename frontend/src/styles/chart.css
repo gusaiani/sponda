@@ -78,6 +78,12 @@
   color: #ffffff;
 }
 
+.multiple-pill-active:hover {
+  background: #172e6e;
+  border-color: #172e6e;
+  color: #ffffff;
+}
+
 .chart-info-text {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs leading-relaxed mb-3 mt-1;
