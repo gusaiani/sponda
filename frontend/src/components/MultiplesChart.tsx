@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -6,6 +6,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceDot,
   ResponsiveContainer,
 } from "recharts";
 import type { MultiplesHistoryResult } from "../hooks/useMultiplesHistory";
@@ -84,8 +85,40 @@ interface Props {
 export function MultiplesChart({ data, company }: Props) {
   const [activeMultiple, setActiveMultiple] = useState<MultipleType>("pl");
   const [showPriceInfo, setShowPriceInfo] = useState(false);
+  const [hoveredYear, setHoveredYear] = useState<number | null>(null);
 
   const multiplesData = data.multiples[activeMultiple];
+
+  // Build a map of year → value for quick lookup
+  const multiplesByYear = useMemo(() => {
+    const map: Record<number, number | null> = {};
+    for (const point of multiplesData) {
+      map[point.year] = point.value;
+    }
+    return map;
+  }, [multiplesData]);
+
+  // Extract year from price chart hover: "mar/22" → 2022
+  const handlePriceMouseMove = useCallback(
+    (state: { activeLabel?: string | number }) => {
+      if (!state.activeLabel) {
+        setHoveredYear(null);
+        return;
+      }
+      const parts = String(state.activeLabel).split("/");
+      if (parts.length === 2) {
+        const shortYear = parseInt(parts[1], 10);
+        // Use previous year for the multiple (year-end data)
+        const fullYear = (shortYear < 50 ? 2000 : 1900) + shortYear - 1;
+        setHoveredYear(fullYear);
+      }
+    },
+    [],
+  );
+
+  const handlePriceMouseLeave = useCallback(() => {
+    setHoveredYear(null);
+  }, []);
 
   if (!data.prices.length) {
     return (
@@ -120,6 +153,11 @@ export function MultiplesChart({ data, company }: Props) {
 
   // Show ~8 ticks on X axis regardless of data length
   const tickInterval = Math.max(1, Math.floor(priceData.length / 8));
+
+  // Find the hovered year's data point in multiplesData for the ReferenceDot
+  const hoveredMultiple = hoveredYear != null
+    ? multiplesData.find((p) => p.year === hoveredYear)
+    : null;
 
   return (
     <div className="chart-container">
@@ -160,10 +198,11 @@ export function MultiplesChart({ data, company }: Props) {
         <ResponsiveContainer width="100%" height={220}>
           <LineChart
             data={priceData}
-            syncId="multiples"
             margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+            onMouseMove={handlePriceMouseMove}
+            onMouseLeave={handlePriceMouseLeave}
           >
-            <CartesianGrid horizontal vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
+            <CartesianGrid horizontal vertical={false} stroke="#f0f3f8" />
             <XAxis
               dataKey="date"
               tick={{ fontSize: 10, fill: "#94a3b8" }}
@@ -208,14 +247,18 @@ export function MultiplesChart({ data, company }: Props) {
       <div className="chart-panel">
         <div className="chart-panel-title">
           {LABELS[activeMultiple]} histórico
+          {hoveredYear != null && (
+            <span className="chart-synced-label">
+              {" "}— {hoveredYear}: {multiplesByYear[hoveredYear] != null ? brFmt(multiplesByYear[hoveredYear]!, 1) : "—"}
+            </span>
+          )}
         </div>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart
             data={multiplesData}
-            syncId="multiples"
             margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
           >
-            <CartesianGrid horizontal vertical={false} stroke="#e2e8f0" strokeOpacity={0.5} />
+            <CartesianGrid horizontal vertical={false} stroke="#f0f3f8" />
             <XAxis
               dataKey="year"
               tick={{ fontSize: 10, fill: "#94a3b8" }}
@@ -243,6 +286,17 @@ export function MultiplesChart({ data, company }: Props) {
               activeDot={{ r: 5, fill: MULTIPLE_COLOR, strokeWidth: 0 }}
               connectNulls
             />
+            {/* Highlight synced year from price chart hover */}
+            {hoveredMultiple && hoveredMultiple.value != null && (
+              <ReferenceDot
+                x={hoveredMultiple.year}
+                y={hoveredMultiple.value}
+                r={6}
+                fill={MULTIPLE_COLOR}
+                stroke="#ffffff"
+                strokeWidth={2}
+              />
+            )}
           </LineChart>
         </ResponsiveContainer>
       </div>
