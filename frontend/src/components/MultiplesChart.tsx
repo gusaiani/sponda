@@ -149,10 +149,23 @@ export function MultiplesChart({ data, company }: Props) {
   // Show ~8 ticks on X axis regardless of data length
   const tickInterval = Math.max(1, Math.floor(priceData.length / 8));
 
-  // Find the hovered year's data point in multiplesData for the ReferenceDot
-  const hoveredMultiple = hoveredYear != null
-    ? multiplesData.find((p) => p.year === hoveredYear)
-    : null;
+  // Find the hovered year's data in multiplesData; fall back to nearest year
+  const hoveredMultiple = (() => {
+    if (hoveredYear == null) return null;
+    const exact = multiplesData.find((p) => p.year === hoveredYear);
+    if (exact) return exact;
+    // Find nearest year that has data
+    let nearest = null;
+    let minDist = Infinity;
+    for (const p of multiplesData) {
+      const dist = Math.abs(p.year - hoveredYear);
+      if (dist < minDist) {
+        minDist = dist;
+        nearest = p;
+      }
+    }
+    return nearest;
+  })();
 
   return (
     <div className="chart-container">
@@ -290,14 +303,14 @@ export function MultiplesChart({ data, company }: Props) {
           </LineChart>
         </ResponsiveContainer>
         {/* Floating synced tooltip — follows mouse X from price chart */}
-        {hoveredYear != null && hoveredX != null && hoveredMultiple && (
+        {hoveredYear != null && hoveredX != null && (
           <div
             className="chart-tooltip chart-synced-tooltip"
             style={{ left: hoveredX + 50 }}
           >
-            <div className="chart-tooltip-label">{hoveredMultiple.year}</div>
+            <div className="chart-tooltip-label">{hoveredMultiple?.year ?? hoveredYear}</div>
             <div>
-              {LABELS[activeMultiple]}: {hoveredMultiple.value != null ? brFmt(hoveredMultiple.value) : "—"}
+              {LABELS[activeMultiple]}: {hoveredMultiple?.value != null ? brFmt(hoveredMultiple.value) : "—"}
             </div>
           </div>
         )}
