@@ -84,6 +84,14 @@
   color: #ffffff;
 }
 
+.chart-synced-tooltip {
+  position: absolute;
+  top: 30px;
+  pointer-events: none;
+  z-index: 10;
+  transform: translateX(-50%);
+}
+
 .chart-info-text {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs leading-relaxed mb-3 mt-1;

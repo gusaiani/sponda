@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -86,22 +86,25 @@ export function MultiplesChart({ data, company }: Props) {
   const [activeMultiple, setActiveMultiple] = useState<MultipleType>("pl");
   const [showPriceInfo, setShowPriceInfo] = useState(false);
   const [hoveredYear, setHoveredYear] = useState<number | null>(null);
+  const [hoveredX, setHoveredX] = useState<number | null>(null);
+  const bottomPanelRef = useRef<HTMLDivElement>(null);
 
   const multiplesData = data.multiples[activeMultiple];
 
-  // Extract year from price chart hover: "mar/22" → 2022
+  // Extract year and X position from price chart hover
   const handlePriceMouseMove = useCallback(
-    (state: { activeLabel?: string | number }) => {
+    (state: { activeLabel?: string | number; chartX?: number }) => {
       if (!state.activeLabel) {
         setHoveredYear(null);
+        setHoveredX(null);
         return;
       }
       const parts = String(state.activeLabel).split("/");
       if (parts.length === 2) {
         const shortYear = parseInt(parts[1], 10);
-        // Use previous year for the multiple (year-end data)
         const fullYear = (shortYear < 50 ? 2000 : 1900) + shortYear - 1;
         setHoveredYear(fullYear);
+        setHoveredX(state.chartX ?? null);
       }
     },
     [],
@@ -109,6 +112,7 @@ export function MultiplesChart({ data, company }: Props) {
 
   const handlePriceMouseLeave = useCallback(() => {
     setHoveredYear(null);
+    setHoveredX(null);
   }, []);
 
   if (!data.prices.length) {
@@ -235,7 +239,7 @@ export function MultiplesChart({ data, company }: Props) {
       </div>
 
       {/* Multiples panel */}
-      <div className="chart-panel">
+      <div className="chart-panel" ref={bottomPanelRef} style={{ position: "relative" }}>
         <div className="chart-panel-title">
           {LABELS[activeMultiple]} histórico
         </div>
@@ -281,18 +285,22 @@ export function MultiplesChart({ data, company }: Props) {
                 fill={MULTIPLE_COLOR}
                 stroke="#ffffff"
                 strokeWidth={2}
-                label={{
-                  value: `${hoveredMultiple.year}: ${brFmt(hoveredMultiple.value, 1)}`,
-                  position: "top",
-                  offset: 12,
-                  fill: "#0f1f3d",
-                  fontSize: 11,
-                  fontFamily: "'Source Code Pro', monospace",
-                }}
               />
             )}
           </LineChart>
         </ResponsiveContainer>
+        {/* Floating synced tooltip — follows mouse X from price chart */}
+        {hoveredYear != null && hoveredX != null && hoveredMultiple && (
+          <div
+            className="chart-tooltip chart-synced-tooltip"
+            style={{ left: hoveredX + 50 }}
+          >
+            <div className="chart-tooltip-label">{hoveredMultiple.year}</div>
+            <div>
+              {LABELS[activeMultiple]}: {hoveredMultiple.value != null ? brFmt(hoveredMultiple.value) : "—"}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
