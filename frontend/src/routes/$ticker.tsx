@@ -6,7 +6,7 @@ import { PE10Card, PE10CardLoading } from "../components/PE10Card";
 import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesChart";
 import { CompareTab } from "../components/CompareTab";
 import { ShareButtons } from "../components/ShareButtons";
-import { usePE10 } from "../hooks/usePE10";
+import { usePE10, fetchQuote } from "../hooks/usePE10";
 import { useTickers } from "../hooks/useTickers";
 import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
 import { deriveForYears } from "../hooks/deriveForYears";
@@ -55,11 +55,11 @@ export function TickerPage() {
   const { data: fullData, isLoading, error } = usePE10(upperTicker);
   const { data: allTickers } = useTickers();
 
-  // Seed compare list with same-sector companies on first visit to compare tab
+  // Seed compare list with same-sector companies and prefetch their data
   useEffect(() => {
-    if (activeTab !== "compare") return;
     if (seededForTicker.current === upperTicker) return;
     if (!allTickers?.length) return;
+    if (!fullData) return; // wait for main ticker to load first
 
     const current = allTickers.find((t) => t.symbol === upperTicker);
     if (!current?.sector) {
@@ -74,7 +74,16 @@ export function TickerPage() {
 
     setCompareTickers(sectorPeers);
     seededForTicker.current = upperTicker;
-  }, [activeTab, upperTicker, allTickers]);
+
+    // Prefetch peer data in background
+    for (const peer of sectorPeers) {
+      queryClient.prefetchQuery({
+        queryKey: ["pe10", peer],
+        queryFn: () => fetchQuote(peer),
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  }, [upperTicker, allTickers, fullData, queryClient]);
 
   // Lazy: only fetch when charts tab is active
   const {
