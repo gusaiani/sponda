@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
 import { CompanySearchInput } from "./CompanySearchInput";
@@ -13,27 +13,34 @@ interface ColumnDef {
   label: string;
   group: "endividamento" | "rentabilidade" | "valuation";
   format: (d: QuoteResult) => string | null;
+  value: (d: QuoteResult) => number | null;
+}
+
+type SortDir = "asc" | "desc";
+interface SortState {
+  key: string;
+  dir: SortDir;
 }
 
 function getColumns(years: number): ColumnDef[] {
   const n = years;
   return [
     // Endividamento
-    { key: "debtToEquity", label: "Dív/PL", group: "endividamento", format: (d) => d.debtToEquity !== null ? br(d.debtToEquity, 2) : null },
-    { key: "debtExLeaseToEquity", label: "Dív-Arr/PL", group: "endividamento", format: (d) => d.debtExLeaseToEquity !== null ? br(d.debtExLeaseToEquity, 2) : null },
-    { key: "liabilitiesToEquity", label: "Pass/PL", group: "endividamento", format: (d) => d.liabilitiesToEquity !== null ? br(d.liabilitiesToEquity, 2) : null },
-    { key: "debtToAvgEarnings", label: `Dív/Lucro${n}`, group: "endividamento", format: (d) => d.debtToAvgEarnings !== null ? br(d.debtToAvgEarnings, 1) : null },
-    { key: "debtToAvgFCF", label: `Dív/FCL${n}`, group: "endividamento", format: (d) => d.debtToAvgFCF !== null ? br(d.debtToAvgFCF, 1) : null },
+    { key: "debtToEquity", label: "Dív/PL", group: "endividamento", format: (d) => d.debtToEquity !== null ? br(d.debtToEquity, 2) : null, value: (d) => d.debtToEquity },
+    { key: "debtExLeaseToEquity", label: "Dív-Arr/PL", group: "endividamento", format: (d) => d.debtExLeaseToEquity !== null ? br(d.debtExLeaseToEquity, 2) : null, value: (d) => d.debtExLeaseToEquity },
+    { key: "liabilitiesToEquity", label: "Pass/PL", group: "endividamento", format: (d) => d.liabilitiesToEquity !== null ? br(d.liabilitiesToEquity, 2) : null, value: (d) => d.liabilitiesToEquity },
+    { key: "debtToAvgEarnings", label: `Dív/Lucro${n}`, group: "endividamento", format: (d) => d.debtToAvgEarnings !== null ? br(d.debtToAvgEarnings, 1) : null, value: (d) => d.debtToAvgEarnings },
+    { key: "debtToAvgFCF", label: `Dív/FCL${n}`, group: "endividamento", format: (d) => d.debtToAvgFCF !== null ? br(d.debtToAvgFCF, 1) : null, value: (d) => d.debtToAvgFCF },
     // Rentabilidade
-    { key: "roe", label: `ROE${n}`, group: "rentabilidade", format: (d) => d.roe !== null ? `${br(d.roe, 1)}%` : null },
-    { key: "priceToBook", label: "P/VPA", group: "rentabilidade", format: (d) => d.priceToBook !== null ? br(d.priceToBook, 2) : null },
+    { key: "roe", label: `ROE${n}`, group: "rentabilidade", format: (d) => d.roe !== null ? `${br(d.roe, 1)}%` : null, value: (d) => d.roe },
+    { key: "priceToBook", label: "P/VPA", group: "rentabilidade", format: (d) => d.priceToBook !== null ? br(d.priceToBook, 2) : null, value: (d) => d.priceToBook },
     // Valuation
-    { key: "pe10", label: `P/L${n}`, group: "valuation", format: (d) => d.pe10 !== null ? br(d.pe10, 1) : null },
-    { key: "pfcf10", label: `P/FCL${n}`, group: "valuation", format: (d) => d.pfcf10 !== null ? br(d.pfcf10, 1) : null },
-    { key: "peg", label: `PEG${n}`, group: "valuation", format: (d) => d.peg !== null ? br(d.peg, 2) : null },
-    { key: "pfcfPeg", label: `PFCLG${n}`, group: "valuation", format: (d) => d.pfcfPeg !== null ? br(d.pfcfPeg, 2) : null },
-    { key: "earningsCAGR", label: `CAGR L${n}`, group: "valuation", format: (d) => d.earningsCAGR !== null ? `${br(d.earningsCAGR, 1)}%` : null },
-    { key: "fcfCAGR", label: `CAGR FCL${n}`, group: "valuation", format: (d) => d.fcfCAGR !== null ? `${br(d.fcfCAGR, 1)}%` : null },
+    { key: "pe10", label: `P/L${n}`, group: "valuation", format: (d) => d.pe10 !== null ? br(d.pe10, 1) : null, value: (d) => d.pe10 },
+    { key: "pfcf10", label: `P/FCL${n}`, group: "valuation", format: (d) => d.pfcf10 !== null ? br(d.pfcf10, 1) : null, value: (d) => d.pfcf10 },
+    { key: "peg", label: `PEG${n}`, group: "valuation", format: (d) => d.peg !== null ? br(d.peg, 2) : null, value: (d) => d.peg },
+    { key: "pfcfPeg", label: `PFCLG${n}`, group: "valuation", format: (d) => d.pfcfPeg !== null ? br(d.pfcfPeg, 2) : null, value: (d) => d.pfcfPeg },
+    { key: "earningsCAGR", label: `CAGR L${n}`, group: "valuation", format: (d) => d.earningsCAGR !== null ? `${br(d.earningsCAGR, 1)}%` : null, value: (d) => d.earningsCAGR },
+    { key: "fcfCAGR", label: `CAGR FCL${n}`, group: "valuation", format: (d) => d.fcfCAGR !== null ? `${br(d.fcfCAGR, 1)}%` : null, value: (d) => d.fcfCAGR },
   ];
 }
 
@@ -72,6 +79,31 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const entries = useCompareData(allTickers, years);
   const columns = getColumns(years);
   const dragIndexRef = useRef<number | null>(null);
+  const [sort, setSort] = useState<SortState | null>(null);
+
+  function handleSort(key: string) {
+    setSort((prev) => {
+      if (!prev || prev.key !== key) return { key, dir: "asc" };
+      if (prev.dir === "asc") return { key, dir: "desc" };
+      return null; // third click clears sort
+    });
+  }
+
+  const sortedEntries = useMemo(() => {
+    if (!sort) return entries;
+    const col = columns.find((c) => c.key === sort.key);
+    if (!col) return entries;
+
+    return [...entries].sort((a, b) => {
+      const va = a.data ? col.value(a.data) : null;
+      const vb = b.data ? col.value(b.data) : null;
+      // nulls always go to the bottom
+      if (va === null && vb === null) return 0;
+      if (va === null) return 1;
+      if (vb === null) return -1;
+      return sort.dir === "asc" ? va - vb : vb - va;
+    });
+  }, [entries, sort, columns]);
 
   function handleAdd(ticker: string) {
     const upper = ticker.toUpperCase();
@@ -86,12 +118,16 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
 
   function handleReorder(fromIndex: number, toIndex: number) {
     if (fromIndex === toIndex) return;
-    // allTickers[0] is currentTicker (fixed), so indices in extraTickers are offset by 1
-    const newAll = [...allTickers];
-    const [moved] = newAll.splice(fromIndex, 1);
-    newAll.splice(toIndex, 0, moved);
-    // Remove currentTicker (always first) to get new extraTickers
-    onExtraTickersChange(newAll.filter((t) => t !== currentTicker));
+    const reordered = sortedEntries.map((e) => e.ticker);
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    onExtraTickersChange(reordered.filter((t) => t !== currentTicker));
+    setSort(null); // clear sort after manual reorder
+  }
+
+  function sortIndicator(key: string) {
+    if (!sort || sort.key !== key) return <span className="compare-sort-arrow compare-sort-inactive">↕</span>;
+    return <span className="compare-sort-arrow">{sort.dir === "asc" ? "↑" : "↓"}</span>;
   }
 
   return (
@@ -114,23 +150,29 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
               <th className="compare-drag-col" />
               <th className="compare-sticky-col">Empresa</th>
               {columns.map((col) => (
-                <th key={col.key}>{col.label}</th>
+                <th
+                  key={col.key}
+                  className="compare-sortable-th"
+                  onClick={() => handleSort(col.key)}
+                >
+                  {col.label} {sortIndicator(col.key)}
+                </th>
               ))}
               <th />
             </tr>
           </thead>
           <tbody>
-            {entries.map((entry, i) => (
+            {sortedEntries.map((entry, i) => (
               <CompareRow
                 key={entry.ticker}
                 entry={entry}
                 index={i}
-                isCurrentTicker={i === 0}
+                isCurrentTicker={entry.ticker === currentTicker}
                 onRemove={handleRemove}
                 columns={columns}
                 dragIndexRef={dragIndexRef}
                 onReorder={handleReorder}
-                totalRows={entries.length}
+                totalRows={sortedEntries.length}
               />
             ))}
             {/* Add company row */}
