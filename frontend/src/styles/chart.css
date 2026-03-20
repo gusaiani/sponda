@@ -84,12 +84,6 @@
   color: #ffffff;
 }
 
-.chart-synced-label {
-  font-family: 'Source Code Pro', monospace;
-  @apply text-xs font-normal;
-  color: var(--color-muted);
-}
-
 .chart-info-text {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs leading-relaxed mb-3 mt-1;

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   LineChart,
   Line,
@@ -88,15 +88,6 @@ export function MultiplesChart({ data, company }: Props) {
   const [hoveredYear, setHoveredYear] = useState<number | null>(null);
 
   const multiplesData = data.multiples[activeMultiple];
-
-  // Build a map of year → value for quick lookup
-  const multiplesByYear = useMemo(() => {
-    const map: Record<number, number | null> = {};
-    for (const point of multiplesData) {
-      map[point.year] = point.value;
-    }
-    return map;
-  }, [multiplesData]);
 
   // Extract year from price chart hover: "mar/22" → 2022
   const handlePriceMouseMove = useCallback(
@@ -247,11 +238,6 @@ export function MultiplesChart({ data, company }: Props) {
       <div className="chart-panel">
         <div className="chart-panel-title">
           {LABELS[activeMultiple]} histórico
-          {hoveredYear != null && (
-            <span className="chart-synced-label">
-              {" "}— {hoveredYear}: {multiplesByYear[hoveredYear] != null ? brFmt(multiplesByYear[hoveredYear]!, 1) : "—"}
-            </span>
-          )}
         </div>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart
@@ -295,6 +281,14 @@ export function MultiplesChart({ data, company }: Props) {
                 fill={MULTIPLE_COLOR}
                 stroke="#ffffff"
                 strokeWidth={2}
+                label={{
+                  value: `${hoveredMultiple.year}: ${brFmt(hoveredMultiple.value, 1)}`,
+                  position: "top",
+                  offset: 12,
+                  fill: "#0f1f3d",
+                  fontSize: 11,
+                  fontFamily: "'Source Code Pro', monospace",
+                }}
               />
             )}
           </LineChart>
