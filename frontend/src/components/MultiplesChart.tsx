@@ -234,10 +234,10 @@ export function MultiplesChart({ data, company }: Props) {
             <Line
               type="monotone"
               dataKey="value"
-              stroke={MULTIPLE_COLOR}
-              strokeWidth={1.5}
-              dot={{ r: 2.5, fill: MULTIPLE_COLOR }}
-              activeDot={{ r: 4, fill: MULTIPLE_COLOR }}
+              stroke="transparent"
+              strokeWidth={0}
+              dot={{ r: 3, fill: MULTIPLE_COLOR, strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: MULTIPLE_COLOR, strokeWidth: 0 }}
               connectNulls
             />
           </LineChart>
