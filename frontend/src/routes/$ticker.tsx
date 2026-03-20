@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useParams, useLocation } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
 import { PE10Card, PE10CardLoading } from "../components/PE10Card";
+import { FontPickerLogo } from "../components/FontPickerLogo";
 import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesChart";
 import { CompareTab } from "../components/CompareTab";
 import { ShareButtons } from "../components/ShareButtons";
@@ -136,7 +137,7 @@ export function TickerPage() {
         </Link>
       </nav>
       <Link to="/" className="app-hero-title-link">
-        <img src="/sponda-logo.png" alt="Sponda" className="app-hero-logo" />
+        <FontPickerLogo />
       </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
