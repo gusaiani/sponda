@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useParams, useLocation } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
@@ -7,6 +7,7 @@ import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesCh
 import { CompareTab } from "../components/CompareTab";
 import { ShareButtons } from "../components/ShareButtons";
 import { usePE10 } from "../hooks/usePE10";
+import { useTickers } from "../hooks/useTickers";
 import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
 import { deriveForYears } from "../hooks/deriveForYears";
 import "../styles/chart.css";
@@ -47,10 +48,33 @@ export function TickerPage() {
   const location = useLocation();
   const [years, setYears] = useState(DEFAULT_YEARS);
   const [compareTickers, setCompareTickers] = useState<string[]>([]);
+  const seededForTicker = useRef<string | null>(null);
 
   const activeTab = resolveTab(location.pathname);
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker);
+  const { data: allTickers } = useTickers();
+
+  // Seed compare list with same-sector companies on first visit to compare tab
+  useEffect(() => {
+    if (activeTab !== "compare") return;
+    if (seededForTicker.current === upperTicker) return;
+    if (!allTickers?.length) return;
+
+    const current = allTickers.find((t) => t.symbol === upperTicker);
+    if (!current?.sector) {
+      seededForTicker.current = upperTicker;
+      return;
+    }
+
+    const sectorPeers = allTickers
+      .filter((t) => t.sector === current.sector && t.symbol !== upperTicker)
+      .slice(0, 10)
+      .map((t) => t.symbol);
+
+    setCompareTickers(sectorPeers);
+    seededForTicker.current = upperTicker;
+  }, [activeTab, upperTicker, allTickers]);
 
   // Lazy: only fetch when charts tab is active
   const {
@@ -87,6 +111,8 @@ export function TickerPage() {
     queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
     queryClient.invalidateQueries({ queryKey: ["multiples-history", newTicker] });
     setYears(DEFAULT_YEARS);
+    setCompareTickers([]);
+    seededForTicker.current = null;
     navigate({ to: "/$ticker", params: { ticker: newTicker } });
   }
 
