@@ -24,7 +24,8 @@
   white-space: nowrap;
 }
 
-.compare-group-row th:first-child {
+.compare-group-row th:first-child,
+.compare-group-row th:nth-child(2) {
   border-bottom-color: transparent;
 }
 
@@ -184,6 +185,46 @@
     padding-left: 2rem;
     padding-right: 2rem;
   }
+}
+
+/* Drag handle column */
+.compare-drag-col {
+  @apply w-6 px-0;
+  border-bottom-color: transparent !important;
+  background: transparent;
+}
+
+.compare-drag-handle {
+  @apply inline-flex items-center justify-center cursor-grab p-1;
+  color: var(--color-border);
+  transition: color 0.15s;
+}
+
+.compare-drag-handle:hover {
+  color: var(--color-muted);
+}
+
+.compare-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Drag states */
+.compare-row-dragging {
+  opacity: 0.4;
+}
+
+.compare-row-drag-over td {
+  border-top: 2px solid var(--color-accent) !important;
+}
+
+/* Company link */
+.compare-company-link {
+  @apply flex items-center gap-2 no-underline;
+  color: inherit;
+}
+
+.compare-company-link:hover .compare-company-name {
+  color: var(--color-accent);
 }
 
 /* Years slider (below table) */
