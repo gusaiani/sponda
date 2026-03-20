@@ -87,6 +87,13 @@
   color: var(--color-ink);
 }
 
+.app-hero-logo {
+  @apply block mx-auto mb-2;
+  height: 80px;
+  width: auto;
+  margin-top: -20px;
+}
+
 .app-hero-subtitle {
   font-family: 'Source Code Pro', monospace;
   @apply text-xs text-center mb-10 uppercase;

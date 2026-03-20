@@ -15,7 +15,9 @@ export function HomePage() {
 
   return (
     <div>
-      <Link to="/" className="app-hero-title-link"><h1 className="app-hero-title">Sponda</h1></Link>
+      <Link to="/" className="app-hero-title-link">
+        <img src="/sponda-logo.png" alt="Sponda" className="app-hero-logo" />
+      </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
       <SearchBar onSearch={handleSearch} isLoading={false} autoFocus />
