@@ -34,10 +34,42 @@ export function getSubsector(name: string, sector: string): string {
 }
 
 /**
+ * Extract the letter prefix from a Brazilian ticker (e.g. "BBDC4" → "BBDC").
+ */
+function tickerBase(symbol: string): string {
+  return symbol.replace(/\d+$/, "");
+}
+
+/**
+ * Deduplicate tickers: keep one per company (letter prefix).
+ * Prefers suffix 4 (PN), then 3 (ON), then 11 (units), then others.
+ */
+function deduplicateByCompany(
+  tickers: { symbol: string; name: string; sector: string }[],
+): { symbol: string; name: string; sector: string }[] {
+  const SUFFIX_PRIORITY: Record<string, number> = { "4": 0, "3": 1, "11": 2 };
+
+  const best = new Map<string, { symbol: string; name: string; sector: string; priority: number }>();
+
+  for (const t of tickers) {
+    const base = tickerBase(t.symbol);
+    const suffix = t.symbol.slice(base.length);
+    const priority = SUFFIX_PRIORITY[suffix] ?? 9;
+    const existing = best.get(base);
+    if (!existing || priority < existing.priority) {
+      best.set(base, { ...t, priority });
+    }
+  }
+
+  return [...best.values()];
+}
+
+/**
  * Find same-subsector peers for a given company.
  *
  * Falls back to the broader sector if the subsector yields fewer than
  * `minPeers` results, ensuring the comparison table is never too sparse.
+ * Returns one ticker per company (deduplicates ON/PN/units).
  */
 export function getSectorPeers(
   currentSymbol: string,
@@ -47,24 +79,27 @@ export function getSectorPeers(
   maxPeers = 10,
   minPeers = 3,
 ): string[] {
+  const currentBase = tickerBase(currentSymbol);
   const subsector = getSubsector(currentName, currentSector);
 
   // Try subsector match first
-  const subsectorPeers = allTickers
-    .filter(
-      (t) =>
-        t.symbol !== currentSymbol &&
-        t.sector === currentSector &&
-        getSubsector(t.name, t.sector) === subsector,
-    )
+  const subsectorMatches = allTickers.filter(
+    (t) =>
+      tickerBase(t.symbol) !== currentBase &&
+      t.sector === currentSector &&
+      getSubsector(t.name, t.sector) === subsector,
+  );
+  const subsectorPeers = deduplicateByCompany(subsectorMatches)
     .slice(0, maxPeers)
     .map((t) => t.symbol);
 
   if (subsectorPeers.length >= minPeers) return subsectorPeers;
 
   // Fall back to broader sector
-  return allTickers
-    .filter((t) => t.symbol !== currentSymbol && t.sector === currentSector)
+  const sectorMatches = allTickers.filter(
+    (t) => tickerBase(t.symbol) !== currentBase && t.sector === currentSector,
+  );
+  return deduplicateByCompany(sectorMatches)
     .slice(0, maxPeers)
     .map((t) => t.symbol);
 }

@@ -46,7 +46,8 @@
   z-index: 2;
   background: #ffffff;
   min-width: 160px;
-  max-width: 220px;
+  max-width: 240px;
+  overflow: hidden;
 }
 
 .compare-sticky-col::after {
@@ -80,6 +81,7 @@
 /* Company cell */
 .compare-company-cell {
   @apply flex items-center gap-2;
+  overflow: hidden;
 }
 
 .compare-company-logo {
@@ -97,6 +99,7 @@
   font-family: 'Source Code Pro', monospace;
   @apply text-xs;
   color: var(--color-muted);
+  flex-shrink: 0;
 }
 
 /* Null values */
@@ -245,7 +248,10 @@
 .compare-company-link {
   @apply flex items-center gap-2 no-underline;
   color: inherit;
+  overflow: hidden;
+  min-width: 0;
 }
+
 
 .compare-company-link:hover .compare-company-name {
   color: var(--color-accent);
