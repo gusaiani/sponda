@@ -10,6 +10,7 @@ import { usePE10, fetchQuote } from "../hooks/usePE10";
 import { useTickers } from "../hooks/useTickers";
 import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
 import { deriveForYears } from "../hooks/deriveForYears";
+import { getSectorPeers } from "../utils/subsector";
 import "../styles/chart.css";
 
 const DEFAULT_YEARS = 10;
@@ -67,10 +68,12 @@ export function TickerPage() {
       return;
     }
 
-    const sectorPeers = allTickers
-      .filter((t) => t.sector === current.sector && t.symbol !== upperTicker)
-      .slice(0, 10)
-      .map((t) => t.symbol);
+    const sectorPeers = getSectorPeers(
+      upperTicker,
+      current.name,
+      current.sector,
+      allTickers,
+    );
 
     setCompareTickers(sectorPeers);
     seededForTicker.current = upperTicker;
