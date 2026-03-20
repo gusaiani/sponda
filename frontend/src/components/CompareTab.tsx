@@ -9,7 +9,7 @@ import "../styles/compare.css";
 interface ColumnDef {
   key: string;
   label: string;
-  group: "endividamento" | "valuation";
+  group: "endividamento" | "rentabilidade" | "valuation";
   format: (d: QuoteResult) => string | null;
 }
 
@@ -22,6 +22,9 @@ function getColumns(years: number): ColumnDef[] {
     { key: "liabilitiesToEquity", label: "Pass/PL", group: "endividamento", format: (d) => d.liabilitiesToEquity !== null ? br(d.liabilitiesToEquity, 2) : null },
     { key: "debtToAvgEarnings", label: `Dív/Lucro${n}`, group: "endividamento", format: (d) => d.debtToAvgEarnings !== null ? br(d.debtToAvgEarnings, 1) : null },
     { key: "debtToAvgFCF", label: `Dív/FCL${n}`, group: "endividamento", format: (d) => d.debtToAvgFCF !== null ? br(d.debtToAvgFCF, 1) : null },
+    // Rentabilidade
+    { key: "roe", label: `ROE${n}`, group: "rentabilidade", format: (d) => d.roe !== null ? `${br(d.roe, 1)}%` : null },
+    { key: "priceToBook", label: "P/VPA", group: "rentabilidade", format: (d) => d.priceToBook !== null ? br(d.priceToBook, 2) : null },
     // Valuation
     { key: "pe10", label: `P/L${n}`, group: "valuation", format: (d) => d.pe10 !== null ? br(d.pe10, 1) : null },
     { key: "pfcf10", label: `P/FCL${n}`, group: "valuation", format: (d) => d.pfcf10 !== null ? br(d.pfcf10, 1) : null },
@@ -33,6 +36,7 @@ function getColumns(years: number): ColumnDef[] {
 }
 
 const DEBT_COUNT = 5;
+const RENT_COUNT = 2;
 const VAL_COUNT = 6;
 
 /* ── Component ── */
@@ -72,6 +76,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
             <tr className="compare-group-row">
               <th className="compare-sticky-col" />
               <th colSpan={DEBT_COUNT}>Endividamento</th>
+              <th colSpan={RENT_COUNT}>Rentabilidade</th>
               <th colSpan={VAL_COUNT}>Preço vs. Resultados</th>
               <th />
             </tr>

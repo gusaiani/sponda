@@ -152,6 +152,18 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     pfcfPeg = Math.round((pfcf10 / fcfCagr.cagr) * 100) / 100;
   }
 
+  // ROE = avg adjusted net income / stockholders equity
+  let roe: number | null = null;
+  if (avgAdjustedNetIncome && avgAdjustedNetIncome > 0 && full.stockholdersEquity && full.stockholdersEquity > 0) {
+    roe = Math.round((avgAdjustedNetIncome / full.stockholdersEquity) * 10000) / 100;
+  }
+
+  // P/VPA = market cap / stockholders equity
+  let priceToBook: number | null = null;
+  if (full.marketCap && full.stockholdersEquity && full.stockholdersEquity > 0) {
+    priceToBook = Math.round((full.marketCap / full.stockholdersEquity) * 100) / 100;
+  }
+
   return {
     ...full,
     // PE
@@ -183,5 +195,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     pfcfPegError,
     fcfCAGRMethod: fcfCagr.method,
     fcfCAGRExcludedYears: fcfCagr.excludedYears,
+    // Profitability
+    roe,
+    priceToBook,
   };
 }

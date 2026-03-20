@@ -78,6 +78,9 @@ interface QuoteResult {
   pfcfPegError: string | null;
   fcfCAGRMethod: "endpoint" | "regression" | null;
   fcfCAGRExcludedYears: number[];
+  // Profitability (computed client-side)
+  roe: number | null;
+  priceToBook: number | null;
 }
 
 interface QuoteError {
@@ -112,6 +115,7 @@ const DEFAULTS: Partial<QuoteResult> = {
   earningsCAGRMethod: null, earningsCAGRExcludedYears: [],
   pfcfPeg: null, fcfCAGR: null, pfcfPegError: null,
   fcfCAGRMethod: null, fcfCAGRExcludedYears: [],
+  roe: null, priceToBook: null,
 };
 
 export async function fetchQuote(ticker: string): Promise<QuoteResult> {

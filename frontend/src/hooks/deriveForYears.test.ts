@@ -79,6 +79,9 @@ function makeFullData(opts: {
     pfcfPegError: null,
     fcfCAGRMethod: null,
     fcfCAGRExcludedYears: [],
+    // Profitability (will be derived)
+    roe: null,
+    priceToBook: null,
   };
 }
 
