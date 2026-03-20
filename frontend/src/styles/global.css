@@ -89,9 +89,12 @@
 
 .app-hero-logo {
   @apply block mx-auto mb-2;
-  height: 80px;
-  width: auto;
-  margin-top: -20px;
+  font-family: "Satoshi", sans-serif;
+  font-weight: 500;
+  font-size: 30px;
+  color: #1a2a5a;
+  text-align: center;
+  line-height: 1;
 }
 
 .app-hero-subtitle {

@@ -3,7 +3,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
 import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
-import { FontPickerLogo } from "../components/FontPickerLogo";
 
 export function HomePage() {
   const queryClient = useQueryClient();
@@ -17,7 +16,7 @@ export function HomePage() {
   return (
     <div>
       <Link to="/" className="app-hero-title-link">
-        <FontPickerLogo />
+        <span className="app-hero-logo">SPONDA</span>
       </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
