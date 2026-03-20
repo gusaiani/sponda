@@ -136,7 +136,7 @@ export function TickerPage() {
         </Link>
       </nav>
       <Link to="/" className="app-hero-title-link">
-        <img src="/sponda-logo-sm.png" alt="Sponda" className="app-hero-logo" />
+        <img src="/sponda-logo.png" alt="Sponda" className="app-hero-logo" />
       </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
