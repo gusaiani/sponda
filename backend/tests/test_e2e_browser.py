@@ -109,7 +109,7 @@ class TestBrowserSearch:
 
     def test_homepage_loads(self, page: Page, url):
         page.goto(url)
-        expect(page.get_by_role("heading", name="Sponda")).to_be_visible()
+        expect(page.get_by_role("img", name="Sponda")).to_be_visible()
         expect(page.locator("text=investidores em valor").first).to_be_visible()
 
     def test_search_bar_is_visible(self, page: Page, url):
