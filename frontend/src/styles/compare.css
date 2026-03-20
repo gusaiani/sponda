@@ -1,0 +1,192 @@
+@reference "tailwindcss";
+
+/* Scroll wrapper */
+.compare-scroll-wrapper {
+  @apply mx-auto overflow-x-auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Table */
+.compare-table {
+  @apply w-full text-left;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 700px;
+}
+
+/* Group header row */
+.compare-group-row th {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs font-normal py-2 px-2;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-accent);
+  white-space: nowrap;
+}
+
+.compare-group-row th:first-child {
+  border-bottom-color: transparent;
+}
+
+/* Column header row */
+.compare-table thead tr:last-child th {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-[10px] font-normal uppercase py-2 px-2;
+  letter-spacing: 0;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-ink);
+  white-space: nowrap;
+}
+
+/* Sticky first column */
+.compare-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #ffffff;
+  min-width: 160px;
+  max-width: 220px;
+}
+
+.compare-sticky-col::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to right, rgba(0,0,0,0.04), transparent);
+  pointer-events: none;
+}
+
+/* Data cells */
+.compare-table td {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-sm py-2.5 px-2;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.compare-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.compare-table tbody tr:hover .compare-sticky-col {
+  background: #f8fafc;
+}
+
+/* Company cell */
+.compare-company-cell {
+  @apply flex items-center gap-2;
+}
+
+.compare-company-logo {
+  @apply w-5 h-5 rounded-full object-cover;
+  flex-shrink: 0;
+}
+
+.compare-company-name {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm font-medium truncate;
+  color: var(--color-ink);
+}
+
+.compare-company-ticker {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs;
+  color: var(--color-muted);
+}
+
+/* Null values */
+.compare-null {
+  color: var(--color-muted);
+  font-style: italic;
+  font-size: 0.7rem;
+}
+
+/* Remove button */
+.compare-remove-btn {
+  @apply bg-transparent border-none cursor-pointer text-sm leading-none p-1;
+  color: var(--color-muted);
+}
+
+.compare-remove-btn:hover {
+  color: var(--color-ink);
+}
+
+/* Loading row */
+.compare-loading-cell {
+  @apply h-4 bg-gray-200 rounded animate-pulse;
+  width: 3rem;
+}
+
+/* Error row */
+.compare-error-cell {
+  @apply text-xs italic;
+  color: var(--color-muted);
+}
+
+/* Add company row */
+.compare-add-row td {
+  border-bottom: none;
+  padding-top: 0.75rem;
+}
+
+.compare-add-wrapper {
+  @apply relative;
+}
+
+.compare-add-input {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-sm py-1.5 px-2 w-full border rounded;
+  border-color: var(--color-border);
+  color: var(--color-ink);
+  background: transparent;
+  max-width: 220px;
+}
+
+.compare-add-input::placeholder {
+  color: var(--color-muted);
+  font-style: italic;
+  font-size: 0.75rem;
+}
+
+.compare-add-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.compare-add-dropdown {
+  @apply rounded shadow-md overflow-y-auto;
+  z-index: 9999;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  max-height: 200px;
+}
+
+/* Container for compare tab — breaks out of .app-main max-width */
+.compare-container {
+  @apply py-6;
+  background: #ffffff;
+  border: none;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .compare-container {
+    @apply py-8;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Years slider (below table) */
+.compare-slider-wrapper {
+  @apply max-w-md mx-auto mt-6;
+}

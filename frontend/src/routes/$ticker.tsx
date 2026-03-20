@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { Link, Outlet, useNavigate, useParams, useLocation } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
 import { PE10Card, PE10CardLoading } from "../components/PE10Card";
 import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesChart";
+import { CompareTab } from "../components/CompareTab";
 import { ShareButtons } from "../components/ShareButtons";
 import { usePE10 } from "../hooks/usePE10";
 import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
@@ -12,18 +13,43 @@ import "../styles/chart.css";
 
 const DEFAULT_YEARS = 10;
 
-type TabKey = "metrics" | "charts";
+type TabKey = "metrics" | "charts" | "compare";
+
+const TAB_PATHS: Record<string, TabKey> = {
+  graficos: "charts",
+  comparar: "compare",
+};
+
+const TAB_TO_SUFFIX: Record<TabKey, string> = {
+  metrics: "",
+  charts: "/graficos",
+  compare: "/comparar",
+};
+
+function resolveTab(pathname: string): TabKey {
+  // Check path suffix: /<ticker>/graficos or /<ticker>/comparar
+  const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
+  if (TAB_PATHS[lastSegment]) return TAB_PATHS[lastSegment];
+
+  // Fallback: ?aba= query param (backwards compat)
+  const params = new URLSearchParams(window.location.search);
+  const aba = params.get("aba");
+  if (aba && TAB_PATHS[aba]) return TAB_PATHS[aba];
+
+  return "metrics";
+}
 
 export function TickerPage() {
   const { ticker } = useParams({ strict: false }) as { ticker: string };
   const upperTicker = ticker.toUpperCase();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
   const [years, setYears] = useState(DEFAULT_YEARS);
-  const [activeTab, setActiveTab] = useState<TabKey>(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("aba") === "graficos" ? "charts" : "metrics";
-  });
+  const [compareTickers, setCompareTickers] = useState<string[]>([]);
+
+  const activeTab = resolveTab(location.pathname);
+
   const { data: fullData, isLoading, error } = usePE10(upperTicker);
 
   // Lazy: only fetch when charts tab is active
@@ -52,11 +78,15 @@ export function TickerPage() {
     [fullData, effectiveYears],
   );
 
+  function switchTab(tab: TabKey) {
+    const path = `/${upperTicker}${TAB_TO_SUFFIX[tab]}`;
+    navigate({ to: path });
+  }
+
   function handleSearch(newTicker: string) {
     queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
     queryClient.invalidateQueries({ queryKey: ["multiples-history", newTicker] });
     setYears(DEFAULT_YEARS);
-    setActiveTab("metrics");
     navigate({ to: "/$ticker", params: { ticker: newTicker } });
   }
 
@@ -77,15 +107,21 @@ export function TickerPage() {
         <div className="tabs-wrapper">
           <button
             className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
-            onClick={() => setActiveTab("metrics")}
+            onClick={() => switchTab("metrics")}
           >
             Indicadores
           </button>
           <button
             className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
-            onClick={() => setActiveTab("charts")}
+            onClick={() => switchTab("charts")}
           >
             Gráficos
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "compare" ? "tab-pill-active" : ""}`}
+            onClick={() => switchTab("compare")}
+          >
+            Comparar
           </button>
         </div>
       )}
@@ -132,10 +168,23 @@ export function TickerPage() {
         </>
       )}
 
+      {/* Compare tab */}
+      {activeTab === "compare" && (
+        <CompareTab
+          currentTicker={upperTicker}
+          years={effectiveYears}
+          maxYears={maxYears}
+          onYearsChange={setYears}
+          extraTickers={compareTickers}
+          onExtraTickersChange={setCompareTickers}
+        />
+      )}
+
       <ShareButtons
         ticker={upperTicker}
         companyName={fullData?.name}
       />
+      <Outlet />
     </div>
   );
 }

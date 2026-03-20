@@ -114,7 +114,7 @@ const DEFAULTS: Partial<QuoteResult> = {
   fcfCAGRMethod: null, fcfCAGRExcludedYears: [],
 };
 
-async function fetchQuote(ticker: string): Promise<QuoteResult> {
+export async function fetchQuote(ticker: string): Promise<QuoteResult> {
   const response = await fetch(`/api/quote/${ticker}/`, {
     credentials: "include",
   });
