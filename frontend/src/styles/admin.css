@@ -5,7 +5,7 @@
 }
 
 .admin-back-link {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase no-underline;
   letter-spacing: 0.06em;
   color: var(--color-muted);
@@ -30,14 +30,14 @@
 }
 
 .admin-subsection-title {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase mb-2;
   letter-spacing: 0.06em;
   color: var(--color-muted);
 }
 
 .admin-text {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-sm;
   color: var(--color-muted);
 }
@@ -51,7 +51,7 @@
 }
 
 .admin-loading {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-sm text-center py-12;
   color: var(--color-muted);
 }
@@ -85,7 +85,7 @@
 }
 
 .admin-overview-label {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs mt-1;
   color: var(--color-muted);
 }
@@ -101,7 +101,7 @@
 }
 
 .admin-table th {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal uppercase py-2 px-3;
   letter-spacing: 0;
   color: var(--color-muted);
@@ -110,11 +110,12 @@
 }
 
 .admin-table td {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-sm py-2 px-3;
   color: var(--color-ink);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-table tbody tr:hover td {
@@ -141,7 +142,7 @@
 }
 
 .admin-badge {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs px-1.5 py-0.5 rounded;
   background: var(--color-accent);
   color: #ffffff;

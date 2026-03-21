@@ -6,7 +6,7 @@
 }
 
 .tab-pill {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal px-4 py-1.5 cursor-pointer
     border-none transition-colors uppercase;
   letter-spacing: 0;
@@ -47,7 +47,7 @@
 }
 
 .chart-panel-title {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal uppercase mb-2;
   letter-spacing: 0;
   color: var(--color-muted);
@@ -59,7 +59,7 @@
 }
 
 .multiple-pill {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal px-3 py-1 cursor-pointer
     border transition-colors rounded-full;
   border-color: var(--color-border);
@@ -112,7 +112,7 @@
 
 /* Recharts tooltip override */
 .chart-tooltip {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs px-3 py-2 rounded shadow-sm;
   background: #ffffff;
   border: 1px solid var(--color-border);

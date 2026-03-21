@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { FavoriteButton } from "./FavoriteButton";
 import "../styles/card.css";
 
 interface QuarterlyEarningsDetail {
@@ -80,7 +81,7 @@ interface QuoteData {
   fcfCAGRExcludedYears: number[];
 }
 
-interface PE10CardProps {
+interface CompanyMetricsCardProps {
   data: QuoteData;
   years: number;
   maxYears: number;
@@ -710,7 +711,7 @@ const MODAL_TITLES: Record<string, (data: QuoteData) => string> = {
 
 /* ── Main Card ── */
 
-export function PE10Card({ data, years, maxYears, onYearsChange }: PE10CardProps) {
+export function CompanyMetricsCard({ data, years, maxYears, onYearsChange }: CompanyMetricsCardProps) {
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
 
   const pl10Label = ptLabel(data.pe10Label);
@@ -720,16 +721,18 @@ export function PE10Card({ data, years, maxYears, onYearsChange }: PE10CardProps
   return (
     <article className="pe10-card" aria-label={`Indicadores de ${data.name} (${data.ticker})`}>
       <header className="pe10-card-header">
-        {data.logo && (
-          <img
-            className="pe10-logo"
-            src={data.logo}
-            alt={`Logo ${data.name}`}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-        )}
-        <h2 className="pe10-name">{data.name}</h2>
-        <span className="pe10-ticker">{data.ticker}</span>
+        <div className="pe10-card-header-left">
+          {data.logo && (
+            <img
+              className="pe10-logo"
+              src={data.logo}
+              alt={`Logo ${data.name}`}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+            />
+          )}
+          <h2 className="pe10-name">{data.name} <span className="pe10-ticker">· {data.ticker}</span></h2>
+        </div>
+        <FavoriteButton ticker={data.ticker} />
       </header>
 
       {/* ── Section: Dívida ── */}
@@ -933,7 +936,7 @@ export function PE10Card({ data, years, maxYears, onYearsChange }: PE10CardProps
   );
 }
 
-export function PE10CardLoading() {
+export function CompanyMetricsCardLoading() {
   return (
     <div className="pe10-loading">
       <div className="pe10-loading-bar" />

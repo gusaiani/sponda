@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useParams, useLocation } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
-import { PE10Card, PE10CardLoading } from "../components/PE10Card";
+import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../components/CompanyMetricsCard";
 import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesChart";
 import { CompareTab } from "../components/CompareTab";
 import { ShareButtons } from "../components/ShareButtons";
@@ -10,7 +10,6 @@ import { usePE10, fetchQuote } from "../hooks/usePE10";
 import { useTickers } from "../hooks/useTickers";
 import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
 import { deriveForYears } from "../hooks/deriveForYears";
-import { FavoriteButton } from "../components/FavoriteButton";
 import { getSectorPeers } from "../utils/subsector";
 import "../styles/chart.css";
 
@@ -141,9 +140,6 @@ export function TickerPage() {
       </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-        <FavoriteButton ticker={upperTicker} />
-      </div>
       <SearchBar onSearch={handleSearch} isLoading={isLoading} />
 
       {/* Tabs */}
@@ -173,9 +169,9 @@ export function TickerPage() {
       {/* Metrics tab */}
       {activeTab === "metrics" && (
         <>
-          {isLoading && <PE10CardLoading />}
+          {isLoading && <CompanyMetricsCardLoading />}
           {derivedData && !isLoading && (
-            <PE10Card
+            <CompanyMetricsCard
               data={derivedData}
               years={effectiveYears}
               maxYears={maxYears}

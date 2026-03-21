@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { csrfHeaders } from "../utils/csrf";
 
 export interface AuthUser {
   email: string;
@@ -26,6 +27,7 @@ export function useAuth() {
   async function logout() {
     await fetch("/api/auth/logout/", {
       method: "POST",
+      headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
       credentials: "include",
     });
     queryClient.setQueryData(["auth-user"], null);

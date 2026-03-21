@@ -5,7 +5,7 @@
 }
 
 .auth-header-link {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase no-underline transition-colors;
   letter-spacing: 0.06em;
   color: var(--color-muted);

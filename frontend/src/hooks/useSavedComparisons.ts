@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { csrfHeaders } from "../utils/csrf";
 
 export interface SavedComparisonEntry {
   id: number;
@@ -31,7 +32,7 @@ export function useSavedComparisons() {
     mutationFn: async (params: { name: string; tickers: string[]; years: number }) => {
       const response = await fetch("/api/auth/comparisons/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders(),
         credentials: "include",
         body: JSON.stringify(params),
       });
@@ -47,6 +48,7 @@ export function useSavedComparisons() {
     mutationFn: async (comparisonId: number) => {
       const response = await fetch(`/api/auth/comparisons/${comparisonId}/`, {
         method: "DELETE",
+        headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
         credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to delete comparison");

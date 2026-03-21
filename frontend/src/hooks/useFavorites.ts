@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { csrfHeaders } from "../utils/csrf";
 
 interface FavoriteEntry {
   id: number;
@@ -27,7 +28,7 @@ export function useFavorites() {
     mutationFn: async (ticker: string) => {
       const response = await fetch("/api/auth/favorites/", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: csrfHeaders(),
         credentials: "include",
         body: JSON.stringify({ ticker }),
       });
@@ -43,6 +44,7 @@ export function useFavorites() {
     mutationFn: async (ticker: string) => {
       const response = await fetch(`/api/auth/favorites/${ticker}/`, {
         method: "DELETE",
+        headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
         credentials: "include",
       });
       if (!response.ok) throw new Error("Failed to remove favorite");

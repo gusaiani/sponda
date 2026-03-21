@@ -4,17 +4,27 @@ import { useFavorites } from "../hooks/useFavorites";
 import { useTickers, TickerItem } from "../hooks/useTickers";
 import "../styles/popular.css";
 
+interface FavoriteDisplayItem {
+  symbol: string;
+  logo: string;
+}
+
 export function FavoriteCompanies() {
   const { favoriteTickers, isLoading: favoritesLoading } = useFavorites();
   const { data: allTickers = [] } = useTickers();
 
-  const favoriteCompanies = useMemo(() => {
-    if (!favoriteTickers.length || !allTickers.length) return [];
+  const favoriteCompanies = useMemo((): FavoriteDisplayItem[] => {
+    if (!favoriteTickers.length) return [];
     const tickerMap = new Map<string, TickerItem>();
     for (const ticker of allTickers) tickerMap.set(ticker.symbol, ticker);
-    return favoriteTickers
-      .map((symbol) => tickerMap.get(symbol))
-      .filter(Boolean) as TickerItem[];
+
+    return favoriteTickers.map((symbol) => {
+      const tickerData = tickerMap.get(symbol);
+      return {
+        symbol,
+        logo: tickerData?.logo ?? "",
+      };
+    });
   }, [favoriteTickers, allTickers]);
 
   if (favoritesLoading || favoriteCompanies.length === 0) return null;

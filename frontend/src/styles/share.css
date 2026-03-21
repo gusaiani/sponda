@@ -5,7 +5,7 @@
 }
 
 .share-label {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase mb-3;
   letter-spacing: 0;
   color: var(--color-muted);

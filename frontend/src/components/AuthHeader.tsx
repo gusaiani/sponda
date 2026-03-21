@@ -21,14 +21,9 @@ export function AuthHeader() {
           </Link>
         </>
       ) : (
-        <>
-          <Link to="/login" className="auth-header-link">
-            Entrar
-          </Link>
-          <Link to="/signup" className="auth-header-link auth-header-signup">
-            Criar conta
-          </Link>
-        </>
+        <Link to="/login" className="auth-header-link auth-header-signup">
+          Entrar
+        </Link>
       )}
     </div>
   );

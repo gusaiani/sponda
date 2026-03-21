@@ -169,7 +169,7 @@ export function MultiplesChart({ data, company }: Props) {
 
   return (
     <div className="chart-container">
-      {/* Company header — same as PE10Card */}
+      {/* Company header */}
       <header className="pe10-card-header">
         {company.logo && (
           <img

@@ -33,14 +33,14 @@
 }
 
 .popular-name {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal;
   letter-spacing: 0;
   color: var(--color-muted);
 }
 
 .favorites-section-title {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase text-center mb-2;
   letter-spacing: 0.06em;
   color: var(--color-muted);

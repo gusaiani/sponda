@@ -34,7 +34,7 @@
 }
 
 .app-nav-link {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase tracking-widest transition-colors;
   color: var(--color-muted);
 }
@@ -53,7 +53,7 @@
 }
 
 .back-home-link {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply absolute text-xs uppercase tracking-wide px-2;
   letter-spacing: 0.10em;
   color: var(--color-muted);
@@ -98,7 +98,7 @@
 }
 
 .app-hero-subtitle {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs text-center mb-10 uppercase;
   letter-spacing: 0;
   line-height: 1.8;
@@ -127,7 +127,7 @@
 }
 
 .app-footer-text {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs;
   letter-spacing: 0.06em;
   color: var(--color-muted);
@@ -144,7 +144,7 @@
 
 .app-footer-performance {
   @apply block mt-4;
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 0.65rem;
   line-height: 1.6;
   letter-spacing: 0.06em;
@@ -153,7 +153,7 @@
 
 .app-footer-cta {
   @apply block mt-2 font-semibold;
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 0.75rem;
   letter-spacing: 0.06em;
   color: var(--color-accent);

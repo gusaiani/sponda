@@ -71,6 +71,9 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "accounts.authentication.CsrfExemptSessionAuthentication",
+    ],
 }
 
 BRAPI_API_KEY = env("BRAPI_API_KEY")

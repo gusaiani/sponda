@@ -3,6 +3,8 @@ from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
 from django.db.models import Count, Max
 from django.utils import timezone
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
@@ -62,6 +64,7 @@ class LogoutView(APIView):
         return Response({"ok": True})
 
 
+@method_decorator(ensure_csrf_cookie, name="dispatch")
 class MeView(APIView):
     def get(self, request):
         if not request.user.is_authenticated:

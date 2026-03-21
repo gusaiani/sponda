@@ -18,17 +18,21 @@
   margin-bottom: 3.4rem;
 }
 
+.pe10-card-header-left {
+  @apply flex items-center;
+  min-width: 0;
+}
+
 .pe10-logo {
   @apply w-8 h-8 rounded-full object-cover mr-3;
   flex-shrink: 0;
 }
 
 .pe10-ticker {
-  font-family: 'Source Code Pro', monospace;
-  @apply text-sm font-normal;
+  @apply font-normal text-sm;
   color: var(--color-muted);
   position: relative;
-  top: 3px;
+  top: -1px;
 }
 
 .pe10-name {
@@ -61,7 +65,7 @@
 }
 
 .years-slider-bound {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs;
   color: var(--color-muted);
   min-width: 1.5rem;
@@ -128,7 +132,7 @@
     w-4 h-4 rounded-full cursor-pointer
     text-[9px] leading-none font-normal
     transition-colors ml-1;
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   color: var(--color-muted);
   border: 1px solid var(--color-border);
   background: transparent;
@@ -201,7 +205,7 @@
 }
 
 .pe10-label {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply font-normal uppercase mb-1;
   font-size: 14px;
   letter-spacing: 0;
@@ -248,7 +252,7 @@
 
 
 .pe10-warning {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs px-4 py-3 mt-4 text-center;
   color: #92400e;
   background: #fffbeb;
@@ -260,7 +264,7 @@
 }
 
 .pe10-explainer-toggle {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply w-full text-center text-xs
     cursor-pointer bg-transparent border-none py-2 font-normal
     flex items-center justify-center gap-1 transition-colors uppercase;
@@ -314,14 +318,14 @@
 }
 
 .pe10-detail-label {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase;
   letter-spacing: 0;
   color: var(--color-muted);
 }
 
 .pe10-detail-value {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-lg font-normal;
   color: var(--color-ink);
 }
@@ -369,7 +373,7 @@
 }
 
 .pe10-calc-toggle {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply w-full text-center text-xs
     cursor-pointer bg-transparent border-none py-2 font-normal
     flex items-center justify-center gap-1 transition-colors uppercase;
@@ -401,19 +405,19 @@
 }
 
 .pe10-calc-section-title {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal uppercase mb-3;
   letter-spacing: 0;
   color: var(--color-muted);
 }
 
 .pe10-calc-table {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply w-full text-left text-sm;
 }
 
 .pe10-calc-table th {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal uppercase pb-2;
   letter-spacing: 0;
   color: var(--color-muted);
@@ -445,7 +449,7 @@
 }
 
 .pe10-calc-quarter-row td {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs py-1;
   color: var(--color-muted);
 }
@@ -456,7 +460,7 @@
 }
 
 .pe10-calc-formula {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply flex justify-between items-center py-1;
   color: var(--color-ink);
 }

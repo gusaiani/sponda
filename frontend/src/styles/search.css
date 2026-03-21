@@ -9,7 +9,7 @@
 }
 
 .search-input {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply w-full px-5 py-3 pr-28 text-base rounded-lg
     focus:outline-none;
   border: 1px solid var(--color-border);
@@ -28,7 +28,7 @@
 }
 
 .search-button {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply absolute right-2 top-1/2 -translate-y-1/2
     px-5 py-2 text-xs font-normal uppercase rounded-md
     transition-colors
@@ -54,7 +54,7 @@
 }
 
 .search-dropdown-item {
-  font-family: 'Source Code Pro', monospace;
+  font-family: 'Inter', system-ui, sans-serif;
   @apply flex items-center gap-3 px-5 py-2.5 cursor-pointer text-sm transition-colors;
   color: var(--color-ink);
 }

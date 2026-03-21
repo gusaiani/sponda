@@ -1,12 +1,15 @@
 @reference "tailwindcss";
 
 .favorite-button {
-  @apply bg-transparent border-none cursor-pointer text-xl leading-none p-1 transition-colors;
+  @apply bg-transparent border-none cursor-pointer text-xl leading-none p-1 transition-all;
   color: var(--color-muted);
+  position: relative;
+  top: 2px;
 }
 
 .favorite-button:hover {
   color: var(--color-accent);
+  transform: scale(1.2);
 }
 
 .favorite-button-active {
@@ -15,4 +18,5 @@
 
 .favorite-button-active:hover {
   color: #d97706;
+  transform: scale(1.2);
 }
