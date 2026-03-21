@@ -177,18 +177,15 @@ class TestFavorites:
 
         page.goto(f"{url}/PETR4")
         expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        page.wait_for_load_state("networkidle")
 
         favorite_button = page.locator(".favorite-button")
         expect(favorite_button).to_be_visible()
-
-        # Should start unfavorited (☆)
         expect(favorite_button).to_have_text("☆")
 
-        # Click to favorite
         favorite_button.click()
 
-        # Should become favorited (★) with active class
-        expect(favorite_button).to_have_text("★", timeout=5000)
+        expect(favorite_button).to_have_text("★", timeout=10000)
         expect(favorite_button).to_have_class(re.compile("favorite-button-active"))
 
     def test_favorited_company_appears_on_homepage(

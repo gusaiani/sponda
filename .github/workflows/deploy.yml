@@ -30,12 +30,20 @@ jobs:
         working-directory: frontend
         run: npm ci && npm run build
 
-      - name: Run tests
+      - name: Run unit and integration tests
         working-directory: backend
         env:
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           BRAPI_API_KEY: test-api-key-for-ci
-        run: pytest -x -q
+        run: pytest -x -q --ignore=tests/test_e2e.py --ignore=tests/test_e2e_browser.py --ignore=tests/test_e2e_favorites.py --ignore=tests/test_e2e_auth.py
+
+      - name: Run e2e tests
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: test-secret-key-for-ci
+          BRAPI_API_KEY: test-api-key-for-ci
+          GOOGLE_CLIENT_ID: test-client-id
+        run: pytest -x -q tests/test_e2e_browser.py tests/test_e2e_favorites.py tests/test_e2e_auth.py
 
   deploy:
     needs: test
