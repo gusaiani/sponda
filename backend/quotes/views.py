@@ -196,30 +196,31 @@ class PE10View(APIView):
             "fcfCAGRExcludedYears": pfcf_peg_result["fcfCAGRExcludedYears"],
         })
 
+    DAILY_DISTINCT_TICKER_LIMIT = 200
+
     def _check_rate_limit(self, request):
-        limit = settings.SPONDA_FREE_LOOKUPS_PER_DAY
         today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
 
         if request.user.is_authenticated:
-            count = LookupLog.objects.filter(
+            distinct_tickers = LookupLog.objects.filter(
                 user=request.user, timestamp__gte=today_start
-            ).count()
+            ).values("ticker").distinct().count()
         else:
             if not request.session.session_key:
                 request.session.create()
             session_key = request.session.session_key
-            count = LookupLog.objects.filter(
+            distinct_tickers = LookupLog.objects.filter(
                 session_key=session_key, timestamp__gte=today_start
-            ).count()
+            ).values("ticker").distinct().count()
 
-        if count >= limit:
+        if distinct_tickers >= self.DAILY_DISTINCT_TICKER_LIMIT:
             return Response(
                 {
-                    "error": "Daily lookup limit reached. Sign up for more lookups.",
-                    "limit": limit,
-                    "used": count,
+                    "error": "Limite diário de consultas atingido. Tente novamente amanhã.",
+                    "limit": self.DAILY_DISTINCT_TICKER_LIMIT,
+                    "used": distinct_tickers,
                 },
-                status=status.HTTP_403_FORBIDDEN,
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
         return None
 

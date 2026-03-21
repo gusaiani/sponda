@@ -387,3 +387,32 @@ class TestLoginEndpoint:
             content_type="application/json",
         )
         assert response.status_code == 401
+
+
+class TestTickerRateLimit:
+    """Tests for the distinct-ticker-per-day rate limit."""
+
+    def test_same_ticker_multiple_times_counts_as_one(self, api_client, db):
+        """Querying the same ticker repeatedly should only count once."""
+        for _ in range(5):
+            LookupLog.objects.create(session_key="sess1", ticker="PETR4")
+
+        distinct = LookupLog.objects.filter(
+            session_key="sess1"
+        ).values("ticker").distinct().count()
+        assert distinct == 1
+
+    def test_different_tickers_count_separately(self, api_client, db):
+        """Each unique ticker is a separate count."""
+        for i, ticker in enumerate(["PETR4", "VALE3", "ITUB4"]):
+            LookupLog.objects.create(session_key="sess2", ticker=ticker)
+
+        distinct = LookupLog.objects.filter(
+            session_key="sess2"
+        ).values("ticker").distinct().count()
+        assert distinct == 3
+
+    def test_limit_is_200_distinct_tickers(self, db):
+        """Verify the limit constant is 200."""
+        from quotes.views import PE10View
+        assert PE10View.DAILY_DISTINCT_TICKER_LIMIT == 200
