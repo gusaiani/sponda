@@ -9,6 +9,8 @@ DATABASES = {
 
 CSRF_TRUSTED_ORIGINS = [
     "https://sponda.poe.ma",
+    "https://sponda.capital",
+    "https://www.sponda.capital",
 ]
 
 SESSION_COOKIE_SECURE = True

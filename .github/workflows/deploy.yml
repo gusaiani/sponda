@@ -60,6 +60,8 @@ jobs:
             hash -r
             cd frontend
             npm ci
+            # Export GOOGLE_CLIENT_ID for Vite build (baked into frontend JS)
+            export GOOGLE_CLIENT_ID=$(grep GOOGLE_CLIENT_ID /opt/sponda/.env | cut -d= -f2)
             npm run build
             export DJANGO_SETTINGS_MODULE=config.settings.production
             cd /opt/sponda/backend

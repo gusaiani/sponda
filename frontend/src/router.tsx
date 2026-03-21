@@ -11,6 +11,7 @@ import { ForgotPasswordPage } from "./routes/forgot-password";
 import { ResetPasswordPage } from "./routes/reset-password";
 import { AccountPage } from "./routes/account";
 import { SharedListPage } from "./routes/shared";
+import { VerifyEmailPage } from "./routes/verify-email";
 import { GoogleCallbackPage } from "./routes/google-callback";
 import { AllListsPage } from "./routes/all-lists";
 import { AdminDashboardPage } from "./routes/admin-dashboard";
@@ -74,6 +75,12 @@ const adminDashboardRoute = createRoute({
   component: AdminDashboardPage,
 });
 
+const verifyEmailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/verify-email",
+  component: VerifyEmailPage,
+});
+
 const sharedListRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shared/$token",
@@ -110,6 +117,7 @@ const routeTree = rootRoute.addChildren([
   googleCallbackRoute,
   allListsRoute,
   adminDashboardRoute,
+  verifyEmailRoute,
   sharedListRoute,
   tickerRoute.addChildren([tickerGraficosRoute, tickerCompararRoute]),
 ]);
