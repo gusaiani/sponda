@@ -60,13 +60,14 @@ class SavedList(models.Model):
     name = models.CharField(max_length=200)
     tickers = models.JSONField()  # List of ticker strings in order
     years = models.IntegerField(default=10)
+    display_order = models.IntegerField(default=0)
     share_token = models.CharField(max_length=32, unique=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "accounts_savedcomparison"
-        ordering = ["-updated_at"]
+        ordering = ["display_order", "-updated_at"]
 
     def __str__(self):
         return f"{self.name} ({self.user.email})"

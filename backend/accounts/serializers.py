@@ -53,7 +53,7 @@ class FavoriteCompanySerializer(serializers.ModelSerializer):
 class SavedListSerializer(serializers.ModelSerializer):
     class Meta:
         model = SavedList
-        fields = ("id", "name", "tickers", "years", "share_token", "created_at", "updated_at")
+        fields = ("id", "name", "tickers", "years", "display_order", "share_token", "created_at", "updated_at")
         read_only_fields = ("id", "share_token", "created_at", "updated_at")
 
 

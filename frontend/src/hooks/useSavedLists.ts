@@ -75,10 +75,20 @@ export function useSavedLists() {
     },
   });
 
-  function findListByTickers(tickers: string[]): SavedListEntry | undefined {
-    const tickerKey = tickers.join(",");
-    return lists.find((list) => list.tickers.join(",") === tickerKey);
-  }
+  const reorderLists = useMutation({
+    mutationFn: async (orderedIds: number[]) => {
+      const response = await fetch("/api/auth/lists/reorder/", {
+        method: "POST",
+        headers: csrfHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ ordered_ids: orderedIds }),
+      });
+      if (!response.ok) throw new Error("Failed to reorder lists");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-lists"] });
+    },
+  });
 
   return {
     lists,
@@ -86,7 +96,7 @@ export function useSavedLists() {
     saveList,
     updateList,
     deleteList,
-    findListByTickers,
+    reorderLists,
   };
 }
 

@@ -283,6 +283,30 @@ class SavedListDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class ReorderListsView(APIView):
+    """Update the display order of all saved lists for the current user."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        ordered_ids = request.data.get("ordered_ids", [])
+        if not isinstance(ordered_ids, list):
+            return Response(
+                {"error": "ordered_ids must be a list"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user_lists = SavedList.objects.filter(user=request.user)
+        list_map = {saved_list.id: saved_list for saved_list in user_lists}
+
+        for position, list_id in enumerate(ordered_ids):
+            if list_id in list_map:
+                list_map[list_id].display_order = position
+                list_map[list_id].save(update_fields=["display_order"])
+
+        return Response({"ok": True})
+
+
 class SharedListView(APIView):
     """Public view for shared list links — no auth required."""
 

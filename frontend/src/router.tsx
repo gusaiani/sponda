@@ -12,6 +12,7 @@ import { ResetPasswordPage } from "./routes/reset-password";
 import { AccountPage } from "./routes/account";
 import { SharedListPage } from "./routes/shared";
 import { GoogleCallbackPage } from "./routes/google-callback";
+import { AllListsPage } from "./routes/all-lists";
 import { AdminDashboardPage } from "./routes/admin-dashboard";
 import { TickerPage } from "./routes/$ticker";
 
@@ -61,6 +62,12 @@ const googleCallbackRoute = createRoute({
   component: GoogleCallbackPage,
 });
 
+const allListsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/listas",
+  component: AllListsPage,
+});
+
 const adminDashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin-dashboard",
@@ -101,6 +108,7 @@ const routeTree = rootRoute.addChildren([
   resetPasswordRoute,
   accountRoute,
   googleCallbackRoute,
+  allListsRoute,
   adminDashboardRoute,
   sharedListRoute,
   tickerRoute.addChildren([tickerGraficosRoute, tickerCompararRoute]),

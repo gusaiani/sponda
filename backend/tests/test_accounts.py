@@ -455,6 +455,93 @@ class TestSavedLists:
         response = authenticated_client.delete("/api/auth/lists/99999/")
         assert response.status_code == 404
 
+    def test_save_list_assigns_display_order(self, authenticated_client):
+        authenticated_client.post(
+            "/api/auth/lists/",
+            {"name": "First", "tickers": ["PETR4"], "years": 10},
+            content_type="application/json",
+        )
+        authenticated_client.post(
+            "/api/auth/lists/",
+            {"name": "Second", "tickers": ["VALE3"], "years": 5},
+            content_type="application/json",
+        )
+        response = authenticated_client.get("/api/auth/lists/")
+        lists = response.json()
+        assert len(lists) == 2
+        # Both should have display_order field
+        for saved_list in lists:
+            assert "display_order" in saved_list
+
+    def test_reorder_lists(self, authenticated_client, user):
+        list_a = SavedList.objects.create(
+            user=user, name="A", tickers=["PETR4"],
+            display_order=0, share_token=SavedList.generate_share_token(),
+        )
+        list_b = SavedList.objects.create(
+            user=user, name="B", tickers=["VALE3"],
+            display_order=1, share_token=SavedList.generate_share_token(),
+        )
+        list_c = SavedList.objects.create(
+            user=user, name="C", tickers=["ITUB4"],
+            display_order=2, share_token=SavedList.generate_share_token(),
+        )
+
+        # Reorder: C, A, B
+        response = authenticated_client.post(
+            "/api/auth/lists/reorder/",
+            {"ordered_ids": [list_c.id, list_a.id, list_b.id]},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+
+        # Verify order
+        list_a.refresh_from_db()
+        list_b.refresh_from_db()
+        list_c.refresh_from_db()
+        assert list_c.display_order == 0
+        assert list_a.display_order == 1
+        assert list_b.display_order == 2
+
+    def test_reorder_requires_auth(self, api_client, db):
+        response = api_client.post(
+            "/api/auth/lists/reorder/",
+            {"ordered_ids": [1, 2]},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
+    def test_reorder_ignores_other_users_lists(self, authenticated_client, user):
+        other_user = User.objects.create_user(
+            username="other2@example.com",
+            email="other2@example.com",
+            password="otherpass",
+        )
+        other_list = SavedList.objects.create(
+            user=other_user, name="Other", tickers=["PETR4"],
+            display_order=0, share_token=SavedList.generate_share_token(),
+        )
+        my_list = SavedList.objects.create(
+            user=user, name="Mine", tickers=["VALE3"],
+            display_order=0, share_token=SavedList.generate_share_token(),
+        )
+
+        # Try to reorder including the other user's list
+        response = authenticated_client.post(
+            "/api/auth/lists/reorder/",
+            {"ordered_ids": [other_list.id, my_list.id]},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+
+        # Other user's list should be unchanged
+        other_list.refresh_from_db()
+        assert other_list.display_order == 0
+
+        # My list should be updated
+        my_list.refresh_from_db()
+        assert my_list.display_order == 1
+
     def test_list_preserves_share_token_on_update(self, authenticated_client, user):
         saved_list = SavedList.objects.create(
             user=user,

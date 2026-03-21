@@ -72,6 +72,84 @@
   margin-left: 2px;
 }
 
+/* "Ver todas" link */
+.saved-lists-see-all {
+  @apply text-center mt-3;
+}
+
+.saved-lists-see-all-link {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs no-underline transition-colors;
+  color: var(--color-accent);
+}
+
+.saved-lists-see-all-link:hover {
+  text-decoration: underline;
+}
+
+/* All lists page */
+.saved-lists-page {
+  @apply max-w-2xl mx-auto py-8 px-4;
+}
+
+.saved-lists-page-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-normal text-center mb-2;
+  color: var(--color-ink);
+}
+
+.saved-lists-page-hint {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs text-center mb-6;
+  color: var(--color-muted);
+}
+
+.saved-lists-page-text {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm text-center;
+  color: var(--color-muted);
+}
+
+.saved-lists-page-loading {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm text-center py-12;
+  color: var(--color-muted);
+}
+
+.saved-lists-page-list {
+  @apply flex flex-col gap-2;
+}
+
+.saved-lists-page-item {
+  @apply flex items-center gap-2;
+  cursor: grab;
+}
+
+.saved-lists-page-item:active {
+  cursor: grabbing;
+}
+
+.saved-lists-page-item .saved-list-item {
+  @apply flex-1;
+}
+
+.saved-lists-page-drag-handle {
+  @apply text-lg;
+  color: var(--color-border);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.saved-lists-page-badge {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs px-2 py-0.5;
+  color: var(--color-accent);
+  background: #eef2ff;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .saved-list-detail {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs;
