@@ -1,10 +1,10 @@
-"""Tests for accounts: auth, favorites, saved comparisons, feedback, admin dashboard."""
+"""Tests for accounts: auth, favorites, saved lists, feedback, admin dashboard."""
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client, RequestFactory
 
 from accounts.middleware import PageViewTrackingMiddleware
-from accounts.models import FavoriteCompany, PageView, PasswordResetToken, SavedComparison
+from accounts.models import FavoriteCompany, PageView, PasswordResetToken, SavedList
 
 User = get_user_model()
 
@@ -309,47 +309,47 @@ class TestFavorites:
         assert "VALE3" in tickers
 
 
-# ── Saved Comparisons ──
+# ── Saved Lists ──
 
 
-class TestSavedComparisons:
+class TestSavedLists:
     def test_list_empty(self, authenticated_client):
-        response = authenticated_client.get("/api/auth/comparisons/")
+        response = authenticated_client.get("/api/auth/lists/")
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_save_comparison(self, authenticated_client):
+    def test_save_list(self, authenticated_client):
         response = authenticated_client.post(
-            "/api/auth/comparisons/",
-            {"name": "My comparison", "tickers": ["PETR4", "VALE3"], "years": 5},
+            "/api/auth/lists/",
+            {"name": "My list", "tickers": ["PETR4", "VALE3"], "years": 5},
             content_type="application/json",
         )
         assert response.status_code == 201
         data = response.json()
-        assert data["name"] == "My comparison"
+        assert data["name"] == "My list"
         assert data["tickers"] == ["PETR4", "VALE3"]
         assert data["years"] == 5
         assert "share_token" in data
 
-    def test_delete_comparison(self, authenticated_client, user):
-        comparison = SavedComparison.objects.create(
+    def test_delete_list(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
             user=user,
             name="Test",
             tickers=["PETR4"],
-            share_token=SavedComparison.generate_share_token(),
+            share_token=SavedList.generate_share_token(),
         )
-        response = authenticated_client.delete(f"/api/auth/comparisons/{comparison.pk}/")
+        response = authenticated_client.delete(f"/api/auth/lists/{saved_list.pk}/")
         assert response.status_code == 204
 
-    def test_shared_comparison_public_access(self, api_client, user):
-        comparison = SavedComparison.objects.create(
+    def test_shared_list_public_access(self, api_client, user):
+        saved_list = SavedList.objects.create(
             user=user,
             name="Shared test",
             tickers=["PETR4", "VALE3", "ITUB4"],
             years=7,
             share_token="test-share-token-123",
         )
-        response = api_client.get(f"/api/auth/comparisons/shared/{comparison.share_token}/")
+        response = api_client.get(f"/api/auth/lists/shared/{saved_list.share_token}/")
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Shared test"
@@ -357,12 +357,12 @@ class TestSavedComparisons:
         assert data["years"] == 7
         assert data["shared_by"] == "test@example.com"
 
-    def test_shared_comparison_invalid_token(self, api_client, db):
-        response = api_client.get("/api/auth/comparisons/shared/nonexistent/")
+    def test_shared_list_invalid_token(self, api_client, db):
+        response = api_client.get("/api/auth/lists/shared/nonexistent/")
         assert response.status_code == 404
 
-    def test_comparisons_require_auth(self, api_client, db):
-        response = api_client.get("/api/auth/comparisons/")
+    def test_lists_require_auth(self, api_client, db):
+        response = api_client.get("/api/auth/lists/")
         assert response.status_code == 403
 
 
@@ -413,15 +413,15 @@ class TestPasswordResetTokenModel:
         assert not token_obj.is_valid
 
 
-# ── Saved Comparison Model ──
+# ── Saved List Model ──
 
 
-class TestSavedComparisonModel:
+class TestSavedListModel:
     def test_generate_share_token(self):
-        token = SavedComparison.generate_share_token()
+        token = SavedList.generate_share_token()
         assert len(token) > 10
         # Each call should generate a unique token
-        assert token != SavedComparison.generate_share_token()
+        assert token != SavedList.generate_share_token()
 
 
 # ── Page View Model ──
@@ -503,7 +503,7 @@ class TestAdminDashboard:
         assert "top_tickers" in data
         assert "signup_stats" in data
         assert "favorites_count" in data
-        assert "saved_comparisons_count" in data
+        assert "saved_lists_count" in data
 
     def test_regular_user_cannot_access_dashboard(self, authenticated_client):
         response = authenticated_client.get("/api/auth/admin/dashboard/")

@@ -19,13 +19,13 @@ Logged-in users can **favorite companies**. Favorited companies:
 - Are **removed from the standard list** to avoid duplication
 - Provide quick access to companies the user tracks regularly
 
-## 3. Saved Comparisons
+## 3. Saved Lists
 
 On the compare tab, users can customize by adding/removing companies and reordering rows. Logged-in users can:
 
-- **Save a comparison** (preserving tickers, order, and years setting)
-- **Access saved comparisons** later from their account
-- **Share a comparison via link** — the recipient sees an explanation of what was shared
+- **Save a list** (preserving tickers, order, and years setting)
+- **Access saved lists** later from their account
+- **Share a list via link** — the recipient sees an explanation of what was shared
 
 ## 4. Company Name Tooltip (Compare Table)
 

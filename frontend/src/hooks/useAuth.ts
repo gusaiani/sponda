@@ -4,6 +4,7 @@ import { csrfHeaders } from "../utils/csrf";
 export interface AuthUser {
   email: string;
   is_superuser: boolean;
+  date_joined: string;
 }
 
 async function fetchMe(): Promise<AuthUser | null> {

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
-import { useSavedComparisons } from "../hooks/useSavedComparisons";
+import { useSavedLists } from "../hooks/useSavedLists";
 import { useAuth } from "../hooks/useAuth";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br } from "../utils/format";
@@ -86,7 +86,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
-  const { saveComparison } = useSavedComparisons();
+  const { saveList } = useSavedLists();
 
   function handleSort(key: string) {
     setSort((prev) => {
@@ -229,7 +229,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
               <input
                 type="text"
                 className="auth-input"
-                placeholder="Nome da comparação"
+                placeholder="Nome da lista"
                 value={saveName}
                 onChange={(event) => setSaveName(event.target.value)}
                 style={{ maxWidth: "300px", fontSize: "0.8rem" }}
@@ -239,7 +239,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                 style={{ maxWidth: "150px", marginTop: "0.5rem" }}
                 disabled={!saveName.trim()}
                 onClick={() => {
-                  saveComparison.mutate(
+                  saveList.mutate(
                     { name: saveName.trim(), tickers: allTickers, years },
                     {
                       onSuccess: (saved) => {
@@ -270,7 +270,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                 setShowSaveForm(true);
               }}
             >
-              Salvar esta comparação
+              Salvar esta lista
             </button>
           )}
         </div>

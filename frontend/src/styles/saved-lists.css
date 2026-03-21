@@ -1,0 +1,54 @@
+@reference "tailwindcss";
+
+.saved-lists {
+  @apply max-w-3xl mx-auto mb-6;
+}
+
+.saved-lists-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs uppercase text-center mb-3;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.saved-lists-list {
+  @apply flex flex-col gap-2;
+}
+
+.saved-list-item {
+  @apply flex items-center bg-white;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+}
+
+.saved-list-link {
+  @apply flex-1 no-underline;
+  min-width: 0;
+}
+
+.saved-list-name {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply block text-sm font-medium;
+  color: var(--color-ink);
+}
+
+.saved-list-link:hover .saved-list-name {
+  color: var(--color-accent);
+}
+
+.saved-list-detail {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply block text-xs;
+  color: var(--color-muted);
+}
+
+.saved-list-delete {
+  @apply bg-transparent border-none cursor-pointer text-lg leading-none p-1 transition-colors;
+  color: var(--color-border);
+  flex-shrink: 0;
+}
+
+.saved-list-delete:hover {
+  color: var(--color-ink);
+}

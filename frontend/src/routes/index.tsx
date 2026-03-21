@@ -2,6 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
 import { FavoriteCompanies } from "../components/FavoriteCompanies";
+import { SavedLists } from "../components/SavedLists";
 import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
 import { useAuth } from "../hooks/useAuth";
@@ -26,6 +27,7 @@ export function HomePage() {
       <SearchBar onSearch={handleSearch} isLoading={false} autoFocus />
 
       {isAuthenticated && <FavoriteCompanies />}
+      {isAuthenticated && <SavedLists />}
 
       <PopularCompanies />
 

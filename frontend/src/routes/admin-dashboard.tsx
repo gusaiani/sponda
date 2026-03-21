@@ -12,7 +12,7 @@ interface UserStats {
   page_views: Record<string, number>;
   lookups: Record<string, number>;
   favorites_count: number;
-  saved_comparisons_count: number;
+  saved_lists_count: number;
 }
 
 interface PeriodViewStats {
@@ -39,7 +39,7 @@ interface DashboardData {
   top_tickers: Record<string, TopTicker[]>;
   signup_stats: Record<string, number>;
   favorites_count: number;
-  saved_comparisons_count: number;
+  saved_lists_count: number;
 }
 
 const PERIOD_LABELS: Record<string, string> = {
@@ -131,8 +131,8 @@ export function AdminDashboardPage() {
           value={dashboardData.favorites_count}
         />
         <OverviewCard
-          label="Comparações salvas"
-          value={dashboardData.saved_comparisons_count}
+          label="Listas salvas"
+          value={dashboardData.saved_lists_count}
         />
         <OverviewCard
           label="Views (24h)"
@@ -277,7 +277,7 @@ export function AdminDashboardPage() {
                 <td>{user.page_views.month}</td>
                 <td>{user.lookups.week}</td>
                 <td>{user.favorites_count}</td>
-                <td>{user.saved_comparisons_count}</td>
+                <td>{user.saved_lists_count}</td>
               </tr>
             ))}
           </tbody>

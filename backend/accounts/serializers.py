@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import FavoriteCompany, SavedComparison
+from .models import FavoriteCompany, SavedList
 
 User = get_user_model()
 
@@ -50,9 +50,9 @@ class FavoriteCompanySerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "created_at")
 
 
-class SavedComparisonSerializer(serializers.ModelSerializer):
+class SavedListSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SavedComparison
+        model = SavedList
         fields = ("id", "name", "tickers", "years", "share_token", "created_at", "updated_at")
         read_only_fields = ("id", "share_token", "created_at", "updated_at")
 

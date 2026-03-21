@@ -3,7 +3,7 @@ import { useAuth } from "../hooks/useAuth";
 import "../styles/auth-header.css";
 
 export function AuthHeader() {
-  const { user, isAuthenticated, isSuperuser, isLoading } = useAuth();
+  const { isAuthenticated, isSuperuser, isLoading } = useAuth();
 
   if (isLoading) return null;
 
@@ -17,7 +17,7 @@ export function AuthHeader() {
             </Link>
           )}
           <Link to="/account" className="auth-header-link">
-            {user?.email}
+            Minha conta
           </Link>
         </>
       ) : (

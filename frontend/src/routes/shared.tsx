@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { fetchSharedComparison, type SharedComparisonData } from "../hooks/useSavedComparisons";
+import { fetchSharedList, type SharedListData } from "../hooks/useSavedLists";
 import "../styles/auth.css";
 
-export function SharedComparisonPage() {
-  const [comparisonData, setComparisonData] = useState<SharedComparisonData | null>(null);
+export function SharedListPage() {
+  const [listData, setListData] = useState<SharedListData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -19,9 +19,9 @@ export function SharedComparisonPage() {
       return;
     }
 
-    fetchSharedComparison(shareToken)
-      .then((data) => setComparisonData(data))
-      .catch(() => setError("Comparação não encontrada"))
+    fetchSharedList(shareToken)
+      .then((data) => setListData(data))
+      .catch(() => setError("Lista não encontrada"))
       .finally(() => setIsLoading(false));
   }, [shareToken]);
 
@@ -35,14 +35,14 @@ export function SharedComparisonPage() {
     );
   }
 
-  if (error || !comparisonData) {
+  if (error || !listData) {
     return (
       <div className="auth-container">
         <div className="auth-card">
           <Link to="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
-          <h1 className="auth-title">Comparação não encontrada</h1>
+          <h1 className="auth-title">Lista não encontrada</h1>
           <p className="auth-success-text">
             Este link pode ter expirado ou ser inválido.
           </p>
@@ -54,8 +54,8 @@ export function SharedComparisonPage() {
     );
   }
 
-  const firstTicker = comparisonData.tickers[0];
-  const remainingTickers = comparisonData.tickers.slice(1);
+  const firstTicker = listData.tickers[0];
+  const remainingTickers = listData.tickers.slice(1);
   const compareUrl = `/${firstTicker}/comparar`;
 
   return (
@@ -64,31 +64,31 @@ export function SharedComparisonPage() {
         <Link to="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
-        <h1 className="auth-title">Comparação compartilhada</h1>
+        <h1 className="auth-title">Lista compartilhada</h1>
 
         <div style={{ marginBottom: "1.5rem" }}>
           <p className="auth-success-text" style={{ marginBottom: "0.5rem" }}>
-            <strong>{comparisonData.shared_by}</strong> compartilhou uma
-            comparação com você:
+            <strong>{listData.shared_by}</strong> compartilhou uma
+            lista com você:
           </p>
           <p className="auth-success-text" style={{ fontSize: "1rem", color: "var(--color-ink)" }}>
-            "{comparisonData.name}"
+            "{listData.name}"
           </p>
           <p className="auth-success-text">
-            {comparisonData.tickers.length} empresas · {comparisonData.years} {comparisonData.years === 1 ? "ano" : "anos"} de análise
+            {listData.tickers.length} empresas · {listData.years} {listData.years === 1 ? "ano" : "anos"} de análise
           </p>
           <p className="auth-success-text" style={{ fontSize: "0.7rem" }}>
-            Empresas: {comparisonData.tickers.join(", ")}
+            Empresas: {listData.tickers.join(", ")}
           </p>
         </div>
 
         <Link
           to={compareUrl}
-          search={{ extras: remainingTickers.join(","), years: String(comparisonData.years) }}
+          search={{ extras: remainingTickers.join(","), years: String(listData.years) }}
           className="auth-button"
           style={{ display: "block", textAlign: "center", textDecoration: "none" }}
         >
-          Ver comparação
+          Ver lista
         </Link>
 
         <p className="auth-link">

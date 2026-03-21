@@ -13,9 +13,9 @@ from .views import (
     MeView,
     QuotaView,
     ResetPasswordView,
-    SavedComparisonDetailView,
-    SavedComparisonListView,
-    SharedComparisonView,
+    SavedListDetailView,
+    SavedListListView,
+    SharedListView,
     SignupView,
 )
 
@@ -31,9 +31,9 @@ urlpatterns = [
     path("quota/", QuotaView.as_view(), name="quota"),
     path("favorites/", FavoriteListView.as_view(), name="favorite-list"),
     path("favorites/<str:ticker>/", FavoriteDetailView.as_view(), name="favorite-detail"),
-    path("comparisons/", SavedComparisonListView.as_view(), name="comparison-list"),
-    path("comparisons/<int:pk>/", SavedComparisonDetailView.as_view(), name="comparison-detail"),
-    path("comparisons/shared/<str:token>/", SharedComparisonView.as_view(), name="shared-comparison"),
+    path("lists/", SavedListListView.as_view(), name="list-list"),
+    path("lists/<int:pk>/", SavedListDetailView.as_view(), name="list-detail"),
+    path("lists/shared/<str:token>/", SharedListView.as_view(), name="shared-list"),
     path("feedback/", FeedbackView.as_view(), name="feedback"),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
 ]

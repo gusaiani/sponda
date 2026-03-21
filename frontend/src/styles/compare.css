@@ -263,7 +263,7 @@
   @apply max-w-md mx-auto mt-6;
 }
 
-/* Save comparison */
+/* Save list */
 .compare-save-wrapper {
   @apply max-w-md mx-auto mt-4 text-center;
 }

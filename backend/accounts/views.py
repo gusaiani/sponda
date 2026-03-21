@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 
 from quotes.models import LookupLog
 
-from .models import FavoriteCompany, PageView, PasswordResetToken, SavedComparison
+from .models import FavoriteCompany, PageView, PasswordResetToken, SavedList
 from .serializers import (
     ChangePasswordSerializer,
     FavoriteCompanySerializer,
@@ -20,7 +20,7 @@ from .serializers import (
     ForgotPasswordSerializer,
     LoginSerializer,
     ResetPasswordSerializer,
-    SavedComparisonSerializer,
+    SavedListSerializer,
     SignupSerializer,
 )
 
@@ -72,6 +72,7 @@ class MeView(APIView):
         return Response({
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
+            "date_joined": request.user.date_joined,
         })
 
 
@@ -222,40 +223,40 @@ class FavoriteDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# ── Saved Comparisons ──
+# ── Saved Lists ──
 
 
-class SavedComparisonListView(APIView):
+class SavedListListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        comparisons = SavedComparison.objects.filter(user=request.user)
-        serializer = SavedComparisonSerializer(comparisons, many=True)
+        saved_lists = SavedList.objects.filter(user=request.user)
+        serializer = SavedListSerializer(saved_lists, many=True)
         return Response(serializer.data)
 
     def post(self, request):
-        serializer = SavedComparisonSerializer(data=request.data)
+        serializer = SavedListSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        comparison = SavedComparison.objects.create(
+        saved_list = SavedList.objects.create(
             user=request.user,
             name=serializer.validated_data["name"],
             tickers=serializer.validated_data["tickers"],
             years=serializer.validated_data.get("years", 10),
-            share_token=SavedComparison.generate_share_token(),
+            share_token=SavedList.generate_share_token(),
         )
 
         return Response(
-            SavedComparisonSerializer(comparison).data,
+            SavedListSerializer(saved_list).data,
             status=status.HTTP_201_CREATED,
         )
 
 
-class SavedComparisonDetailView(APIView):
+class SavedListDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
-        deleted, _ = SavedComparison.objects.filter(
+        deleted, _ = SavedList.objects.filter(
             user=request.user, pk=pk
         ).delete()
         if not deleted:
@@ -263,26 +264,26 @@ class SavedComparisonDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class SharedComparisonView(APIView):
-    """Public view for shared comparison links — no auth required."""
+class SharedListView(APIView):
+    """Public view for shared list links — no auth required."""
 
     def get(self, request, token):
         try:
-            comparison = SavedComparison.objects.select_related("user").get(
+            saved_list = SavedList.objects.select_related("user").get(
                 share_token=token
             )
-        except SavedComparison.DoesNotExist:
+        except SavedList.DoesNotExist:
             return Response(
-                {"error": "Comparação não encontrada"},
+                {"error": "Lista não encontrada"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         return Response({
-            "name": comparison.name,
-            "tickers": comparison.tickers,
-            "years": comparison.years,
-            "shared_by": comparison.user.email,
-            "created_at": comparison.created_at,
+            "name": saved_list.name,
+            "tickers": saved_list.tickers,
+            "years": saved_list.years,
+            "shared_by": saved_list.user.email,
+            "created_at": saved_list.created_at,
         })
 
 
@@ -438,7 +439,7 @@ class AdminDashboardView(APIView):
             "top_tickers": self._get_top_tickers(boundaries),
             "signup_stats": self._get_signup_stats(boundaries),
             "favorites_count": FavoriteCompany.objects.count(),
-            "saved_comparisons_count": SavedComparison.objects.count(),
+            "saved_lists_count": SavedList.objects.count(),
         })
 
     def _get_user_stats(self, boundaries):
@@ -468,7 +469,7 @@ class AdminDashboardView(APIView):
                 "page_views": visit_counts,
                 "lookups": lookup_counts,
                 "favorites_count": user.favorites.count(),
-                "saved_comparisons_count": user.saved_comparisons.count(),
+                "saved_lists_count": user.saved_lists.count(),
             })
 
         return user_list

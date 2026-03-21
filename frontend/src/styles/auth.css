@@ -194,6 +194,41 @@
   border-color: var(--color-accent);
 }
 
+/* Account page */
+.account-membership {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm text-center mb-6;
+  color: var(--color-muted);
+  line-height: 1.6;
+}
+
+.account-actions {
+  @apply flex flex-col items-center gap-3;
+  margin-bottom: 1.5rem;
+}
+
+.account-action-link {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm bg-transparent border-none cursor-pointer transition-colors;
+  color: var(--color-accent);
+  padding: 0;
+}
+
+.account-action-link:hover {
+  text-decoration: underline;
+}
+
+.account-back-link {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm bg-transparent border-none cursor-pointer;
+  color: var(--color-accent);
+  padding: 0;
+}
+
+.account-back-link:hover {
+  text-decoration: underline;
+}
+
 /* Quota alert */
 .quota-alert {
   @apply max-w-2xl mx-auto p-4 mb-6 text-center;

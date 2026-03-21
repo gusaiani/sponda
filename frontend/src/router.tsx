@@ -10,7 +10,7 @@ import { LoginPage } from "./routes/login";
 import { ForgotPasswordPage } from "./routes/forgot-password";
 import { ResetPasswordPage } from "./routes/reset-password";
 import { AccountPage } from "./routes/account";
-import { SharedComparisonPage } from "./routes/shared";
+import { SharedListPage } from "./routes/shared";
 import { GoogleCallbackPage } from "./routes/google-callback";
 import { AdminDashboardPage } from "./routes/admin-dashboard";
 import { TickerPage } from "./routes/$ticker";
@@ -67,10 +67,10 @@ const adminDashboardRoute = createRoute({
   component: AdminDashboardPage,
 });
 
-const sharedComparisonRoute = createRoute({
+const sharedListRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shared/$token",
-  component: SharedComparisonPage,
+  component: SharedListPage,
 });
 
 // Layout route: renders TickerPage which reads the path to pick the active tab.
@@ -102,7 +102,7 @@ const routeTree = rootRoute.addChildren([
   accountRoute,
   googleCallbackRoute,
   adminDashboardRoute,
-  sharedComparisonRoute,
+  sharedListRoute,
   tickerRoute.addChildren([tickerGraficosRoute, tickerCompararRoute]),
 ]);
 

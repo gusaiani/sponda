@@ -55,8 +55,8 @@ class FavoriteCompany(models.Model):
         return f"{self.user.email} → {self.ticker}"
 
 
-class SavedComparison(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="saved_comparisons")
+class SavedList(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="saved_lists")
     name = models.CharField(max_length=200)
     tickers = models.JSONField()  # List of ticker strings in order
     years = models.IntegerField(default=10)
@@ -65,6 +65,7 @@ class SavedComparison(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = "accounts_savedcomparison"
         ordering = ["-updated_at"]
 
     def __str__(self):
