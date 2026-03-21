@@ -2,8 +2,9 @@
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client, RequestFactory
+from django.utils import timezone
 
-from accounts.models import FavoriteCompany, PageView, PasswordResetToken, SavedList
+from accounts.models import EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
 
 User = get_user_model()
 
@@ -50,7 +51,7 @@ class TestSignup:
             {"email": "welcome@example.com", "password": "testpass123"},
             content_type="application/json",
         )
-        assert len(mail.outbox) == 1
+        assert len(mail.outbox) == 2  # welcome + verification
         welcome_email = mail.outbox[0]
         assert welcome_email.to == ["welcome@example.com"]
         assert "boas-vindas" in welcome_email.subject
@@ -348,6 +349,23 @@ class TestFavorites:
         tickers = [entry["ticker"] for entry in response.json()]
         assert "PETR4" in tickers
         assert "VALE3" in tickers
+
+    def test_favorite_limit_enforced(self, authenticated_client, user):
+        for i in range(20):
+            FavoriteCompany.objects.create(user=user, ticker=f"TST{i}")
+        response = authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "ONEMORE"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert "Limite" in response.json()["error"]
+
+    def test_favorite_at_limit_can_still_remove(self, authenticated_client, user):
+        for i in range(20):
+            FavoriteCompany.objects.create(user=user, ticker=f"TST{i}")
+        response = authenticated_client.delete("/api/auth/favorites/TST0/")
+        assert response.status_code == 204
 
 
 # ── Saved Lists ──
@@ -945,3 +963,189 @@ class TestAdminDashboard:
     def test_me_returns_is_superuser_false_for_regular_user(self, authenticated_client):
         response = authenticated_client.get("/api/auth/me/")
         assert response.json()["is_superuser"] is False
+
+    def test_me_returns_email_verified(self, authenticated_client):
+        response = authenticated_client.get("/api/auth/me/")
+        assert response.json()["email_verified"] is False
+
+
+# ── Email Verification ──
+
+
+class TestEmailVerification:
+    def test_signup_sends_verification_email(self, api_client, db):
+        from django.core import mail
+
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "verify@example.com", "password": "testpass123"},
+            content_type="application/json",
+        )
+        # Should have 2 emails: welcome + verification
+        assert len(mail.outbox) == 2
+        verification_email = mail.outbox[1]
+        assert "Confirme seu email" in verification_email.subject
+        assert "verify-email?token=" in verification_email.body
+
+    def test_verify_email_success(self, api_client, user):
+        token_obj = EmailVerificationToken.create_for_user(user)
+        response = api_client.post(
+            "/api/auth/verify-email/",
+            {"token": token_obj.token},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        user.refresh_from_db()
+        assert user.email_verified is True
+
+    def test_verify_email_marks_token_used(self, api_client, user):
+        token_obj = EmailVerificationToken.create_for_user(user)
+        api_client.post(
+            "/api/auth/verify-email/",
+            {"token": token_obj.token},
+            content_type="application/json",
+        )
+        token_obj.refresh_from_db()
+        assert token_obj.used is True
+
+    def test_verify_email_invalid_token(self, api_client, db):
+        response = api_client.post(
+            "/api/auth/verify-email/",
+            {"token": "invalid-token-xyz"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_verify_email_used_token(self, api_client, user):
+        token_obj = EmailVerificationToken.create_for_user(user)
+        token_obj.used = True
+        token_obj.save()
+        response = api_client.post(
+            "/api/auth/verify-email/",
+            {"token": token_obj.token},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_resend_verification(self, authenticated_client, db):
+        from django.core import mail
+
+        response = authenticated_client.post("/api/auth/resend-verification/")
+        assert response.status_code == 200
+        assert len(mail.outbox) == 1
+        assert "Confirme" in mail.outbox[0].subject
+
+    def test_resend_verification_already_verified(self, authenticated_client, user):
+        user.email_verified = True
+        user.save()
+        response = authenticated_client.post("/api/auth/resend-verification/")
+        assert response.status_code == 400
+
+    def test_resend_verification_requires_auth(self, api_client, db):
+        response = api_client.post("/api/auth/resend-verification/")
+        assert response.status_code == 403
+
+
+# ── Operation Limits ──
+
+
+class TestOperationLimits:
+    def test_unverified_user_can_perform_operations(self, authenticated_client, user):
+        """Unverified user should be able to favorite within daily limit."""
+        response = authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "PETR4"},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+
+    def test_daily_limit_enforced(self, authenticated_client, user):
+        """After 14 operations today, should be blocked."""
+        for i in range(14):
+            UserOperation.record(user, "favorite")
+
+        response = authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "NEWONE"},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+        assert "Limite" in response.json()["error"]
+
+    def test_verified_user_ignores_daily_limit(self, authenticated_client, user):
+        """Verified users have no daily limit."""
+        user.email_verified = True
+        user.save()
+
+        for i in range(14):
+            UserOperation.record(user, "favorite")
+
+        response = authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "UNLIMITED"},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+
+    def test_verification_required_after_five_active_days(self, authenticated_client, user):
+        """After 5 distinct days with operations, must verify email."""
+        from datetime import timedelta
+        now = timezone.now()
+        for day_offset in range(5):
+            op = UserOperation.objects.create(user=user, operation="favorite")
+            UserOperation.objects.filter(pk=op.pk).update(
+                created_at=now - timedelta(days=day_offset)
+            )
+
+        response = authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "BLOCKED"},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+        assert "Verifique" in response.json()["error"]
+        assert response.json()["verification_required"] is True
+
+    def test_verified_user_ignores_active_days_limit(self, authenticated_client, user):
+        """Verified users are not affected by the 5-day rule."""
+        user.email_verified = True
+        user.save()
+
+        from datetime import timedelta
+        now = timezone.now()
+        for day_offset in range(5):
+            op = UserOperation.objects.create(user=user, operation="favorite")
+            UserOperation.objects.filter(pk=op.pk).update(
+                created_at=now - timedelta(days=day_offset)
+            )
+
+        response = authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "ALLOWED"},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+
+    def test_operations_recorded_on_favorite(self, authenticated_client, user):
+        authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "PETR4"},
+            content_type="application/json",
+        )
+        assert UserOperation.objects.filter(user=user, operation="favorite").count() == 1
+
+    def test_operations_recorded_on_save_list(self, authenticated_client, user):
+        authenticated_client.post(
+            "/api/auth/lists/",
+            {"name": "Test", "tickers": ["PETR4"], "years": 10},
+            content_type="application/json",
+        )
+        assert UserOperation.objects.filter(user=user, operation="save_list").count() == 1
+
+    def test_operations_recorded_on_delete_list(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
+            user=user, name="Del", tickers=["PETR4"],
+            share_token=SavedList.generate_share_token(),
+        )
+        authenticated_client.delete(f"/api/auth/lists/{saved_list.pk}/")
+        assert UserOperation.objects.filter(user=user, operation="delete_list").count() == 1

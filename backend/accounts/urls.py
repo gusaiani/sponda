@@ -14,11 +14,13 @@ from .views import (
     QuotaView,
     ResetPasswordView,
     ReorderListsView,
+    ResendVerificationView,
     SavedListDetailView,
     SavedListListView,
     TrackPageView,
     SharedListView,
     SignupView,
+    VerifyEmailView,
 )
 
 urlpatterns = [
@@ -37,6 +39,8 @@ urlpatterns = [
     path("lists/<int:pk>/", SavedListDetailView.as_view(), name="list-detail"),
     path("lists/reorder/", ReorderListsView.as_view(), name="list-reorder"),
     path("lists/shared/<str:token>/", SharedListView.as_view(), name="shared-list"),
+    path("verify-email/", VerifyEmailView.as_view(), name="verify-email"),
+    path("resend-verification/", ResendVerificationView.as_view(), name="resend-verification"),
     path("track/", TrackPageView.as_view(), name="track-page-view"),
     path("feedback/", FeedbackView.as_view(), name="feedback"),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),

@@ -4,6 +4,7 @@ import { csrfHeaders } from "../utils/csrf";
 export interface AuthUser {
   email: string;
   is_superuser: boolean;
+  email_verified: boolean;
   date_joined: string;
 }
 

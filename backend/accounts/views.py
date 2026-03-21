@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 from quotes.models import LookupLog
 
 from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
-from .models import FavoriteCompany, PageView, PasswordResetToken, SavedList
+from .models import EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
 from .serializers import (
     ChangePasswordSerializer,
     FavoriteCompanySerializer,
@@ -37,6 +37,7 @@ class SignupView(APIView):
 
         base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
         _send_welcome_email(user, base_url)
+        _send_verification_email(user, base_url)
 
         return Response(
             {"email": user.email}, status=status.HTTP_201_CREATED
@@ -241,6 +242,92 @@ def _send_welcome_email(user, base_url):
     )
 
 
+def _send_verification_email(user, base_url):
+    """Send email verification link with branded HTML template."""
+    token_obj = EmailVerificationToken.create_for_user(user)
+    verify_url = f"{base_url}/verify-email?token={token_obj.token}"
+
+    html_message = f"""\
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f5f7fb;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fb;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="padding:32px 40px;text-align:center;border-bottom:1px solid #e8edf5;">
+              <span style="font-size:28px;font-weight:500;color:#1a2a5a;letter-spacing:1px;">SPONDA</span>
+              <br>
+              <span style="font-size:11px;color:#5570a0;">Indicadores de empresas brasileiras para investidores em valor</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <h1 style="margin:0 0 16px;font-size:22px;font-weight:600;color:#0c1829;">Confirme seu email</h1>
+              <p style="margin:0 0 28px;font-size:15px;line-height:1.6;color:#5570a0;">
+                Clique no botão abaixo para verificar seu email e ativar todas as funcionalidades da Sponda.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center">
+                    <a href="{verify_url}"
+                       style="display:inline-block;padding:14px 40px;background:#1a2a5a;color:#ffffff;
+                              font-size:14px;font-weight:500;text-decoration:none;border-radius:6px;">
+                      Verificar email
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0;font-size:12px;color:#a0aec0;text-align:center;">
+                Este link expira em 72 horas.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px;border-top:1px solid #e8edf5;text-align:center;">
+              <p style="margin:0;font-size:11px;color:#c0c8d8;">
+                Você recebeu este email porque criou uma conta na Sponda.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+    plain_message = (
+        "Confirme seu email\n\n"
+        f"Clique no link abaixo para verificar seu email:\n\n"
+        f"{verify_url}\n\n"
+        "Este link expira em 72 horas.\n\n"
+        "— Sponda"
+    )
+
+    send_mail(
+        subject="Sponda — Confirme seu email",
+        message=plain_message,
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@sponda.capital"),
+        recipient_list=[user.email],
+        html_message=html_message,
+        fail_silently=True,
+    )
+
+
+def _check_operation_permission(user):
+    """Check if user can perform a write operation. Returns (allowed, error_response_or_none)."""
+    allowed, error_message = UserOperation.check_permission(user)
+    if not allowed:
+        return False, Response(
+            {"error": error_message, "verification_required": not user.email_verified},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return True, None
+
+
 class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -305,8 +392,58 @@ class MeView(APIView):
         return Response({
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
+            "email_verified": request.user.email_verified,
             "date_joined": request.user.date_joined,
         })
+
+
+class VerifyEmailView(APIView):
+    def post(self, request):
+        token_string = request.data.get("token", "")
+        if not token_string:
+            return Response(
+                {"error": "Token é obrigatório"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            token_obj = EmailVerificationToken.objects.select_related("user").get(
+                token=token_string
+            )
+        except EmailVerificationToken.DoesNotExist:
+            return Response(
+                {"error": "Link inválido ou expirado"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not token_obj.is_valid:
+            return Response(
+                {"error": "Link inválido ou expirado"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token_obj.user.email_verified = True
+        token_obj.user.save(update_fields=["email_verified"])
+        token_obj.used = True
+        token_obj.save(update_fields=["used"])
+
+        return Response({"ok": True})
+
+
+class ResendVerificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.email_verified:
+            return Response(
+                {"error": "Email já verificado"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
+        _send_verification_email(request.user, base_url)
+
+        return Response({"ok": True})
 
 
 class ChangePasswordView(APIView):
@@ -423,11 +560,24 @@ class FavoriteListView(APIView):
         serializer = FavoriteCompanySerializer(favorites, many=True)
         return Response(serializer.data)
 
+    MAX_FAVORITES = 20
+
     def post(self, request):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
         ticker = request.data.get("ticker", "").upper()
         if not ticker:
             return Response(
                 {"error": "Ticker é obrigatório"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        current_count = FavoriteCompany.objects.filter(user=request.user).count()
+        if current_count >= self.MAX_FAVORITES:
+            return Response(
+                {"error": f"Limite de {self.MAX_FAVORITES} favoritos atingido"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -440,6 +590,7 @@ class FavoriteListView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
 
+        UserOperation.record(request.user, "favorite")
         return Response({"ticker": ticker}, status=status.HTTP_201_CREATED)
 
 
@@ -447,12 +598,17 @@ class FavoriteDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, ticker):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
         ticker = ticker.upper()
         deleted, _ = FavoriteCompany.objects.filter(
             user=request.user, ticker=ticker
         ).delete()
         if not deleted:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        UserOperation.record(request.user, "unfavorite")
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -468,6 +624,10 @@ class SavedListListView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
         serializer = SavedListSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -479,6 +639,7 @@ class SavedListListView(APIView):
             share_token=SavedList.generate_share_token(),
         )
 
+        UserOperation.record(request.user, "save_list")
         return Response(
             SavedListSerializer(saved_list).data,
             status=status.HTTP_201_CREATED,
@@ -489,6 +650,10 @@ class SavedListDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
         try:
             saved_list = SavedList.objects.get(user=request.user, pk=pk)
         except SavedList.DoesNotExist:
@@ -505,14 +670,20 @@ class SavedListDetailView(APIView):
             saved_list.name = serializer.validated_data["name"]
 
         saved_list.save()
+        UserOperation.record(request.user, "update_list")
         return Response(SavedListSerializer(saved_list).data)
 
     def delete(self, request, pk):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
         deleted, _ = SavedList.objects.filter(
             user=request.user, pk=pk
         ).delete()
         if not deleted:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        UserOperation.record(request.user, "delete_list")
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

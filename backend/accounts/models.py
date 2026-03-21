@@ -10,10 +10,92 @@ from django.utils import timezone
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     allow_contact = models.BooleanField(default=False)
+    email_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.email
+
+
+class EmailVerificationToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="email_verification_tokens")
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used = models.BooleanField(default=False)
+
+    TOKEN_EXPIRY_HOURS = 72
+
+    def __str__(self):
+        return f"Verification token for {self.user.email}"
+
+    @classmethod
+    def create_for_user(cls, user):
+        token = secrets.token_urlsafe(48)
+        return cls.objects.create(user=user, token=token)
+
+    @property
+    def is_expired(self):
+        expiry = self.created_at + timezone.timedelta(hours=self.TOKEN_EXPIRY_HOURS)
+        return timezone.now() > expiry
+
+    @property
+    def is_valid(self):
+        return not self.used and not self.is_expired
+
+
+class UserOperation(models.Model):
+    """Tracks write operations by unverified users for rate limiting."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="operations")
+    operation = models.CharField(max_length=50)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} — {self.operation} @ {self.created_at}"
+
+    DAILY_LIMIT = 14
+    DAYS_BEFORE_VERIFICATION_REQUIRED = 5
+
+    @classmethod
+    def count_today(cls, user):
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return cls.objects.filter(user=user, created_at__gte=today_start).count()
+
+    @classmethod
+    def distinct_active_days(cls, user):
+        return cls.objects.filter(user=user).dates("created_at", "day").count()
+
+    @classmethod
+    def check_permission(cls, user):
+        """Check if an unverified user can perform an operation.
+
+        Returns (allowed, error_message).
+        - Verified users: always allowed.
+        - Unverified users with < 5 active days: allowed if < 14 ops today.
+        - Unverified users with >= 5 active days: blocked, must verify.
+        """
+        if user.email_verified:
+            return True, None
+
+        active_days = cls.distinct_active_days(user)
+        if active_days >= cls.DAYS_BEFORE_VERIFICATION_REQUIRED:
+            return False, "Verifique seu email para continuar usando esta funcionalidade"
+
+        today_count = cls.count_today(user)
+        if today_count >= cls.DAILY_LIMIT:
+            return False, f"Limite de {cls.DAILY_LIMIT} operações por dia atingido"
+
+        return True, None
+
+    @classmethod
+    def record(cls, user, operation):
+        return cls.objects.create(user=user, operation=operation)
 
 
 class PasswordResetToken(models.Model):
