@@ -3,7 +3,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client, RequestFactory
 
-from accounts.middleware import PageViewTrackingMiddleware
 from accounts.models import FavoriteCompany, PageView, PasswordResetToken, SavedList
 
 User = get_user_model()
@@ -42,6 +41,38 @@ class TestSignup:
         assert response.status_code == 201
         assert response.json()["email"] == "new@example.com"
         assert User.objects.filter(email="new@example.com").exists()
+
+    def test_signup_sends_welcome_email(self, api_client, db):
+        from django.core import mail
+
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "welcome@example.com", "password": "testpass123"},
+            content_type="application/json",
+        )
+        assert len(mail.outbox) == 1
+        welcome_email = mail.outbox[0]
+        assert welcome_email.to == ["welcome@example.com"]
+        assert "boas-vindas" in welcome_email.subject
+        assert "Sponda" in welcome_email.subject
+        assert "Favoritar empresas" in welcome_email.body
+        assert "Salvar listas" in welcome_email.body
+
+    def test_signup_welcome_email_has_html(self, api_client, db):
+        from django.core import mail
+
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "html@example.com", "password": "testpass123"},
+            content_type="application/json",
+        )
+        welcome_email = mail.outbox[0]
+        # Should have HTML alternative
+        assert len(welcome_email.alternatives) == 1
+        html_content = welcome_email.alternatives[0][0]
+        assert "Explorar agora" in html_content
+        assert "SPONDA" in html_content
+        assert "#1a2a5a" in html_content
 
     def test_signup_logs_in_user(self, api_client, db):
         api_client.post(
@@ -109,6 +140,16 @@ class TestLogin:
             content_type="application/json",
         )
         assert response.status_code == 401
+        assert response.json()["error"] == "Email ou senha incorretos"
+
+    def test_login_nonexistent_user_returns_portuguese_error(self, api_client, db):
+        response = api_client.post(
+            "/api/auth/login/",
+            {"email": "nobody@example.com", "password": "testpass123"},
+            content_type="application/json",
+        )
+        assert response.status_code == 401
+        assert response.json()["error"] == "Email ou senha incorretos"
 
     def test_login_nonexistent_user(self, api_client, db):
         response = api_client.post(
@@ -557,6 +598,110 @@ class TestSavedLists:
         assert response.status_code == 200
         assert response.json()["share_token"] == "original-token-abc"
 
+    def test_rename_preserves_tickers_and_years(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
+            user=user,
+            name="Before rename",
+            tickers=["PETR4", "VALE3"],
+            years=7,
+            share_token=SavedList.generate_share_token(),
+        )
+        response = authenticated_client.put(
+            f"/api/auth/lists/{saved_list.pk}/",
+            {"name": "After rename"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["name"] == "After rename"
+        assert data["tickers"] == ["PETR4", "VALE3"]
+        assert data["years"] == 7
+
+    def test_duplicate_creates_separate_list(self, authenticated_client, user):
+        original = SavedList.objects.create(
+            user=user,
+            name="Original",
+            tickers=["PETR4", "VALE3"],
+            years=10,
+            share_token=SavedList.generate_share_token(),
+        )
+        # Duplicate by creating a new list with same tickers
+        response = authenticated_client.post(
+            "/api/auth/lists/",
+            {"name": "Original (cópia)", "tickers": ["PETR4", "VALE3"], "years": 10},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        duplicate = response.json()
+        assert duplicate["name"] == "Original (cópia)"
+        assert duplicate["id"] != original.id
+        assert duplicate["share_token"] != original.share_token
+
+        # Both should exist
+        response = authenticated_client.get("/api/auth/lists/")
+        assert len(response.json()) == 2
+
+    def test_delete_after_rename(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
+            user=user,
+            name="Will be renamed then deleted",
+            tickers=["PETR4"],
+            share_token=SavedList.generate_share_token(),
+        )
+        # Rename
+        authenticated_client.put(
+            f"/api/auth/lists/{saved_list.pk}/",
+            {"name": "Renamed"},
+            content_type="application/json",
+        )
+        # Delete
+        response = authenticated_client.delete(f"/api/auth/lists/{saved_list.pk}/")
+        assert response.status_code == 204
+        assert not SavedList.objects.filter(pk=saved_list.pk).exists()
+
+    def test_cannot_delete_other_users_list(self, api_client, user):
+        other_user = User.objects.create_user(
+            username="other3@example.com",
+            email="other3@example.com",
+            password="otherpass",
+        )
+        other_list = SavedList.objects.create(
+            user=other_user,
+            name="Not yours",
+            tickers=["PETR4"],
+            share_token=SavedList.generate_share_token(),
+        )
+        api_client.login(username="test@example.com", password="securepass123")
+        response = api_client.delete(f"/api/auth/lists/{other_list.pk}/")
+        assert response.status_code == 404
+        assert SavedList.objects.filter(pk=other_list.pk).exists()
+
+    def test_response_includes_display_order(self, authenticated_client):
+        response = authenticated_client.post(
+            "/api/auth/lists/",
+            {"name": "With order", "tickers": ["PETR4"], "years": 10},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        assert "display_order" in response.json()
+
+    def test_lists_returned_in_display_order(self, authenticated_client, user):
+        SavedList.objects.create(
+            user=user, name="Third", tickers=["ITUB4"],
+            display_order=2, share_token=SavedList.generate_share_token(),
+        )
+        SavedList.objects.create(
+            user=user, name="First", tickers=["PETR4"],
+            display_order=0, share_token=SavedList.generate_share_token(),
+        )
+        SavedList.objects.create(
+            user=user, name="Second", tickers=["VALE3"],
+            display_order=1, share_token=SavedList.generate_share_token(),
+        )
+        response = authenticated_client.get("/api/auth/lists/")
+        names = [entry["name"] for entry in response.json()]
+        assert names == ["First", "Second", "Third"]
+
 
 # ── Me endpoint ──
 
@@ -666,25 +811,51 @@ class TestPageViewModel:
         assert view.path == "/PETR4"
 
 
-# ── Page View Tracking Middleware ──
+# ── Page View Tracking Endpoint ──
 
 
-class TestPageViewTrackingMiddleware:
-    def test_tracks_frontend_page_view(self, api_client, db):
-        # The middleware only tracks GET requests to non-API, non-static paths
-        # Django test client goes through middleware, but our catch-all
-        # returns 404 in tests (no frontend dist). So we test the model directly.
-        PageView.objects.create(
-            path="/",
-            ip_hash=PageView.hash_ip("127.0.0.1"),
+class TestTrackPageView:
+    def test_track_page_view(self, api_client, db):
+        response = api_client.post(
+            "/api/auth/track/",
+            {"path": "/PETR4"},
+            content_type="application/json",
         )
-        assert PageView.objects.filter(path="/").count() == 1
+        assert response.status_code == 201
+        assert PageView.objects.filter(path="/PETR4").count() == 1
 
-    def test_does_not_track_api_requests(self, api_client, db):
-        # API requests should NOT create PageView records
-        initial_count = PageView.objects.count()
-        api_client.get("/api/auth/quota/")
-        assert PageView.objects.count() == initial_count
+    def test_track_page_view_with_authenticated_user(self, authenticated_client, user):
+        response = authenticated_client.post(
+            "/api/auth/track/",
+            {"path": "/VALE3"},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        page_view = PageView.objects.get(path="/VALE3")
+        assert page_view.user == user
+
+    def test_track_page_view_without_path_fails(self, api_client, db):
+        response = api_client.post(
+            "/api/auth/track/",
+            {},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_track_page_view_hashes_ip(self, api_client, db):
+        api_client.post(
+            "/api/auth/track/",
+            {"path": "/"},
+            content_type="application/json",
+        )
+        page_view = PageView.objects.get(path="/")
+        assert len(page_view.ip_hash) == 64
+        assert page_view.ip_hash != "127.0.0.1"
+
+    def test_multiple_views_same_path(self, api_client, db):
+        api_client.post("/api/auth/track/", {"path": "/"}, content_type="application/json")
+        api_client.post("/api/auth/track/", {"path": "/"}, content_type="application/json")
+        assert PageView.objects.filter(path="/").count() == 2
 
 
 # ── Admin Dashboard ──

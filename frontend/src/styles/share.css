@@ -6,26 +6,26 @@
 
 .share-label {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-xs uppercase mb-3;
-  letter-spacing: 0;
+  @apply text-xs mb-3;
   color: var(--color-muted);
 }
 
 .share-buttons {
-  @apply flex items-center gap-3;
+  @apply flex items-center gap-5;
 }
 
 .share-btn {
   @apply flex items-center justify-center
     w-9 h-9 rounded-full transition-all duration-200 cursor-pointer;
-  color: var(--color-muted);
-  background: transparent;
-  border: 1px solid var(--color-border);
+  background: #f0f4f8;
+  border: none;
+  text-decoration: none;
+  line-height: 1;
 }
 
 .share-btn:hover {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
+  background: #e2e8f0;
+  transform: scale(1.15);
 }
 
 .share-icon {

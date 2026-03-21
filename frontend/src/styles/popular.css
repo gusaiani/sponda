@@ -1,16 +1,13 @@
 @reference "tailwindcss";
 
 .popular-grid {
-  @apply grid grid-cols-4 gap-y-6 gap-x-2 max-w-3xl mx-auto mb-4;
+  @apply grid grid-cols-5 gap-y-6 gap-x-1 max-w-3xl mx-auto mb-4;
 }
 
-.popular-grid-standalone {
-  margin-top: 72px;
-}
 
 @media (min-width: 640px) {
   .popular-grid {
-    @apply grid-cols-8 gap-y-8 gap-x-4;
+    @apply grid-cols-10 gap-y-8 gap-x-2;
   }
 }
 
@@ -42,6 +39,19 @@
   color: var(--color-muted);
 }
 
+/* Popular section title */
+.popular-section-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs uppercase text-center;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  margin-bottom: 20px;
+}
+
+.popular-section-title-standalone {
+  margin-top: 72px;
+}
+
 /* Favorites section */
 .favorites-section-title {
   font-family: 'Inter', system-ui, sans-serif;
@@ -53,13 +63,13 @@
 }
 
 .favorites-grid {
-  @apply grid grid-cols-4 gap-y-6 gap-x-2 max-w-3xl mx-auto mb-4;
+  @apply grid grid-cols-5 gap-y-6 gap-x-1 max-w-3xl mx-auto mb-4;
   margin-top: 20px;
 }
 
 @media (min-width: 640px) {
   .favorites-grid {
-    @apply grid-cols-8 gap-y-8 gap-x-4;
+    @apply grid-cols-10 gap-y-8 gap-x-2;
   }
 }
 

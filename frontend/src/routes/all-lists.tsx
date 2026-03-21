@@ -92,7 +92,6 @@ export function AllListsPage() {
               onDrop={() => handleDrop(index)}
             >
               <span className="saved-lists-page-drag-handle">⠿</span>
-              {index < 3 && <span className="saved-lists-page-badge">Página inicial</span>}
               <SavedListCard list={list} tickerMap={tickerMap} />
             </div>
           ))}

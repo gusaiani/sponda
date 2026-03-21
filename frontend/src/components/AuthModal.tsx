@@ -1,10 +1,15 @@
-import { useState, useEffect, FormEvent } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useState, FormEvent } from "react";
 import "../styles/auth.css";
+import "../styles/feedback.css";
 
 type AuthMode = "login" | "signup";
 
-export function LoginPage() {
+interface AuthModalProps {
+  onSuccess: () => void;
+  onClose: () => void;
+}
+
+export function AuthModal({ onSuccess, onClose }: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -12,22 +17,6 @@ export function LoginPage() {
   const [allowContact, setAllowContact] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState(false);
-  const navigate = useNavigate();
-
-  // Escape key navigates back to home (when no input is focused)
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      const activeElement = document.activeElement;
-      const isInputFocused = activeElement instanceof HTMLInputElement
-        || activeElement instanceof HTMLTextAreaElement;
-      if (isInputFocused) return;
-      navigate({ to: "/" });
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [navigate]);
 
   function switchMode(newMode: AuthMode) {
     setMode(newMode);
@@ -71,12 +60,7 @@ export function LoginPage() {
         return;
       }
 
-      if (mode === "signup") {
-        setSignupSuccess(true);
-        return;
-      }
-
-      window.location.href = "/";
+      onSuccess();
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {
@@ -84,36 +68,16 @@ export function LoginPage() {
     }
   }
 
-  if (signupSuccess) {
-    return (
-      <div className="auth-container">
-        <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
-            <span className="auth-logo">SPONDA</span>
-          </Link>
-          <h1 className="auth-title">Conta criada!</h1>
-          <p className="auth-success-text">
-            Sua conta foi criada e você já está logado.
-          </p>
-          <p className="auth-link">
-            <Link to="/">Ir para a página inicial</Link>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   const isLogin = mode === "login";
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <Link to="/" className="auth-logo-link">
-          <span className="auth-logo">SPONDA</span>
-        </Link>
+    <div className="feedback-overlay" onClick={onClose}>
+      <div className="feedback-panel" onClick={(event) => event.stopPropagation()} style={{ maxWidth: "400px" }}>
+        <button className="feedback-close" onClick={onClose} aria-label="Fechar">
+          ×
+        </button>
 
-        {/* Mode toggle */}
-        <div className="auth-mode-toggle">
+        <div className="auth-mode-toggle" style={{ marginTop: "20px", marginBottom: "1.5rem" }}>
           <button
             type="button"
             className={`auth-mode-button ${isLogin ? "auth-mode-active" : ""}`}
@@ -132,11 +96,9 @@ export function LoginPage() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
-            <label className="auth-label" htmlFor="email">
-              Email
-            </label>
+            <label className="auth-label" htmlFor="modal-email">Email</label>
             <input
-              id="email"
+              id="modal-email"
               type="email"
               className="auth-input"
               value={email}
@@ -146,11 +108,9 @@ export function LoginPage() {
             />
           </div>
           <div>
-            <label className="auth-label" htmlFor="password">
-              Senha
-            </label>
+            <label className="auth-label" htmlFor="modal-password">Senha</label>
             <input
-              id="password"
+              id="modal-password"
               type="password"
               className="auth-input"
               value={password}
@@ -162,11 +122,9 @@ export function LoginPage() {
           </div>
           {!isLogin && (
             <div>
-              <label className="auth-label" htmlFor="confirm-password">
-                Confirmar Senha
-              </label>
+              <label className="auth-label" htmlFor="modal-confirm-password">Confirmar Senha</label>
               <input
-                id="confirm-password"
+                id="modal-confirm-password"
                 type="password"
                 className="auth-input"
                 value={confirmPassword}
@@ -194,12 +152,6 @@ export function LoginPage() {
               : (isLogin ? "Entrar" : "Criar Conta")}
           </button>
         </form>
-
-        {isLogin && (
-          <p className="auth-link">
-            <Link to="/forgot-password">Esqueci minha senha</Link>
-          </p>
-        )}
 
         <div className="auth-divider">
           <span className="auth-divider-text">ou</span>

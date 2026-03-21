@@ -48,14 +48,13 @@ interface SavedListCardProps {
 
 export function SavedListCard({ list, tickerMap }: SavedListCardProps) {
   const firstTicker = list.tickers[0];
-  const compareUrl = `/${firstTicker}/comparar`;
+  const compareUrl = `/${firstTicker}/comparar?listId=${list.id}`;
   const displayedTickers = list.tickers.slice(0, MAX_LOGOS);
   const remainingCount = list.tickers.length - MAX_LOGOS;
 
   return (
-    <Link
-      to={compareUrl}
-      search={{ listId: String(list.id) }}
+    <a
+      href={compareUrl}
       className="saved-list-item"
     >
       <div className="saved-list-left">
@@ -89,6 +88,6 @@ export function SavedListCard({ list, tickerMap }: SavedListCardProps) {
       <span className="saved-list-detail">
         Prazo: {list.years} {list.years === 1 ? "ano" : "anos"}
       </span>
-    </Link>
+    </a>
   );
 }

@@ -44,7 +44,9 @@
 }
 
 .app-main {
-  @apply max-w-[880px] mx-auto py-12 px-4;
+  @apply max-w-[880px] mx-auto px-4;
+  padding-top: 24px;
+  padding-bottom: 3rem;
 }
 
 .back-home-wrapper {
@@ -58,7 +60,7 @@
   letter-spacing: 0.10em;
   color: var(--color-muted);
   text-decoration: none;
-  top: -1.25rem;
+  top: calc(-1.25rem + 24px);
 }
 
 .back-home-link:hover {

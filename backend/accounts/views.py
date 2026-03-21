@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 
 from quotes.models import LookupLog
 
+from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
 from .models import FavoriteCompany, PageView, PasswordResetToken, SavedList
 from .serializers import (
     ChangePasswordSerializer,
@@ -33,9 +34,211 @@ class SignupView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         login(request, user)
+
+        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
+        _send_welcome_email(user, base_url)
+
         return Response(
             {"email": user.email}, status=status.HTTP_201_CREATED
         )
+
+
+def _send_welcome_email(user, base_url):
+    """Send a welcome email to new users."""
+    html_message = f"""\
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"></head>
+<body style="margin:0; padding:0; background:#f5f7fb; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fb; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:8px; overflow:hidden;">
+          <!-- Header — white background, matching site -->
+          <tr>
+            <td style="padding:32px 40px; text-align:center; border-bottom:1px solid #e8edf5;">
+              <span style="font-size:28px; font-weight:500; color:#1a2a5a; letter-spacing:1px;">SPONDA</span>
+              <br>
+              <span style="font-size:11px; color:#5570a0; letter-spacing:0.5px;">
+                Indicadores de empresas brasileiras para investidores em valor
+              </span>
+            </td>
+          </tr>
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px;">
+              <h1 style="margin:0 0 16px; font-size:22px; font-weight:600; color:#0c1829;">
+                Te damos as boas-vindas!
+              </h1>
+              <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#5570a0;">
+                Sua conta foi criada. Agora você tem acesso a tudo que a Sponda oferece.
+              </p>
+
+              <!-- Benefits -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
+                <tr>
+                  <td style="padding:12px 0; border-bottom:1px solid #e8edf5;">
+                    <span style="font-size:18px; color:#f59e0b; vertical-align:middle;">★</span>
+                    <span style="font-size:14px; color:#0c1829; margin-left:8px; vertical-align:middle;">
+                      <strong>Favoritar empresas</strong>
+                    </span>
+                    <br>
+                    <span style="font-size:13px; color:#5570a0; margin-left:30px; display:inline-block; margin-top:4px;">
+                      Acompanhe as empresas que mais importam para você direto na página inicial.
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 0; border-bottom:1px solid #e8edf5;">
+                    <span style="font-size:18px; vertical-align:middle;">📋</span>
+                    <span style="font-size:14px; color:#0c1829; margin-left:8px; vertical-align:middle;">
+                      <strong>Salvar listas de comparação</strong>
+                    </span>
+                    <br>
+                    <span style="font-size:13px; color:#5570a0; margin-left:30px; display:inline-block; margin-top:4px;">
+                      Monte, salve e compartilhe suas análises comparativas com quem quiser.
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 0;">
+                    <span style="font-size:18px; vertical-align:middle;">📊</span>
+                    <span style="font-size:14px; color:#0c1829; margin-left:8px; vertical-align:middle;">
+                      <strong>Indicadores ajustados pela inflação</strong>
+                    </span>
+                    <br>
+                    <span style="font-size:13px; color:#5570a0; margin-left:30px; display:inline-block; margin-top:4px;">
+                      P/L, P/FCL, PEG, CAGR e alavancagem — tudo corrigido pelo IPCA, e muito mais.
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+                <tr>
+                  <td align="center">
+                    <a href="{base_url}"
+                       style="display:inline-block; padding:14px 40px; background:#1a2a5a; color:#ffffff;
+                              font-size:14px; font-weight:500; text-decoration:none; border-radius:6px;">
+                      Explorar agora
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Share -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 0;">
+                    <p style="margin:0 0 12px; font-size:12px; color:#5570a0;">
+                      Compartilhe a Sponda
+                    </p>
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://twitter.com/intent/tweet?text=Conhe%C3%A7a+a+Sponda+%E2%80%94+indicadores+de+empresas+brasileiras+para+investidores+em+valor&url={base_url}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#000000; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="X / Twitter">𝕏</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">X</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://wa.me/?text=Conhe%C3%A7a+a+Sponda+%E2%80%94+indicadores+de+empresas+brasileiras+para+investidores+em+valor+{base_url}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#25D366; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="WhatsApp">W</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">WhatsApp</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://t.me/share/url?url={base_url}&text=Conhe%C3%A7a+a+Sponda+%E2%80%94+indicadores+de+empresas+brasileiras+para+investidores+em+valor"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#26A5E4; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="Telegram">T</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">Telegram</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://www.linkedin.com/sharing/share-offsite/?url={base_url}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#0A66C2; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="LinkedIn">in</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">LinkedIn</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="mailto:?subject=Conhe%C3%A7a%20a%20Sponda&body=Indicadores%20de%20empresas%20brasileiras%20para%20investidores%20em%20valor%20%E2%80%94%20{base_url}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#5570a0; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="Email">@</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">Email</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 40px; border-top:1px solid #e8edf5; text-align:center;">
+              <p style="margin:0 0 4px; font-size:12px; color:#5570a0;">
+                Uma ferramenta da
+                <a href="https://poe.ma" style="color:#1e40af; text-decoration:none;">Poema Parceria de Investimentos</a>
+              </p>
+              <p style="margin:0 0 4px; font-size:10px; line-height:1.5; color:#a0aec0;">
+                {POEMA_PERFORMANCE_LINE}<br>
+                {POEMA_DISCLAIMER}
+              </p>
+              <p style="margin:0 0 8px; font-size:11px; color:#1e40af;">
+                <a href="https://poe.ma" style="color:#1e40af; text-decoration:none; font-weight:500;">
+                  {POEMA_CTA}
+                </a>
+              </p>
+              <p style="margin:0; font-size:10px; color:#c0c8d8;">
+                Você recebeu este email porque criou uma conta na Sponda.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+    plain_message = (
+        "Te damos as boas-vindas à Sponda!\n\n"
+        "Sua conta foi criada. Agora você tem acesso a tudo que a Sponda oferece.\n\n"
+        "★ Favoritar empresas — acompanhe as que mais importam para você.\n"
+        "📋 Salvar listas — monte, salve e compartilhe suas análises.\n"
+        "📊 Indicadores ajustados pela inflação — P/L, P/FCL, PEG, CAGR e muito mais.\n\n"
+        f"Explorar agora: {base_url}\n\n"
+        "Compartilhe a Sponda com quem investe com visão de longo prazo.\n\n"
+        "---\n"
+        f"{POEMA_PERFORMANCE_LINE}\n"
+        f"{POEMA_DISCLAIMER}\n"
+        f"{POEMA_CTA}\n\n"
+        "— Sponda / Poema Parceria de Investimentos"
+    )
+
+    send_mail(
+        subject="Te damos as boas-vindas à Sponda!",
+        message=plain_message,
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@sponda.capital"),
+        recipient_list=[user.email],
+        html_message=html_message,
+        fail_silently=True,
+    )
 
 
 class LoginView(APIView):
@@ -50,7 +253,7 @@ class LoginView(APIView):
         )
         if user is None:
             return Response(
-                {"error": "Invalid credentials"},
+                {"error": "Email ou senha incorretos"},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
@@ -62,6 +265,36 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request)
         return Response({"ok": True})
+
+
+class TrackPageView(APIView):
+    """Frontend-initiated page view tracking. Works in both dev and prod."""
+
+    def post(self, request):
+        path = request.data.get("path", "")
+        if not path:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        ip_address = self._get_client_ip(request)
+        ip_hash = PageView.hash_ip(ip_address)
+        user = request.user if request.user.is_authenticated else None
+        session_key = request.session.session_key or ""
+
+        PageView.objects.create(
+            path=path,
+            ip_hash=ip_hash,
+            user=user,
+            session_key=session_key,
+        )
+
+        return Response({"ok": True}, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _get_client_ip(request):
+        forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR", "0.0.0.0")
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")

@@ -134,13 +134,42 @@ class TestFavorites:
         favorite_button = page.locator(".favorite-button")
         expect(favorite_button).to_be_visible()
 
-    def test_favorite_star_not_visible_when_logged_out(self, page: Page, url):
-        """Star should NOT be visible when not logged in."""
+    def test_favorite_star_visible_when_logged_out(self, page: Page, url):
+        """Star should be visible even when not logged in."""
         page.goto(f"{url}/PETR4")
         expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
 
         favorite_button = page.locator(".favorite-button")
-        expect(favorite_button).not_to_be_visible()
+        expect(favorite_button).to_be_visible()
+
+    def test_star_click_when_logged_out_shows_auth_modal(self, page: Page, url):
+        """Clicking the star when not logged in should show the auth modal."""
+        page.goto(f"{url}/PETR4")
+        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+
+        page.locator(".favorite-button").click()
+
+        # Auth modal should appear with login/signup toggle
+        expect(page.locator(".auth-mode-toggle")).to_be_visible(timeout=5000)
+        expect(page.locator(".auth-mode-toggle >> text=Entrar")).to_be_visible()
+        expect(page.locator(".auth-mode-toggle >> text=Criar conta")).to_be_visible()
+
+    def test_auth_modal_login_then_favorites(self, page: Page, url, test_user):
+        """Login via auth modal should complete the favorite action."""
+        page.goto(f"{url}/PETR4")
+        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+
+        # Click star while logged out
+        page.locator(".favorite-button").click()
+        expect(page.locator(".auth-mode-toggle")).to_be_visible(timeout=5000)
+
+        # Login in the modal
+        page.fill("input#modal-email", "test@example.com")
+        page.fill("input#modal-password", "testpass123")
+        page.locator(".feedback-panel button[type='submit']").click()
+
+        # After login, the star should become active (favorited)
+        expect(page.locator(".favorite-button-active")).to_be_visible(timeout=10000)
 
     def test_clicking_star_favorites_company(self, page: Page, url, test_user):
         """Clicking the star should toggle it to active (golden)."""
@@ -179,7 +208,7 @@ class TestFavorites:
 
         # Should see favorites section
         expect(
-            page.locator("text=Seus favoritos")
+            page.locator("text=Favoritas")
         ).to_be_visible(timeout=5000)
 
     def test_unfavorite_removes_from_homepage(self, page: Page, url, test_user):
@@ -200,4 +229,4 @@ class TestFavorites:
 
         # Go home — should NOT see favorites section
         page.goto(url)
-        expect(page.locator("text=Seus favoritos")).not_to_be_visible(timeout=3000)
+        expect(page.locator("text=Favoritas")).not_to_be_visible(timeout=3000)

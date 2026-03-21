@@ -37,9 +37,10 @@
   background: #1a2a5a;
   color: #ffffff;
   border: 1px solid #1a2a5a;
+  cursor: pointer;
 }
 
-.search-button:hover:not(:disabled) {
+.search-button:hover {
   background: #0f1d42;
   border-color: #0f1d42;
 }

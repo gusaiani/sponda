@@ -16,6 +16,7 @@ from .views import (
     ReorderListsView,
     SavedListDetailView,
     SavedListListView,
+    TrackPageView,
     SharedListView,
     SignupView,
 )
@@ -36,6 +37,7 @@ urlpatterns = [
     path("lists/<int:pk>/", SavedListDetailView.as_view(), name="list-detail"),
     path("lists/reorder/", ReorderListsView.as_view(), name="list-reorder"),
     path("lists/shared/<str:token>/", SharedListView.as_view(), name="shared-list"),
+    path("track/", TrackPageView.as_view(), name="track-page-view"),
     path("feedback/", FeedbackView.as_view(), name="feedback"),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
 ]

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useAuth } from "../hooks/useAuth";
+import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
@@ -86,10 +88,24 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const [saveName, setSaveName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [showRenameForm, setShowRenameForm] = useState(false);
+  const [renameName, setRenameName] = useState("");
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { isAuthenticated } = useAuth();
   const { saveList, updateList, deleteList, lists } = useSavedLists();
-  const existingList = savedListId ? lists.find((list) => list.id === savedListId) : undefined;
+  const queryClient = useQueryClient();
+  // Find existing list: by explicit ID (from URL param) or by matching tickers
+  const existingList = (() => {
+    if (savedListId) {
+      return lists.find((list) => list.id === savedListId);
+    }
+    // Fallback: match by exact ticker composition (order-independent)
+    const tickerSet = new Set(allTickers);
+    return lists.find((list) => {
+      if (list.tickers.length !== tickerSet.size) return false;
+      return list.tickers.every((ticker) => tickerSet.has(ticker));
+    });
+  })();
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Auto-save when tickers or years change on an existing saved list
@@ -243,37 +259,84 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
       </div>
 
       {/* Floating action buttons — always visible */}
-      {isAuthenticated && !showSaveForm && !showDeleteConfirm && (
+      {!showSaveForm && !showDeleteConfirm && !showRenameForm && (
         existingList ? (
           <div className="compare-floating-actions">
             <button
               className="compare-save-floating compare-save-floating-secondary"
-              onClick={() => setShowDeleteConfirm(true)}
+              onClick={() => {
+                setRenameName(existingList.name);
+                setShowRenameForm(true);
+              }}
             >
-              Apagar lista
+              Renomear
             </button>
             <button
               className="compare-save-floating"
               onClick={() => {
-                setSaveSuccess(null);
                 setSaveName(existingList.name + " (cópia)");
                 setShowSaveForm(true);
               }}
             >
-              Duplicar lista
+              Duplicar
+            </button>
+            <button
+              className="compare-save-floating compare-save-floating-danger"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              Apagar
             </button>
           </div>
         ) : (
-          <button
-            className="compare-save-floating"
-            onClick={() => {
-              setSaveSuccess(null);
-              setShowSaveForm(true);
-            }}
-          >
-            Salvar lista
-          </button>
+          <div className="compare-floating-actions">
+            <button
+              className="compare-save-floating"
+              onClick={() => {
+                if (!isAuthenticated) {
+                  setShowAuthModal(true);
+                  return;
+                }
+                setShowSaveForm(true);
+              }}
+            >
+              Salvar lista
+            </button>
+          </div>
         )
+      )}
+
+      {/* Rename modal */}
+      {showRenameForm && existingList && (
+        <div className="compare-save-overlay" onClick={() => setShowRenameForm(false)}>
+          <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="compare-save-modal-title">Renomear lista</h3>
+            <form onSubmit={(event) => {
+              event.preventDefault();
+              if (!renameName.trim()) return;
+              updateList.mutate(
+                { id: existingList.id, name: renameName.trim() },
+                { onSuccess: () => setShowRenameForm(false) },
+              );
+            }}>
+              <input
+                type="text"
+                className="auth-input"
+                placeholder="Novo nome"
+                value={renameName}
+                onChange={(event) => setRenameName(event.target.value)}
+                autoFocus
+              />
+              <div className="compare-save-modal-actions">
+                <button type="submit" className="auth-button" disabled={!renameName.trim()}>
+                  Renomear
+                </button>
+                <button type="button" className="auth-button-secondary" onClick={() => setShowRenameForm(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Delete confirmation modal */}
@@ -315,30 +378,18 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
             <p className="compare-save-modal-detail">
               {allTickers.length} empresas · {years} {years === 1 ? "ano" : "anos"}
             </p>
-            {saveSuccess ? (
-              <>
-                <p className="compare-save-success">{saveSuccess}</p>
-                <button
-                  className="auth-button"
-                  onClick={() => {
-                    setShowSaveForm(false);
-                    setSaveSuccess(null);
-                  }}
-                >
-                  Fechar
-                </button>
-              </>
-            ) : (
-              <form onSubmit={(event) => {
+            <form onSubmit={(event) => {
                 event.preventDefault();
                 if (!saveName.trim()) return;
                 saveList.mutate(
                   { name: saveName.trim(), tickers: allTickers, years },
                   {
                     onSuccess: (saved) => {
-                      const shareUrl = `${window.location.origin}/shared/${saved.share_token}`;
-                      setSaveSuccess(`Salvo! Link: ${shareUrl}`);
+                      setShowSaveForm(false);
                       setSaveName("");
+                      // Navigate to the newly saved list
+                      const firstTicker = allTickers[0];
+                      window.location.href = `/${firstTicker}/comparar?listId=${saved.id}`;
                     },
                   },
                 );
@@ -368,9 +419,21 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                   </button>
                 </div>
               </form>
-            )}
           </div>
         </div>
+      )}
+
+      {/* Auth modal — triggered when unauthenticated user tries to save */}
+      {showAuthModal && (
+        <AuthModal
+          onSuccess={() => {
+            setShowAuthModal(false);
+            queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(() => {
+              setShowSaveForm(true);
+            });
+          }}
+          onClose={() => setShowAuthModal(false)}
+        />
       )}
     </div>
   );

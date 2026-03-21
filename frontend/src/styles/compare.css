@@ -266,10 +266,8 @@
 /* Floating save button */
 .compare-save-floating {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply fixed z-40 text-xs uppercase cursor-pointer transition-all;
+  @apply text-xs uppercase cursor-pointer transition-all;
   letter-spacing: 0.06em;
-  bottom: 1.5rem;
-  right: 1.5rem;
   padding: 0.6rem 1.2rem;
   background: #1a2a5a;
   color: #ffffff;
@@ -299,6 +297,17 @@
   @apply fixed z-40 flex gap-2;
   bottom: 1.5rem;
   right: 1.5rem;
+}
+
+.compare-save-floating-danger {
+  background: #ffffff;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+.compare-save-floating-danger:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
 }
 
 .compare-delete-button {

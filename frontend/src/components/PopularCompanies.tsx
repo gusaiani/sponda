@@ -46,7 +46,9 @@ export function PopularCompanies() {
   const hasFavorites = isAuthenticated && favoriteTickers.length > 0;
 
   return (
-    <div className={`popular-grid ${hasFavorites ? "" : "popular-grid-standalone"}`}>
+    <>
+    <p className={`popular-section-title ${hasFavorites ? "" : "popular-section-title-standalone"}`}>Mais acompanhadas</p>
+    <div className="popular-grid">
       {companies.map((company) => (
         <Link
           key={company.symbol}
@@ -70,5 +72,6 @@ export function PopularCompanies() {
         </Link>
       ))}
     </div>
+    </>
   );
 }
