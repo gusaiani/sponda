@@ -255,6 +255,25 @@ class SavedListListView(APIView):
 class SavedListDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def put(self, request, pk):
+        try:
+            saved_list = SavedList.objects.get(user=request.user, pk=pk)
+        except SavedList.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SavedListSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        if "tickers" in serializer.validated_data:
+            saved_list.tickers = serializer.validated_data["tickers"]
+        if "years" in serializer.validated_data:
+            saved_list.years = serializer.validated_data["years"]
+        if "name" in serializer.validated_data:
+            saved_list.name = serializer.validated_data["name"]
+
+        saved_list.save()
+        return Response(SavedListSerializer(saved_list).data)
+
     def delete(self, request, pk):
         deleted, _ = SavedList.objects.filter(
             user=request.user, pk=pk

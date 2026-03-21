@@ -6,6 +6,7 @@ import { SavedLists } from "../components/SavedLists";
 import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
 import { useAuth } from "../hooks/useAuth";
+import "../styles/popular.css";
 
 export function HomePage() {
   const queryClient = useQueryClient();
@@ -28,6 +29,7 @@ export function HomePage() {
 
       {isAuthenticated && <FavoriteCompanies />}
       {isAuthenticated && <SavedLists />}
+      {isAuthenticated && <hr className="favorites-separator" />}
 
       <PopularCompanies />
 

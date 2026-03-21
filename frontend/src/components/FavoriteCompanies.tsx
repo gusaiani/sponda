@@ -30,9 +30,9 @@ export function FavoriteCompanies() {
   if (favoritesLoading || favoriteCompanies.length === 0) return null;
 
   return (
-    <div style={{ marginBottom: "1.5rem" }}>
-      <p className="favorites-section-title">Seus favoritos</p>
-      <div className="popular-grid">
+    <>
+      <p className="favorites-section-title">Favoritas</p>
+      <div className="favorites-grid">
         {favoriteCompanies.map((company) => (
           <Link
             key={company.symbol}
@@ -56,6 +56,6 @@ export function FavoriteCompanies() {
           </Link>
         ))}
       </div>
-    </div>
+    </>
   );
 }

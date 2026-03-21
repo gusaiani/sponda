@@ -92,15 +92,15 @@
     transition-colors
     disabled:opacity-50 disabled:cursor-not-allowed;
   letter-spacing: 0;
-  background: var(--color-ink);
+  background: #1a2a5a;
   color: #ffffff;
-  border: 1px solid var(--color-ink);
+  border: 1px solid #1a2a5a;
   border-radius: 6px;
 }
 
 .auth-button:hover:not(:disabled) {
-  background: #ffffff;
-  color: var(--color-ink);
+  background: #0f1d42;
+  border-color: #0f1d42;
 }
 
 .auth-button-secondary {

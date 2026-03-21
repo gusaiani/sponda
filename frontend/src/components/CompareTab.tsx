@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
 import { useSavedLists } from "../hooks/useSavedLists";
@@ -74,9 +74,10 @@ interface Props {
   onYearsChange: (y: number) => void;
   extraTickers: string[];
   onExtraTickersChange: (tickers: string[]) => void;
+  savedListId?: number | null;
 }
 
-export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extraTickers, onExtraTickersChange }: Props) {
+export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extraTickers, onExtraTickersChange, savedListId }: Props) {
   const allTickers = [currentTicker, ...extraTickers];
   const entries = useCompareData(allTickers, years);
   const columns = getColumns(years);
@@ -84,9 +85,32 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const [sort, setSort] = useState<SortState | null>(null);
   const [saveName, setSaveName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const { isAuthenticated } = useAuth();
-  const { saveList } = useSavedLists();
+  const { saveList, updateList, deleteList, lists } = useSavedLists();
+  const existingList = savedListId ? lists.find((list) => list.id === savedListId) : undefined;
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-save when tickers or years change on an existing saved list
+  useEffect(() => {
+    if (!existingList) return;
+
+    const tickersChanged = existingList.tickers.join(",") !== allTickers.join(",");
+    const yearsChanged = existingList.years !== years;
+
+    if (!tickersChanged && !yearsChanged) return;
+
+    // Debounce auto-save by 1 second
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      updateList.mutate({ id: existingList.id, tickers: allTickers, years });
+    }, 1000);
+
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [allTickers.join(","), years, existingList?.id]);
 
   function handleSort(key: string) {
     setSort((prev) => {
@@ -218,61 +242,134 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
         </div>
       </div>
 
-      {/* Save comparison — only for authenticated users */}
-      {isAuthenticated && (
-        <div className="compare-save-wrapper">
-          {saveSuccess && (
-            <p className="compare-save-success">{saveSuccess}</p>
-          )}
-          {showSaveForm ? (
-            <div className="compare-save-form">
-              <input
-                type="text"
-                className="auth-input"
-                placeholder="Nome da lista"
-                value={saveName}
-                onChange={(event) => setSaveName(event.target.value)}
-                style={{ maxWidth: "300px", fontSize: "0.8rem" }}
-              />
+      {/* Floating action buttons — always visible */}
+      {isAuthenticated && !showSaveForm && !showDeleteConfirm && (
+        existingList ? (
+          <div className="compare-floating-actions">
+            <button
+              className="compare-save-floating compare-save-floating-secondary"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              Apagar lista
+            </button>
+            <button
+              className="compare-save-floating"
+              onClick={() => {
+                setSaveSuccess(null);
+                setSaveName(existingList.name + " (cópia)");
+                setShowSaveForm(true);
+              }}
+            >
+              Duplicar lista
+            </button>
+          </div>
+        ) : (
+          <button
+            className="compare-save-floating"
+            onClick={() => {
+              setSaveSuccess(null);
+              setShowSaveForm(true);
+            }}
+          >
+            Salvar lista
+          </button>
+        )
+      )}
+
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && existingList && (
+        <div className="compare-save-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="compare-save-modal-title">Apagar lista</h3>
+            <p className="compare-save-modal-detail">
+              Tem certeza que deseja apagar "{existingList.name}"?
+            </p>
+            <div className="compare-save-modal-actions">
               <button
-                className="auth-button"
-                style={{ maxWidth: "150px", marginTop: "0.5rem" }}
-                disabled={!saveName.trim()}
+                className="auth-button compare-delete-button"
                 onClick={() => {
-                  saveList.mutate(
-                    { name: saveName.trim(), tickers: allTickers, years },
-                    {
-                      onSuccess: (saved) => {
-                        const shareUrl = `${window.location.origin}/shared/${saved.share_token}`;
-                        setSaveSuccess(`Salvo! Link para compartilhar: ${shareUrl}`);
-                        setShowSaveForm(false);
-                        setSaveName("");
-                      },
-                    },
-                  );
+                  deleteList.mutate(existingList.id);
+                  setShowDeleteConfirm(false);
                 }}
               >
-                Salvar
+                Apagar
               </button>
               <button
                 className="auth-button-secondary"
-                style={{ maxWidth: "150px", marginTop: "0.25rem" }}
-                onClick={() => setShowSaveForm(false)}
+                onClick={() => setShowDeleteConfirm(false)}
               >
                 Cancelar
               </button>
             </div>
-          ) : (
-            <button
-              className="compare-save-button"
-              onClick={() => {
-                setSaveSuccess(null);
-                setShowSaveForm(true);
-              }}
-            >
-              Salvar esta lista
-            </button>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* Save / Duplicate modal */}
+      {showSaveForm && (
+        <div className="compare-save-overlay" onClick={() => setShowSaveForm(false)}>
+          <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="compare-save-modal-title">
+              {existingList ? "Duplicar lista" : "Salvar lista"}
+            </h3>
+            <p className="compare-save-modal-detail">
+              {allTickers.length} empresas · {years} {years === 1 ? "ano" : "anos"}
+            </p>
+            {saveSuccess ? (
+              <>
+                <p className="compare-save-success">{saveSuccess}</p>
+                <button
+                  className="auth-button"
+                  onClick={() => {
+                    setShowSaveForm(false);
+                    setSaveSuccess(null);
+                  }}
+                >
+                  Fechar
+                </button>
+              </>
+            ) : (
+              <form onSubmit={(event) => {
+                event.preventDefault();
+                if (!saveName.trim()) return;
+                saveList.mutate(
+                  { name: saveName.trim(), tickers: allTickers, years },
+                  {
+                    onSuccess: (saved) => {
+                      const shareUrl = `${window.location.origin}/shared/${saved.share_token}`;
+                      setSaveSuccess(`Salvo! Link: ${shareUrl}`);
+                      setSaveName("");
+                    },
+                  },
+                );
+              }}>
+                <input
+                  type="text"
+                  className="auth-input"
+                  placeholder="Nome da lista"
+                  value={saveName}
+                  onChange={(event) => setSaveName(event.target.value)}
+                  autoFocus
+                />
+                <div className="compare-save-modal-actions">
+                  <button
+                    type="submit"
+                    className="auth-button"
+                    disabled={!saveName.trim()}
+                  >
+                    Salvar
+                  </button>
+                  <button
+                    type="button"
+                    className="auth-button-secondary"
+                    onClick={() => setShowSaveForm(false)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       )}
     </div>

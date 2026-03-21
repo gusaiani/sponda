@@ -44,6 +44,23 @@ export function useSavedLists() {
     },
   });
 
+  const updateList = useMutation({
+    mutationFn: async (params: { id: number; tickers?: string[]; years?: number; name?: string }) => {
+      const { id, ...body } = params;
+      const response = await fetch(`/api/auth/lists/${id}/`, {
+        method: "PUT",
+        headers: csrfHeaders(),
+        credentials: "include",
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error("Failed to update list");
+      return response.json() as Promise<SavedListEntry>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-lists"] });
+    },
+  });
+
   const deleteList = useMutation({
     mutationFn: async (listId: number) => {
       const response = await fetch(`/api/auth/lists/${listId}/`, {
@@ -58,11 +75,18 @@ export function useSavedLists() {
     },
   });
 
+  function findListByTickers(tickers: string[]): SavedListEntry | undefined {
+    const tickerKey = tickers.join(",");
+    return lists.find((list) => list.tickers.join(",") === tickerKey);
+  }
+
   return {
     lists,
     isLoading,
     saveList,
+    updateList,
     deleteList,
+    findListByTickers,
   };
 }
 

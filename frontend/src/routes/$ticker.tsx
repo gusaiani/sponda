@@ -10,6 +10,7 @@ import { usePE10, fetchQuote } from "../hooks/usePE10";
 import { useTickers } from "../hooks/useTickers";
 import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
 import { deriveForYears } from "../hooks/deriveForYears";
+import { useSavedLists } from "../hooks/useSavedLists";
 import { getSectorPeers } from "../utils/subsector";
 import "../styles/chart.css";
 
@@ -49,12 +50,34 @@ export function TickerPage() {
   const location = useLocation();
   const [years, setYears] = useState(DEFAULT_YEARS);
   const [compareTickers, setCompareTickers] = useState<string[]>([]);
+  const [activeListId, setActiveListId] = useState<number | null>(null);
   const seededForTicker = useRef<string | null>(null);
 
   const activeTab = resolveTab(location.pathname);
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker);
   const { data: allTickers } = useTickers();
+  const { lists } = useSavedLists();
+
+  // Check for listId in URL search params (when opening a saved list)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const listIdParam = params.get("listId");
+    if (!listIdParam) return;
+
+    const listId = parseInt(listIdParam, 10);
+    const savedList = lists.find((list) => list.id === listId);
+    if (!savedList) return;
+
+    // Load the saved list's tickers and years
+    const otherTickers = savedList.tickers.filter(
+      (ticker) => ticker !== upperTicker
+    );
+    setCompareTickers(otherTickers);
+    setYears(savedList.years);
+    setActiveListId(listId);
+    seededForTicker.current = upperTicker;
+  }, [lists, upperTicker]);
 
   // Seed compare list with same-sector companies and prefetch their data
   useEffect(() => {
@@ -62,7 +85,7 @@ export function TickerPage() {
     if (!allTickers?.length) return;
     if (!fullData) return; // wait for main ticker to load first
 
-    const current = allTickers.find((t) => t.symbol === upperTicker);
+    const current = allTickers.find((ticker) => ticker.symbol === upperTicker);
     if (!current?.sector) {
       seededForTicker.current = upperTicker;
       return;
@@ -217,6 +240,7 @@ export function TickerPage() {
           onYearsChange={setYears}
           extraTickers={compareTickers}
           onExtraTickersChange={setCompareTickers}
+          savedListId={activeListId}
         />
       )}
 

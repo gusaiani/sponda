@@ -263,29 +263,93 @@
   @apply max-w-md mx-auto mt-6;
 }
 
-/* Save list */
-.compare-save-wrapper {
-  @apply max-w-md mx-auto mt-4 text-center;
-}
-
-.compare-save-button {
+/* Floating save button */
+.compare-save-floating {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-xs uppercase cursor-pointer bg-transparent border-none transition-colors;
+  @apply fixed z-40 text-xs uppercase cursor-pointer transition-all;
   letter-spacing: 0.06em;
-  color: var(--color-accent);
+  bottom: 1.5rem;
+  right: 1.5rem;
+  padding: 0.6rem 1.2rem;
+  background: #1a2a5a;
+  color: #ffffff;
+  border: 1px solid #1a2a5a;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
-.compare-save-button:hover {
-  text-decoration: underline;
+.compare-save-floating:hover {
+  background: #0f1d42;
+  border-color: #0f1d42;
 }
 
-.compare-save-form {
-  @apply flex flex-col items-center gap-1;
+.compare-save-floating-secondary {
+  background: #ffffff;
+  color: var(--color-muted);
+  border-color: var(--color-border);
+}
+
+.compare-save-floating-secondary:hover {
+  background: #ffffff;
+  color: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.compare-floating-actions {
+  @apply fixed z-40 flex gap-2;
+  bottom: 1.5rem;
+  right: 1.5rem;
+}
+
+.compare-delete-button {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.compare-delete-button:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #ffffff;
+}
+
+/* Save modal overlay */
+.compare-save-overlay {
+  @apply fixed inset-0 z-[100] flex items-center justify-center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.compare-save-modal {
+  @apply bg-white p-6 w-full max-w-sm mx-4;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+}
+
+.compare-save-modal-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-lg font-medium mb-1;
+  color: var(--color-ink);
+}
+
+.compare-save-modal-detail {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs mb-4;
+  color: var(--color-muted);
+}
+
+.compare-save-modal-actions {
+  @apply flex gap-3 mt-4;
+}
+
+.compare-save-modal-actions .auth-button,
+.compare-save-modal-actions .auth-button-secondary {
+  @apply flex-1;
 }
 
 .compare-save-success {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-xs mb-2;
+  @apply text-sm mb-4;
   color: #16a34a;
   word-break: break-all;
+  line-height: 1.5;
 }

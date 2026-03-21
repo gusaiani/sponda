@@ -365,6 +365,132 @@ class TestSavedLists:
         response = api_client.get("/api/auth/lists/")
         assert response.status_code == 403
 
+    def test_update_list_tickers(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
+            user=user,
+            name="Original",
+            tickers=["PETR4", "VALE3"],
+            years=10,
+            share_token=SavedList.generate_share_token(),
+        )
+        response = authenticated_client.put(
+            f"/api/auth/lists/{saved_list.pk}/",
+            {"tickers": ["PETR4", "VALE3", "ITUB4"]},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["tickers"] == ["PETR4", "VALE3", "ITUB4"]
+        assert data["name"] == "Original"
+
+    def test_update_list_years(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
+            user=user,
+            name="Original",
+            tickers=["PETR4"],
+            years=10,
+            share_token=SavedList.generate_share_token(),
+        )
+        response = authenticated_client.put(
+            f"/api/auth/lists/{saved_list.pk}/",
+            {"years": 5},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.json()["years"] == 5
+
+    def test_update_list_name(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
+            user=user,
+            name="Original",
+            tickers=["PETR4"],
+            share_token=SavedList.generate_share_token(),
+        )
+        response = authenticated_client.put(
+            f"/api/auth/lists/{saved_list.pk}/",
+            {"name": "Renamed"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "Renamed"
+
+    def test_update_nonexistent_list_returns_404(self, authenticated_client):
+        response = authenticated_client.put(
+            "/api/auth/lists/99999/",
+            {"name": "Ghost"},
+            content_type="application/json",
+        )
+        assert response.status_code == 404
+
+    def test_update_list_requires_auth(self, api_client, db):
+        response = api_client.put(
+            "/api/auth/lists/1/",
+            {"name": "Hack"},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
+    def test_cannot_update_other_users_list(self, api_client, user):
+        other_user = User.objects.create_user(
+            username="other@example.com",
+            email="other@example.com",
+            password="otherpass123",
+        )
+        saved_list = SavedList.objects.create(
+            user=other_user,
+            name="Their list",
+            tickers=["PETR4"],
+            share_token=SavedList.generate_share_token(),
+        )
+        # Login as test user
+        api_client.login(username="test@example.com", password="securepass123")
+        response = api_client.put(
+            f"/api/auth/lists/{saved_list.pk}/",
+            {"name": "Stolen"},
+            content_type="application/json",
+        )
+        assert response.status_code == 404
+
+    def test_delete_nonexistent_list_returns_404(self, authenticated_client):
+        response = authenticated_client.delete("/api/auth/lists/99999/")
+        assert response.status_code == 404
+
+    def test_list_preserves_share_token_on_update(self, authenticated_client, user):
+        saved_list = SavedList.objects.create(
+            user=user,
+            name="Original",
+            tickers=["PETR4"],
+            share_token="original-token-abc",
+        )
+        response = authenticated_client.put(
+            f"/api/auth/lists/{saved_list.pk}/",
+            {"tickers": ["VALE3"]},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.json()["share_token"] == "original-token-abc"
+
+
+# ── Me endpoint ──
+
+
+class TestMeEndpoint:
+    def test_me_returns_date_joined(self, authenticated_client, user):
+        response = authenticated_client.get("/api/auth/me/")
+        assert response.status_code == 200
+        data = response.json()
+        assert "date_joined" in data
+        assert data["email"] == "test@example.com"
+
+    def test_me_returns_is_superuser_false(self, authenticated_client):
+        response = authenticated_client.get("/api/auth/me/")
+        assert response.json()["is_superuser"] is False
+
+    def test_me_sets_csrf_cookie(self, authenticated_client):
+        response = authenticated_client.get("/api/auth/me/")
+        assert response.status_code == 200
+        assert "csrftoken" in response.cookies
+
 
 # ── Feedback ──
 
