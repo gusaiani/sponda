@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
+import { useSavedComparisons } from "../hooks/useSavedComparisons";
+import { useAuth } from "../hooks/useAuth";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
@@ -80,6 +82,11 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const columns = getColumns(years);
   const dragIndexRef = useRef<number | null>(null);
   const [sort, setSort] = useState<SortState | null>(null);
+  const [saveName, setSaveName] = useState("");
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const { isAuthenticated } = useAuth();
+  const { saveComparison } = useSavedComparisons();
 
   function handleSort(key: string) {
     setSort((prev) => {
@@ -210,6 +217,64 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
           </p>
         </div>
       </div>
+
+      {/* Save comparison — only for authenticated users */}
+      {isAuthenticated && (
+        <div className="compare-save-wrapper">
+          {saveSuccess && (
+            <p className="compare-save-success">{saveSuccess}</p>
+          )}
+          {showSaveForm ? (
+            <div className="compare-save-form">
+              <input
+                type="text"
+                className="auth-input"
+                placeholder="Nome da comparação"
+                value={saveName}
+                onChange={(event) => setSaveName(event.target.value)}
+                style={{ maxWidth: "300px", fontSize: "0.8rem" }}
+              />
+              <button
+                className="auth-button"
+                style={{ maxWidth: "150px", marginTop: "0.5rem" }}
+                disabled={!saveName.trim()}
+                onClick={() => {
+                  saveComparison.mutate(
+                    { name: saveName.trim(), tickers: allTickers, years },
+                    {
+                      onSuccess: (saved) => {
+                        const shareUrl = `${window.location.origin}/shared/${saved.share_token}`;
+                        setSaveSuccess(`Salvo! Link para compartilhar: ${shareUrl}`);
+                        setShowSaveForm(false);
+                        setSaveName("");
+                      },
+                    },
+                  );
+                }}
+              >
+                Salvar
+              </button>
+              <button
+                className="auth-button-secondary"
+                style={{ maxWidth: "150px", marginTop: "0.25rem" }}
+                onClick={() => setShowSaveForm(false)}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              className="compare-save-button"
+              onClick={() => {
+                setSaveSuccess(null);
+                setShowSaveForm(true);
+              }}
+            >
+              Salvar esta comparação
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -365,7 +430,7 @@ function CompareRow({
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             )}
-            <span className="compare-company-name">{data.name}</span>
+            <span className="compare-company-name" title={data.name}>{data.name}</span>
             <span className="compare-company-ticker">{ticker}</span>
           </Link>
         </div>

@@ -1,0 +1,57 @@
+@reference "tailwindcss";
+
+.feedback-trigger {
+  font-family: 'Source Code Pro', monospace;
+  @apply fixed top-0 right-0 z-40 text-xs uppercase no-underline
+    transition-colors cursor-pointer bg-transparent border-none;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  padding: 0.5rem 1rem;
+  /* Offset below auth header */
+  top: 1.75rem;
+}
+
+.feedback-trigger:hover {
+  color: var(--color-accent);
+}
+
+.feedback-overlay {
+  @apply fixed inset-0 z-[100] flex items-center justify-center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.feedback-panel {
+  @apply relative bg-white p-8 w-full max-w-md mx-4;
+  border: 1px solid var(--color-border);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.feedback-close {
+  @apply absolute top-3 right-4 bg-transparent border-none cursor-pointer text-xl leading-none;
+  color: var(--color-muted);
+}
+
+.feedback-close:hover {
+  color: var(--color-ink);
+}
+
+.feedback-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xl font-normal mb-2;
+  color: var(--color-ink);
+}
+
+.feedback-text {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs mb-4;
+  color: var(--color-muted);
+}
+
+.feedback-success {
+  @apply text-center;
+}
+
+.feedback-success .feedback-title {
+  @apply mb-4;
+}

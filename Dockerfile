@@ -4,6 +4,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm install
 COPY frontend/ ./
+ARG GOOGLE_CLIENT_ID=""
+ENV GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
 RUN npm run build
 
 # Stage 2: Django app

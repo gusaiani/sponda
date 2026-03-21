@@ -1,9 +1,13 @@
 import { Outlet } from "@tanstack/react-router";
+import { AuthHeader } from "./components/AuthHeader";
+import { FeedbackButton } from "./components/FeedbackButton";
 import "./styles/global.css";
 
 export function App() {
   return (
     <div className="app-container">
+      <AuthHeader />
+      <FeedbackButton />
       <main className="app-main">
         <Outlet />
       </main>

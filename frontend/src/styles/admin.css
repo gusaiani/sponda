@@ -1,0 +1,160 @@
+@reference "tailwindcss";
+
+.admin-container {
+  @apply max-w-5xl mx-auto py-8 px-4;
+}
+
+.admin-back-link {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs uppercase no-underline;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.admin-back-link:hover {
+  color: var(--color-accent);
+}
+
+.admin-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-normal mb-6 mt-2;
+  color: var(--color-ink);
+}
+
+.admin-section-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-lg font-normal mt-8 mb-3;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.25rem;
+}
+
+.admin-subsection-title {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs uppercase mb-2;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.admin-text {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-sm;
+  color: var(--color-muted);
+}
+
+.admin-link {
+  @apply mt-4;
+}
+
+.admin-link a {
+  color: var(--color-accent);
+}
+
+.admin-loading {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-sm text-center py-12;
+  color: var(--color-muted);
+}
+
+/* Overview cards */
+.admin-overview-grid {
+  @apply grid grid-cols-2 gap-3;
+}
+
+@media (min-width: 640px) {
+  .admin-overview-grid {
+    @apply grid-cols-3;
+  }
+}
+
+@media (min-width: 768px) {
+  .admin-overview-grid {
+    @apply grid-cols-6;
+  }
+}
+
+.admin-overview-card {
+  @apply flex flex-col items-center justify-center p-4 bg-white;
+  border: 1px solid var(--color-border);
+}
+
+.admin-overview-value {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-medium;
+  color: var(--color-ink);
+}
+
+.admin-overview-label {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs mt-1;
+  color: var(--color-muted);
+}
+
+/* Tables */
+.admin-table-scroll {
+  @apply overflow-x-auto;
+}
+
+.admin-table {
+  @apply w-full text-left;
+  border-collapse: collapse;
+}
+
+.admin-table th {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs font-normal uppercase py-2 px-3;
+  letter-spacing: 0;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-ink);
+  white-space: nowrap;
+}
+
+.admin-table td {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-sm py-2 px-3;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.admin-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.admin-table-compact {
+  @apply text-xs;
+}
+
+.admin-table-compact td {
+  @apply py-1 px-2 text-xs;
+}
+
+.admin-email-cell {
+  @apply flex items-center gap-2;
+  min-width: 200px;
+}
+
+.admin-path-cell {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-badge {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs px-1.5 py-0.5 rounded;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 0.6rem;
+}
+
+/* Top tickers grid */
+.admin-tickers-grid {
+  @apply grid grid-cols-1 gap-4;
+}
+
+@media (min-width: 640px) {
+  .admin-tickers-grid {
+    @apply grid-cols-3;
+  }
+}

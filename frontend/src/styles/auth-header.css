@@ -1,0 +1,26 @@
+@reference "tailwindcss";
+
+.auth-header {
+  @apply fixed top-0 right-0 z-50 flex items-center gap-3 py-2 px-4;
+}
+
+.auth-header-link {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs uppercase no-underline transition-colors;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+}
+
+.auth-header-link:hover {
+  color: var(--color-accent);
+}
+
+.auth-header-signup {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.auth-header-admin {
+  color: var(--color-accent);
+  font-weight: 600;
+}

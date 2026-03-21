@@ -22,6 +22,11 @@ function devFavicon(): Plugin {
 }
 
 export default defineConfig({
+  define: {
+    __GOOGLE_CLIENT_ID__: JSON.stringify(
+      "61540815310-n311ho945gmd0d0q0kcasr6msckk8m1t.apps.googleusercontent.com"
+    ),
+  },
   plugins: [react(), tailwindcss(), devFavicon()],
   server: {
     proxy: {

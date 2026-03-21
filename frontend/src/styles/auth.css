@@ -9,6 +9,17 @@
   border: 1px solid var(--color-border);
 }
 
+.auth-logo-link {
+  @apply block text-center no-underline mb-6;
+}
+
+.auth-logo {
+  font-family: "Satoshi", sans-serif;
+  font-weight: 500;
+  font-size: 24px;
+  color: #1a2a5a;
+}
+
 .auth-title {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-2xl font-normal text-center mb-6;
@@ -38,6 +49,12 @@
   border-color: var(--color-accent);
 }
 
+.auth-hint {
+  font-family: 'Source Code Pro', monospace;
+  @apply block text-xs mt-1;
+  color: var(--color-muted);
+}
+
 .auth-button {
   font-family: 'Source Code Pro', monospace;
   @apply w-full py-2 text-xs uppercase
@@ -54,9 +71,47 @@
   color: var(--color-ink);
 }
 
+.auth-button-secondary {
+  font-family: 'Source Code Pro', monospace;
+  @apply w-full py-2 text-xs uppercase
+    transition-colors
+    disabled:opacity-50 disabled:cursor-not-allowed;
+  letter-spacing: 0;
+  background: #ffffff;
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+
+.auth-button-secondary:hover:not(:disabled) {
+  border-color: var(--color-ink);
+}
+
+.auth-divider {
+  @apply flex items-center my-4;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  @apply flex-1;
+  border-top: 1px solid var(--color-border);
+}
+
+.auth-divider-text {
+  font-family: 'Source Code Pro', monospace;
+  @apply px-3 text-xs;
+  color: var(--color-muted);
+}
+
 .auth-error {
   @apply text-sm text-center;
   color: #dc2626;
+}
+
+.auth-success-text {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-sm text-center mb-4;
+  color: var(--color-muted);
 }
 
 .auth-link {
@@ -72,6 +127,40 @@
   text-decoration: underline;
 }
 
+/* Checkbox */
+.auth-checkbox-label {
+  font-family: 'Source Code Pro', monospace;
+  @apply flex items-start gap-2 text-xs cursor-pointer;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+
+.auth-checkbox {
+  @apply mt-0.5 flex-shrink-0;
+  accent-color: var(--color-accent);
+}
+
+/* Google OAuth button */
+.auth-google-icon {
+  @apply w-4 h-4 mr-2 inline-block;
+  vertical-align: middle;
+}
+
+/* Textarea for feedback */
+.auth-textarea {
+  font-family: 'Source Code Pro', monospace;
+  @apply w-full px-4 py-2 focus:outline-none;
+  border: 1px solid var(--color-border);
+  color: var(--color-ink);
+  min-height: 120px;
+  resize: vertical;
+}
+
+.auth-textarea:focus {
+  border-color: var(--color-accent);
+}
+
+/* Quota alert */
 .quota-alert {
   @apply max-w-2xl mx-auto p-4 mb-6 text-center;
   background: #fffbeb;

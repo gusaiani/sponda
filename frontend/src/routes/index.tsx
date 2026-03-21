@@ -1,12 +1,15 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { SearchBar } from "../components/SearchBar";
+import { FavoriteCompanies } from "../components/FavoriteCompanies";
 import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
+import { useAuth } from "../hooks/useAuth";
 
 export function HomePage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   function handleSearch(newTicker: string) {
     queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
@@ -21,6 +24,8 @@ export function HomePage() {
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
       <SearchBar onSearch={handleSearch} isLoading={false} autoFocus />
+
+      {isAuthenticated && <FavoriteCompanies />}
 
       <PopularCompanies />
 

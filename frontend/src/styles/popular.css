@@ -38,3 +38,11 @@
   letter-spacing: 0;
   color: var(--color-muted);
 }
+
+.favorites-section-title {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs uppercase text-center mb-2;
+  letter-spacing: 0.06em;
+  color: var(--color-muted);
+  margin-top: 72px;
+}

@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTickers, TickerItem } from "../hooks/useTickers";
+import { useFavorites } from "../hooks/useFavorites";
+import { useAuth } from "../hooks/useAuth";
 import "../styles/popular.css";
 
 const POPULAR_SYMBOLS = [
@@ -16,37 +18,46 @@ const POPULAR_SYMBOLS = [
 
 export function PopularCompanies() {
   const { data: tickers = [] } = useTickers();
+  const { isAuthenticated } = useAuth();
+  const { favoriteTickers } = useFavorites();
 
   const companies = useMemo(() => {
-    const map = new Map<string, TickerItem>();
-    for (const t of tickers) map.set(t.symbol, t);
-    return POPULAR_SYMBOLS.map((s) => map.get(s)).filter(Boolean) as TickerItem[];
-  }, [tickers]);
+    const tickerMap = new Map<string, TickerItem>();
+    for (const ticker of tickers) tickerMap.set(ticker.symbol, ticker);
+
+    // Exclude favorited companies from the standard list when user is logged in
+    const favoriteSet = isAuthenticated ? new Set(favoriteTickers) : new Set<string>();
+
+    return POPULAR_SYMBOLS
+      .filter((symbol) => !favoriteSet.has(symbol))
+      .map((symbol) => tickerMap.get(symbol))
+      .filter(Boolean) as TickerItem[];
+  }, [tickers, isAuthenticated, favoriteTickers]);
 
   if (companies.length === 0) return null;
 
   return (
     <div className="popular-grid">
-      {companies.map((c) => (
+      {companies.map((company) => (
         <Link
-          key={c.symbol}
+          key={company.symbol}
           to="/$ticker"
-          params={{ ticker: c.symbol }}
+          params={{ ticker: company.symbol }}
           className="popular-item"
         >
-          {c.logo ? (
+          {company.logo ? (
             <img
               className="popular-logo"
-              src={c.logo}
+              src={company.logo}
               alt=""
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
+              onError={(event) => {
+                (event.target as HTMLImageElement).style.display = "none";
               }}
             />
           ) : (
             <div className="popular-logo-placeholder" />
           )}
-          <span className="popular-name">{c.symbol}</span>
+          <span className="popular-name">{company.symbol}</span>
         </Link>
       ))}
     </div>

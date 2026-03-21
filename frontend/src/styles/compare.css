@@ -261,3 +261,30 @@
 .compare-slider-wrapper {
   @apply max-w-md mx-auto mt-6;
 }
+
+/* Save comparison */
+.compare-save-wrapper {
+  @apply max-w-md mx-auto mt-4 text-center;
+}
+
+.compare-save-button {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs uppercase cursor-pointer bg-transparent border-none transition-colors;
+  letter-spacing: 0.06em;
+  color: var(--color-accent);
+}
+
+.compare-save-button:hover {
+  text-decoration: underline;
+}
+
+.compare-save-form {
+  @apply flex flex-col items-center gap-1;
+}
+
+.compare-save-success {
+  font-family: 'Source Code Pro', monospace;
+  @apply text-xs mb-2;
+  color: #16a34a;
+  word-break: break-all;
+}

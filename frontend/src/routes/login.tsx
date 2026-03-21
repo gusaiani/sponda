@@ -2,66 +2,38 @@ import { useState, FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import "../styles/auth.css";
 
-export function SignupPage() {
+export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [allowContact, setAllowContact] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-
-    if (password !== confirmPassword) {
-      setError("As senhas não coincidem");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth/signup/", {
+      const response = await fetch("/api/auth/login/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password, allow_contact: allowContact }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        const firstError = Object.values(data).flat()[0];
-        setError(String(firstError) || "Erro ao criar conta");
+        setError(data.error || "Email ou senha incorretos");
         return;
       }
 
-      setSuccess(true);
+      // Redirect to home after successful login
+      window.location.href = "/";
     } catch {
       setError("Erro de conexão. Tente novamente.");
     } finally {
       setLoading(false);
     }
-  }
-
-  if (success) {
-    return (
-      <div className="auth-container">
-        <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
-            <span className="auth-logo">SPONDA</span>
-          </Link>
-          <h1 className="auth-title">Conta criada!</h1>
-          <p className="auth-success-text">
-            Sua conta foi criada e você já está logado.
-          </p>
-          <p className="auth-link">
-            <Link to="/">Ir para a página inicial</Link>
-          </p>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -70,7 +42,7 @@ export function SignupPage() {
         <Link to="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
-        <h1 className="auth-title">Criar Conta</h1>
+        <h1 className="auth-title">Entrar</h1>
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
             <label className="auth-label" htmlFor="email">
@@ -96,45 +68,23 @@ export function SignupPage() {
               className="auth-input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              minLength={8}
-              required
-            />
-            <span className="auth-hint">Mínimo 8 caracteres</span>
-          </div>
-          <div>
-            <label className="auth-label" htmlFor="confirm-password">
-              Confirmar Senha
-            </label>
-            <input
-              id="confirm-password"
-              type="password"
-              className="auth-input"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              minLength={8}
               required
             />
           </div>
-          <label className="auth-checkbox-label">
-            <input
-              type="checkbox"
-              checked={allowContact}
-              onChange={(e) => setAllowContact(e.target.checked)}
-              className="auth-checkbox"
-            />
-            Aceito receber atualizações e novidades da Sponda por email
-          </label>
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? "Criando…" : "Criar Conta"}
+            {loading ? "Entrando…" : "Entrar"}
           </button>
         </form>
+        <p className="auth-link">
+          <Link to="/forgot-password">Esqueci minha senha</Link>
+        </p>
         <div className="auth-divider">
           <span className="auth-divider-text">ou</span>
         </div>
         <GoogleSignInButton />
         <p className="auth-link">
-          Já tem conta? <Link to="/login">Entrar</Link>
+          Não tem conta? <Link to="/signup">Criar conta</Link>
         </p>
       </div>
     </div>
@@ -142,7 +92,9 @@ export function SignupPage() {
 }
 
 function GoogleSignInButton() {
-  function handleGoogleSignup() {
+  function handleGoogleLogin() {
+    // The Google Client ID must be configured in the environment
+    // This opens Google's OAuth consent screen
     const clientId = typeof __GOOGLE_CLIENT_ID__ !== "undefined" ? __GOOGLE_CLIENT_ID__ : "";
     if (!clientId) return;
 
@@ -157,7 +109,7 @@ function GoogleSignInButton() {
     <button
       type="button"
       className="auth-button-secondary"
-      onClick={handleGoogleSignup}
+      onClick={handleGoogleLogin}
       style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}
     >
       <svg className="auth-google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -166,7 +118,7 @@ function GoogleSignInButton() {
         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
       </svg>
-      Criar conta com Google
+      Entrar com Google
     </button>
   );
 }

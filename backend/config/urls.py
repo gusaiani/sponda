@@ -9,6 +9,8 @@ from django.urls import include, path, re_path
 # Matches ticker-style URL paths like /PETR4, /VALE3, /BBAS3
 # Also matches sub-paths like /PETR4/graficos, /PETR4/comparar
 _TICKER_RE = re.compile(r"^([A-Za-z]{4}\d{1,2})(?:/(?:graficos|comparar))?$")
+# Frontend SPA routes that should NOT be treated as static file paths
+_SPA_ROUTES = {"login", "signup", "forgot-password", "reset-password", "account", "shared"}
 
 _BASE_URL = "https://sponda.com.br"
 

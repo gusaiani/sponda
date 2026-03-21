@@ -1,0 +1,18 @@
+@reference "tailwindcss";
+
+.favorite-button {
+  @apply bg-transparent border-none cursor-pointer text-xl leading-none p-1 transition-colors;
+  color: var(--color-muted);
+}
+
+.favorite-button:hover {
+  color: var(--color-accent);
+}
+
+.favorite-button-active {
+  color: #f59e0b;
+}
+
+.favorite-button-active:hover {
+  color: #d97706;
+}

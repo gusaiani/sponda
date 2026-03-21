@@ -10,6 +10,7 @@ import { usePE10, fetchQuote } from "../hooks/usePE10";
 import { useTickers } from "../hooks/useTickers";
 import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
 import { deriveForYears } from "../hooks/deriveForYears";
+import { FavoriteButton } from "../components/FavoriteButton";
 import { getSectorPeers } from "../utils/subsector";
 import "../styles/chart.css";
 
@@ -140,6 +141,9 @@ export function TickerPage() {
       </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
 
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+        <FavoriteButton ticker={upperTicker} />
+      </div>
       <SearchBar onSearch={handleSearch} isLoading={isLoading} />
 
       {/* Tabs */}
