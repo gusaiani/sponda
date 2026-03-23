@@ -234,6 +234,111 @@ class TestPE10Endpoint:
         assert data["leverageError"] is not None
 
 
+class TestFundamentalsEndpoint:
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_per_year_data(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_cash_flows, sample_balance_sheet, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/fundamentals/")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) > 0
+        # Years sorted descending
+        years = [row["year"] for row in data]
+        assert years == sorted(years, reverse=True)
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_includes_balance_sheet_fields(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_balance_sheet, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/fundamentals/")
+        data = response.json()
+        year_2025 = next(row for row in data if row["year"] == 2025)
+        assert year_2025["totalDebt"] == 300_000_000_000
+        assert year_2025["totalLiabilities"] == 500_000_000_000
+        assert year_2025["stockholdersEquity"] == 200_000_000_000
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_includes_earnings_and_cash_flow(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_cash_flows, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/fundamentals/")
+        data = response.json()
+        year_2024 = next(row for row in data if row["year"] == 2024)
+        assert year_2024["netIncome"] is not None
+        assert year_2024["fcf"] is not None
+        assert year_2024["operatingCashFlow"] is not None
+        assert year_2024["quarters"] == 4
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_has_cache_header(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/fundamentals/")
+        assert "max-age=3600" in response["Cache-Control"]
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_404_for_unknown_ticker(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, db
+    ):
+        from quotes.brapi import BRAPIError
+        mock_quote.side_effect = BRAPIError("No results for ticker FAKE3")
+        response = api_client.get("/api/quote/FAKE3/fundamentals/")
+        assert response.status_code == 404
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_returns_empty_list_without_data(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, db, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/fundamentals/")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_ticker_is_uppercased(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/petr4/fundamentals/")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) > 0
+
+
 MOCK_HISTORICAL_PRICES = [
     {"date": 1704067200, "adjustedClose": 30.0},  # 2024-01-01
     {"date": 1706745600, "adjustedClose": 32.0},  # 2024-02-01
