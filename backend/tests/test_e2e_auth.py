@@ -259,13 +259,13 @@ class TestAuthModalFromFavorite:
 
     def test_modal_appears_on_star_click(self, page: Page, url):
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=5000)
 
     def test_modal_login_wrong_password_shows_error(self, page: Page, url, test_user):
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
@@ -278,7 +278,7 @@ class TestAuthModalFromFavorite:
 
     def test_modal_login_then_favorites(self, page: Page, url, test_user):
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
@@ -292,7 +292,7 @@ class TestAuthModalFromFavorite:
 
     def test_modal_signup_then_favorites(self, page: Page, url):
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
@@ -313,7 +313,7 @@ class TestAuthModalFromFavorite:
 
     def test_modal_close_on_overlay_click(self, page: Page, url):
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
@@ -323,7 +323,7 @@ class TestAuthModalFromFavorite:
 
     def test_modal_close_on_x_button(self, page: Page, url):
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 

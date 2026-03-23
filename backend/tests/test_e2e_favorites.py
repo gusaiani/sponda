@@ -128,7 +128,7 @@ class TestFavorites:
         # Navigate to a company page
         page.goto(f"{url}/PETR4")
         # Wait for the card to load
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
         # Star button should be visible
         favorite_button = page.locator(".favorite-button")
@@ -137,7 +137,7 @@ class TestFavorites:
     def test_favorite_star_visible_when_logged_out(self, page: Page, url):
         """Star should be visible even when not logged in."""
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
         favorite_button = page.locator(".favorite-button")
         expect(favorite_button).to_be_visible()
@@ -145,7 +145,7 @@ class TestFavorites:
     def test_star_click_when_logged_out_shows_auth_modal(self, page: Page, url):
         """Clicking the star when not logged in should show the auth modal."""
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
         page.locator(".favorite-button").click()
 
@@ -157,7 +157,7 @@ class TestFavorites:
     def test_auth_modal_login_then_favorites(self, page: Page, url, test_user):
         """Login via auth modal should complete the favorite action."""
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
         # Click star while logged out
         page.locator(".favorite-button").click()
@@ -176,7 +176,7 @@ class TestFavorites:
         login_via_ui(page, url, "test@example.com", "testpass123")
 
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
 
         favorite_button = page.locator(".favorite-button")
@@ -196,7 +196,7 @@ class TestFavorites:
 
         # Favorite PETR4
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=5000)
 
@@ -214,7 +214,7 @@ class TestFavorites:
 
         # Favorite
         page.goto(f"{url}/PETR4")
-        expect(page.locator(".pe10-name")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.locator(".favorite-button").click()
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=5000)
 
