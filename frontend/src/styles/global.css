@@ -107,6 +107,47 @@
   color: var(--color-muted);
 }
 
+/* Company header (above tabs) */
+.company-header {
+  @apply flex items-center justify-between mb-6;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .company-header {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.company-header-left {
+  @apply flex items-center;
+  min-width: 0;
+}
+
+.company-header-logo {
+  @apply w-8 h-8 rounded-full object-cover mr-3;
+  flex-shrink: 0;
+}
+
+.company-header-name {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-semibold flex-1;
+  color: var(--color-ink);
+}
+
+.company-header-ticker {
+  @apply font-normal text-sm;
+  color: var(--color-muted);
+  position: relative;
+  top: -1px;
+}
+
 .app-footer {
   @apply py-8 px-6 text-center;
 }

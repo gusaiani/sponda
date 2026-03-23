@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .brapi import BRAPIError, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .fundamentals import compute_fundamentals
 from .leverage import calculate_leverage
 from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
@@ -282,6 +283,42 @@ class MultiplesHistoryView(APIView):
         )
 
         response = Response(result)
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
+class FundamentalsView(APIView):
+    """Return per-year fundamental data for the Fundamentos tab."""
+
+    def get(self, request, ticker):
+        ticker = ticker.upper()
+
+        _ensure_fresh_data(ticker)
+
+        try:
+            quote = fetch_quote(ticker)
+        except BRAPIError as e:
+            msg = str(e)
+            if "No results" in msg:
+                return Response(
+                    {"error": f'Ticker "{ticker}" não encontrado.'},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            return Response(
+                {"error": "Não foi possível obter os dados no momento. Tente novamente mais tarde."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        market_cap = quote.get("marketCap")
+        current_price = quote.get("regularMarketPrice")
+
+        fundamentals = compute_fundamentals(
+            ticker,
+            market_cap=float(market_cap) if market_cap else None,
+            current_price=float(current_price) if current_price else None,
+        )
+
+        response = Response(fundamentals)
         response["Cache-Control"] = "public, max-age=3600"
         return response
 

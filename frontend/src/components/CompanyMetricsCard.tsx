@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { FavoriteButton } from "./FavoriteButton";
 import "../styles/card.css";
 
 interface QuarterlyEarningsDetail {
@@ -720,27 +719,12 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange }: Com
 
   return (
     <article className="pe10-card" aria-label={`Indicadores de ${data.name} (${data.ticker})`}>
-      <header className="pe10-card-header">
-        <div className="pe10-card-header-left">
-          {data.logo && (
-            <img
-              className="pe10-logo"
-              src={data.logo}
-              alt={`Logo ${data.name}`}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-          )}
-          <h2 className="pe10-name">{data.name} <span className="pe10-ticker">· {data.ticker}</span></h2>
-        </div>
-        <FavoriteButton ticker={data.ticker} />
-      </header>
-
       {/* ── Section: Dívida ── */}
       <div className="card-section">
         <div className="card-section-heading">Endividamento</div>
 
-        {/* Leverage ratios */}
-        <div className={`metrics-row leverage-row-top ${data.debtExLeaseToEquity !== null ? "leverage-row-3col" : ""}`}>
+        {/* All 5 leverage indicators in one row */}
+        <div className="metrics-row leverage-row-5col">
           <div className="metric-block">
             <div className="metric-value-container">
               <div className="pe10-label">Dív. Bruta / PL <InfoBtn onClick={() => open("debtToEquity")} /></div>
@@ -769,10 +753,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange }: Com
               )}
             </div>
           </div>
-        </div>
-
-        {/* Debt coverage */}
-        <div className="metrics-row leverage-row">
           <div className="metric-block">
             <div className="metric-value-container">
               <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média {data.pe10YearsOfData}a</span> <InfoBtn onClick={() => open("debtToEarnings")} /></div>
@@ -800,8 +780,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange }: Com
       <div className="card-section">
         <div className="card-section-heading">Preço em relação a {years} {years === 1 ? "ano" : "anos"} de resultados</div>
 
-        {/* Earnings row: P/L10, PEG, CAGR Lucros */}
-        <div className="metrics-row valuation-row">
+        {/* All 6 valuation indicators in one row */}
+        <div className="metrics-row valuation-row-6col">
           <div className="metric-block">
             <div className="metric-value-container">
               <div className="pe10-label">{pl10Label} <InfoBtn onClick={() => open("pl10")} /></div>
@@ -832,10 +812,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange }: Com
               )}
             </div>
           </div>
-        </div>
-
-        {/* FCF row: P/FCL10, PFCLG, CAGR FCL */}
-        <div className="metrics-row valuation-row">
           <div className="metric-block">
             <div className="metric-value-container">
               <div className="pe10-label">{pfcl10Label} <InfoBtn onClick={() => open("pfcl10")} /></div>

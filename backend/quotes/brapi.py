@@ -104,12 +104,18 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         if net_income_raw is not None:
             net_income_value = int(net_income_raw)
 
+        revenue_value = None
+        revenue_raw = stmt.get("totalRevenue")
+        if revenue_raw is not None:
+            revenue_value = int(revenue_raw)
+
         obj, _ = QuarterlyEarnings.objects.update_or_create(
             ticker=ticker.upper(),
             end_date=end_date,
             defaults={
                 "eps": eps_value,
                 "net_income": net_income_value,
+                "revenue": revenue_value,
             },
         )
         earnings.append(obj)
@@ -169,12 +175,17 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         if investment_cf is not None:
             investment_cf = int(investment_cf)
 
+        dividends_paid = stmt.get("dividendsPaid")
+        if dividends_paid is not None:
+            dividends_paid = int(dividends_paid)
+
         obj, _ = QuarterlyCashFlow.objects.update_or_create(
             ticker=ticker.upper(),
             end_date=end_date,
             defaults={
                 "operating_cash_flow": operating_cf,
                 "investment_cash_flow": investment_cf,
+                "dividends_paid": dividends_paid,
             },
         )
         cash_flows.append(obj)
@@ -297,6 +308,10 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         if equity is not None:
             equity = int(equity)
 
+        current_assets = stmt.get("currentAssets")
+        if current_assets is not None:
+            current_assets = int(current_assets)
+
         obj, _ = BalanceSheet.objects.update_or_create(
             ticker=ticker.upper(),
             end_date=end_date,
@@ -305,6 +320,8 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
                 "total_lease": total_lease,
                 "total_liabilities": total_liab,
                 "stockholders_equity": equity,
+                "current_assets": current_assets,
+                "current_liabilities": int(current_liab) if current_liab is not None else None,
             },
         )
         sheets.append(obj)

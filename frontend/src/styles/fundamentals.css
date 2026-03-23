@@ -1,0 +1,184 @@
+@reference "tailwindcss";
+
+/* Container — breaks out of .app-main max-width like compare tab */
+.fundamentals-container {
+  @apply py-6;
+  background: #ffffff;
+  border: none;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .fundamentals-container {
+    @apply py-8;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Scroll wrapper */
+.fundamentals-scroll-wrapper {
+  @apply mx-auto overflow-x-auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Table */
+.fundamentals-table {
+  @apply w-full text-left;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 800px;
+}
+
+/* Group header row */
+.fundamentals-group-row th {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs font-normal py-2 px-2;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-accent);
+  white-space: nowrap;
+}
+
+.fundamentals-group-row th:first-child {
+  border-bottom-color: transparent;
+}
+
+/* Column header row */
+.fundamentals-table thead tr:last-child th {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-[10px] font-normal uppercase py-2 px-2;
+  letter-spacing: 0;
+  color: var(--color-muted);
+  border-bottom: 1px solid var(--color-ink);
+  white-space: nowrap;
+}
+
+/* Sticky first column (year) */
+.fundamentals-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #ffffff;
+  min-width: 80px;
+  max-width: 120px;
+}
+
+.fundamentals-sticky-col::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to right, rgba(0,0,0,0.04), transparent);
+  pointer-events: none;
+}
+
+/* Data cells */
+.fundamentals-table td {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm py-2.5 px-2;
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.fundamentals-table tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.fundamentals-table tbody tr:hover .fundamentals-sticky-col {
+  background: #f8fafc;
+}
+
+/* Year cell */
+.fundamentals-year {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm font-medium;
+  color: var(--color-ink);
+}
+
+.fundamentals-partial {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-[10px] font-normal ml-1;
+  color: var(--color-muted);
+}
+
+/* Null values */
+.fundamentals-null {
+  color: var(--color-muted);
+  font-style: italic;
+  font-size: 0.7rem;
+}
+
+/* Negative values */
+.fundamentals-negative {
+  color: #dc2626;
+}
+
+/* Loading state */
+.fundamentals-loading {
+  @apply py-6 animate-pulse;
+  background: #ffffff;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.fundamentals-loading-bar {
+  @apply h-8 bg-gray-200 rounded mb-3;
+  max-width: 90%;
+}
+
+.fundamentals-loading-bar-sm {
+  @apply h-6 bg-gray-100 rounded mb-2;
+  max-width: 70%;
+}
+
+/* Error */
+.fundamentals-error {
+  @apply text-center italic py-8;
+  font-size: 0.7rem;
+  color: var(--color-muted);
+}
+
+/* Toggle for nominal vs adjusted */
+.fundamentals-toggle-wrapper {
+  @apply flex justify-end mb-3 gap-1;
+}
+
+.fundamentals-toggle-pill {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-[10px] font-normal px-3 py-1 cursor-pointer
+    border transition-colors rounded-full uppercase;
+  border-color: var(--color-border);
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.fundamentals-toggle-pill:hover {
+  color: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.fundamentals-toggle-pill-active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.fundamentals-toggle-pill-active:hover {
+  background: #172e6e;
+  border-color: #172e6e;
+  color: #ffffff;
+}

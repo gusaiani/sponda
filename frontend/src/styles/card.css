@@ -1,44 +1,23 @@
 @reference "tailwindcss";
 
 .pe10-card {
-  @apply max-w-3xl mx-auto px-2 py-6;
+  @apply py-6;
   background: #ffffff;
   border: none;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 @media (min-width: 640px) {
   .pe10-card {
-    @apply p-8 rounded-xl;
-    border: 1px solid #d8e0ee;
+    @apply py-8;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
-}
-
-.pe10-card-header {
-  @apply flex items-center justify-between;
-  margin-bottom: 3.4rem;
-}
-
-.pe10-card-header-left {
-  @apply flex items-center;
-  min-width: 0;
-}
-
-.pe10-logo {
-  @apply w-8 h-8 rounded-full object-cover mr-3;
-  flex-shrink: 0;
-}
-
-.pe10-ticker {
-  @apply font-normal text-sm;
-  color: var(--color-muted);
-  position: relative;
-  top: -1px;
-}
-
-.pe10-name {
-  font-family: 'Inter', system-ui, sans-serif;
-  @apply text-2xl font-semibold flex-1;
-  color: var(--color-ink);
 }
 
 /* Section groupings */
@@ -57,7 +36,8 @@
 
 /* Years slider */
 .years-slider {
-  @apply mt-5 pt-4;
+  @apply mt-5 pt-4 mx-auto;
+  max-width: 28rem;
 }
 
 .years-slider-track {
@@ -226,27 +206,21 @@
   color: var(--color-ink);
 }
 
+/* 5-column leverage row */
 @media (min-width: 640px) {
-  .leverage-row-3col {
-    @apply grid-cols-3;
+  .leverage-row-5col {
+    @apply grid-cols-5;
   }
 }
 
-.leverage-row-top .pe10-value {
+.leverage-row-5col .pe10-value {
   @apply text-4xl;
 }
 
-.leverage-row {
-  @apply mt-0;
-}
-
-.leverage-row .pe10-value {
-  @apply text-4xl;
-}
-
+/* 6-column valuation row */
 @media (min-width: 640px) {
-  .valuation-row {
-    @apply grid-cols-3;
+  .valuation-row-6col {
+    @apply grid-cols-6;
   }
 }
 
@@ -337,16 +311,22 @@
 }
 
 .pe10-loading {
-  @apply max-w-3xl mx-auto px-2 py-6
-    animate-pulse;
+  @apply py-6 animate-pulse;
   background: #ffffff;
   border: none;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 @media (min-width: 640px) {
   .pe10-loading {
-    @apply p-8 rounded-xl;
-    border: 1px solid var(--color-border);
+    @apply py-8;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }
 
