@@ -20,3 +20,23 @@
   color: #d97706;
   transform: scale(1.2);
 }
+
+/* Prominent variant — shown to unauthenticated users or those with < 3 favorites */
+.favorite-button-prominent {
+  @apply flex items-center gap-2 border-none cursor-pointer font-semibold text-sm rounded-lg px-4 py-2 transition-all;
+  background-color: #f59e0b;
+  color: #1a1a1a;
+}
+
+.favorite-button-prominent:hover {
+  background-color: #d97706;
+  transform: scale(1.04);
+}
+
+.favorite-button-prominent-star {
+  @apply text-lg leading-none;
+}
+
+.favorite-button-prominent-label {
+  @apply whitespace-nowrap;
+}
