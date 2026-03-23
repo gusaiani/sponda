@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useAuth } from "../hooks/useAuth";
+import { useFavorites } from "../hooks/useFavorites";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br } from "../utils/format";
@@ -92,6 +93,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const [renameName, setRenameName] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
   const { isAuthenticated } = useAuth();
+  const { favorites } = useFavorites();
   const { saveList, updateList, deleteList, lists } = useSavedLists();
   const queryClient = useQueryClient();
   // Find existing list: by explicit ID (from URL param) or by matching tickers
@@ -290,7 +292,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
         ) : (
           <div className="compare-floating-actions">
             <button
-              className="compare-save-floating"
+              className={`compare-save-floating ${!isAuthenticated || favorites.length < 3 ? "compare-save-floating-prominent" : ""}`}
               onClick={() => {
                 if (!isAuthenticated) {
                   setShowAuthModal(true);

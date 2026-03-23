@@ -310,6 +310,18 @@
   border-color: #dc2626;
 }
 
+.compare-save-floating-prominent {
+  background-color: #f59e0b;
+  color: #1a1a1a;
+  border-color: #f59e0b;
+  font-weight: 600;
+}
+
+.compare-save-floating-prominent:hover {
+  background-color: #d97706;
+  border-color: #d97706;
+}
+
 .compare-delete-button {
   background: #dc2626;
   border-color: #dc2626;
