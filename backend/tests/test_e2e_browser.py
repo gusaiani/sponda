@@ -162,7 +162,7 @@ class TestBrowserSearch:
         page.locator("button[type='submit']").click()
 
         # Wait for card, then click first "Entenda melhor"
-        expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
         page.locator(".info-btn").first.click()
 
         # Modal should appear with explainer content
@@ -174,7 +174,7 @@ class TestBrowserSearch:
         page.locator("input[placeholder*='Ticker']").fill("VALE3")
         page.locator("button[type='submit']").click()
 
-        expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
+        expect(page.locator(".company-header-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
         page.locator(".info-btn").first.click()
         expect(page.locator(".modal-overlay")).to_be_visible()
 
