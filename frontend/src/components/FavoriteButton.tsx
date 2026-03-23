@@ -11,11 +11,12 @@ interface FavoriteButtonProps {
 
 export function FavoriteButton({ ticker }: FavoriteButtonProps) {
   const { isAuthenticated } = useAuth();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { isFavorite, toggleFavorite, favorites } = useFavorites();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const queryClient = useQueryClient();
 
   const favorited = isAuthenticated && isFavorite(ticker);
+  const showProminent = !favorited && (!isAuthenticated || favorites.length < 3);
 
   function handleClick() {
     if (!isAuthenticated) {
@@ -31,6 +32,29 @@ export function FavoriteButton({ ticker }: FavoriteButtonProps) {
     queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(() => {
       toggleFavorite(ticker);
     });
+  }
+
+  if (showProminent) {
+    return (
+      <>
+        <button
+          className="favorite-button-prominent"
+          onClick={handleClick}
+          aria-label="Adicionar a Favoritos"
+          title="Adicionar a Favoritos"
+        >
+          <span className="favorite-button-prominent-star">☆</span>
+          <span className="favorite-button-prominent-label">Adicionar a Favoritos</span>
+        </button>
+
+        {showAuthModal && (
+          <AuthModal
+            onSuccess={handleAuthSuccess}
+            onClose={() => setShowAuthModal(false)}
+          />
+        )}
+      </>
+    );
   }
 
   return (

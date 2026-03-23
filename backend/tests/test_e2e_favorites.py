@@ -122,7 +122,7 @@ class TestFavorites:
     def test_favorite_star_appears_for_logged_in_user(
         self, page: Page, url, test_user
     ):
-        """Star should be visible on the company card when logged in."""
+        """Prominent favorite button should be visible when logged in with < 3 favorites."""
         login_via_ui(page, url, "test@example.com", "testpass123")
 
         # Navigate to a company page
@@ -130,24 +130,26 @@ class TestFavorites:
         # Wait for the card to load
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        # Star button should be visible
-        favorite_button = page.locator(".favorite-button")
+        # Prominent button should be visible (user has 0 favorites)
+        favorite_button = page.locator(".favorite-button-prominent")
         expect(favorite_button).to_be_visible()
+        expect(favorite_button).to_contain_text("Adicionar a Favoritos")
 
     def test_favorite_star_visible_when_logged_out(self, page: Page, url):
-        """Star should be visible even when not logged in."""
+        """Prominent favorite button should be visible when not logged in."""
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        favorite_button = page.locator(".favorite-button")
+        favorite_button = page.locator(".favorite-button-prominent")
         expect(favorite_button).to_be_visible()
+        expect(favorite_button).to_contain_text("Adicionar a Favoritos")
 
     def test_star_click_when_logged_out_shows_auth_modal(self, page: Page, url):
-        """Clicking the star when not logged in should show the auth modal."""
+        """Clicking the prominent button when not logged in should show the auth modal."""
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
 
         # Auth modal should appear with login/signup toggle
         expect(page.locator(".auth-mode-toggle")).to_be_visible(timeout=5000)
@@ -159,8 +161,8 @@ class TestFavorites:
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        # Click star while logged out
-        page.locator(".favorite-button").click()
+        # Click prominent button while logged out
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".auth-mode-toggle")).to_be_visible(timeout=5000)
 
         # Login in the modal
@@ -172,21 +174,23 @@ class TestFavorites:
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=10000)
 
     def test_clicking_star_favorites_company(self, page: Page, url, test_user):
-        """Clicking the star should toggle it to active (golden)."""
+        """Clicking the prominent button should favorite the company."""
         login_via_ui(page, url, "test@example.com", "testpass123")
 
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
 
-        favorite_button = page.locator(".favorite-button")
+        # User has 0 favorites, so prominent button is shown
+        favorite_button = page.locator(".favorite-button-prominent")
         expect(favorite_button).to_be_visible()
-        expect(favorite_button).to_have_text("☆")
 
         favorite_button.click()
 
-        expect(favorite_button).to_have_text("★", timeout=10000)
-        expect(favorite_button).to_have_class(re.compile("favorite-button-active"))
+        # After favoriting, it switches to the compact active button
+        compact_button = page.locator(".favorite-button-active")
+        expect(compact_button).to_be_visible(timeout=10000)
+        expect(compact_button).to_have_text("★")
 
     def test_favorited_company_appears_on_homepage(
         self, page: Page, url, test_user
@@ -197,7 +201,7 @@ class TestFavorites:
         # Favorite PETR4
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=5000)
 
         # Go home
@@ -215,14 +219,14 @@ class TestFavorites:
         # Favorite
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=5000)
 
-        # Unfavorite
-        page.locator(".favorite-button").click()
-        expect(page.locator(".favorite-button")).not_to_have_class(
-            re.compile("favorite-button-active"), timeout=5000
-        )
+        # Unfavorite — now the compact active button is visible
+        page.locator(".favorite-button-active").click()
+
+        # Should revert to prominent (since user now has 0 favorites again)
+        expect(page.locator(".favorite-button-prominent")).to_be_visible(timeout=5000)
 
         # Go home — should NOT see favorites section
         page.goto(url)
