@@ -122,11 +122,11 @@ class TestBrowserSearch:
         page.locator("input[placeholder*='Ticker']").fill("VALE3")
         page.locator("button[type='submit']").click()
 
-        # Wait for the PE10 card to appear with ticker
-        expect(page.locator(".pe10-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
+        # Wait for the company header to appear with ticker
+        expect(page.locator(".company-header-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
 
         # Should show the company name
-        expect(page.locator(".pe10-name", has_text="Test Company VALE3")).to_be_visible()
+        expect(page.locator(".company-header-name", has_text="Test Company VALE3")).to_be_visible()
 
         # Should show P/L10 label
         expect(page.locator(".pe10-label", has_text="P/L10")).to_be_visible()
