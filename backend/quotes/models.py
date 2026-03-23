@@ -6,6 +6,10 @@ class QuarterlyEarnings(models.Model):
     ticker = models.CharField(max_length=10, db_index=True)
     end_date = models.DateField()
     net_income = models.BigIntegerField(null=True, blank=True)
+    revenue = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Receita líquida (totalRevenue from BRAPI)",
+    )
     eps = models.DecimalField(
         max_digits=20, decimal_places=6, null=True, blank=True,
         help_text="basicEarningsPerCommonShare from BRAPI",
@@ -39,6 +43,10 @@ class QuarterlyCashFlow(models.Model):
     end_date = models.DateField()
     operating_cash_flow = models.BigIntegerField(null=True, blank=True)
     investment_cash_flow = models.BigIntegerField(null=True, blank=True)
+    dividends_paid = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Dividendos pagos (dividendsPaid from BRAPI, negative value)",
+    )
     fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -67,6 +75,14 @@ class BalanceSheet(models.Model):
     stockholders_equity = models.BigIntegerField(
         null=True, blank=True,
         help_text="Patrimônio líquido",
+    )
+    current_assets = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Ativo circulante",
+    )
+    current_liabilities = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Passivo circulante",
     )
     fetched_at = models.DateTimeField(auto_now=True)
 

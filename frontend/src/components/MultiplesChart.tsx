@@ -71,18 +71,11 @@ function MultipleTooltip({
   );
 }
 
-interface CompanyInfo {
-  ticker: string;
-  name: string;
-  logo: string;
-}
-
 interface Props {
   data: MultiplesHistoryResult;
-  company: CompanyInfo;
 }
 
-export function MultiplesChart({ data, company }: Props) {
+export function MultiplesChart({ data }: Props) {
   const [activeMultiple, setActiveMultiple] = useState<MultipleType>("pl");
   const [showPriceInfo, setShowPriceInfo] = useState(false);
   const [hoveredYear, setHoveredYear] = useState<number | null>(null);
@@ -118,18 +111,6 @@ export function MultiplesChart({ data, company }: Props) {
   if (!data.prices.length) {
     return (
       <div className="chart-container">
-        <header className="pe10-card-header">
-          {company.logo && (
-            <img
-              className="pe10-logo"
-              src={company.logo}
-              alt={`Logo ${company.name}`}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
-          )}
-          <h2 className="pe10-name">{company.name}</h2>
-          <span className="pe10-ticker">{company.ticker}</span>
-        </header>
         <div className="chart-empty">Dados históricos indisponíveis</div>
       </div>
     );
@@ -169,20 +150,6 @@ export function MultiplesChart({ data, company }: Props) {
 
   return (
     <div className="chart-container">
-      {/* Company header */}
-      <header className="pe10-card-header">
-        {company.logo && (
-          <img
-            className="pe10-logo"
-            src={company.logo}
-            alt={`Logo ${company.name}`}
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-        )}
-        <h2 className="pe10-name">{company.name}</h2>
-        <span className="pe10-ticker">{company.ticker}</span>
-      </header>
-
       {/* Price panel */}
       <div className="chart-panel">
         <div className="chart-panel-title">

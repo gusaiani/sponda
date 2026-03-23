@@ -5,6 +5,8 @@ import { SearchBar } from "../components/SearchBar";
 import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../components/CompanyMetricsCard";
 import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesChart";
 import { CompareTab } from "../components/CompareTab";
+import { FundamentalsTab } from "../components/FundamentalsTab";
+import { FavoriteButton } from "../components/FavoriteButton";
 import { ShareButtons } from "../components/ShareButtons";
 import { usePE10, fetchQuote } from "../hooks/usePE10";
 import { useTickers } from "../hooks/useTickers";
@@ -16,16 +18,18 @@ import "../styles/chart.css";
 
 const DEFAULT_YEARS = 10;
 
-type TabKey = "metrics" | "charts" | "compare";
+type TabKey = "metrics" | "charts" | "fundamentals" | "compare";
 
 const TAB_PATHS: Record<string, TabKey> = {
   graficos: "charts",
+  fundamentos: "fundamentals",
   comparar: "compare",
 };
 
 const TAB_TO_SUFFIX: Record<TabKey, string> = {
   metrics: "",
   charts: "/graficos",
+  fundamentals: "/fundamentos",
   compare: "/comparar",
 };
 
@@ -165,6 +169,24 @@ export function TickerPage() {
 
       <SearchBar onSearch={handleSearch} isLoading={isLoading} />
 
+      {/* Company header */}
+      {fullData && !isLoading && !error && (
+        <div className="company-header">
+          <div className="company-header-left">
+            {fullData.logo && (
+              <img
+                className="company-header-logo"
+                src={fullData.logo}
+                alt={`Logo ${fullData.name}`}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
+            <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker}</span></h2>
+          </div>
+          <FavoriteButton ticker={upperTicker} />
+        </div>
+      )}
+
       {/* Tabs */}
       {!isLoading && !error && (
         <div className="tabs-wrapper">
@@ -175,16 +197,22 @@ export function TickerPage() {
             Indicadores
           </button>
           <button
-            className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
-            onClick={() => switchTab("charts")}
+            className={`tab-pill ${activeTab === "fundamentals" ? "tab-pill-active" : ""}`}
+            onClick={() => switchTab("fundamentals")}
           >
-            Gráficos
+            Fundamentos
           </button>
           <button
             className={`tab-pill ${activeTab === "compare" ? "tab-pill-active" : ""}`}
             onClick={() => switchTab("compare")}
           >
             Comparar
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
+            onClick={() => switchTab("charts")}
+          >
+            Gráficos
           </button>
         </div>
       )}
@@ -214,14 +242,7 @@ export function TickerPage() {
         <>
           {historyLoading && <MultiplesChartLoading />}
           {historyData && !historyLoading && (
-            <MultiplesChart
-              data={historyData}
-              company={{
-                ticker: upperTicker,
-                name: fullData?.name ?? upperTicker,
-                logo: fullData?.logo ?? "",
-              }}
-            />
+            <MultiplesChart data={historyData} />
           )}
           {historyError && !historyLoading && (
             <div className="chart-container">
@@ -229,6 +250,11 @@ export function TickerPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Fundamentals tab */}
+      {activeTab === "fundamentals" && (
+        <FundamentalsTab ticker={upperTicker} />
       )}
 
       {/* Compare tab */}

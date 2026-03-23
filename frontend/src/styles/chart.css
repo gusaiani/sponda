@@ -26,15 +26,22 @@
 
 /* Chart container */
 .chart-container {
-  @apply max-w-3xl mx-auto px-2 py-6;
+  @apply py-6;
   background: #ffffff;
   border: none;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 @media (min-width: 640px) {
   .chart-container {
-    @apply p-8 rounded-xl;
-    border: 1px solid #d8e0ee;
+    @apply py-8;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }
 
@@ -126,15 +133,22 @@
 
 /* Loading state */
 .chart-loading {
-  @apply max-w-3xl mx-auto px-2 py-6 animate-pulse;
+  @apply py-6 animate-pulse;
   background: #ffffff;
   border: none;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 @media (min-width: 640px) {
   .chart-loading {
-    @apply p-8 rounded-xl;
-    border: 1px solid var(--color-border);
+    @apply py-8;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }
 
