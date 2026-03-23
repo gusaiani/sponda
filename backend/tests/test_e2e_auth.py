@@ -260,13 +260,13 @@ class TestAuthModalFromFavorite:
     def test_modal_appears_on_star_click(self, page: Page, url):
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=5000)
 
     def test_modal_login_wrong_password_shows_error(self, page: Page, url, test_user):
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
         page.fill("input#modal-email", "test@example.com")
@@ -279,7 +279,7 @@ class TestAuthModalFromFavorite:
     def test_modal_login_then_favorites(self, page: Page, url, test_user):
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
         page.fill("input#modal-email", "test@example.com")
@@ -293,7 +293,7 @@ class TestAuthModalFromFavorite:
     def test_modal_signup_then_favorites(self, page: Page, url):
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
         # Switch to signup
@@ -314,7 +314,7 @@ class TestAuthModalFromFavorite:
     def test_modal_close_on_overlay_click(self, page: Page, url):
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
         # Click the overlay (outside the panel)
@@ -324,7 +324,7 @@ class TestAuthModalFromFavorite:
     def test_modal_close_on_x_button(self, page: Page, url):
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
-        page.locator(".favorite-button").click()
+        page.locator(".favorite-button-prominent").click()
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
 
         page.locator(".feedback-close").click()
