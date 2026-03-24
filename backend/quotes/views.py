@@ -373,7 +373,7 @@ class SitemapView(APIView):
     """Generate a dynamic XML sitemap with all stock ticker pages."""
 
     def get(self, request):
-        base_url = "https://sponda.com.br"
+        base_url = "https://sponda.capital"
         tickers = (
             Ticker.objects.filter(type="stock")
             .exclude(symbol__regex=r"^[A-Z]+\d+F$")
