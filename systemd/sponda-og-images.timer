@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Sponda OG image generation daily (batch of 50, 7-day max age)
+
+[Timer]
+OnCalendar=*-*-* 07:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

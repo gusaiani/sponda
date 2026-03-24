@@ -77,9 +77,12 @@ jobs:
             python manage.py collectstatic --noinput
             python manage.py refresh_ipca
             python manage.py refresh_tickers
-            # Install systemd timer for daily data refresh
+            # Install systemd timers for daily data refresh and OG images
             cp /opt/sponda/systemd/sponda-refresh.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.timer /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-og-images.service /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-og-images.timer /etc/systemd/system/
             systemctl daemon-reload
             systemctl enable --now sponda-refresh.timer
+            systemctl enable --now sponda-og-images.timer
             systemctl restart sponda

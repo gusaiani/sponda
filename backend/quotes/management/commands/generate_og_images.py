@@ -1,11 +1,16 @@
-"""Pre-generate Open Graph images for all stock tickers.
+"""Pre-generate Open Graph images for stock tickers.
 
 Saves images to <project_root>/og_images/ so they can be served as
 static files at /og/<ticker>.png without hitting the external API.
 
+Skips tickers whose image already exists and is less than --max-age days old.
+Limits BRAPI calls per run with --max to stay within rate limits.
+
 Usage:
-    python manage.py generate_og_images          # all tickers + homepage
-    python manage.py generate_og_images PETR4     # single ticker
+    python manage.py generate_og_images              # stale/missing only (default 50)
+    python manage.py generate_og_images --max 200     # up to 200 images
+    python manage.py generate_og_images --force        # regenerate all
+    python manage.py generate_og_images PETR4 VALE3    # specific tickers
 """
 import time
 from decimal import Decimal
@@ -13,6 +18,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from quotes.brapi import BRAPIError, fetch_quote
 from quotes.models import Ticker
@@ -22,27 +28,49 @@ from quotes.peg import calculate_peg
 from quotes.pfcf10 import calculate_pfcf10
 from quotes.views import _clean_company_name
 
+DEFAULT_MAX_PER_RUN = 50
+DEFAULT_MAX_AGE_DAYS = 7
+
 
 class Command(BaseCommand):
-    help = "Pre-generate OG images for all stock tickers"
+    help = "Pre-generate OG images for stock tickers (skips fresh images)"
 
     def add_arguments(self, parser):
         parser.add_argument(
             "tickers",
             nargs="*",
-            help="Optional: specific tickers to generate (default: all)",
+            help="Optional: specific tickers to generate (default: all stale/missing)",
+        )
+        parser.add_argument(
+            "--max",
+            type=int,
+            default=DEFAULT_MAX_PER_RUN,
+            help=f"Max images to generate per run (default: {DEFAULT_MAX_PER_RUN})",
+        )
+        parser.add_argument(
+            "--max-age",
+            type=int,
+            default=DEFAULT_MAX_AGE_DAYS,
+            help=f"Regenerate images older than this many days (default: {DEFAULT_MAX_AGE_DAYS})",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Regenerate all images regardless of age",
         )
 
     def handle(self, *args, **options):
         og_dir = Path(settings.BASE_DIR).parent / "og_images"
         og_dir.mkdir(exist_ok=True)
+        max_per_run = options["max"]
+        max_age_days = options["max_age"]
+        force = options["force"]
 
-        # Always generate homepage image
+        # Always generate homepage image (no BRAPI call)
         homepage_png = generate_homepage_og_image()
         (og_dir / "home.png").write_bytes(homepage_png)
-        self.stdout.write(self.style.SUCCESS("Generated home.png"))
 
-        # Get tickers to generate
+        # Build ticker list
         specific_tickers = options["tickers"]
         if specific_tickers:
             ticker_list = [t.upper() for t in specific_tickers]
@@ -54,12 +82,33 @@ class Command(BaseCommand):
                 .order_by("symbol")
             )
 
-        total = len(ticker_list)
-        generated = 0
-        skipped = 0
-        errors = 0
+        # Filter to only stale/missing images (unless --force)
+        now = timezone.now().timestamp()
+        max_age_seconds = max_age_days * 86400
+        needs_generation = []
 
-        for index, symbol in enumerate(ticker_list, 1):
+        for symbol in ticker_list:
+            image_path = og_dir / f"{symbol}.png"
+            if force or not image_path.exists():
+                needs_generation.append(symbol)
+            elif (now - image_path.stat().st_mtime) > max_age_seconds:
+                needs_generation.append(symbol)
+
+        if not needs_generation:
+            self.stdout.write(self.style.SUCCESS("All images are fresh, nothing to do"))
+            return
+
+        # Cap at --max
+        batch = needs_generation[:max_per_run]
+        self.stdout.write(
+            f"Generating {len(batch)} of {len(needs_generation)} stale/missing images "
+            f"({len(ticker_list)} total tickers)"
+        )
+
+        generated = 0
+        api_errors = 0
+
+        for index, symbol in enumerate(batch, 1):
             try:
                 quote = fetch_quote(symbol)
                 name = _clean_company_name(
@@ -83,21 +132,21 @@ class Command(BaseCommand):
                     market_cap=float(market_cap) if market_cap else None,
                 )
             except BRAPIError:
-                # Generate a minimal image with just the ticker name
+                # Generate image from database only (no BRAPI needed)
                 ticker_obj = Ticker.objects.filter(symbol=symbol).first()
                 name = ticker_obj.name if ticker_obj else symbol
                 png = generate_og_image(ticker=symbol, name=name)
-                skipped += 1
+                api_errors += 1
 
             (og_dir / f"{symbol}.png").write_bytes(png)
             generated += 1
 
-            if index % 25 == 0:
-                self.stdout.write(f"  [{index}/{total}] {symbol}")
-                time.sleep(1)  # Rate-limit brapi requests
+            if index % 10 == 0:
+                self.stdout.write(f"  [{index}/{len(batch)}] {symbol}")
+                time.sleep(2)  # Rate-limit: ~5 BRAPI requests per 10 seconds
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Done: {generated} generated, {skipped} without live data, {errors} errors"
+                f"Done: {generated} generated, {api_errors} from DB only"
             )
         )

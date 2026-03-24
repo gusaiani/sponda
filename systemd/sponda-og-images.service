@@ -1,0 +1,11 @@
+[Unit]
+Description=Sponda OG image generation (batch of 50, skips fresh images)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sponda/backend
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py generate_og_images --max 50
+User=root
