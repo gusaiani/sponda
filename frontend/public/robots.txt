@@ -2,5 +2,13 @@ User-agent: *
 Allow: /
 Disallow: /api/
 Disallow: /admin/
+Disallow: /login
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /account
+Disallow: /admin-dashboard
+Disallow: /google/callback
 
 Sitemap: https://sponda.com.br/sitemap.xml

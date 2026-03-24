@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from django.test import Client
 
-from quotes.models import BalanceSheet, LookupLog, QuarterlyEarnings
+from quotes.models import BalanceSheet, LookupLog, QuarterlyEarnings, Ticker
 from quotes.views import _clean_company_name
 
 
@@ -521,3 +521,109 @@ class TestTickerRateLimit:
         """Verify the limit constant is 200."""
         from quotes.views import PE10View
         assert PE10View.DAILY_DISTINCT_TICKER_LIMIT == 200
+
+
+class TestSitemap:
+    def test_sitemap_returns_xml(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petroleo Brasileiro", sector="Energy", type="stock")
+        response = api_client.get("/api/sitemap.xml")
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/xml"
+        content = response.content.decode()
+        assert "https://sponda.com.br/" in content
+        assert "https://sponda.com.br/PETR4" in content
+        assert "https://sponda.com.br/PETR4/fundamentos" in content
+        assert "https://sponda.com.br/PETR4/graficos" in content
+        assert "https://sponda.com.br/PETR4/comparar" in content
+
+    def test_sitemap_excludes_fractional_shares(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        Ticker.objects.create(symbol="PETR4F", name="Petroleo Frac", type="stock")
+        response = api_client.get("/api/sitemap.xml")
+        content = response.content.decode()
+        assert "PETR4" in content
+        assert "PETR4F" not in content
+
+    def test_sitemap_excludes_non_stock(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        Ticker.objects.create(symbol="AAPL34", name="Apple BDR", type="bdr")
+        response = api_client.get("/api/sitemap.xml")
+        content = response.content.decode()
+        assert "PETR4" in content
+        assert "AAPL34" not in content
+
+    def test_sitemap_root_url(self, api_client, db):
+        Ticker.objects.create(symbol="VALE3", name="Vale", type="stock")
+        response = api_client.get("/sitemap.xml")
+        assert response.status_code == 200
+        assert "VALE3" in response.content.decode()
+
+    def test_sitemap_is_cached(self, api_client, db):
+        response = api_client.get("/api/sitemap.xml")
+        assert "max-age=86400" in response["Cache-Control"]
+
+
+class TestOGTagInjection:
+    def test_inject_og_tags_includes_company_name(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="PETR4", name="Petroleo Brasileiro", sector="Energy", type="stock")
+        html = (
+            '<html><head>'
+            '<meta property="og:title" content="default" />'
+            '<meta property="og:description" content="default" />'
+            '<meta property="og:url" content="https://sponda.com.br/" />'
+            '<meta property="og:image" content="https://sponda.com.br/api/og/home.png" />'
+            '<meta name="twitter:title" content="default" />'
+            '<meta name="twitter:description" content="default" />'
+            '<meta name="twitter:image" content="https://sponda.com.br/api/og/home.png" />'
+            '<meta name="twitter:card" content="summary" />'
+            '<meta name="description" content="default" />'
+            '<link rel="canonical" href="https://sponda.com.br/" />'
+            '<title>Sponda</title>'
+            '</head></html>'
+        )
+        result = _inject_og_tags(html, "PETR4")
+        assert "Petroleo Brasileiro" in result
+        assert "PETR4" in result
+        assert 'content="https://sponda.com.br/api/og/PETR4.png"' in result
+        assert 'content="summary_large_image"' in result
+
+    def test_inject_og_tags_no_duplicate_og_image(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="VALE3", name="Vale", type="stock")
+        html = (
+            '<head>'
+            '<meta property="og:image" content="https://sponda.com.br/api/og/home.png" />'
+            '<meta name="twitter:image" content="https://sponda.com.br/api/og/home.png" />'
+            '<meta name="twitter:card" content="summary" />'
+            '</head>'
+        )
+        result = _inject_og_tags(html, "VALE3")
+        # Should have exactly ONE og:image tag, not two
+        assert result.count('property="og:image"') == 1
+        assert 'content="https://sponda.com.br/api/og/VALE3.png"' in result
+
+    def test_inject_og_tags_canonical_includes_subpath(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        html = (
+            '<head>'
+            '<link rel="canonical" href="https://sponda.com.br/" />'
+            '</head>'
+        )
+        result = _inject_og_tags(html, "PETR4", "fundamentos")
+        assert 'href="https://sponda.com.br/PETR4/fundamentos"' in result
+
+    def test_inject_og_tags_includes_json_ld(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="WEGE3", name="WEG", sector="Industrials", type="stock")
+        html = '<head><title>Sponda</title></head>'
+        result = _inject_og_tags(html, "WEGE3")
+        assert '"@type": "Dataset"' in result
+        assert '"@type": "BreadcrumbList"' in result
+        assert "WEG" in result
+        assert "Industrials" in result

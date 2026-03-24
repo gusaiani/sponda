@@ -367,3 +367,51 @@ class OGImageView(APIView):
         response = HttpResponse(png, content_type="image/png")
         response["Cache-Control"] = "public, max-age=3600"
         return response
+
+
+class SitemapView(APIView):
+    """Generate a dynamic XML sitemap with all stock ticker pages."""
+
+    def get(self, request):
+        base_url = "https://sponda.com.br"
+        tickers = (
+            Ticker.objects.filter(type="stock")
+            .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+            .values_list("symbol", "updated_at")
+            .order_by("symbol")
+        )
+
+        lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+            "  <url>",
+            f"    <loc>{base_url}/</loc>",
+            "    <changefreq>daily</changefreq>",
+            "    <priority>1.0</priority>",
+            "  </url>",
+        ]
+
+        sub_pages = [
+            ("", "0.8", "weekly"),
+            ("/fundamentos", "0.6", "weekly"),
+            ("/graficos", "0.5", "weekly"),
+            ("/comparar", "0.4", "monthly"),
+        ]
+
+        for symbol, updated_at in tickers:
+            lastmod = updated_at.strftime("%Y-%m-%d") if updated_at else ""
+            for suffix, priority, changefreq in sub_pages:
+                lines.append("  <url>")
+                lines.append(f"    <loc>{base_url}/{symbol}{suffix}</loc>")
+                if lastmod:
+                    lines.append(f"    <lastmod>{lastmod}</lastmod>")
+                lines.append(f"    <changefreq>{changefreq}</changefreq>")
+                lines.append(f"    <priority>{priority}</priority>")
+                lines.append("  </url>")
+
+        lines.append("</urlset>")
+
+        xml = "\n".join(lines)
+        response = HttpResponse(xml, content_type="application/xml")
+        response["Cache-Control"] = "public, max-age=86400"
+        return response

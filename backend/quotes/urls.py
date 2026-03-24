@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import FundamentalsView, HealthView, MultiplesHistoryView, OGImageView, PE10View, TickerListView
+from .views import FundamentalsView, HealthView, MultiplesHistoryView, OGImageView, PE10View, SitemapView, TickerListView
 
 urlpatterns = [
     path("health/", HealthView.as_view(), name="health"),
@@ -10,4 +10,5 @@ urlpatterns = [
     path("quote/<str:ticker>/fundamentals/", FundamentalsView.as_view(), name="fundamentals"),
     path("og/home.png", OGImageView.as_view(), name="og-home"),
     path("og/<str:ticker>.png", OGImageView.as_view(), name="og-ticker"),
+    path("sitemap.xml", SitemapView.as_view(), name="sitemap"),
 ]

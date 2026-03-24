@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -7,28 +8,63 @@ from django.http import FileResponse, Http404, HttpResponse
 from django.urls import include, path, re_path
 
 # Matches ticker-style URL paths like /PETR4, /VALE3, /BBAS3
-# Also matches sub-paths like /PETR4/graficos, /PETR4/comparar
-_TICKER_RE = re.compile(r"^([A-Za-z]{4}\d{1,2})(?:/(?:graficos|comparar))?$")
+# Also matches sub-paths like /PETR4/graficos, /PETR4/comparar, /PETR4/fundamentos
+_TICKER_RE = re.compile(r"^([A-Za-z]{4}\d{1,2})(?:/(?:graficos|comparar|fundamentos))?$")
 # Frontend SPA routes that should NOT be treated as static file paths
 _SPA_ROUTES = {"login", "signup", "forgot-password", "reset-password", "account", "shared"}
 
 _BASE_URL = "https://sponda.com.br"
 
 
-def _inject_og_tags(html: str, ticker: str) -> str:
+_TAB_LABELS = {
+    "": "Indicadores",
+    "graficos": "Gráficos",
+    "fundamentos": "Fundamentos",
+    "comparar": "Comparar",
+}
+
+
+def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
     """Replace default OG meta tags with ticker-specific ones for social crawlers."""
-    og_title = f"{ticker} — Sponda"
-    og_desc = f"Indicadores fundamentalistas de {ticker}: P/L ajustado pela inflação, P/FCL, PEG, CAGR e alavancagem."
-    og_url = f"{_BASE_URL}/{ticker}"
+    from quotes.models import Ticker as TickerModel
+
+    ticker_obj = (
+        TickerModel.objects.filter(symbol=ticker)
+        .values("name", "sector")
+        .first()
+    )
+    company_name = ticker_obj["name"] if ticker_obj else ""
+    sector = ticker_obj["sector"] if ticker_obj else ""
+
+    if company_name:
+        page_title = f"{company_name} ({ticker}) — Indicadores Fundamentalistas | Sponda"
+        og_title = f"{company_name} ({ticker}) — Sponda"
+        og_desc = (
+            f"Indicadores fundamentalistas de {company_name} ({ticker}): "
+            f"P/L ajustado pela inflação (PE10), P/FCL10, PEG, CAGR e alavancagem. "
+            f"Dados atualizados."
+        )
+    else:
+        page_title = f"{ticker} — Sponda"
+        og_title = page_title
+        og_desc = (
+            f"Indicadores fundamentalistas de {ticker}: "
+            f"P/L ajustado pela inflação, P/FCL, PEG, CAGR e alavancagem."
+        )
+
+    full_path = f"{ticker}/{path}" if path else ticker
+    og_url = f"{_BASE_URL}/{full_path}"
     og_image = f"{_BASE_URL}/api/og/{ticker}.png"
-    page_title = f"{ticker} — Sponda"
 
     replacements = [
         ('property="og:title"', og_title),
         ('property="og:description"', og_desc),
         ('property="og:url"', og_url),
+        ('property="og:image"', og_image),
         ('name="twitter:title"', page_title),
         ('name="twitter:description"', og_desc),
+        ('name="twitter:image"', og_image),
+        ('name="twitter:card"', "summary_large_image"),
     ]
     for attr, content in replacements:
         html = re.sub(
@@ -36,16 +72,6 @@ def _inject_og_tags(html: str, ticker: str) -> str:
             f'<meta {attr} content="{content}" />',
             html,
         )
-
-    # Inject og:image (add after og:url)
-    og_image_tag = f'<meta property="og:image" content="{og_image}" />'
-    twitter_image_tag = f'<meta name="twitter:image" content="{og_image}" />'
-    twitter_card_large = '<meta name="twitter:card" content="summary_large_image" />'
-    html = html.replace(
-        '<meta name="twitter:card" content="summary" />',
-        twitter_card_large,
-    )
-    html = html.replace("</head>", f"    {og_image_tag}\n    {twitter_image_tag}\n  </head>")
 
     # Update <title>
     html = re.sub(r"<title>[^<]*</title>", f"<title>{page_title}</title>", html)
@@ -63,6 +89,65 @@ def _inject_og_tags(html: str, ticker: str) -> str:
         f'<link rel="canonical" href="{og_url}" />',
         html,
     )
+
+    # Inject ticker-specific JSON-LD structured data
+    display_name = company_name or ticker
+    tab_label = _TAB_LABELS.get(path, "Indicadores")
+
+    dataset_schema = {
+        "@context": "https://schema.org",
+        "@type": "Dataset",
+        "name": f"Indicadores Fundamentalistas de {display_name} ({ticker})",
+        "description": og_desc,
+        "url": og_url,
+        "keywords": [
+            ticker, display_name, "PE10", "PFCF10", "PEG", "CAGR",
+            "análise fundamentalista", "ações brasileiras", "B3",
+        ],
+        "creator": {
+            "@type": "Organization",
+            "name": "Sponda",
+            "url": _BASE_URL,
+        },
+        "inLanguage": "pt-BR",
+        "variableMeasured": [
+            "P/L ajustado pela inflação (PE10)",
+            "P/FCL ajustado pela inflação (PFCF10)",
+            "PEG (Price/Earnings to Growth)",
+            "CAGR do lucro líquido",
+            "Alavancagem (Dívida/PL)",
+        ],
+    }
+    if sector:
+        dataset_schema["about"] = {"@type": "Thing", "name": sector}
+
+    breadcrumb_items = [
+        {"@type": "ListItem", "position": 1, "name": "Sponda", "item": _BASE_URL + "/"},
+        {"@type": "ListItem", "position": 2, "name": ticker, "item": f"{_BASE_URL}/{ticker}"},
+    ]
+    if path:
+        breadcrumb_items.append({
+            "@type": "ListItem",
+            "position": 3,
+            "name": tab_label,
+            "item": og_url,
+        })
+
+    breadcrumb_schema = {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": breadcrumb_items,
+    }
+
+    json_ld = (
+        f'<script type="application/ld+json">\n'
+        f'{json.dumps(dataset_schema, ensure_ascii=False, indent=2)}\n'
+        f'</script>\n'
+        f'<script type="application/ld+json">\n'
+        f'{json.dumps(breadcrumb_schema, ensure_ascii=False, indent=2)}\n'
+        f'</script>\n'
+    )
+    html = html.replace("</head>", f"    {json_ld}  </head>")
 
     return html
 
@@ -91,14 +176,25 @@ def _serve_frontend(request, filepath=""):
     ticker_match = _TICKER_RE.match(filepath) if filepath else None
     if ticker_match:
         html = index.read_text()
-        html = _inject_og_tags(html, ticker_match.group(1).upper())
+        ticker = ticker_match.group(1).upper()
+        # Extract sub-path (e.g. "graficos", "fundamentos") if present
+        sub_path = filepath.split("/", 1)[1] if "/" in filepath else ""
+        html = _inject_og_tags(html, ticker, sub_path)
         return HttpResponse(html, content_type="text/html")
 
     return FileResponse(open(index, "rb"), content_type="text/html")
 
 
+def _serve_sitemap(request):
+    """Serve sitemap.xml at the root URL by proxying to the API endpoint."""
+    from quotes.views import SitemapView
+
+    return SitemapView.as_view()(request)
+
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("sitemap.xml", _serve_sitemap, name="sitemap-root"),
     path("api/", include("quotes.urls")),
     path("api/auth/", include("accounts.urls")),
     re_path(r"^(?P<filepath>assets/.*)$", _serve_frontend),
