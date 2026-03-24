@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import "../styles/auth.css";
+"use client";
 
-export function GoogleCallbackPage() {
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
+function GoogleCallbackContent() {
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
+    const code = searchParams.get("code");
 
     if (!code) {
       setError("Código de autorização não recebido do Google.");
@@ -36,19 +38,19 @@ export function GoogleCallbackPage() {
       .catch((fetchError) => {
         setError(fetchError.message);
       });
-  }, []);
+  }, [searchParams]);
 
   if (error) {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
+          <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
           <h1 className="auth-title">Erro</h1>
           <p className="auth-error">{error}</p>
           <p className="auth-link">
-            <Link to="/login">Tentar novamente</Link>
+            <Link href="/login">Tentar novamente</Link>
           </p>
         </div>
       </div>
@@ -61,5 +63,13 @@ export function GoogleCallbackPage() {
         <p className="auth-success-text">Autenticando com Google…</p>
       </div>
     </div>
+  );
+}
+
+export default function GoogleCallbackPage() {
+  return (
+    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">Carregando…</p></div></div>}>
+      <GoogleCallbackContent />
+    </Suspense>
   );
 }

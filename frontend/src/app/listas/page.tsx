@@ -1,12 +1,13 @@
-import { useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useSavedLists, SavedListEntry } from "../hooks/useSavedLists";
-import { useAuth } from "../hooks/useAuth";
-import { useTickers, TickerItem } from "../hooks/useTickers";
-import { SavedListCard } from "../components/SavedLists";
-import "../styles/saved-lists.css";
+"use client";
 
-export function AllListsPage() {
+import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSavedLists, SavedListEntry } from "../../hooks/useSavedLists";
+import { useAuth } from "../../hooks/useAuth";
+import { useTickers, TickerItem } from "../../hooks/useTickers";
+import { SavedListCard } from "../../components/SavedLists";
+
+export default function AllListsPage() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { lists, isLoading, reorderLists } = useSavedLists();
   const { data: allTickers = [] } = useTickers();
@@ -35,7 +36,7 @@ export function AllListsPage() {
           Você precisa estar logado para ver suas listas.
         </p>
         <p className="auth-link">
-          <Link to="/login">Fazer login</Link>
+          <Link href="/login">Fazer login</Link>
         </p>
       </div>
     );
@@ -63,14 +64,13 @@ export function AllListsPage() {
     setLocalOrder(reordered);
     dragIndexRef.current = null;
 
-    // Persist the new order
     const orderedIds = reordered.map((list) => list.id);
     reorderLists.mutate(orderedIds);
   }
 
   return (
     <div className="saved-lists-page">
-      <Link to="/" className="auth-logo-link">
+      <Link href="/" className="auth-logo-link">
         <span className="auth-logo">SPONDA</span>
       </Link>
       <h1 className="saved-lists-page-title">Suas Listas</h1>
@@ -99,7 +99,7 @@ export function AllListsPage() {
       )}
 
       <p className="auth-link" style={{ marginTop: "2rem" }}>
-        <Link to="/">Voltar para a página inicial</Link>
+        <Link href="/">Voltar para a página inicial</Link>
       </p>
     </div>
   );

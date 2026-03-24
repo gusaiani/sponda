@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "../styles/share.css";
+import { usePathname } from "next/navigation";
 
 interface ShareButtonsProps {
   ticker?: string;
@@ -8,8 +8,9 @@ interface ShareButtonsProps {
 
 export function ShareButtons({ ticker, companyName }: ShareButtonsProps) {
   const [copied, setCopied] = useState(false);
+  const pathname = usePathname();
 
-  const url = typeof window !== "undefined" ? window.location.href : "";
+  const url = `https://sponda.capital${pathname}`;
   const text = ticker
     ? `${companyName || ticker} — indicadores de valor no Sponda`
     : "Sponda — indicadores de empresas brasileiras para investidores em valor";

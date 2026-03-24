@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useTickers, TickerItem } from "../hooks/useTickers";
 import "../styles/saved-lists.css";
@@ -32,7 +32,7 @@ export function SavedLists() {
       </div>
       {hasMoreLists && (
         <p className="saved-lists-see-all">
-          <Link to="/listas" className="saved-lists-see-all-link">
+          <Link href="/listas" className="saved-lists-see-all-link">
             Ver todas as listas
           </Link>
         </p>

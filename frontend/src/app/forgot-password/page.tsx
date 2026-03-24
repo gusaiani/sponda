@@ -1,8 +1,9 @@
-import { useState, FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
-import "../styles/auth.css";
+"use client";
 
-export function ForgotPasswordPage() {
+import { useState, FormEvent } from "react";
+import Link from "next/link";
+
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,7 +39,7 @@ export function ForgotPasswordPage() {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
+          <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
           <h1 className="auth-title">Email enviado</h1>
@@ -47,7 +48,7 @@ export function ForgotPasswordPage() {
             redefinir sua senha.
           </p>
           <p className="auth-link">
-            <Link to="/login">Voltar para login</Link>
+            <Link href="/login">Voltar para login</Link>
           </p>
         </div>
       </div>
@@ -57,7 +58,7 @@ export function ForgotPasswordPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <Link to="/" className="auth-logo-link">
+        <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
         <h1 className="auth-title">Recuperar Senha</h1>
@@ -85,7 +86,7 @@ export function ForgotPasswordPage() {
           </button>
         </form>
         <p className="auth-link">
-          <Link to="/login">Voltar para login</Link>
+          <Link href="/login">Voltar para login</Link>
         </p>
       </div>
     </div>

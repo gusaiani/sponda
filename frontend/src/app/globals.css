@@ -1,0 +1,15 @@
+/* All styles consolidated for Next.js (global CSS must be imported from layout) */
+@import "../styles/global.css";
+@import "../styles/auth-header.css";
+@import "../styles/auth.css";
+@import "../styles/search.css";
+@import "../styles/card.css";
+@import "../styles/chart.css";
+@import "../styles/compare.css";
+@import "../styles/favorite-button.css";
+@import "../styles/feedback.css";
+@import "../styles/fundamentals.css";
+@import "../styles/popular.css";
+@import "../styles/saved-lists.css";
+@import "../styles/share.css";
+@import "../styles/admin.css";

@@ -1,11 +1,11 @@
-import { Outlet } from "@tanstack/react-router";
-import { AuthHeader } from "./components/AuthHeader";
-import { FeedbackButton } from "./components/FeedbackButton";
-import { usePageTracking } from "./hooks/usePageTracking";
-import { POEMA_PERFORMANCE_LINE, POEMA_DISCLAIMER, POEMA_CTA } from "./utils/branding";
-import "./styles/global.css";
+"use client";
 
-export function App() {
+import { AuthHeader } from "../components/AuthHeader";
+import { FeedbackButton } from "../components/FeedbackButton";
+import { usePageTracking } from "../hooks/usePageTracking";
+import { POEMA_PERFORMANCE_LINE, POEMA_DISCLAIMER, POEMA_CTA } from "../utils/branding";
+
+export function LayoutShell({ children }: { children: React.ReactNode }) {
   usePageTracking();
 
   return (
@@ -13,7 +13,7 @@ export function App() {
       <AuthHeader />
       <FeedbackButton />
       <main className="app-main">
-        <Outlet />
+        {children}
       </main>
       <footer className="app-footer">
         <a href="https://poe.ma" target="_blank" rel="noopener noreferrer" className="app-footer-logo-link">

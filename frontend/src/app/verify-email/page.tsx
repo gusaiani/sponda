@@ -1,14 +1,24 @@
-import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import "../styles/auth.css";
+"use client";
 
-export function VerifyEmailPage() {
+import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
+export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">Carregando…</p></div></div>}>
+      <VerifyEmailContent />
+    </Suspense>
+  );
+}
+
+function VerifyEmailContent() {
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get("token");
+    const token = searchParams.get("token");
 
     if (!token) {
       setStatus("error");
@@ -34,12 +44,12 @@ export function VerifyEmailPage() {
         setStatus("error");
         setErrorMessage(fetchError.message);
       });
-  }, []);
+  }, [searchParams]);
 
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <Link to="/" className="auth-logo-link">
+        <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
 
@@ -54,7 +64,7 @@ export function VerifyEmailPage() {
               Seu email foi confirmado. Todas as funcionalidades estão ativas.
             </p>
             <p className="auth-link">
-              <Link to="/">Ir para a página inicial</Link>
+              <Link href="/">Ir para a página inicial</Link>
             </p>
           </>
         )}
@@ -69,7 +79,7 @@ export function VerifyEmailPage() {
               O link pode ter expirado. Solicite um novo na sua conta.
             </p>
             <p className="auth-link">
-              <Link to="/account">Minha conta</Link>
+              <Link href="/account">Minha conta</Link>
             </p>
           </>
         )}

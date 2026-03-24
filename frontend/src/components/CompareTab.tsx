@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
 import { useSavedLists } from "../hooks/useSavedLists";
@@ -536,7 +536,7 @@ function CompareRow({
         {dragHandle}
         <td className="compare-sticky-col">
           <div className="compare-company-cell">
-            <Link to={companyLink} className="compare-company-link">
+            <Link href={companyLink} className="compare-company-link">
               <span className="compare-company-ticker">{ticker}</span>
             </Link>
           </div>
@@ -557,7 +557,7 @@ function CompareRow({
         {dragHandle}
         <td className="compare-sticky-col">
           <div className="compare-company-cell">
-            <Link to={companyLink} className="compare-company-link">
+            <Link href={companyLink} className="compare-company-link">
               <span className="compare-company-ticker">{ticker}</span>
             </Link>
           </div>
@@ -583,7 +583,7 @@ function CompareRow({
       {dragHandle}
       <td className="compare-sticky-col">
         <div className="compare-company-cell">
-          <Link to={companyLink} className="compare-company-link">
+          <Link href={companyLink} className="compare-company-link">
             {data.logo && (
               <img
                 className="compare-company-logo"

@@ -1,17 +1,25 @@
-import { useState, FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
-import "../styles/auth.css";
+"use client";
 
-export function ResetPasswordPage() {
+import { Suspense, useState, FormEvent } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">Carregando…</p></div></div>}>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}
+
+function ResetPasswordContent() {
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") ?? "";
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-
-  // Extract token from URL query params
-  const params = new URLSearchParams(window.location.search);
-  const token = params.get("token") ?? "";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -49,7 +57,7 @@ export function ResetPasswordPage() {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
+          <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
           <h1 className="auth-title">Link inválido</h1>
@@ -57,7 +65,7 @@ export function ResetPasswordPage() {
             Este link de recuperação é inválido ou expirou.
           </p>
           <p className="auth-link">
-            <Link to="/forgot-password">Solicitar novo link</Link>
+            <Link href="/forgot-password">Solicitar novo link</Link>
           </p>
         </div>
       </div>
@@ -68,7 +76,7 @@ export function ResetPasswordPage() {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
+          <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
           <h1 className="auth-title">Senha redefinida!</h1>
@@ -76,7 +84,7 @@ export function ResetPasswordPage() {
             Sua senha foi alterada com sucesso.
           </p>
           <p className="auth-link">
-            <Link to="/login">Fazer login</Link>
+            <Link href="/login">Fazer login</Link>
           </p>
         </div>
       </div>
@@ -86,7 +94,7 @@ export function ResetPasswordPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <Link to="/" className="auth-logo-link">
+        <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
         <h1 className="auth-title">Nova Senha</h1>

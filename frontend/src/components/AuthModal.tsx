@@ -164,7 +164,7 @@ export function AuthModal({ onSuccess, onClose }: AuthModalProps) {
 
 function GoogleSignInButton() {
   function handleGoogleAuth() {
-    const clientId = typeof __GOOGLE_CLIENT_ID__ !== "undefined" ? __GOOGLE_CLIENT_ID__ : "";
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     if (!clientId) return;
 
     const redirectUri = `${window.location.origin}/google/callback`;

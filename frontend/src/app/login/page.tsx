@@ -1,10 +1,12 @@
+"use client";
+
 import { useState, useEffect, FormEvent } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import "../styles/auth.css";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type AuthMode = "login" | "signup";
 
-export function LoginPage() {
+export default function LoginPage() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,7 +15,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
-  const navigate = useNavigate();
+  const router = useRouter();
 
   // Escape key navigates back to home (when no input is focused)
   useEffect(() => {
@@ -23,11 +25,11 @@ export function LoginPage() {
       const isInputFocused = activeElement instanceof HTMLInputElement
         || activeElement instanceof HTMLTextAreaElement;
       if (isInputFocused) return;
-      navigate({ to: "/" });
+      router.push("/");
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [navigate]);
+  }, [router]);
 
   function switchMode(newMode: AuthMode) {
     setMode(newMode);
@@ -88,7 +90,7 @@ export function LoginPage() {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
+          <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
           <h1 className="auth-title">Conta criada!</h1>
@@ -96,7 +98,7 @@ export function LoginPage() {
             Sua conta foi criada e você já está logado.
           </p>
           <p className="auth-link">
-            <Link to="/">Ir para a página inicial</Link>
+            <Link href="/">Ir para a página inicial</Link>
           </p>
         </div>
       </div>
@@ -108,7 +110,7 @@ export function LoginPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <Link to="/" className="auth-logo-link">
+        <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
 
@@ -197,7 +199,7 @@ export function LoginPage() {
 
         {isLogin && (
           <p className="auth-link">
-            <Link to="/forgot-password">Esqueci minha senha</Link>
+            <Link href="/forgot-password">Esqueci minha senha</Link>
           </p>
         )}
 
@@ -212,7 +214,7 @@ export function LoginPage() {
 
 function GoogleSignInButton() {
   function handleGoogleAuth() {
-    const clientId = typeof __GOOGLE_CLIENT_ID__ !== "undefined" ? __GOOGLE_CLIENT_ID__ : "";
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     if (!clientId) return;
 
     const redirectUri = `${window.location.origin}/google/callback`;

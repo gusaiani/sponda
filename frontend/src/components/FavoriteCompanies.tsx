@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useFavorites } from "../hooks/useFavorites";
 import { useTickers, TickerItem } from "../hooks/useTickers";
 import "../styles/popular.css";
@@ -36,8 +36,7 @@ export function FavoriteCompanies() {
         {favoriteCompanies.map((company) => (
           <Link
             key={company.symbol}
-            to="/$ticker"
-            params={{ ticker: company.symbol }}
+            href={`/${company.symbol}`}
             className="popular-item"
           >
             {company.logo ? (

@@ -5,7 +5,10 @@ Reproduces the bug: clicking the star to favorite a company does nothing.
 import json
 import os
 import re
+import signal
 import subprocess
+import time
+import urllib.request
 from datetime import date
 from decimal import Decimal
 
@@ -21,6 +24,7 @@ os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 User = get_user_model()
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+NEXTJS_PORT = 3098
 
 
 def _brapi_quote_callback(request):
@@ -47,10 +51,43 @@ def _build_frontend():
         cwd=FRONTEND_DIR,
         capture_output=True,
         text=True,
-        env={**os.environ, "GOOGLE_CLIENT_ID": "test"},
     )
     if result.returncode != 0:
         pytest.skip(f"Frontend build failed: {result.stderr}")
+
+
+@pytest.fixture
+def _nextjs(live_server, _build_frontend):
+    """Start Next.js production server pointing to the Django live_server."""
+    django_url = live_server.url
+    env = {
+        **os.environ,
+        "DJANGO_API_URL": django_url,
+        "PORT": str(NEXTJS_PORT),
+    }
+    process = subprocess.Popen(
+        ["npx", "next", "start", "-p", str(NEXTJS_PORT)],
+        cwd=FRONTEND_DIR,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    for _ in range(30):
+        try:
+            urllib.request.urlopen(f"http://localhost:{NEXTJS_PORT}/")
+            break
+        except Exception:
+            time.sleep(1)
+    else:
+        process.kill()
+        pytest.skip("Next.js server failed to start")
+    print(f"\n  Next.js on :{NEXTJS_PORT} -> Django on {django_url}")
+    yield f"http://localhost:{NEXTJS_PORT}"
+    os.kill(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
 
 
 @pytest.fixture
@@ -101,11 +138,21 @@ def test_user(db):
 def login_via_ui(page: Page, base_url: str, email: str, password: str):
     """Log in via the unified login page."""
     page.goto(f"{base_url}/login")
+    page.wait_for_load_state("networkidle")
     page.fill("input#email", email)
     page.fill("input#password", password)
-    page.click("button[type='submit']")
-    # Wait for redirect to home
-    page.wait_for_url(base_url + "/", timeout=10000)
+
+    # Capture the login API response
+    with page.expect_response("**/api/auth/login/") as response_info:
+        page.click("button[type='submit']")
+    login_response = response_info.value
+    assert login_response.status == 200, (
+        f"Login failed: {login_response.status} {login_response.text()} "
+        f"(base_url={base_url})"
+    )
+
+    # After successful login, the page does window.location.href = "/"
+    page.wait_for_url(f"{base_url}/", timeout=10000)
 
 
 @pytest.mark.django_db(transaction=True)
@@ -116,8 +163,8 @@ class TestFavorites:
         pass
 
     @pytest.fixture
-    def url(self, live_server):
-        return live_server.url
+    def url(self, _nextjs):
+        return _nextjs
 
     def test_favorite_star_appears_for_logged_in_user(
         self, page: Page, url, test_user

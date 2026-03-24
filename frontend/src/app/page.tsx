@@ -1,26 +1,28 @@
+"use client";
+
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { SearchBar } from "../components/SearchBar";
 import { FavoriteCompanies } from "../components/FavoriteCompanies";
 import { SavedLists } from "../components/SavedLists";
 import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
 import { useAuth } from "../hooks/useAuth";
-import "../styles/popular.css";
 
-export function HomePage() {
+export default function HomePage() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { isAuthenticated } = useAuth();
 
   function handleSearch(newTicker: string) {
     queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
-    navigate({ to: "/$ticker", params: { ticker: newTicker } });
+    router.push(`/${newTicker}`);
   }
 
   return (
     <div>
-      <Link to="/" className="app-hero-title-link">
+      <Link href="/" className="app-hero-title-link">
         <span className="app-hero-logo">SPONDA</span>
       </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
@@ -33,7 +35,7 @@ export function HomePage() {
 
       <PopularCompanies />
 
-      <article className="homepage-explainer">
+      <article className="homepage-explainer sr-only">
         <h2 className="homepage-explainer-title">Indicadores fundamentalistas ajustados pela inflação</h2>
         <p>
           O Sponda calcula indicadores de valuation e qualidade para todas as ações da B3,
@@ -50,11 +52,11 @@ export function HomePage() {
         </p>
         <p>
           Explore os indicadores de empresas como{" "}
-          <Link to="/$ticker" params={{ ticker: "PETR4" }}>PETR4</Link>,{" "}
-          <Link to="/$ticker" params={{ ticker: "VALE3" }}>VALE3</Link>,{" "}
-          <Link to="/$ticker" params={{ ticker: "ITUB4" }}>ITUB4</Link>,{" "}
-          <Link to="/$ticker" params={{ ticker: "WEGE3" }}>WEGE3</Link> e{" "}
-          <Link to="/$ticker" params={{ ticker: "ABEV3" }}>ABEV3</Link> — ou
+          <Link href="/PETR4">PETR4</Link>,{" "}
+          <Link href="/VALE3">VALE3</Link>,{" "}
+          <Link href="/ITUB4">ITUB4</Link>,{" "}
+          <Link href="/WEGE3">WEGE3</Link> e{" "}
+          <Link href="/ABEV3">ABEV3</Link> — ou
           busque qualquer ação da B3 na barra de pesquisa acima.
         </p>
       </article>
