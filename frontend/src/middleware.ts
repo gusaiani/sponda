@@ -13,9 +13,11 @@ export function middleware(request: NextRequest) {
     pathname === "/sitemap.xml"
   ) {
     const target = new URL(pathname + request.nextUrl.search, DJANGO_API_URL);
+    const headers = new Headers(request.headers);
+    headers.set("Host", new URL(DJANGO_API_URL).host);
     return NextResponse.rewrite(target, {
       request: {
-        headers: request.headers,
+        headers,
       },
     });
   }

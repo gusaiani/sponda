@@ -1,7 +1,7 @@
 from .base import *  # noqa: F401, F403
 
 DEBUG = False
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")  # noqa: F405
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS") + ["127.0.0.1", "localhost"]  # noqa: F405
 
 DATABASES = {
     "default": env.db("DATABASE_URL"),  # noqa: F405
