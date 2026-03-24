@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { SearchBar } from "../../components/SearchBar";
 import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../../components/CompanyMetricsCard";
 import { MultiplesChart, MultiplesChartLoading } from "../../components/MultiplesChart";
 import { CompareTab } from "../../components/CompareTab";
@@ -139,28 +138,9 @@ export function TickerPageClient() {
     router.push(path);
   }
 
-  function handleSearch(newTicker: string) {
-    queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
-    queryClient.invalidateQueries({ queryKey: ["multiples-history", newTicker] });
-    setYears(DEFAULT_YEARS);
-    setCompareTickers([]);
-    seededForTicker.current = null;
-    router.push(`/${newTicker}`);
-  }
 
   return (
     <div>
-      <nav className="back-home-wrapper" aria-label="Navegação">
-        <Link href="/" className="back-home-link" aria-label="Voltar para a página inicial">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 14 15 14 15 21"/></svg>
-        </Link>
-      </nav>
-      <Link href="/" className="app-hero-title-link">
-        <span className="app-hero-logo">SPONDA</span>
-      </Link>
-      <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
-
-      <SearchBar onSearch={handleSearch} isLoading={isLoading} />
 
       {/* Company header */}
       {fullData && !isLoading && !error && (
@@ -265,21 +245,23 @@ export function TickerPageClient() {
 
       {/* Sector peers */}
       {sectorPeerLinks.length > 0 && (
-        <nav className="sector-peers" aria-label="Empresas do mesmo setor">
-          <h3 className="sector-peers-title">Empresas do mesmo setor</h3>
-          <div className="sector-peers-list">
-            {sectorPeerLinks.map((peer) => (
-              <Link
-                key={peer.symbol}
-                href={`/${peer.symbol}`}
-                className="sector-peer-link"
-              >
-                {peer.symbol}
-                {peer.name && <span className="sector-peer-name">{peer.name}</span>}
-              </Link>
-            ))}
-          </div>
-        </nav>
+        <div className="pe10-card">
+          <nav className="card-section" aria-label="Empresas do mesmo setor">
+            <div className="card-section-heading">Empresas do mesmo setor</div>
+            <div className="sector-peers-list">
+              {sectorPeerLinks.map((peer) => (
+                <Link
+                  key={peer.symbol}
+                  href={`/${peer.symbol}`}
+                  className="sector-peer-link"
+                >
+                  {peer.symbol}
+                  {peer.name && <span className="sector-peer-name">{peer.name}</span>}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        </div>
       )}
 
       <ShareButtons

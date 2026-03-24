@@ -1,13 +1,12 @@
 @reference "tailwindcss";
 
 .auth-header {
-  @apply fixed top-0 right-0 z-50 flex items-center gap-3;
-  padding: 0.75rem 1.25rem;
+  @apply flex items-center gap-3;
 }
 
 .auth-header-link {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-xs no-underline transition-all;
+  @apply text-xs no-underline transition-all whitespace-nowrap;
   color: var(--color-muted);
   background: #ffffff;
   border: 1px solid var(--color-border);

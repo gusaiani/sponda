@@ -1,9 +1,6 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { SearchBar } from "../components/SearchBar";
 import { FavoriteCompanies } from "../components/FavoriteCompanies";
 import { SavedLists } from "../components/SavedLists";
 import { PopularCompanies } from "../components/PopularCompanies";
@@ -11,23 +8,10 @@ import { ShareButtons } from "../components/ShareButtons";
 import { useAuth } from "../hooks/useAuth";
 
 export default function HomePage() {
-  const queryClient = useQueryClient();
-  const router = useRouter();
   const { isAuthenticated } = useAuth();
-
-  function handleSearch(newTicker: string) {
-    queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
-    router.push(`/${newTicker}`);
-  }
 
   return (
     <div>
-      <Link href="/" className="app-hero-title-link">
-        <span className="app-hero-logo">SPONDA</span>
-      </Link>
-      <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
-
-      <SearchBar onSearch={handleSearch} isLoading={false} autoFocus />
 
       {isAuthenticated && <FavoriteCompanies />}
       {isAuthenticated && <SavedLists />}
@@ -35,7 +19,7 @@ export default function HomePage() {
 
       <PopularCompanies />
 
-      <article className="homepage-explainer sr-only">
+      <article className="homepage-explainer" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap" }}>
         <h2 className="homepage-explainer-title">Indicadores fundamentalistas ajustados pela inflação</h2>
         <p>
           O Sponda calcula indicadores de valuation e qualidade para todas as ações da B3,
