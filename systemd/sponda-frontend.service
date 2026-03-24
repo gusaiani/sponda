@@ -8,8 +8,8 @@ User=root
 WorkingDirectory=/opt/sponda/frontend
 EnvironmentFile=/opt/sponda/.env
 Environment=DJANGO_API_URL=http://127.0.0.1:8710
-Environment=PORT=3000
-ExecStart=/usr/local/bin/npx next start -p 3000
+Environment=PORT=3100
+ExecStart=/usr/local/bin/npx next start -p 3100
 Restart=always
 
 [Install]

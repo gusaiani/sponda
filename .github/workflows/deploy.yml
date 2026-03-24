@@ -91,9 +91,10 @@ jobs:
             systemctl enable --now sponda-refresh.timer
             systemctl enable --now sponda-og-images.timer
 
-            # Update Apache: proxy sponda.capital to Next.js (port 3000) instead of Django (8710)
-            sed -i 's|ProxyPass / http://127.0.0.1:8710/|ProxyPass / http://127.0.0.1:3000/|g' /etc/apache2/sites-enabled/*.conf
-            sed -i 's|ProxyPassReverse / http://127.0.0.1:8710/|ProxyPassReverse / http://127.0.0.1:3000/|g' /etc/apache2/sites-enabled/*.conf
+            # Update Apache: proxy sponda domains to Next.js (port 3100)
+            # Handle both fresh (8710) and previous deploy (3000) states
+            sed -i -E 's|ProxyPass / http://127.0.0.1:(8710\|3000)/|ProxyPass / http://127.0.0.1:3100/|g' /etc/apache2/sites-enabled/*.conf
+            sed -i -E 's|ProxyPassReverse / http://127.0.0.1:(8710\|3000)/|ProxyPassReverse / http://127.0.0.1:3100/|g' /etc/apache2/sites-enabled/*.conf
             apachectl configtest && systemctl reload apache2
 
             # Restart services
