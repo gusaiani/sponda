@@ -1,34 +1,34 @@
 # Sponda
 
-> Indicadores fundamentalistas de empresas brasileiras para investidores em valor.
+> Fundamental analysis indicators for Brazilian stocks, adjusted for inflation.
 
-Sponda é uma plataforma gratuita de análise fundamentalista de ações da B3 (bolsa de valores brasileira). Calcula indicadores ajustados pela inflação (IPCA) para ajudar investidores de longo prazo a avaliar empresas.
+Sponda is a free platform for value investors analyzing companies listed on B3 (Brazilian stock exchange). It calculates valuation and quality metrics using inflation-adjusted (IPCA) historical data.
 
-## Indicadores disponíveis
+## Available Indicators
 
-- **PE10 (Shiller PE / CAPE)**: Preço/Lucro usando a média dos lucros dos últimos 10 anos, ajustados pela inflação.
-- **PFCF10**: Preço/Fluxo de Caixa Livre usando a média dos últimos 10 anos, ajustada pela inflação.
-- **PEG**: PE10 dividido pelo CAGR dos lucros. Mede se o preço é justo em relação ao crescimento.
-- **CAGR**: Taxa composta de crescimento anual dos lucros e do fluxo de caixa livre.
-- **Alavancagem**: Dívida/PL, Passivo/PL, Dívida/Lucro médio, Dívida/FCL médio.
-- **Fundamentos por ano**: Receita, lucro, FCL, dívida, PL — valores nominais e ajustados pela inflação.
+- **PE10 (Shiller PE / CAPE)**: Price-to-earnings using the 10-year average of inflation-adjusted net income.
+- **PFCF10**: Price-to-free-cash-flow using the 10-year average of inflation-adjusted FCF.
+- **PEG**: PE10 divided by earnings CAGR. Measures whether the price is fair relative to growth.
+- **CAGR**: Compound annual growth rate of earnings and free cash flow.
+- **Leverage**: Debt/Equity, Liabilities/Equity, Debt/Avg Earnings, Debt/Avg FCF.
+- **Annual fundamentals**: Revenue, net income, FCF, debt, equity — both nominal and inflation-adjusted.
 
-## Estrutura de URLs
+## URL Structure
 
-- `https://sponda.capital/` — Página inicial com busca e empresas populares.
-- `https://sponda.capital/{TICKER}` — Indicadores de uma empresa (ex: `/PETR4`, `/VALE3`, `/ITUB4`).
-- `https://sponda.capital/{TICKER}/fundamentos` — Dados financeiros anuais.
-- `https://sponda.capital/{TICKER}/graficos` — Gráficos históricos de múltiplos.
-- `https://sponda.capital/{TICKER}/comparar` — Comparação com empresas do mesmo setor.
-- `https://sponda.capital/sitemap.xml` — Sitemap com todas as ações disponíveis.
+- `https://sponda.capital/` — Homepage with search and popular companies.
+- `https://sponda.capital/{TICKER}` — Company indicators (e.g., `/PETR4`, `/VALE3`, `/ITUB4`).
+- `https://sponda.capital/{TICKER}/fundamentos` — Annual financial data.
+- `https://sponda.capital/{TICKER}/graficos` — Historical multiples charts.
+- `https://sponda.capital/{TICKER}/comparar` — Comparison with sector peers.
+- `https://sponda.capital/sitemap.xml` — Sitemap with all available stocks.
 
-## Dados
+## Data
 
-- Cobre todas as ações da B3 (excluindo BDRs e frações).
-- Dados de lucro, receita e fluxo de caixa trimestrais desde 2010+.
-- Inflação (IPCA) do IBGE para ajuste dos valores históricos.
-- Cotações e market cap atualizados diariamente.
+- Covers all stocks on B3 (excluding BDRs and fractional shares).
+- Quarterly earnings, revenue, and cash flow data from 2010+.
+- IPCA inflation index from IBGE for historical adjustment.
+- Quotes and market cap updated daily.
 
-## Sobre
+## About
 
-Sponda é mantido por Poema Parceria de Investimentos (https://poe.ma).
+Sponda is maintained by Poema Parceria de Investimentos (https://poe.ma).
