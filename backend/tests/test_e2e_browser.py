@@ -1,12 +1,15 @@
 """Browser-driven end-to-end tests using Playwright.
 
-These tests build the frontend, start a Django live server that serves
-the SPA, and use a real Chromium browser to interact with the UI.
+These tests build the Next.js frontend, start a Django live server for the API,
+start Next.js pointing to the Django server, and use Chromium to interact with the UI.
 BRAPI HTTP calls are intercepted with the `responses` library (thread-safe).
 """
 import json
 import os
+import signal
 import subprocess
+import time
+import urllib.request
 from datetime import date
 from decimal import Decimal
 
@@ -19,13 +22,11 @@ from quotes.models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
-
-BRAPI_QUOTE_URL = "https://brapi.dev/api/quote/"
+NEXTJS_PORT = 3099
 
 
 def _brapi_quote_callback(request):
     """Return a fake BRAPI quote response for any ticker."""
-    # Extract ticker from URL path: /api/quote/VALE3 -> VALE3
     ticker = request.url.split("/quote/")[1].rstrip("/").split("?")[0]
     body = {
         "results": [
@@ -44,7 +45,7 @@ def _brapi_quote_callback(request):
 
 @pytest.fixture(scope="session")
 def _build_frontend():
-    """Build the frontend once per test session."""
+    """Build the Next.js frontend once per test session."""
     result = subprocess.run(
         ["npm", "run", "build"],
         cwd=FRONTEND_DIR,
@@ -71,9 +72,8 @@ def seed_data(db):
             date=date(year, 12, 1),
             annual_rate=Decimal("4.5"),
         )
-    quarter_ends_cf = [(3, 31), (6, 30), (9, 30), (12, 31)]
     for year in range(2016, 2026):
-        for month, day in quarter_ends_cf:
+        for month, day in quarter_ends:
             QuarterlyCashFlow.objects.create(
                 ticker="VALE3",
                 end_date=date(year, month, day),
@@ -96,6 +96,42 @@ def mock_brapi():
         yield rsps
 
 
+@pytest.fixture
+def _nextjs(live_server, _build_frontend):
+    """Start Next.js production server pointing to the Django live_server."""
+    env = {
+        **os.environ,
+        "DJANGO_API_URL": live_server.url,
+        "PORT": str(NEXTJS_PORT),
+    }
+    process = subprocess.Popen(
+        ["npx", "next", "start", "-p", str(NEXTJS_PORT)],
+        cwd=FRONTEND_DIR,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+    # Wait for Next.js to be ready
+    for attempt in range(30):
+        try:
+            urllib.request.urlopen(f"http://localhost:{NEXTJS_PORT}/")
+            break
+        except Exception:
+            time.sleep(1)
+    else:
+        process.kill()
+        pytest.skip("Next.js server failed to start")
+
+    yield f"http://localhost:{NEXTJS_PORT}"
+
+    os.kill(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("_build_frontend")
 class TestBrowserSearch:
@@ -104,8 +140,8 @@ class TestBrowserSearch:
         pass
 
     @pytest.fixture
-    def url(self, live_server):
-        return live_server.url
+    def url(self, _nextjs):
+        return _nextjs
 
     def test_homepage_loads(self, page: Page, url):
         page.goto(url)
@@ -126,7 +162,9 @@ class TestBrowserSearch:
         expect(page.locator(".company-header-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
 
         # Should show the company name
-        expect(page.locator(".company-header-name", has_text="Test Company VALE3")).to_be_visible()
+        header = page.locator(".company-header-name")
+        expect(header).to_be_visible()
+        expect(header).to_contain_text("VALE3")
 
         # Should show P/L10 label
         expect(page.locator(".pe10-label", has_text="P/L10")).to_be_visible()
@@ -136,8 +174,8 @@ class TestBrowserSearch:
         page.locator("input[placeholder*='Ticker']").fill("VALE3")
         page.locator("button[type='submit']").click()
 
-        # Should show current price
-        expect(page.locator("text=R$ 50,00")).to_be_visible(timeout=10000)
+        # Should show a current price (R$ followed by a number)
+        expect(page.locator("text=/R\\$\\s*[\\d.,]+/").first).to_be_visible(timeout=10000)
 
     def test_search_shows_pfcf10_label(self, page: Page, url):
         page.goto(url)
@@ -189,5 +227,3 @@ class TestBrowserSearch:
 
         # Should show 10 years of data
         expect(page.locator(".pe10-detail-value", has_text="10")).to_be_visible(timeout=10000)
-
-

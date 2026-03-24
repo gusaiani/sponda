@@ -1,7 +1,8 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { useAuth } from "../hooks/useAuth";
-import "../styles/admin.css";
+import Link from "next/link";
+import { useAuth } from "../../hooks/useAuth";
 
 interface UserStats {
   email: string;
@@ -63,7 +64,7 @@ function formatDate(dateString: string | null): string {
   });
 }
 
-export function AdminDashboardPage() {
+export default function AdminDashboardPage() {
   const { isAuthenticated, isSuperuser, isLoading: authLoading } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,7 +101,7 @@ export function AdminDashboardPage() {
         <h1 className="admin-title">Acesso restrito</h1>
         <p className="admin-text">Esta página é exclusiva para administradores.</p>
         <p className="admin-link">
-          <Link to="/">Voltar para a página inicial</Link>
+          <Link href="/">Voltar para a página inicial</Link>
         </p>
       </div>
     );
@@ -117,48 +118,22 @@ export function AdminDashboardPage() {
 
   return (
     <div className="admin-container">
-      <Link to="/" className="admin-back-link">← Voltar</Link>
+      <Link href="/" className="admin-back-link">← Voltar</Link>
       <h1 className="admin-title">Painel de Administração</h1>
 
-      {/* Overview cards */}
       <div className="admin-overview-grid">
-        <OverviewCard
-          label="Usuários"
-          value={dashboardData.signup_stats.total}
-        />
-        <OverviewCard
-          label="Favoritos"
-          value={dashboardData.favorites_count}
-        />
-        <OverviewCard
-          label="Listas salvas"
-          value={dashboardData.saved_lists_count}
-        />
-        <OverviewCard
-          label="Views (24h)"
-          value={dashboardData.page_views.day?.total_views ?? 0}
-        />
-        <OverviewCard
-          label="Únicos (24h)"
-          value={dashboardData.page_views.day?.unique_visitors ?? 0}
-        />
-        <OverviewCard
-          label="Novos usuários (7d)"
-          value={dashboardData.signup_stats.week}
-        />
+        <OverviewCard label="Usuários" value={dashboardData.signup_stats.total} />
+        <OverviewCard label="Favoritos" value={dashboardData.favorites_count} />
+        <OverviewCard label="Listas salvas" value={dashboardData.saved_lists_count} />
+        <OverviewCard label="Views (24h)" value={dashboardData.page_views.day?.total_views ?? 0} />
+        <OverviewCard label="Únicos (24h)" value={dashboardData.page_views.day?.unique_visitors ?? 0} />
+        <OverviewCard label="Novos usuários (7d)" value={dashboardData.signup_stats.week} />
       </div>
 
-      {/* Page view stats */}
       <h2 className="admin-section-title">Visualizações de Página</h2>
       <table className="admin-table">
         <thead>
-          <tr>
-            <th>Período</th>
-            <th>Total</th>
-            <th>Únicos</th>
-            <th>Autenticados</th>
-            <th>Anônimos</th>
-          </tr>
+          <tr><th>Período</th><th>Total</th><th>Únicos</th><th>Autenticados</th><th>Anônimos</th></tr>
         </thead>
         <tbody>
           {["day", "week", "month", "year", "all_time"].map((period) => {
@@ -177,15 +152,9 @@ export function AdminDashboardPage() {
         </tbody>
       </table>
 
-      {/* Top pages (last 30 days) */}
       <h2 className="admin-section-title">Páginas mais visitadas (30 dias)</h2>
       <table className="admin-table">
-        <thead>
-          <tr>
-            <th>Página</th>
-            <th>Views</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Página</th><th>Views</th></tr></thead>
         <tbody>
           {dashboardData.top_pages.map((page) => (
             <tr key={page.path}>
@@ -196,7 +165,6 @@ export function AdminDashboardPage() {
         </tbody>
       </table>
 
-      {/* Top tickers */}
       <h2 className="admin-section-title">Tickers mais buscados</h2>
       <div className="admin-tickers-grid">
         {["day", "week", "month"].map((period) => {
@@ -223,15 +191,9 @@ export function AdminDashboardPage() {
         })}
       </div>
 
-      {/* Signups over time */}
       <h2 className="admin-section-title">Cadastros</h2>
       <table className="admin-table">
-        <thead>
-          <tr>
-            <th>Período</th>
-            <th>Novos</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Período</th><th>Novos</th></tr></thead>
         <tbody>
           {["day", "week", "month", "year", "total"].map((period) => (
             <tr key={period}>
@@ -242,24 +204,14 @@ export function AdminDashboardPage() {
         </tbody>
       </table>
 
-      {/* Users table */}
-      <h2 className="admin-section-title">
-        Usuários ({dashboardData.users.length})
-      </h2>
+      <h2 className="admin-section-title">Usuários ({dashboardData.users.length})</h2>
       <div className="admin-table-scroll">
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Email</th>
-              <th>Cadastro</th>
-              <th>Último login</th>
-              <th>Contato</th>
-              <th>Views 24h</th>
-              <th>Views 7d</th>
-              <th>Views 30d</th>
-              <th>Lookups 7d</th>
-              <th>Fav</th>
-              <th>Comp</th>
+              <th>Email</th><th>Cadastro</th><th>Último login</th><th>Contato</th>
+              <th>Views 24h</th><th>Views 7d</th><th>Views 30d</th><th>Lookups 7d</th>
+              <th>Fav</th><th>Comp</th>
             </tr>
           </thead>
           <tbody>

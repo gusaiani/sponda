@@ -1,8 +1,9 @@
+"use client";
+
 import { useState, FormEvent } from "react";
-import { Link } from "@tanstack/react-router";
-import { useAuth } from "../hooks/useAuth";
-import { csrfHeaders } from "../utils/csrf";
-import "../styles/auth.css";
+import Link from "next/link";
+import { useAuth } from "../../hooks/useAuth";
+import { csrfHeaders } from "../../utils/csrf";
 
 function formatTimeSince(dateString: string): string {
   const joined = new Date(dateString);
@@ -32,7 +33,7 @@ function formatDate(dateString: string): string {
 
 type AccountView = "main" | "change-password";
 
-export function AccountPage() {
+export default function AccountPage() {
   const { user, isLoading, isAuthenticated, logout } = useAuth();
   const [view, setView] = useState<AccountView>("main");
 
@@ -50,7 +51,7 @@ export function AccountPage() {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <Link to="/" className="auth-logo-link">
+          <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
           <h1 className="auth-title">Acesso restrito</h1>
@@ -58,7 +59,7 @@ export function AccountPage() {
             Você precisa estar logado para acessar esta página.
           </p>
           <p className="auth-link">
-            <Link to="/login">Fazer login</Link>
+            <Link href="/login">Fazer login</Link>
           </p>
         </div>
       </div>
@@ -71,17 +72,13 @@ export function AccountPage() {
   }
 
   if (view === "change-password") {
-    return (
-      <ChangePasswordView
-        onBack={() => setView("main")}
-      />
-    );
+    return <ChangePasswordView onBack={() => setView("main")} />;
   }
 
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <Link to="/" className="auth-logo-link">
+        <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
         <h1 className="auth-title">Minha Conta</h1>
@@ -110,7 +107,7 @@ export function AccountPage() {
         </div>
 
         <p className="auth-link">
-          <Link to="/">Voltar para a página inicial</Link>
+          <Link href="/">Voltar para a página inicial</Link>
         </p>
       </div>
     </div>
@@ -168,7 +165,7 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <Link to="/" className="auth-logo-link">
+        <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
         <h1 className="auth-title">Trocar Senha</h1>

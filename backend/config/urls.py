@@ -149,6 +149,27 @@ def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
     )
     html = html.replace("</head>", f"    {json_ld}  </head>")
 
+    # Inject meaningful content into <noscript> so crawlers see real text
+    # (prevents Google from classifying the page as a Soft 404)
+    sector_line = f"<p>Setor: {sector}</p>" if sector else ""
+    noscript_content = (
+        f"<noscript>\n"
+        f"      <h1>{display_name} ({ticker}) — Indicadores Fundamentalistas</h1>\n"
+        f"      <p>{og_desc}</p>\n"
+        f"      {sector_line}\n"
+        f"      <p>Indicadores disponíveis: PE10 (P/L ajustado pela inflação), "
+        f"P/FCL10, PEG, CAGR do lucro e do fluxo de caixa, "
+        f"Dívida/PL, Passivo/PL e mais.</p>\n"
+        f'      <p><a href="{_BASE_URL}">Voltar para a página inicial do Sponda</a></p>\n'
+        f"    </noscript>"
+    )
+    html = re.sub(
+        r"<noscript>.*?</noscript>",
+        noscript_content,
+        html,
+        flags=re.DOTALL,
+    )
+
     return html
 
 

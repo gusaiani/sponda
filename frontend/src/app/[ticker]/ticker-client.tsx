@@ -1,20 +1,22 @@
+"use client";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link, Outlet, useNavigate, useParams, useLocation } from "@tanstack/react-router";
-import { SearchBar } from "../components/SearchBar";
-import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../components/CompanyMetricsCard";
-import { MultiplesChart, MultiplesChartLoading } from "../components/MultiplesChart";
-import { CompareTab } from "../components/CompareTab";
-import { FundamentalsTab } from "../components/FundamentalsTab";
-import { FavoriteButton } from "../components/FavoriteButton";
-import { ShareButtons } from "../components/ShareButtons";
-import { usePE10, fetchQuote } from "../hooks/usePE10";
-import { useTickers } from "../hooks/useTickers";
-import { useMultiplesHistory } from "../hooks/useMultiplesHistory";
-import { deriveForYears } from "../hooks/deriveForYears";
-import { useSavedLists } from "../hooks/useSavedLists";
-import { getSectorPeers } from "../utils/subsector";
-import "../styles/chart.css";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { SearchBar } from "../../components/SearchBar";
+import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../../components/CompanyMetricsCard";
+import { MultiplesChart, MultiplesChartLoading } from "../../components/MultiplesChart";
+import { CompareTab } from "../../components/CompareTab";
+import { FundamentalsTab } from "../../components/FundamentalsTab";
+import { FavoriteButton } from "../../components/FavoriteButton";
+import { ShareButtons } from "../../components/ShareButtons";
+import { usePE10, fetchQuote } from "../../hooks/usePE10";
+import { useTickers } from "../../hooks/useTickers";
+import { useMultiplesHistory } from "../../hooks/useMultiplesHistory";
+import { deriveForYears } from "../../hooks/deriveForYears";
+import { useSavedLists } from "../../hooks/useSavedLists";
+import { getSectorPeers } from "../../utils/subsector";
 
 const DEFAULT_YEARS = 10;
 
@@ -34,30 +36,23 @@ const TAB_TO_SUFFIX: Record<TabKey, string> = {
 };
 
 function resolveTab(pathname: string): TabKey {
-  // Check path suffix: /<ticker>/graficos or /<ticker>/comparar
   const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
   if (TAB_PATHS[lastSegment]) return TAB_PATHS[lastSegment];
-
-  // Fallback: ?aba= query param (backwards compat)
-  const params = new URLSearchParams(window.location.search);
-  const aba = params.get("aba");
-  if (aba && TAB_PATHS[aba]) return TAB_PATHS[aba];
-
   return "metrics";
 }
 
-export function TickerPage() {
-  const { ticker } = useParams({ strict: false }) as { ticker: string };
-  const upperTicker = ticker.toUpperCase();
+export function TickerPageClient() {
+  const { ticker: rawTicker } = useParams<{ ticker: string }>();
+  const upperTicker = (rawTicker || "").toUpperCase();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const router = useRouter();
+  const pathname = usePathname();
   const [years, setYears] = useState(DEFAULT_YEARS);
   const [compareTickers, setCompareTickers] = useState<string[]>([]);
   const [activeListId, setActiveListId] = useState<number | null>(null);
   const seededForTicker = useRef<string | null>(null);
 
-  const activeTab = resolveTab(location.pathname);
+  const activeTab = resolveTab(pathname);
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker);
   const { data: allTickers } = useTickers();
@@ -73,7 +68,6 @@ export function TickerPage() {
     const savedList = lists.find((list) => list.id === listId);
     if (!savedList) return;
 
-    // Load the saved list's tickers and years
     const otherTickers = savedList.tickers.filter(
       (ticker) => ticker !== upperTicker
     );
@@ -87,7 +81,7 @@ export function TickerPage() {
   useEffect(() => {
     if (seededForTicker.current === upperTicker) return;
     if (!allTickers?.length) return;
-    if (!fullData) return; // wait for main ticker to load first
+    if (!fullData) return;
 
     const current = allTickers.find((ticker) => ticker.symbol === upperTicker);
     if (!current?.sector) {
@@ -105,7 +99,6 @@ export function TickerPage() {
     setCompareTickers(sectorPeers);
     seededForTicker.current = upperTicker;
 
-    // Prefetch peer data in background
     for (const peer of sectorPeers) {
       queryClient.prefetchQuery({
         queryKey: ["pe10", peer],
@@ -125,17 +118,6 @@ export function TickerPage() {
   const maxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
   const effectiveYears = Math.min(years, maxYears);
 
-  // Dynamic page title (OG tags are injected server-side for crawlers)
-  useEffect(() => {
-    const companyName = fullData?.name;
-    document.title = companyName
-      ? `${upperTicker} ${companyName} — Sponda`
-      : `${upperTicker} — Sponda`;
-    return () => {
-      document.title = "Sponda — Indicadores de Empresas Brasileiras para Investidores em Valor";
-    };
-  }, [upperTicker, fullData?.name]);
-
   const derivedData = useMemo(
     () => fullData ? deriveForYears(fullData, effectiveYears) : null,
     [fullData, effectiveYears],
@@ -154,7 +136,7 @@ export function TickerPage() {
 
   function switchTab(tab: TabKey) {
     const path = `/${upperTicker}${TAB_TO_SUFFIX[tab]}`;
-    navigate({ to: path });
+    router.push(path);
   }
 
   function handleSearch(newTicker: string) {
@@ -163,17 +145,17 @@ export function TickerPage() {
     setYears(DEFAULT_YEARS);
     setCompareTickers([]);
     seededForTicker.current = null;
-    navigate({ to: "/$ticker", params: { ticker: newTicker } });
+    router.push(`/${newTicker}`);
   }
 
   return (
     <div>
       <nav className="back-home-wrapper" aria-label="Navegação">
-        <Link to="/" className="back-home-link" aria-label="Voltar para a página inicial">
+        <Link href="/" className="back-home-link" aria-label="Voltar para a página inicial">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z"/><polyline points="9 21 9 14 15 14 15 21"/></svg>
         </Link>
       </nav>
-      <Link to="/" className="app-hero-title-link">
+      <Link href="/" className="app-hero-title-link">
         <span className="app-hero-logo">SPONDA</span>
       </Link>
       <p className="app-hero-subtitle">Indicadores de empresas brasileiras para investidores em valor</p>
@@ -281,7 +263,7 @@ export function TickerPage() {
         />
       )}
 
-      {/* Sector peers — internal links for SEO and discoverability */}
+      {/* Sector peers */}
       {sectorPeerLinks.length > 0 && (
         <nav className="sector-peers" aria-label="Empresas do mesmo setor">
           <h3 className="sector-peers-title">Empresas do mesmo setor</h3>
@@ -289,8 +271,7 @@ export function TickerPage() {
             {sectorPeerLinks.map((peer) => (
               <Link
                 key={peer.symbol}
-                to="/$ticker"
-                params={{ ticker: peer.symbol }}
+                href={`/${peer.symbol}`}
                 className="sector-peer-link"
               >
                 {peer.symbol}
@@ -305,7 +286,6 @@ export function TickerPage() {
         ticker={upperTicker}
         companyName={fullData?.name}
       />
-      <Outlet />
     </div>
   );
 }

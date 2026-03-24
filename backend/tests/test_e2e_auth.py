@@ -3,7 +3,10 @@ favorite and save list), error handling, and post-auth action completion."""
 import json
 import os
 import re
+import signal
 import subprocess
+import time
+import urllib.request
 from datetime import date
 from decimal import Decimal
 
@@ -19,6 +22,7 @@ os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 User = get_user_model()
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+NEXTJS_PORT = 3097
 
 
 def _brapi_quote_callback(request):
@@ -45,10 +49,41 @@ def _build_frontend():
         cwd=FRONTEND_DIR,
         capture_output=True,
         text=True,
-        env={**os.environ, "GOOGLE_CLIENT_ID": "test"},
     )
     if result.returncode != 0:
         pytest.skip(f"Frontend build failed: {result.stderr}")
+
+
+@pytest.fixture
+def _nextjs(live_server, _build_frontend):
+    """Start Next.js production server pointing to the Django live_server."""
+    env = {
+        **os.environ,
+        "DJANGO_API_URL": live_server.url,
+        "PORT": str(NEXTJS_PORT),
+    }
+    process = subprocess.Popen(
+        ["npx", "next", "start", "-p", str(NEXTJS_PORT)],
+        cwd=FRONTEND_DIR,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    for _ in range(30):
+        try:
+            urllib.request.urlopen(f"http://localhost:{NEXTJS_PORT}/")
+            break
+        except Exception:
+            time.sleep(1)
+    else:
+        process.kill()
+        pytest.skip("Next.js server failed to start")
+    yield f"http://localhost:{NEXTJS_PORT}"
+    os.kill(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
 
 
 @pytest.fixture
@@ -128,8 +163,8 @@ class TestLoginPage:
         pass
 
     @pytest.fixture
-    def url(self, live_server):
-        return live_server.url
+    def url(self, _nextjs):
+        return _nextjs
 
     def test_login_page_loads(self, page: Page, url):
         page.goto(f"{url}/login")
@@ -175,8 +210,8 @@ class TestSignupPage:
         pass
 
     @pytest.fixture
-    def url(self, live_server):
-        return live_server.url
+    def url(self, _nextjs):
+        return _nextjs
 
     def test_switch_to_signup_mode(self, page: Page, url):
         page.goto(f"{url}/login")
@@ -254,8 +289,8 @@ class TestAuthModalFromFavorite:
         pass
 
     @pytest.fixture
-    def url(self, live_server):
-        return live_server.url
+    def url(self, _nextjs):
+        return _nextjs
 
     def test_modal_appears_on_star_click(self, page: Page, url):
         page.goto(f"{url}/PETR4")
@@ -342,8 +377,8 @@ class TestAuthModalFromSaveList:
         pass
 
     @pytest.fixture
-    def url(self, live_server):
-        return live_server.url
+    def url(self, _nextjs):
+        return _nextjs
 
     def test_save_list_button_visible_when_logged_out(self, page: Page, url):
         page.goto(f"{url}/PETR4/comparar")

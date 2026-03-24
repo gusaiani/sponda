@@ -1,16 +1,15 @@
 import { useEffect, useRef } from "react";
-import { useLocation } from "@tanstack/react-router";
+import { usePathname } from "next/navigation";
 
 /**
  * Tracks page views by POSTing to the backend on every route change.
- * Works in both dev (Vite proxy) and production (Django serves everything).
  */
 export function usePageTracking() {
-  const location = useLocation();
+  const pathname = usePathname();
   const lastTrackedPath = useRef<string>("");
 
   useEffect(() => {
-    const path = location.pathname;
+    const path = pathname;
 
     // Skip admin pages and duplicates
     if (path.startsWith("/admin")) return;
@@ -26,5 +25,5 @@ export function usePageTracking() {
     }).catch(() => {
       // Silently ignore tracking failures
     });
-  }, [location.pathname]);
+  }, [pathname]);
 }
