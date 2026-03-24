@@ -159,3 +159,41 @@
 .chart-loading-bar-sm {
   @apply h-32 bg-gray-100 rounded;
 }
+
+/* Sector peers — internal links */
+.sector-peers {
+  @apply max-w-3xl mx-auto mt-10 mb-6 px-4;
+}
+
+.sector-peers-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm font-medium mb-3;
+  color: var(--color-muted);
+}
+
+.sector-peers-list {
+  @apply flex flex-wrap gap-2;
+}
+
+.sector-peer-link {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs px-3 py-1.5 rounded-md no-underline transition-colors;
+  background: var(--color-surface, #f3f4f6);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border, #e5e7eb);
+}
+
+.sector-peer-link:hover {
+  background: var(--color-accent, #1a2a5a);
+  color: #ffffff;
+  border-color: var(--color-accent, #1a2a5a);
+}
+
+.sector-peer-name {
+  @apply ml-1.5;
+  color: var(--color-muted);
+}
+
+.sector-peer-link:hover .sector-peer-name {
+  color: rgba(255, 255, 255, 0.7);
+}

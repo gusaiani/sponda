@@ -82,3 +82,28 @@
   border-top: 1px solid var(--color-border);
   opacity: 0.5;
 }
+
+/* Homepage explainer for SEO */
+.homepage-explainer {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply max-w-2xl mx-auto mt-12 mb-8 px-6 text-sm leading-relaxed;
+  color: var(--color-muted);
+}
+
+.homepage-explainer-title {
+  @apply text-base font-semibold mb-4;
+  color: var(--color-ink);
+}
+
+.homepage-explainer p {
+  @apply mb-3;
+}
+
+.homepage-explainer a {
+  color: var(--color-accent, #1a2a5a);
+  @apply font-medium no-underline;
+}
+
+.homepage-explainer a:hover {
+  text-decoration: underline;
+}

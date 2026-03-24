@@ -107,6 +107,11 @@ const tickerCompararRoute = createRoute({
   path: "/comparar",
 });
 
+const tickerFundamentosRoute = createRoute({
+  getParentRoute: () => tickerRoute,
+  path: "/fundamentos",
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   signupRoute,
@@ -119,7 +124,7 @@ const routeTree = rootRoute.addChildren([
   adminDashboardRoute,
   verifyEmailRoute,
   sharedListRoute,
-  tickerRoute.addChildren([tickerGraficosRoute, tickerCompararRoute]),
+  tickerRoute.addChildren([tickerGraficosRoute, tickerCompararRoute, tickerFundamentosRoute]),
 ]);
 
 export const router = createRouter({ routeTree });

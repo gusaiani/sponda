@@ -141,6 +141,17 @@ export function TickerPage() {
     [fullData, effectiveYears],
   );
 
+  const sectorPeerLinks = useMemo(() => {
+    if (!allTickers?.length || !fullData) return [];
+    const current = allTickers.find((ticker) => ticker.symbol === upperTicker);
+    if (!current?.sector) return [];
+    const peers = getSectorPeers(upperTicker, current.name, current.sector, allTickers, 8);
+    return peers.map((symbol) => {
+      const tickerData = allTickers.find((ticker) => ticker.symbol === symbol);
+      return { symbol, name: tickerData?.name || "" };
+    });
+  }, [upperTicker, allTickers, fullData]);
+
   function switchTab(tab: TabKey) {
     const path = `/${upperTicker}${TAB_TO_SUFFIX[tab]}`;
     navigate({ to: path });
@@ -268,6 +279,26 @@ export function TickerPage() {
           onExtraTickersChange={setCompareTickers}
           savedListId={activeListId}
         />
+      )}
+
+      {/* Sector peers — internal links for SEO and discoverability */}
+      {sectorPeerLinks.length > 0 && (
+        <nav className="sector-peers" aria-label="Empresas do mesmo setor">
+          <h3 className="sector-peers-title">Empresas do mesmo setor</h3>
+          <div className="sector-peers-list">
+            {sectorPeerLinks.map((peer) => (
+              <Link
+                key={peer.symbol}
+                to="/$ticker"
+                params={{ ticker: peer.symbol }}
+                className="sector-peer-link"
+              >
+                {peer.symbol}
+                {peer.name && <span className="sector-peer-name">{peer.name}</span>}
+              </Link>
+            ))}
+          </div>
+        </nav>
       )}
 
       <ShareButtons
