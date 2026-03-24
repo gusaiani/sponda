@@ -143,7 +143,7 @@ def generate_og_image(
         draw.text((x_pad, y_bottom), mc_text, fill=MUTED, font=font_small)
 
     # Branding
-    brand = "sponda.com.br"
+    brand = "sponda.capital"
     brand_bbox = draw.textbbox((0, 0), brand, font=font_branding)
     brand_w = brand_bbox[2] - brand_bbox[0]
     draw.text((WIDTH - card_margin - 50 - brand_w, y_bottom + 2), brand, fill=ACCENT, font=font_branding)

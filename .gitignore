@@ -13,6 +13,7 @@ build/
 db.sqlite3
 staticfiles/
 media/
+og_images/
 
 # Environment
 .env
