@@ -28,23 +28,9 @@
   @apply flex items-center justify-between gap-4;
 }
 
-.app-header-search-mobile {
+.app-header-search-row {
   @apply block;
   margin-top: 10px;
-}
-
-.app-header-search-desktop {
-  @apply hidden;
-}
-
-@media (min-width: 640px) {
-  .app-header-search-mobile {
-    @apply hidden;
-  }
-
-  .app-header-search-desktop {
-    @apply block flex-1 min-w-0;
-  }
 }
 
 .app-header-brand {
@@ -73,18 +59,9 @@
   color: var(--color-accent);
 }
 
-/* Search bar inside header */
-.app-header-search-desktop .search-container {
-  @apply mb-0;
-  max-width: 584px;
-  margin-left: 0;
-  margin-right: 0;
-}
-
-.app-header-search-mobile .search-container {
-  @apply max-w-full mb-0;
-  margin-left: 0;
-  margin-right: 0;
+/* Search bar inside header — match .popular-grid alignment (max-w-3xl mx-auto) */
+.app-header-search-row .search-container {
+  @apply max-w-3xl mx-auto mb-0;
 }
 
 .app-main {
