@@ -14,9 +14,8 @@
 }
 
 .app-header {
-  @apply sticky top-0 z-50 flex items-center justify-between gap-4 px-4 py-2.5;
+  @apply sticky top-0 z-50 flex flex-col gap-2 px-4 py-2.5;
   background: #ffffff;
-  border-bottom: 1px solid var(--color-border);
 }
 
 @media (min-width: 640px) {
@@ -25,8 +24,26 @@
   }
 }
 
-.app-header-left {
-  @apply flex items-center gap-4 flex-1 min-w-0;
+.app-header-top {
+  @apply flex items-center justify-between gap-4;
+}
+
+.app-header-search-mobile {
+  @apply block;
+}
+
+.app-header-search-desktop {
+  @apply hidden;
+}
+
+@media (min-width: 640px) {
+  .app-header-search-mobile {
+    @apply hidden;
+  }
+
+  .app-header-search-desktop {
+    @apply block flex-1 min-w-0;
+  }
 }
 
 .app-header-brand {
@@ -55,9 +72,12 @@
   color: var(--color-accent);
 }
 
-/* Search bar inside header: center in remaining space */
-.app-header-left .search-container {
-  @apply flex-1 max-w-lg mb-0 mx-auto;
+/* Search bar inside header */
+.app-header-search-desktop .search-container,
+.app-header-search-mobile .search-container {
+  @apply max-w-full mb-0;
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .app-main {

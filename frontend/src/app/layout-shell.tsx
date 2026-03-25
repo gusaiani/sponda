@@ -28,14 +28,19 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     <div className="app-container">
       {!isOnAuthPage && (
         <header className="app-header">
-          <div className="app-header-left">
+          <div className="app-header-top">
             <Link href="/" className="app-header-brand">
               <span className="app-header-logo">SPONDA</span>
               <span className="app-header-tagline">Para investidores em valor</span>
             </Link>
+            <div className="app-header-search-desktop">
+              <SearchBar onSearch={handleSearch} isLoading={false} />
+            </div>
+            <AuthHeader />
+          </div>
+          <div className="app-header-search-mobile">
             <SearchBar onSearch={handleSearch} isLoading={false} />
           </div>
-          <AuthHeader />
         </header>
       )}
       {isOnAuthPage && <AuthHeader />}
