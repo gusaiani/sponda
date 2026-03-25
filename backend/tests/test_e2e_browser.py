@@ -150,13 +150,13 @@ class TestBrowserSearch:
 
     def test_search_bar_is_visible(self, page: Page, url):
         page.goto(url)
-        search_input = page.locator("input[placeholder*='Ticker']")
+        search_input = page.locator("input[placeholder*='Ticker']").first
         expect(search_input).to_be_visible()
 
     def test_search_shows_pe10_result(self, page: Page, url):
         page.goto(url)
-        page.locator("input[placeholder*='Ticker']").fill("VALE3")
-        page.locator("button[type='submit']").click()
+        page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
+        page.locator("button[type='submit']").first.click()
 
         # Wait for the company header to appear with ticker
         expect(page.locator(".company-header-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
@@ -171,24 +171,24 @@ class TestBrowserSearch:
 
     def test_search_shows_price(self, page: Page, url):
         page.goto(url)
-        page.locator("input[placeholder*='Ticker']").fill("VALE3")
-        page.locator("button[type='submit']").click()
+        page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
+        page.locator("button[type='submit']").first.click()
 
         # Should show a current price (R$ followed by a number)
         expect(page.locator("text=/R\\$\\s*[\\d.,]+/").first).to_be_visible(timeout=10000)
 
     def test_search_shows_pfcf10_label(self, page: Page, url):
         page.goto(url)
-        page.locator("input[placeholder*='Ticker']").fill("VALE3")
-        page.locator("button[type='submit']").click()
+        page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
+        page.locator("button[type='submit']").first.click()
 
         # Should show P/FCL10 label alongside P/L10
         expect(page.locator(".pe10-label", has_text="P/FCL10")).to_be_visible(timeout=10000)
 
     def test_search_shows_both_metrics(self, page: Page, url):
         page.goto(url)
-        page.locator("input[placeholder*='Ticker']").fill("VALE3")
-        page.locator("button[type='submit']").click()
+        page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
+        page.locator("button[type='submit']").first.click()
 
         # Both metric labels should be visible
         expect(page.locator(".pe10-label", has_text="P/L10")).to_be_visible(timeout=10000)
@@ -196,8 +196,8 @@ class TestBrowserSearch:
 
     def test_entenda_melhor_opens_modal(self, page: Page, url):
         page.goto(url)
-        page.locator("input[placeholder*='Ticker']").fill("VALE3")
-        page.locator("button[type='submit']").click()
+        page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
+        page.locator("button[type='submit']").first.click()
 
         # Wait for card, then click first "Entenda melhor"
         expect(page.locator(".company-header-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
@@ -209,8 +209,8 @@ class TestBrowserSearch:
 
     def test_modal_closes_on_x_button(self, page: Page, url):
         page.goto(url)
-        page.locator("input[placeholder*='Ticker']").fill("VALE3")
-        page.locator("button[type='submit']").click()
+        page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
+        page.locator("button[type='submit']").first.click()
 
         expect(page.locator(".company-header-ticker", has_text="VALE3")).to_be_visible(timeout=10000)
         page.locator(".info-btn").first.click()
@@ -222,8 +222,8 @@ class TestBrowserSearch:
 
     def test_search_shows_years_of_data(self, page: Page, url):
         page.goto(url)
-        page.locator("input[placeholder*='Ticker']").fill("VALE3")
-        page.locator("button[type='submit']").click()
+        page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
+        page.locator("button[type='submit']").first.click()
 
         # Should show 10 years of data
         expect(page.locator(".pe10-detail-value", has_text="10")).to_be_visible(timeout=10000)
