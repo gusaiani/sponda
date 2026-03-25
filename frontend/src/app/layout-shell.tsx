@@ -33,12 +33,9 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               <span className="app-header-logo">SPONDA</span>
               <span className="app-header-tagline">Para investidores em valor</span>
             </Link>
-            <div className="app-header-search-desktop">
-              <SearchBar onSearch={handleSearch} isLoading={false} />
-            </div>
             <AuthHeader />
           </div>
-          <div className="app-header-search-mobile">
+          <div className="app-header-search-row">
             <SearchBar onSearch={handleSearch} isLoading={false} />
           </div>
         </header>
