@@ -30,7 +30,7 @@
 
 .app-header-search-mobile {
   @apply block;
-  margin-top: 20px;
+  margin-top: 10px;
 }
 
 .app-header-search-desktop {
