@@ -30,6 +30,7 @@
 
 .app-header-search-mobile {
   @apply block;
+  margin-top: 20px;
 }
 
 .app-header-search-desktop {
@@ -73,7 +74,13 @@
 }
 
 /* Search bar inside header */
-.app-header-search-desktop .search-container,
+.app-header-search-desktop .search-container {
+  @apply mb-0;
+  max-width: 584px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .app-header-search-mobile .search-container {
   @apply max-w-full mb-0;
   margin-left: 0;
