@@ -1,5 +1,5 @@
 """Tests for the fundamentals (per-year) aggregation logic."""
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -173,6 +173,38 @@ class TestComputeFundamentals:
         expected_net_income = float(Decimal("8000000000") * Decimal("1.0483"))
         assert abs(year_2023["netIncomeAdjusted"] - expected_net_income) < 1
 
+    def test_ipca_adjustment_applied_to_balance_sheet(
+        self, multi_year_balance_sheets, ipca_entries
+    ):
+        result = compute_fundamentals("WEGE3", market_cap=None, current_price=None)
+        year_2023 = result[1]
+        # 2023 balance sheet should be adjusted by IPCA factor
+        # factor = 1 + 4.83/100 = 1.0483
+        ipca_factor = Decimal("1.0483")
+
+        # debt_ex_lease for 2023: total_debt=8B - total_lease=800M = 7.2B
+        expected_debt_ex_lease = float(Decimal("7200000000") * ipca_factor)
+        assert abs(year_2023["debtExLeaseAdjusted"] - expected_debt_ex_lease) < 1
+
+        expected_total_liabilities = float(Decimal("16000000000") * ipca_factor)
+        assert abs(year_2023["totalLiabilitiesAdjusted"] - expected_total_liabilities) < 1
+
+        expected_equity = float(Decimal("12000000000") * ipca_factor)
+        assert abs(year_2023["stockholdersEquityAdjusted"] - expected_equity) < 1
+
+    def test_ipca_balance_sheet_null_when_values_null(self, db, ipca_entries):
+        """Balance sheet with null values should produce null adjusted values."""
+        BalanceSheet.objects.create(
+            ticker="NULB3", end_date=date(2024, 12, 31),
+            total_debt=None, total_lease=None,
+            total_liabilities=None, stockholders_equity=None,
+            current_assets=None, current_liabilities=None,
+        )
+        result = compute_fundamentals("NULB3", market_cap=None, current_price=None)
+        assert result[0]["debtExLeaseAdjusted"] is None
+        assert result[0]["totalLiabilitiesAdjusted"] is None
+        assert result[0]["stockholdersEquityAdjusted"] is None
+
     def test_empty_ticker_returns_empty_list(self, db):
         result = compute_fundamentals("NONE3", market_cap=None, current_price=None)
         assert result == []
@@ -190,6 +222,42 @@ class TestComputeFundamentals:
         assert result[0]["debtToEquity"] is None
         assert result[0]["liabilitiesToEquity"] is None
         assert result[0]["currentRatio"] is None
+
+    def test_market_cap_historical(
+        self, multi_year_balance_sheets, multi_year_earnings, ipca_entries
+    ):
+        """Historical years get market cap computed from year-end price * shares outstanding."""
+        historical_prices = [
+            {"date": int(datetime(2023, 12, 31, tzinfo=timezone.utc).timestamp()), "adjustedClose": 40.0},
+            {"date": int(datetime(2024, 12, 31, tzinfo=timezone.utc).timestamp()), "adjustedClose": 50.0},
+        ]
+        # market_cap=200B, current_price=50 → shares_outstanding=4B
+        result = compute_fundamentals(
+            "WEGE3",
+            market_cap=200_000_000_000,
+            current_price=50.0,
+            historical_prices=historical_prices,
+        )
+        # 2024 (latest year): uses current market_cap directly
+        assert result[0]["marketCap"] == 200_000_000_000
+        # 2023: year_end_price=40 * shares_outstanding=4B = 160B
+        assert result[1]["marketCap"] == 160_000_000_000
+
+    def test_market_cap_latest_year_only_without_historical_prices(
+        self, multi_year_balance_sheets, multi_year_earnings, ipca_entries
+    ):
+        """Without historical prices, only the latest year gets market cap."""
+        result = compute_fundamentals(
+            "WEGE3", market_cap=200_000_000_000, current_price=50.0
+        )
+        assert result[0]["marketCap"] == 200_000_000_000  # 2024 (latest)
+        assert result[1]["marketCap"] is None  # 2023 — no historical prices
+
+    def test_market_cap_none_when_not_provided(
+        self, multi_year_balance_sheets, ipca_entries
+    ):
+        result = compute_fundamentals("WEGE3", market_cap=None, current_price=None)
+        assert result[0]["marketCap"] is None
 
     def test_ticker_case_insensitive(
         self, multi_year_balance_sheets, ipca_entries

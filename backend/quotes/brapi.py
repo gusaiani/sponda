@@ -308,7 +308,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         if equity is not None:
             equity = int(equity)
 
-        current_assets = stmt.get("currentAssets")
+        current_assets = stmt.get("totalCurrentAssets") or stmt.get("currentAssets")
         if current_assets is not None:
             current_assets = int(current_assets)
 

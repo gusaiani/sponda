@@ -82,6 +82,8 @@ function makeFullData(opts: {
     // Profitability (will be derived)
     roe: null,
     priceToBook: null,
+    // Liquidity
+    currentRatio: null,
   };
 }
 
@@ -146,7 +148,7 @@ describe("deriveForYears", () => {
       expect(derived4.pe10).toBe(3.2);
     });
 
-    it("returns null PE10 with error when average earnings <= 0", () => {
+    it("computes negative PE10 when average earnings are negative", () => {
       const full = makeFullData({
         years: 3,
         marketCap: 100_000,
@@ -154,8 +156,9 @@ describe("deriveForYears", () => {
       });
       const derived = deriveForYears(full, 3);
 
-      expect(derived.pe10).toBeNull();
-      expect(derived.pe10Error).toContain("negativo");
+      // avg = -50_000, PE = 100_000 / -50_000 = -2.0
+      expect(derived.pe10).toBe(-2.0);
+      expect(derived.pe10Error).toBeNull();
     });
 
     it("computes PFCF10 as marketCap / average adjusted FCF", () => {
@@ -254,7 +257,7 @@ describe("deriveForYears", () => {
       expect(derived.peg).toBeCloseTo(derived.pe10! / derived.earningsCAGR!, 1);
     });
 
-    it("returns PEG error when PE is null", () => {
+    it("returns PEG error when PE is negative", () => {
       const full = makeFullData({
         years: 3,
         marketCap: 1_000_000,
@@ -262,6 +265,8 @@ describe("deriveForYears", () => {
       });
       const derived = deriveForYears(full, 3);
 
+      // PE is negative, so PEG should be null with error
+      expect(derived.pe10).toBeLessThan(0);
       expect(derived.peg).toBeNull();
       expect(derived.pegError).toBeTruthy();
     });
@@ -296,6 +301,15 @@ describe("deriveForYears", () => {
       expect(derived.debtToEquity).toBe(1.5);
       expect(derived.liabilitiesToEquity).toBe(2.0);
       expect(derived.leverageDate).toBe("2025-03-31");
+    });
+
+    it("preserves currentRatio from the original quote", () => {
+      const full = makeFullData({ years: 5 });
+      full.currentRatio = 1.55;
+
+      const derived = deriveForYears(full, 3);
+
+      expect(derived.currentRatio).toBe(1.55);
     });
   });
 

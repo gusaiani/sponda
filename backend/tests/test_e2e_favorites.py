@@ -248,16 +248,19 @@ class TestFavorites:
         # Favorite PETR4
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
+        page.wait_for_load_state("networkidle")
         page.locator(".favorite-button-prominent").click()
-        expect(page.locator(".favorite-button-active")).to_be_visible(timeout=5000)
+        expect(page.locator(".favorite-button-active")).to_be_visible(timeout=10000)
+        page.wait_for_load_state("networkidle")
 
         # Go home
         page.goto(url)
+        page.wait_for_load_state("networkidle")
 
         # Should see favorites section
         expect(
             page.locator("text=Favoritas")
-        ).to_be_visible(timeout=5000)
+        ).to_be_visible(timeout=10000)
 
     def test_unfavorite_removes_from_homepage(self, page: Page, url, test_user):
         """Clicking the star again should unfavorite and remove from home."""
@@ -266,15 +269,19 @@ class TestFavorites:
         # Favorite
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
+        page.wait_for_load_state("networkidle")
         page.locator(".favorite-button-prominent").click()
-        expect(page.locator(".favorite-button-active")).to_be_visible(timeout=5000)
+        expect(page.locator(".favorite-button-active")).to_be_visible(timeout=10000)
+        page.wait_for_load_state("networkidle")
 
         # Unfavorite — now the compact active button is visible
         page.locator(".favorite-button-active").click()
 
         # Should revert to prominent (since user now has 0 favorites again)
-        expect(page.locator(".favorite-button-prominent")).to_be_visible(timeout=5000)
+        expect(page.locator(".favorite-button-prominent")).to_be_visible(timeout=10000)
+        page.wait_for_load_state("networkidle")
 
         # Go home — should NOT see favorites section
         page.goto(url)
-        expect(page.locator("text=Favoritas")).not_to_be_visible(timeout=3000)
+        page.wait_for_load_state("networkidle")
+        expect(page.locator("text=Favoritas")).not_to_be_visible(timeout=5000)

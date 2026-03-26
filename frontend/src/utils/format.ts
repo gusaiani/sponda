@@ -3,9 +3,12 @@ export function ptLabel(label: string): string {
   return label.replace(/^PE/, "P/L").replace(/^PFCF/, "P/FCL");
 }
 
-/** Replace decimal dot with comma for Brazilian notation */
+/** Format number with Brazilian notation: period for thousands, comma for decimals */
 export function br(n: number, digits: number): string {
-  return n.toFixed(digits).replace(".", ",");
+  return n.toLocaleString("pt-BR", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).replace("-", "\u2013");
 }
 
 export function formatLargeNumber(value: number): string {

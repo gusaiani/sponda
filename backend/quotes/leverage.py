@@ -9,6 +9,7 @@ def calculate_leverage(ticker: str) -> dict:
     Returns:
     - debtToEquity: Dívida Bruta / Patrimônio Líquido
     - liabilitiesToEquity: Passivo Total / Patrimônio Líquido
+    - currentRatio: Ativo Circulante / Passivo Circulante
     """
     latest = (
         BalanceSheet.objects.filter(ticker=ticker.upper())
@@ -21,6 +22,7 @@ def calculate_leverage(ticker: str) -> dict:
             "debtToEquity": None,
             "debtExLeaseToEquity": None,
             "liabilitiesToEquity": None,
+            "currentRatio": None,
             "leverageError": "Dados de balanço indisponíveis",
             "leverageDate": None,
             "totalDebt": None,
@@ -43,12 +45,17 @@ def calculate_leverage(ticker: str) -> dict:
         "stockholdersEquity": equity,
     }
 
+    current_ratio = None
+    if latest.current_assets is not None and latest.current_liabilities is not None and latest.current_liabilities != 0:
+        current_ratio = round(latest.current_assets / latest.current_liabilities, 2)
+
     if equity is None or equity == 0:
         return {
             **base,
             "debtToEquity": None,
             "debtExLeaseToEquity": None,
             "liabilitiesToEquity": None,
+            "currentRatio": current_ratio,
             "leverageError": "Patrimônio líquido indisponível ou zero",
         }
 
@@ -73,5 +80,6 @@ def calculate_leverage(ticker: str) -> dict:
         "debtToEquity": debt_to_equity,
         "debtExLeaseToEquity": debt_ex_lease_to_equity,
         "liabilitiesToEquity": liab_to_equity,
+        "currentRatio": current_ratio,
         "leverageError": error,
     }
