@@ -168,12 +168,10 @@ const COLUMNS: ColumnDef[] = [
     format: (row, mode) => millions(mode === "adjusted" ? row.marketCapAdjusted : row.marketCap),
   },
   {
-    key: "dividends", label: "Dividendos (M)", group: "retorno",
+    key: "dividends", label: "Proventos (M)", group: "retorno",
     format: (row, mode) => {
       const value = mode === "adjusted" ? row.dividendsAdjusted : row.dividendsPaid;
-      if (value === null) return null;
-      // dividendsPaid is negative in BRAPI; show as positive
-      return millions(Math.abs(value));
+      return millions(value ?? 0);
     },
   },
 ];

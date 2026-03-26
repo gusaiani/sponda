@@ -34,6 +34,22 @@ def fetch_quote(ticker: str) -> dict:
     return results[0]
 
 
+def fetch_dividends(ticker: str) -> dict:
+    """Fetch dividend history for a ticker.
+
+    Returns a dict with cashDividends and stockDividends lists from BRAPI.
+    """
+    data = _get(f"/quote/{ticker}", params={"dividends": "true"})
+    results = data.get("results", [])
+    if not results:
+        raise BRAPIError(f"No results for ticker {ticker}")
+    dividends_data = results[0].get("dividendsData", {})
+    return {
+        "cashDividends": dividends_data.get("cashDividends", []),
+        "stockDividends": dividends_data.get("stockDividends", []),
+    }
+
+
 def fetch_historical_prices(ticker: str) -> list[dict]:
     """Fetch monthly historical prices (max range) for a ticker.
 

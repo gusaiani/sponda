@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from quotes.fundamentals import compute_fundamentals
+from quotes.fundamentals import aggregate_proventos_by_year, compute_fundamentals
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
@@ -264,3 +264,93 @@ class TestComputeFundamentals:
     ):
         result = compute_fundamentals("wege3", market_cap=None, current_price=None)
         assert len(result) == 2
+
+
+class TestAggregateProventosByYear:
+    def test_sums_dividends_and_jcp_per_year(self):
+        """Total proventos = sum of (rate × shares_at_time) per year."""
+        cash_dividends = [
+            {"paymentDate": "2024-03-15T03:00:00.000Z", "rate": 0.50, "label": "DIVIDENDO"},
+            {"paymentDate": "2024-06-15T03:00:00.000Z", "rate": 0.30, "label": "JCP"},
+            {"paymentDate": "2024-09-15T03:00:00.000Z", "rate": 0.20, "label": "DIVIDENDO"},
+            {"paymentDate": "2023-12-15T03:00:00.000Z", "rate": 0.40, "label": "DIVIDENDO"},
+        ]
+        # 4B shares, no splits
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=[],
+            current_shares=4_000_000_000,
+        )
+        # 2024: (0.50 + 0.30 + 0.20) × 4B = 4.0B
+        assert result[2024] == pytest.approx(4_000_000_000, rel=1e-6)
+        # 2023: 0.40 × 4B = 1.6B
+        assert result[2023] == pytest.approx(1_600_000_000, rel=1e-6)
+
+    def test_adjusts_shares_for_splits(self):
+        """Pre-split dividends use the pre-split share count."""
+        cash_dividends = [
+            # Before 2:1 split
+            {"paymentDate": "2023-06-15T03:00:00.000Z", "rate": 1.00, "label": "DIVIDENDO"},
+            # After 2:1 split
+            {"paymentDate": "2024-06-15T03:00:00.000Z", "rate": 0.50, "label": "DIVIDENDO"},
+        ]
+        stock_dividends = [
+            # 2:1 split on 2024-01-15
+            {"lastDatePrior": "2024-01-15T03:00:00.000Z", "label": "DESDOBRAMENTO", "factor": 2.0},
+        ]
+        # Current shares: 4B (post-split)
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=stock_dividends,
+            current_shares=4_000_000_000,
+        )
+        # 2024: 0.50 × 4B = 2B (post-split, current shares)
+        assert result[2024] == pytest.approx(2_000_000_000, rel=1e-6)
+        # 2023: 1.00 × 2B = 2B (pre-split, half the current shares)
+        assert result[2023] == pytest.approx(2_000_000_000, rel=1e-6)
+
+    def test_handles_reverse_split(self):
+        """Reverse split (grupamento) increases pre-split share count."""
+        cash_dividends = [
+            {"paymentDate": "2023-06-15T03:00:00.000Z", "rate": 0.10, "label": "DIVIDENDO"},
+        ]
+        stock_dividends = [
+            # 1:5 reverse split (grupamento) on 2024-01-15: factor = 0.2
+            {"lastDatePrior": "2024-01-15T03:00:00.000Z", "label": "GRUPAMENTO", "factor": 0.2},
+        ]
+        # Current shares: 1B (post-reverse-split)
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=stock_dividends,
+            current_shares=1_000_000_000,
+        )
+        # 2023: 0.10 × 5B = 500M (pre-reverse-split had 5× the shares)
+        assert result[2023] == pytest.approx(500_000_000, rel=1e-6)
+
+    def test_empty_dividends(self):
+        result = aggregate_proventos_by_year(
+            cash_dividends=[],
+            stock_dividends=[],
+            current_shares=4_000_000_000,
+        )
+        assert result == {}
+
+    def test_multiple_splits(self):
+        """Multiple splits compound correctly."""
+        cash_dividends = [
+            {"paymentDate": "2022-06-15T03:00:00.000Z", "rate": 2.00, "label": "DIVIDENDO"},
+        ]
+        stock_dividends = [
+            # 2:1 split in 2023
+            {"lastDatePrior": "2023-01-15T03:00:00.000Z", "label": "DESDOBRAMENTO", "factor": 2.0},
+            # 3:1 split in 2024
+            {"lastDatePrior": "2024-01-15T03:00:00.000Z", "label": "DESDOBRAMENTO", "factor": 3.0},
+        ]
+        # Current shares: 6B (after 2× then 3× = 6×)
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=stock_dividends,
+            current_shares=6_000_000_000,
+        )
+        # 2022: 2.00 × 1B = 2B (before both splits: 6B / 6 = 1B)
+        assert result[2022] == pytest.approx(2_000_000_000, rel=1e-6)
