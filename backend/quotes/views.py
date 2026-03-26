@@ -9,8 +9,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .brapi import BRAPIError, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
-from .fundamentals import compute_fundamentals
+from .brapi import BRAPIError, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
 from .leverage import calculate_leverage
 from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
@@ -318,11 +318,28 @@ class FundamentalsView(APIView):
         except BRAPIError:
             historical_prices = []
 
+        # Fetch dividend data and compute total proventos per year
+        proventos_by_year = None
+        current_price_float = float(current_price) if current_price else None
+        market_cap_float = float(market_cap) if market_cap else None
+        if market_cap_float and current_price_float and current_price_float > 0:
+            try:
+                dividends_data = fetch_dividends(ticker)
+                current_shares = market_cap_float / current_price_float
+                proventos_by_year = aggregate_proventos_by_year(
+                    cash_dividends=dividends_data["cashDividends"],
+                    stock_dividends=dividends_data["stockDividends"],
+                    current_shares=current_shares,
+                )
+            except BRAPIError:
+                pass
+
         fundamentals = compute_fundamentals(
             ticker,
-            market_cap=float(market_cap) if market_cap else None,
-            current_price=float(current_price) if current_price else None,
+            market_cap=market_cap_float,
+            current_price=current_price_float,
             historical_prices=historical_prices,
+            proventos_by_year=proventos_by_year,
         )
 
         response = Response(fundamentals)

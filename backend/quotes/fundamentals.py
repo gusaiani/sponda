@@ -109,11 +109,66 @@ def _extract_year_end_prices(historical_prices: list[dict]) -> dict[int, float]:
     return year_end_prices
 
 
+def aggregate_proventos_by_year(
+    cash_dividends: list[dict],
+    stock_dividends: list[dict],
+    current_shares: float,
+) -> dict[int, float]:
+    """Compute total proventos (dividends + JCP) per year in absolute BRL.
+
+    For each cash dividend, multiplies the per-share rate by the number of
+    shares outstanding at the time of payment. Splits and reverse splits
+    are accounted for by adjusting the share count backwards from the
+    current number of shares.
+
+    Args:
+        cash_dividends: list of dicts with paymentDate, rate, label
+        stock_dividends: list of dicts with lastDatePrior, factor, label
+        current_shares: current number of shares outstanding
+
+    Returns:
+        dict mapping year → total proventos in BRL
+    """
+    if not cash_dividends:
+        return {}
+
+    # Parse and sort splits by date descending (most recent first)
+    splits = []
+    for split in stock_dividends:
+        date_str = split.get("lastDatePrior", "")[:10]
+        factor = split.get("factor")
+        if date_str and factor and factor != 0:
+            splits.append((date_str, float(factor)))
+    splits.sort(reverse=True)
+
+    def shares_at_date(payment_date_str: str) -> float:
+        """Compute shares outstanding at a given date, adjusting for splits."""
+        shares = current_shares
+        for split_date, factor in splits:
+            if payment_date_str < split_date:
+                shares /= factor
+        return shares
+
+    totals: dict[int, float] = {}
+    for dividend in cash_dividends:
+        payment_date = dividend.get("paymentDate", "")[:10]
+        rate = dividend.get("rate")
+        if not payment_date or rate is None:
+            continue
+        year = int(payment_date[:4])
+        shares = shares_at_date(payment_date)
+        total = float(rate) * shares
+        totals[year] = totals.get(year, 0.0) + total
+
+    return totals
+
+
 def compute_fundamentals(
     ticker: str,
     market_cap: float | None,
     current_price: float | None,
     historical_prices: list[dict] | None = None,
+    proventos_by_year: dict[int, float] | None = None,
 ) -> list[dict]:
     """Compute per-year fundamental data for a ticker.
 
@@ -177,7 +232,12 @@ def compute_fundamentals(
         # Cash flow values
         fcf = cash_flow.get("fcf") if cash_flow.get("hasOperatingCF") else None
         operating_cf = cash_flow.get("operatingCashFlow") if cash_flow.get("hasOperatingCF") else None
-        dividends_paid = cash_flow.get("dividendsPaid") if cash_flow.get("hasDividends") else None
+
+        # Proventos: prefer BRAPI dividends endpoint over cash flow statement
+        if proventos_by_year is not None:
+            dividends_paid = proventos_by_year.get(year, 0.0)
+        else:
+            dividends_paid = cash_flow.get("dividendsPaid") if cash_flow.get("hasDividends") else None
 
         # IPCA adjustment
         ipca_factor = ipca_factors.get(year, Decimal("1"))
@@ -186,7 +246,7 @@ def compute_fundamentals(
         net_income_adjusted = float(net_income * ipca_factor) if net_income is not None else None
         fcf_adjusted = float(fcf * ipca_factor) if fcf is not None else None
         operating_cf_adjusted = float(operating_cf * ipca_factor) if operating_cf is not None else None
-        dividends_adjusted = float(dividends_paid * ipca_factor) if dividends_paid is not None else None
+        dividends_adjusted = float(float(dividends_paid) * float(ipca_factor)) if dividends_paid is not None else None
         debt_ex_lease_adjusted = float(debt_ex_lease * ipca_factor) if debt_ex_lease is not None else None
         total_liabilities_adjusted = float(total_liabilities * ipca_factor) if total_liabilities is not None else None
         equity_adjusted = float(equity * ipca_factor) if equity is not None else None
