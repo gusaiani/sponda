@@ -106,3 +106,60 @@ class TestCalculateLeverage:
     def test_ticker_case_insensitive(self, sample_balance_sheet):
         result = calculate_leverage("petr4")
         assert result["debtToEquity"] == 1.5
+
+    def test_calculates_current_ratio(self, db):
+        BalanceSheet.objects.create(
+            ticker="LIQC3",
+            end_date=date(2025, 9, 30),
+            total_debt=100_000_000_000,
+            total_liabilities=200_000_000_000,
+            stockholders_equity=100_000_000_000,
+            current_assets=150_000_000_000,
+            current_liabilities=100_000_000_000,
+        )
+        result = calculate_leverage("LIQC3")
+        assert result["currentRatio"] == 1.5  # 150B / 100B
+
+    def test_current_ratio_null_when_no_balance_sheet(self, db):
+        result = calculate_leverage("FAKE3")
+        assert result["currentRatio"] is None
+
+    def test_current_ratio_null_when_current_liabilities_zero(self, db):
+        BalanceSheet.objects.create(
+            ticker="ZCLI3",
+            end_date=date(2025, 9, 30),
+            total_debt=100_000_000_000,
+            total_liabilities=200_000_000_000,
+            stockholders_equity=100_000_000_000,
+            current_assets=150_000_000_000,
+            current_liabilities=0,
+        )
+        result = calculate_leverage("ZCLI3")
+        assert result["currentRatio"] is None
+
+    def test_current_ratio_null_when_current_assets_missing(self, db):
+        BalanceSheet.objects.create(
+            ticker="NOCA3",
+            end_date=date(2025, 9, 30),
+            total_debt=100_000_000_000,
+            total_liabilities=200_000_000_000,
+            stockholders_equity=100_000_000_000,
+            current_assets=None,
+            current_liabilities=100_000_000_000,
+        )
+        result = calculate_leverage("NOCA3")
+        assert result["currentRatio"] is None
+
+    def test_current_ratio_available_when_equity_zero(self, db):
+        BalanceSheet.objects.create(
+            ticker="EQZR3",
+            end_date=date(2025, 9, 30),
+            total_debt=100_000_000_000,
+            total_liabilities=200_000_000_000,
+            stockholders_equity=0,
+            current_assets=150_000_000_000,
+            current_liabilities=100_000_000_000,
+        )
+        result = calculate_leverage("EQZR3")
+        assert result["debtToEquity"] is None  # equity is zero
+        assert result["currentRatio"] == 1.5  # still computed

@@ -1,5 +1,6 @@
 """Per-year fundamentals aggregation for the Fundamentos tab."""
 from collections import defaultdict
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from .models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
@@ -91,7 +92,29 @@ def _safe_ratio(numerator, denominator) -> float | None:
     return round(float(numerator) / float(denominator), 2)
 
 
-def compute_fundamentals(ticker: str, market_cap: float | None, current_price: float | None) -> list[dict]:
+def _extract_year_end_prices(historical_prices: list[dict]) -> dict[int, float]:
+    """Extract the last adjusted close per year from historical price data.
+
+    Iterates through all data points and keeps the last adjustedClose seen
+    for each calendar year — effectively the year-end (or most recent) price.
+    """
+    year_end_prices: dict[int, float] = {}
+    for point in historical_prices:
+        timestamp = point.get("date")
+        adjusted_close = point.get("adjustedClose")
+        if timestamp is None or adjusted_close is None:
+            continue
+        point_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        year_end_prices[point_date.year] = adjusted_close
+    return year_end_prices
+
+
+def compute_fundamentals(
+    ticker: str,
+    market_cap: float | None,
+    current_price: float | None,
+    historical_prices: list[dict] | None = None,
+) -> list[dict]:
     """Compute per-year fundamental data for a ticker.
 
     Returns a list of year objects sorted by year descending, each containing:
@@ -120,6 +143,8 @@ def compute_fundamentals(ticker: str, market_cap: float | None, current_price: f
     shares_outstanding = None
     if market_cap and current_price and current_price > 0:
         shares_outstanding = market_cap / current_price
+
+    year_end_prices = _extract_year_end_prices(historical_prices or [])
 
     results = []
     for year in all_years:
@@ -162,22 +187,40 @@ def compute_fundamentals(ticker: str, market_cap: float | None, current_price: f
         fcf_adjusted = float(fcf * ipca_factor) if fcf is not None else None
         operating_cf_adjusted = float(operating_cf * ipca_factor) if operating_cf is not None else None
         dividends_adjusted = float(dividends_paid * ipca_factor) if dividends_paid is not None else None
+        debt_ex_lease_adjusted = float(debt_ex_lease * ipca_factor) if debt_ex_lease is not None else None
+        total_liabilities_adjusted = float(total_liabilities * ipca_factor) if total_liabilities is not None else None
+        equity_adjusted = float(equity * ipca_factor) if equity is not None else None
 
         # Ratios
         debt_to_equity = _safe_ratio(debt_ex_lease, equity)
         liabilities_to_equity = _safe_ratio(total_liabilities, equity)
         current_ratio = _safe_ratio(current_assets, current_liabilities)
 
+        # Market cap: current snapshot for latest year, historical estimate for others
+        if year == all_years[0]:
+            year_market_cap = market_cap
+        elif shares_outstanding and year in year_end_prices:
+            year_market_cap = round(year_end_prices[year] * shares_outstanding, 2)
+        else:
+            year_market_cap = None
+
+        market_cap_adjusted = float(year_market_cap * float(ipca_factor)) if year_market_cap is not None else None
+
         year_data = {
             "year": year,
             "quarters": max_quarters,
             "balanceSheetDate": balance.get("endDate"),
+            "marketCap": year_market_cap,
+            "marketCapAdjusted": market_cap_adjusted,
             # Balance sheet (in original currency)
             "totalDebt": total_debt,
             "totalLease": total_lease,
             "debtExLease": debt_ex_lease,
+            "debtExLeaseAdjusted": debt_ex_lease_adjusted,
             "totalLiabilities": total_liabilities,
+            "totalLiabilitiesAdjusted": total_liabilities_adjusted,
             "stockholdersEquity": _safe_float(equity),
+            "stockholdersEquityAdjusted": equity_adjusted,
             "currentAssets": current_assets,
             "currentLiabilities": current_liabilities,
             # Ratios

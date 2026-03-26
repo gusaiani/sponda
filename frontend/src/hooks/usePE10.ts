@@ -57,6 +57,7 @@ interface QuoteResult {
   debtToEquity: number | null;
   debtExLeaseToEquity: number | null;
   liabilitiesToEquity: number | null;
+  currentRatio: number | null;
   leverageError: string | null;
   leverageDate: string | null;
   totalDebt: number | null;
@@ -107,7 +108,7 @@ const DEFAULTS: Partial<QuoteResult> = {
   pe10CalculationDetails: [], pe10AnnualData: false,
   pfcf10: null, avgAdjustedFCF: null, pfcf10Error: null,
   pfcf10CalculationDetails: [], pfcf10AnnualData: false,
-  debtToEquity: null, debtExLeaseToEquity: null, liabilitiesToEquity: null,
+  debtToEquity: null, debtExLeaseToEquity: null, liabilitiesToEquity: null, currentRatio: null,
   leverageError: null, leverageDate: null,
   totalDebt: null, totalLease: null, totalLiabilities: null, stockholdersEquity: null,
   debtToAvgEarnings: null, debtToAvgFCF: null,

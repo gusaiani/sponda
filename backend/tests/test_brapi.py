@@ -10,10 +10,11 @@ from quotes.brapi import (
     fetch_historical_prices,
     fetch_income_statements,
     fetch_quote,
+    sync_balance_sheets,
     sync_ipca,
     sync_earnings,
 )
-from quotes.models import IPCAIndex, QuarterlyEarnings
+from quotes.models import BalanceSheet, IPCAIndex, QuarterlyEarnings
 
 
 MOCK_QUOTE_RESPONSE = {
@@ -177,6 +178,85 @@ class TestSyncQuarterlyEarnings:
         mock_fetch.return_value = [{"endDate": "", "netIncome": 1000}]
         earnings = sync_earnings("PETR4")
         assert len(earnings) == 0
+
+
+MOCK_BALANCE_SHEET_WITH_TOTAL_CURRENT_ASSETS = [
+    {
+        "endDate": "2025-09-30",
+        "loansAndFinancing": 50000000000,
+        "longTermLoansAndFinancing": 100000000000,
+        "currentLiabilities": 200000000000,
+        "nonCurrentLiabilities": 300000000000,
+        "shareholdersEquity": 200000000000,
+        "totalCurrentAssets": 150000000000,
+    },
+]
+
+MOCK_BALANCE_SHEET_WITH_CURRENT_ASSETS_FALLBACK = [
+    {
+        "endDate": "2025-06-30",
+        "loansAndFinancing": 50000000000,
+        "longTermLoansAndFinancing": 100000000000,
+        "currentLiabilities": 200000000000,
+        "nonCurrentLiabilities": 300000000000,
+        "shareholdersEquity": 200000000000,
+        "currentAssets": 120000000000,
+    },
+]
+
+
+class TestSyncBalanceSheets:
+    @patch("quotes.brapi.fetch_balance_sheets")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    def test_maps_total_current_assets_to_current_assets(
+        self, mock_annual_lease, mock_fetch, db
+    ):
+        """BRAPI returns totalCurrentAssets instead of currentAssets for some tickers."""
+        mock_fetch.return_value = MOCK_BALANCE_SHEET_WITH_TOTAL_CURRENT_ASSETS
+        mock_annual_lease.return_value = {}
+        sheets = sync_balance_sheets("PETR4")
+        assert len(sheets) == 1
+        balance_sheet = BalanceSheet.objects.get(
+            ticker="PETR4", end_date=date(2025, 9, 30)
+        )
+        assert balance_sheet.current_assets == 150000000000
+
+    @patch("quotes.brapi.fetch_balance_sheets")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    def test_falls_back_to_current_assets_field(
+        self, mock_annual_lease, mock_fetch, db
+    ):
+        """When totalCurrentAssets is absent, currentAssets is used instead."""
+        mock_fetch.return_value = MOCK_BALANCE_SHEET_WITH_CURRENT_ASSETS_FALLBACK
+        mock_annual_lease.return_value = {}
+        sync_balance_sheets("PETR4")
+        balance_sheet = BalanceSheet.objects.get(
+            ticker="PETR4", end_date=date(2025, 6, 30)
+        )
+        assert balance_sheet.current_assets == 120000000000
+
+    @patch("quotes.brapi.fetch_balance_sheets")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    def test_current_assets_null_when_neither_field_present(
+        self, mock_annual_lease, mock_fetch, db
+    ):
+        """When neither totalCurrentAssets nor currentAssets is present, current_assets is None."""
+        mock_fetch.return_value = [
+            {
+                "endDate": "2025-03-31",
+                "loansAndFinancing": 50000000000,
+                "longTermLoansAndFinancing": 100000000000,
+                "currentLiabilities": 200000000000,
+                "nonCurrentLiabilities": 300000000000,
+                "shareholdersEquity": 200000000000,
+            },
+        ]
+        mock_annual_lease.return_value = {}
+        sync_balance_sheets("PETR4")
+        balance_sheet = BalanceSheet.objects.get(
+            ticker="PETR4", end_date=date(2025, 3, 31)
+        )
+        assert balance_sheet.current_assets is None
 
 
 class TestSyncIPCA:

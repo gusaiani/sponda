@@ -43,10 +43,16 @@
   color: var(--color-muted);
   border-bottom: 1px solid var(--color-accent);
   white-space: nowrap;
+  text-align: center;
 }
 
 .fundamentals-group-row th:first-child {
   border-bottom-color: transparent;
+}
+
+/* Vertical separators between groups */
+.fundamentals-group-separator {
+  border-left: 1px solid var(--color-border);
 }
 
 /* Column header row */
@@ -88,6 +94,12 @@
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Column headers right-aligned to match data */
+.fundamentals-table thead tr:last-child th:not(.fundamentals-sticky-col) {
+  text-align: right;
 }
 
 .fundamentals-table tbody tr:hover td {

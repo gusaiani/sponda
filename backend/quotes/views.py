@@ -174,6 +174,7 @@ class PE10View(APIView):
             "debtToEquity": leverage_result["debtToEquity"],
             "debtExLeaseToEquity": leverage_result["debtExLeaseToEquity"],
             "liabilitiesToEquity": leverage_result["liabilitiesToEquity"],
+            "currentRatio": leverage_result["currentRatio"],
             "leverageError": leverage_result["leverageError"],
             "leverageDate": leverage_result["leverageDate"],
             "totalDebt": leverage_result["totalDebt"],
@@ -312,10 +313,16 @@ class FundamentalsView(APIView):
         market_cap = quote.get("marketCap")
         current_price = quote.get("regularMarketPrice")
 
+        try:
+            historical_prices = fetch_historical_prices(ticker)
+        except BRAPIError:
+            historical_prices = []
+
         fundamentals = compute_fundamentals(
             ticker,
             market_cap=float(market_cap) if market_cap else None,
             current_price=float(current_price) if current_price else None,
+            historical_prices=historical_prices,
         )
 
         response = Response(fundamentals)

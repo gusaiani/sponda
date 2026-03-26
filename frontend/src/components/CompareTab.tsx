@@ -36,6 +36,7 @@ function getColumns(years: number): ColumnDef[] {
     { key: "liabilitiesToEquity", label: "Pass/PL", group: "endividamento", format: (d) => d.liabilitiesToEquity !== null ? br(d.liabilitiesToEquity, 2) : null, value: (d) => d.liabilitiesToEquity },
     { key: "debtToAvgEarnings", label: `Dív/Lucro${n}`, group: "endividamento", format: (d) => d.debtToAvgEarnings !== null ? br(d.debtToAvgEarnings, 1) : null, value: (d) => d.debtToAvgEarnings },
     { key: "debtToAvgFCF", label: `Dív/FCL${n}`, group: "endividamento", format: (d) => d.debtToAvgFCF !== null ? br(d.debtToAvgFCF, 1) : null, value: (d) => d.debtToAvgFCF },
+    { key: "currentRatio", label: "Liq. Corr.", group: "endividamento", format: (d) => d.currentRatio !== null ? br(d.currentRatio, 2) : null, value: (d) => d.currentRatio },
     // Rentabilidade
     { key: "roe", label: `ROE${n}`, group: "rentabilidade", format: (d) => d.roe !== null ? `${br(d.roe, 1)}%` : null, value: (d) => d.roe },
     { key: "priceToBook", label: "P/VPA", group: "rentabilidade", format: (d) => d.priceToBook !== null ? br(d.priceToBook, 2) : null, value: (d) => d.priceToBook },
@@ -49,7 +50,7 @@ function getColumns(years: number): ColumnDef[] {
   ];
 }
 
-const DEBT_COUNT = 5;
+const DEBT_COUNT = 6;
 const RENT_COUNT = 2;
 const VAL_COUNT = 6;
 

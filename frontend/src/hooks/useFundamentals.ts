@@ -4,12 +4,17 @@ export interface FundamentalsYear {
   year: number;
   quarters: number;
   balanceSheetDate: string | null;
+  marketCap: number | null;
+  marketCapAdjusted: number | null;
   // Balance sheet
   totalDebt: number | null;
   totalLease: number | null;
   debtExLease: number | null;
+  debtExLeaseAdjusted: number | null;
   totalLiabilities: number | null;
+  totalLiabilitiesAdjusted: number | null;
   stockholdersEquity: number | null;
+  stockholdersEquityAdjusted: number | null;
   currentAssets: number | null;
   currentLiabilities: number | null;
   // Ratios

@@ -3,3 +3,11 @@ dev:
 	cd frontend && npx next dev --turbopack & \
 	sleep 2 && open http://localhost:3000 & \
 	wait
+
+test:
+	cd frontend && npm test
+	cd backend && pytest -x -q --ignore=tests/test_e2e.py --ignore=tests/test_e2e_browser.py --ignore=tests/test_e2e_favorites.py --ignore=tests/test_e2e_auth.py
+
+test-all:
+	cd frontend && npm run build && npm test
+	cd backend && pytest -x -q

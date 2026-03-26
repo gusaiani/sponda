@@ -82,10 +82,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   if (earningsYears > 0) {
     const total = earningsSlice.reduce((s, y) => s + y.adjustedNetIncome, 0);
     avgAdjustedNetIncome = total / earningsYears;
-    if (avgAdjustedNetIncome > 0 && full.marketCap) {
+    if (avgAdjustedNetIncome !== 0 && full.marketCap) {
       pe10 = Math.round((full.marketCap / avgAdjustedNetIncome) * 100) / 100;
-    } else if (avgAdjustedNetIncome <= 0) {
-      pe10Error = "lucro médio negativo";
     }
   } else {
     pe10Error = "Sem dados de lucro disponíveis";
@@ -99,10 +97,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   if (fcfYears > 0) {
     const total = fcfSlice.reduce((s, y) => s + y.adjustedFCF, 0);
     avgAdjustedFCF = total / fcfYears;
-    if (avgAdjustedFCF > 0 && full.marketCap) {
+    if (avgAdjustedFCF !== 0 && full.marketCap) {
       pfcf10 = Math.round((full.marketCap / avgAdjustedFCF) * 100) / 100;
-    } else if (avgAdjustedFCF <= 0) {
-      pfcf10Error = "FCL médio negativo";
     }
   } else {
     pfcf10Error = "Sem dados de fluxo de caixa disponíveis";
@@ -127,6 +123,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   let pegError: string | null = null;
   if (pe10 === null) {
     pegError = `P/L${earningsYears} indisponível`;
+  } else if (pe10 < 0) {
+    pegError = "P/L negativo";
   } else if (earningsCagr.cagr === null) {
     pegError = earningsCagr.error;
   } else if (earningsCagr.cagr <= 0) {
@@ -144,6 +142,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   let pfcfPegError: string | null = null;
   if (pfcf10 === null) {
     pfcfPegError = `P/FCL${fcfYears} indisponível`;
+  } else if (pfcf10 < 0) {
+    pfcfPegError = "P/FCL negativo";
   } else if (fcfCagr.cagr === null) {
     pfcfPegError = fcfCagr.error;
   } else if (fcfCagr.cagr <= 0) {
