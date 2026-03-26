@@ -10,7 +10,7 @@ import { CompareTab } from "../../components/CompareTab";
 import { FundamentalsTab } from "../../components/FundamentalsTab";
 import { FavoriteButton } from "../../components/FavoriteButton";
 import { ShareButtons } from "../../components/ShareButtons";
-import { usePE10, fetchQuote } from "../../hooks/usePE10";
+import { usePE10, fetchQuote, type QuoteResult } from "../../hooks/usePE10";
 import { useTickers } from "../../hooks/useTickers";
 import { useMultiplesHistory } from "../../hooks/useMultiplesHistory";
 import { deriveForYears } from "../../hooks/deriveForYears";
@@ -20,6 +20,10 @@ import { getSectorPeers } from "../../utils/subsector";
 const DEFAULT_YEARS = 10;
 
 type TabKey = "metrics" | "charts" | "fundamentals" | "compare";
+
+interface TickerPageClientProps {
+  initialData?: QuoteResult | null;
+}
 
 const TAB_PATHS: Record<string, TabKey> = {
   graficos: "charts",
@@ -40,7 +44,7 @@ function resolveTab(pathname: string): TabKey {
   return "metrics";
 }
 
-export function TickerPageClient() {
+export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const { ticker: rawTicker } = useParams<{ ticker: string }>();
   const upperTicker = (rawTicker || "").toUpperCase();
   const queryClient = useQueryClient();
@@ -53,7 +57,7 @@ export function TickerPageClient() {
 
   const activeTab = resolveTab(pathname);
 
-  const { data: fullData, isLoading, error } = usePE10(upperTicker);
+  const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: allTickers } = useTickers();
   const { lists } = useSavedLists();
 

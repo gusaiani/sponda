@@ -139,12 +139,13 @@ export async function fetchQuote(ticker: string): Promise<QuoteResult> {
 
 export type { QuoteResult };
 
-export function usePE10(ticker: string | null) {
+export function usePE10(ticker: string | null, initialData?: QuoteResult) {
   return useQuery({
     queryKey: ["pe10", ticker],
     queryFn: () => fetchQuote(ticker!),
     enabled: !!ticker,
     retry: false,
     staleTime: 5 * 60 * 1000,
+    initialData,
   });
 }
