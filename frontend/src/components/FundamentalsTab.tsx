@@ -82,7 +82,7 @@ type ValueMode = "nominal" | "adjusted";
 interface ColumnDef {
   key: string;
   label: string;
-  group: "balanco" | "resultado" | "caixa";
+  group: "balanco" | "resultado" | "caixa" | "retorno";
   format: (row: AugmentedFundamentalsYear, mode: ValueMode) => string | null;
 }
 
@@ -162,12 +162,13 @@ const COLUMNS: ColumnDef[] = [
     key: "operatingCF", label: "FC Oper. (M)", group: "caixa",
     format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.operatingCashFlowAdjusted : row.operatingCashFlow),
   },
+  // Retorno
   {
-    key: "marketCap", label: "Market Cap (M)", group: "caixa",
+    key: "marketCap", label: "Cap. Mercado (M)", group: "retorno",
     format: (row, mode) => millions(mode === "adjusted" ? row.marketCapAdjusted : row.marketCap),
   },
   {
-    key: "dividends", label: "Dividendos (M)", group: "caixa",
+    key: "dividends", label: "Dividendos (M)", group: "retorno",
     format: (row, mode) => {
       const value = mode === "adjusted" ? row.dividendsAdjusted : row.dividendsPaid;
       if (value === null) return null;
@@ -179,9 +180,14 @@ const COLUMNS: ColumnDef[] = [
 
 const BALANCE_COUNT = 6;
 const RESULTADO_COUNT = 4;
-const CAIXA_COUNT = 6;
+const CAIXA_COUNT = 4;
+const RETORNO_COUNT = 2;
 
-const GROUP_START_INDICES = new Set([BALANCE_COUNT, BALANCE_COUNT + RESULTADO_COUNT]);
+const GROUP_START_INDICES = new Set([
+  BALANCE_COUNT,
+  BALANCE_COUNT + RESULTADO_COUNT,
+  BALANCE_COUNT + RESULTADO_COUNT + CAIXA_COUNT,
+]);
 
 /* ── Component ── */
 
@@ -239,6 +245,7 @@ export function FundamentalsTab({ ticker }: Props) {
               <th colSpan={BALANCE_COUNT}>Balanço</th>
               <th colSpan={RESULTADO_COUNT} className="fundamentals-group-separator">Resultado</th>
               <th colSpan={CAIXA_COUNT} className="fundamentals-group-separator">Caixa</th>
+              <th colSpan={RETORNO_COUNT} className="fundamentals-group-separator">Retorno</th>
             </tr>
             {/* Column header row */}
             <tr>

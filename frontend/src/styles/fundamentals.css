@@ -41,7 +41,7 @@
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal py-2 px-2;
   color: var(--color-muted);
-  border-bottom: 1px solid var(--color-accent);
+  border-bottom: 1px solid #8da2c4;
   white-space: nowrap;
   text-align: center;
 }
@@ -61,7 +61,7 @@
   @apply text-[10px] font-normal uppercase py-2 px-2;
   letter-spacing: 0;
   color: var(--color-muted);
-  border-bottom: 1px solid var(--color-ink);
+  border-bottom: 1px solid #8da2c4;
   white-space: nowrap;
 }
 
@@ -71,19 +71,10 @@
   left: 0;
   z-index: 2;
   background: #ffffff;
-  min-width: 80px;
-  max-width: 120px;
-}
-
-.fundamentals-sticky-col::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 4px;
-  background: linear-gradient(to right, rgba(0,0,0,0.04), transparent);
-  pointer-events: none;
+  min-width: 44px;
+  max-width: 64px;
+  border-right: 1px solid var(--color-border);
+  text-align: right;
 }
 
 /* Data cells */
