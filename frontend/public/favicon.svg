@@ -1,4 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0f1f3d"/>
-  <text x="16" y="23" font-family="'DM Serif Display',Georgia,serif" font-size="20" font-weight="400" fill="#fff" text-anchor="middle">S</text>
+  <rect width="32" height="32" rx="6" fill="#1b347e"/>
+  <!-- Top line segment from border toward center -->
+  <line x1="16" y1="2" x2="16" y2="7" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Bottom line segment from border toward center -->
+  <line x1="16" y1="25" x2="16" y2="30" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Satoshi S -->
+  <text x="16" y="21.5" font-family="Satoshi,system-ui,sans-serif" font-size="18" font-weight="500" fill="#fff" text-anchor="middle">S</text>
 </svg>

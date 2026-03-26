@@ -73,7 +73,7 @@ class TestSignup:
         html_content = welcome_email.alternatives[0][0]
         assert "Explorar agora" in html_content
         assert "SPONDA" in html_content
-        assert "#1a2a5a" in html_content
+        assert "#1b347e" in html_content
 
     def test_signup_logs_in_user(self, api_client, db):
         api_client.post(
