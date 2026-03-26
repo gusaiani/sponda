@@ -275,9 +275,9 @@
   @apply text-xs uppercase cursor-pointer transition-all;
   letter-spacing: 0.06em;
   padding: 0.6rem 1.2rem;
-  background: #1a2a5a;
+  background: #1b347e;
   color: #ffffff;
-  border: 1px solid #1a2a5a;
+  border: 1px solid #1b347e;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }

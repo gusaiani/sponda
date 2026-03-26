@@ -18,7 +18,7 @@
   font-family: "Satoshi", sans-serif;
   font-weight: 500;
   font-size: 24px;
-  color: #1a2a5a;
+  color: #1b347e;
 }
 
 .auth-title {
@@ -92,9 +92,9 @@
     transition-colors
     disabled:opacity-50 disabled:cursor-not-allowed;
   letter-spacing: 0;
-  background: #1a2a5a;
+  background: #1b347e;
   color: #ffffff;
-  border: 1px solid #1a2a5a;
+  border: 1px solid #1b347e;
   border-radius: 6px;
 }
 

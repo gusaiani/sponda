@@ -58,7 +58,7 @@ def _send_welcome_email(user, base_url):
           <!-- Header — white background, matching site -->
           <tr>
             <td style="padding:32px 40px; text-align:center; border-bottom:1px solid #e8edf5;">
-              <span style="font-size:28px; font-weight:500; color:#1a2a5a; letter-spacing:1px;">SPONDA</span>
+              <span style="font-size:28px; font-weight:500; color:#1b347e; letter-spacing:1px;">SPONDA</span>
               <br>
               <span style="font-size:11px; color:#5570a0; letter-spacing:0.5px;">
                 Indicadores de empresas brasileiras para investidores em valor
@@ -120,7 +120,7 @@ def _send_welcome_email(user, base_url):
                 <tr>
                   <td align="center">
                     <a href="{base_url}"
-                       style="display:inline-block; padding:14px 40px; background:#1a2a5a; color:#ffffff;
+                       style="display:inline-block; padding:14px 40px; background:#1b347e; color:#ffffff;
                               font-size:14px; font-weight:500; text-decoration:none; border-radius:6px;">
                       Explorar agora
                     </a>
@@ -258,7 +258,7 @@ def _send_verification_email(user, base_url):
         <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
           <tr>
             <td style="padding:32px 40px;text-align:center;border-bottom:1px solid #e8edf5;">
-              <span style="font-size:28px;font-weight:500;color:#1a2a5a;letter-spacing:1px;">SPONDA</span>
+              <span style="font-size:28px;font-weight:500;color:#1b347e;letter-spacing:1px;">SPONDA</span>
               <br>
               <span style="font-size:11px;color:#5570a0;">Indicadores de empresas brasileiras para investidores em valor</span>
             </td>
@@ -273,7 +273,7 @@ def _send_verification_email(user, base_url):
                 <tr>
                   <td align="center">
                     <a href="{verify_url}"
-                       style="display:inline-block;padding:14px 40px;background:#1a2a5a;color:#ffffff;
+                       style="display:inline-block;padding:14px 40px;background:#1b347e;color:#ffffff;
                               font-size:14px;font-weight:500;text-decoration:none;border-radius:6px;">
                       Verificar email
                     </a>

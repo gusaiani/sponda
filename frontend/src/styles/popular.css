@@ -100,7 +100,7 @@
 }
 
 .homepage-explainer a {
-  color: var(--color-accent, #1a2a5a);
+  color: var(--color-accent, #1b347e);
   @apply font-medium no-underline;
 }
 

@@ -187,9 +187,9 @@
 }
 
 .sector-peer-link:hover {
-  background: var(--color-accent, #1a2a5a);
+  background: var(--color-accent, #1b347e);
   color: #ffffff;
-  border-color: var(--color-accent, #1a2a5a);
+  border-color: var(--color-accent, #1b347e);
 }
 
 .sector-peer-name {
