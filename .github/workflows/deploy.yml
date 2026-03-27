@@ -109,11 +109,11 @@ jobs:
             cp /opt/sponda/systemd/sponda-frontend.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.timer /etc/systemd/system/
-            cp /opt/sponda/systemd/sponda-og-images.service /etc/systemd/system/
-            cp /opt/sponda/systemd/sponda-og-images.timer /etc/systemd/system/
+            systemctl disable --now sponda-og-images.timer 2>/dev/null || true
+            systemctl disable --now sponda-og-images.service 2>/dev/null || true
+            rm -f /etc/systemd/system/sponda-og-images.service /etc/systemd/system/sponda-og-images.timer
             systemctl daemon-reload
             systemctl enable --now sponda-refresh.timer
-            systemctl enable --now sponda-og-images.timer
 
             # Update Apache: proxy sponda domains to Next.js (port 3100)
             # Handle both fresh (8710) and previous deploy (3000) states
