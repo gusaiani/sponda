@@ -139,6 +139,20 @@ class TestSyncTickers:
         assert not Ticker.objects.filter(symbol="AAPL34").exists()
         assert not Ticker.objects.filter(symbol="KNRI11").exists()
 
+    @patch("quotes.brapi.fetch_ticker_list")
+    def test_deletes_tickers_no_longer_in_source(self, mock_fetch, db):
+        Ticker.objects.create(symbol="AAPL34", name="Apple BDR", type="bdr")
+        Ticker.objects.create(symbol="KNRI11", name="Kinea Renda", type="fund")
+        Ticker.objects.create(symbol="OLD3", name="Old Company", type="stock")
+        mock_fetch.return_value = [
+            {"stock": "PETR4", "name": "Petrobras"},
+        ]
+        sync_tickers()
+        assert Ticker.objects.filter(symbol="PETR4").exists()
+        assert not Ticker.objects.filter(symbol="AAPL34").exists()
+        assert not Ticker.objects.filter(symbol="KNRI11").exists()
+        assert not Ticker.objects.filter(symbol="OLD3").exists()
+
 
 class TestTickerListEndpoint:
     def test_returns_ticker_list(self, api_client, sample_tickers):

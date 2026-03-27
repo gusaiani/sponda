@@ -422,4 +422,6 @@ def sync_tickers() -> int:
             unique_fields=["symbol"],
             update_fields=["name", "display_name", "sector", "type", "logo"],
         )
+        synced_symbols = {ticker.symbol for ticker in objects}
+        Ticker.objects.exclude(symbol__in=synced_symbols).delete()
     return len(objects)
