@@ -12,8 +12,8 @@ export function ShareButtons({ ticker, companyName }: ShareButtonsProps) {
 
   const url = `https://sponda.capital${pathname}`;
   const text = ticker
-    ? `${companyName || ticker} — indicadores de valor no Sponda`
-    : "Sponda — indicadores de empresas brasileiras para investidores em valor";
+    ? `${companyName || ticker} · indicadores de valor no Sponda`
+    : "Sponda · indicadores de empresas brasileiras para investidores em valor";
 
   const encodedUrl = encodeURIComponent(url);
   const encodedText = encodeURIComponent(text);

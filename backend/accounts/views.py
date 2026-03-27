@@ -109,7 +109,7 @@ def _send_welcome_email(user, base_url):
                     </span>
                     <br>
                     <span style="font-size:13px; color:#5570a0; margin-left:30px; display:inline-block; margin-top:4px;">
-                      P/L, P/FCL, PEG, CAGR e alavancagem — tudo corrigido pelo IPCA, e muito mais.
+                      P/L, P/FCL, PEG, CAGR e alavancagem · tudo corrigido pelo IPCA, e muito mais.
                     </span>
                   </td>
                 </tr>
@@ -220,16 +220,16 @@ def _send_welcome_email(user, base_url):
     plain_message = (
         "Te damos as boas-vindas à Sponda!\n\n"
         "Sua conta foi criada. Agora você tem acesso a tudo que a Sponda oferece.\n\n"
-        "★ Favoritar empresas — acompanhe as que mais importam para você.\n"
-        "📋 Salvar listas — monte, salve e compartilhe suas análises.\n"
-        "📊 Indicadores ajustados pela inflação — P/L, P/FCL, PEG, CAGR e muito mais.\n\n"
+        "★ Favoritar empresas · acompanhe as que mais importam para você.\n"
+        "📋 Salvar listas · monte, salve e compartilhe suas análises.\n"
+        "📊 Indicadores ajustados pela inflação · P/L, P/FCL, PEG, CAGR e muito mais.\n\n"
         f"Explorar agora: {base_url}\n\n"
         "Compartilhe a Sponda com quem investe com visão de longo prazo.\n\n"
         "---\n"
         f"{POEMA_PERFORMANCE_LINE}\n"
         f"{POEMA_DISCLAIMER}\n"
         f"{POEMA_CTA}\n\n"
-        "— Sponda / Poema Parceria de Investimentos"
+        "Sponda / Poema Parceria de Investimentos"
     )
 
     send_mail(
@@ -304,11 +304,11 @@ def _send_verification_email(user, base_url):
         f"Clique no link abaixo para verificar seu email:\n\n"
         f"{verify_url}\n\n"
         "Este link expira em 72 horas.\n\n"
-        "— Sponda"
+        "Sponda"
     )
 
     send_mail(
-        subject="Sponda — Confirme seu email",
+        subject="Sponda · Confirme seu email",
         message=plain_message,
         from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@sponda.capital"),
         recipient_list=[user.email],
@@ -484,8 +484,8 @@ class ForgotPasswordView(APIView):
         reset_url = f"{base_url}/reset-password?token={token_obj.token}"
 
         send_mail(
-            subject="Sponda — Recuperação de senha",
-            message=f"Olá,\n\nClique no link abaixo para redefinir sua senha:\n\n{reset_url}\n\nEste link expira em 24 horas.\n\nSe você não solicitou, ignore este email.\n\n— Sponda",
+            subject="Sponda · Recuperação de senha",
+            message=f"Olá,\n\nClique no link abaixo para redefinir sua senha:\n\n{reset_url}\n\nEste link expira em 24 horas.\n\nSe você não solicitou, ignore este email.\n\nSponda",
             from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@sponda.capital"),
             recipient_list=[email],
             fail_silently=True,

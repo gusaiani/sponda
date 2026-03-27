@@ -28,8 +28,8 @@ export async function generateTickerMetadata(ticker: string, subPath?: string): 
   const fullPath = subPath ? `${ticker}/${subPath}` : ticker;
   const url = `${BASE_URL}/${fullPath}`;
   const title = companyName
-    ? `${companyName} (${ticker}) — Indicadores Fundamentalistas | Sponda`
-    : `${ticker} — Sponda`;
+    ? `${companyName} (${ticker}) · Sponda · Para investidores em valor`
+    : `${ticker} · Sponda · Para investidores em valor`;
 
   const description = companyName
     ? `Indicadores fundamentalistas de ${companyName} (${ticker}): P/L ajustado pela inflação (PE10), P/FCL10, PEG, CAGR e alavancagem. Dados atualizados.`
@@ -40,7 +40,7 @@ export async function generateTickerMetadata(ticker: string, subPath?: string): 
     description,
     alternates: { canonical: url },
     openGraph: {
-      title: companyName ? `${companyName} (${ticker}) — Sponda` : title,
+      title,
       description,
       url,
       images: [{ url: `${BASE_URL}/images/sponda-og.jpg`, width: 1200, height: 630 }],

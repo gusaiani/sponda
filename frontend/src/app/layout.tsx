@@ -5,7 +5,7 @@ import { LayoutShell } from "./layout-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Sponda — Indicadores de Empresas Brasileiras para Investidores em Valor",
+  title: "Sponda · Para investidores em valor",
   description:
     "Indicadores fundamentalistas de empresas brasileiras para investidores em valor. P/L ajustado pela inflação (Shiller PE), P/FCL, PEG, CAGR, alavancagem e mais.",
   keywords:
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Sponda",
-    title: "Sponda — Indicadores de Empresas Brasileiras",
+    title: "Sponda · Para investidores em valor",
     description:
       "Indicadores fundamentalistas de empresas brasileiras para investidores em valor. P/L ajustado pela inflação, P/FCL, PEG, CAGR, alavancagem e mais.",
     url: "/",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Sponda — Indicadores de Empresas Brasileiras",
+    title: "Sponda · Para investidores em valor",
     description:
       "Indicadores fundamentalistas de empresas brasileiras para investidores em valor.",
     images: ["/images/sponda-og.jpg"],
