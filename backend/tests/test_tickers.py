@@ -128,6 +128,7 @@ class TestSyncTickers:
             {"stock": "VALE3", "name": "Vale"},
             {"stock": "VALE3F", "name": "Vale Frac"},
             {"stock": "AAPL34", "name": "Apple BDR"},
+            {"stock": "SANB39", "name": "Santander Receipt"},
             {"stock": "KNRI11", "name": "Kinea Renda"},
         ]
         count = sync_tickers()
@@ -137,6 +138,7 @@ class TestSyncTickers:
         assert not Ticker.objects.filter(symbol="PETR4F").exists()
         assert not Ticker.objects.filter(symbol="VALE3F").exists()
         assert not Ticker.objects.filter(symbol="AAPL34").exists()
+        assert not Ticker.objects.filter(symbol="SANB39").exists()
         assert not Ticker.objects.filter(symbol="KNRI11").exists()
 
     @patch("quotes.brapi.fetch_ticker_list")
