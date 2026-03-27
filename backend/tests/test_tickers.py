@@ -121,19 +121,23 @@ class TestSyncTickers:
         assert Ticker.objects.filter(symbol="PETR4").exists()
 
     @patch("quotes.brapi.fetch_ticker_list")
-    def test_skips_fractional_tickers(self, mock_fetch, db):
+    def test_skips_fractional_bdrs_and_funds(self, mock_fetch, db):
         mock_fetch.return_value = [
             {"stock": "PETR4", "name": "Petrobras"},
             {"stock": "PETR4F", "name": "Petrobras Frac"},
             {"stock": "VALE3", "name": "Vale"},
             {"stock": "VALE3F", "name": "Vale Frac"},
+            {"stock": "AAPL34", "name": "Apple BDR"},
+            {"stock": "KNRI11", "name": "Kinea Renda"},
         ]
         count = sync_tickers()
         assert count == 2
         assert Ticker.objects.filter(symbol="PETR4").exists()
-        assert not Ticker.objects.filter(symbol="PETR4F").exists()
         assert Ticker.objects.filter(symbol="VALE3").exists()
+        assert not Ticker.objects.filter(symbol="PETR4F").exists()
         assert not Ticker.objects.filter(symbol="VALE3F").exists()
+        assert not Ticker.objects.filter(symbol="AAPL34").exists()
+        assert not Ticker.objects.filter(symbol="KNRI11").exists()
 
 
 class TestTickerListEndpoint:
