@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     description:
       "Indicadores fundamentalistas de empresas brasileiras para investidores em valor. P/L ajustado pela inflação, P/FCL, PEG, CAGR, alavancagem e mais.",
     url: "/",
-    images: [{ url: "/og/home.png", width: 1200, height: 630 }],
+    images: [{ url: "/images/sponda-og.jpg", width: 1200, height: 630 }],
     locale: "pt_BR",
   },
   twitter: {
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     title: "Sponda — Indicadores de Empresas Brasileiras",
     description:
       "Indicadores fundamentalistas de empresas brasileiras para investidores em valor.",
-    images: ["/og/home.png"],
+    images: ["/images/sponda-og.jpg"],
   },
 };
 

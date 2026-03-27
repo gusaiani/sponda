@@ -14,7 +14,6 @@ from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
 from .leverage import calculate_leverage
 from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
-from .og_image import generate_homepage_og_image, generate_og_image
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
@@ -461,31 +460,6 @@ class FundamentalsView(APIView):
         response["Cache-Control"] = "public, max-age=3600"
         return response
 
-
-class OGImageView(APIView):
-    """Generate Open Graph images for social sharing."""
-
-    def get(self, request, ticker=None):
-        if ticker is None:
-            png = generate_homepage_og_image()
-            response = HttpResponse(png, content_type="image/png")
-            response["Cache-Control"] = "public, max-age=86400"
-            return response
-
-        ticker = ticker.upper()
-
-        name = ticker
-        logo_url = None
-        ticker_obj = Ticker.objects.filter(symbol=ticker).values("name", "display_name", "logo").first()
-        if ticker_obj:
-            name = ticker_obj["display_name"] or format_display_name(ticker_obj["name"]) or ticker
-            logo_url = ticker_obj.get("logo") or None
-
-        png = generate_og_image(ticker=ticker, name=name, logo_url=logo_url)
-
-        response = HttpResponse(png, content_type="image/png")
-        response["Cache-Control"] = "public, max-age=3600"
-        return response
 
 
 class SitemapView(APIView):

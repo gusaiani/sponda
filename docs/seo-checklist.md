@@ -28,6 +28,5 @@
 
 ## OG Images
 
-- Pré-gerar: `python manage.py generate_og_images`
-- Imagens salvas em `og_images/` (gitignored, gerado no servidor)
-- Servidas em `/og/<ticker>.png` (fora de `/api/` para não ser bloqueado pelo robots.txt)
+- Imagem estática única para todas as páginas: `/images/sponda-og.jpg`
+- Servida pelo frontend em `public/images/sponda-og.jpg`

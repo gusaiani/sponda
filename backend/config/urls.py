@@ -55,7 +55,7 @@ def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
 
     full_path = f"{ticker}/{path}" if path else ticker
     og_url = f"{_BASE_URL}/{full_path}"
-    og_image = f"{_BASE_URL}/og/{ticker}.png"
+    og_image = f"{_BASE_URL}/images/sponda-og.jpg"
 
     replacements = [
         ('property="og:title"', og_title),
@@ -214,24 +214,9 @@ def _serve_sitemap(request):
     return SitemapView.as_view()(request)
 
 
-def _serve_og_image(request, filename):
-    """Serve OG images from disk cache, falling back to dynamic generation."""
-    from quotes.views import OGImageView
-
-    og_dir = Path(settings.BASE_DIR).parent / "og_images"
-    cached = og_dir / filename
-    if cached.is_file():
-        return FileResponse(open(cached, "rb"), content_type="image/png")
-
-    # Fall back to dynamic generation
-    ticker = filename.removesuffix(".png") if filename != "home.png" else None
-    return OGImageView.as_view()(request, ticker=ticker)
-
-
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("sitemap.xml", _serve_sitemap, name="sitemap-root"),
-    path("og/<str:filename>", _serve_og_image, name="og-image"),
     path("api/", include("quotes.urls")),
     path("api/auth/", include("accounts.urls")),
     re_path(r"^(?P<filepath>assets/.*)$", _serve_frontend),

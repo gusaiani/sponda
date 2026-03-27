@@ -27,7 +27,7 @@ export async function generateTickerMetadata(ticker: string, subPath?: string): 
 
   const fullPath = subPath ? `${ticker}/${subPath}` : ticker;
   const url = `${BASE_URL}/${fullPath}`;
-  const imageUrl = `${BASE_URL}/og/${ticker}.png`;
+  const imageUrl = `${BASE_URL}/images/sponda-og.jpg`;
 
   const title = companyName
     ? `${companyName} (${ticker}) — Indicadores Fundamentalistas | Sponda`
