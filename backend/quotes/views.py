@@ -1,5 +1,5 @@
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from .brapi import BRAPIError, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
 from .leverage import calculate_leverage
-from .models import BalanceSheet, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from .models import BalanceSheet, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
@@ -158,8 +158,29 @@ class TickerListView(APIView):
 
 
 class HealthView(APIView):
+    TICKER_STALENESS_THRESHOLD = timedelta(days=2)
+    IPCA_STALENESS_THRESHOLD = timedelta(days=45)
+
     def get(self, request):
-        return Response({"status": "ok"})
+        latest_ticker = Ticker.objects.order_by("-updated_at").values_list("updated_at", flat=True).first()
+        tickers_stale = latest_ticker is None or (timezone.now() - latest_ticker) > self.TICKER_STALENESS_THRESHOLD
+
+        latest_ipca = IPCAIndex.objects.order_by("-date").values_list("date", flat=True).first()
+        ipca_stale = latest_ipca is None or (date.today() - latest_ipca) > self.IPCA_STALENESS_THRESHOLD
+
+        is_healthy = not tickers_stale and not ipca_stale
+
+        return Response({
+            "status": "ok" if is_healthy else "degraded",
+            "tickers": {
+                "stale": tickers_stale,
+                "last_updated": latest_ticker,
+            },
+            "ipca": {
+                "stale": ipca_stale,
+                "latest_date": latest_ipca,
+            },
+        })
 
 
 def _ensure_fresh_data(ticker: str) -> None:

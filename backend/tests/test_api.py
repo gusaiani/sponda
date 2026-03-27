@@ -1,12 +1,13 @@
 """Integration tests for API endpoints."""
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 from django.test import Client
+from django.utils import timezone
 
-from quotes.models import BalanceSheet, LookupLog, QuarterlyEarnings, Ticker
+from quotes.models import BalanceSheet, IPCAIndex, LookupLog, QuarterlyEarnings, Ticker
 from quotes.views import _clean_company_name, format_display_name
 
 
@@ -102,10 +103,43 @@ class TestFormatDisplayName:
 
 
 class TestHealthEndpoint:
-    def test_returns_200(self, api_client, db):
+    def test_returns_ok_when_data_is_fresh(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock")
+        IPCAIndex.objects.create(date=date.today(), annual_rate=Decimal("4.5"))
         response = api_client.get("/api/health/")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["tickers"]["stale"] is False
+        assert data["ipca"]["stale"] is False
+
+    def test_returns_degraded_when_tickers_are_stale(self, api_client, db):
+        three_days_ago = timezone.now() - timedelta(days=3)
+        ticker = Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock")
+        Ticker.objects.filter(pk=ticker.pk).update(updated_at=three_days_ago)
+        IPCAIndex.objects.create(date=date.today(), annual_rate=Decimal("4.5"))
+        response = api_client.get("/api/health/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "degraded"
+        assert data["tickers"]["stale"] is True
+
+    def test_returns_degraded_when_ipca_is_stale(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock")
+        IPCAIndex.objects.create(date=date.today() - timedelta(days=60), annual_rate=Decimal("4.5"))
+        response = api_client.get("/api/health/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "degraded"
+        assert data["ipca"]["stale"] is True
+
+    def test_returns_degraded_when_no_data(self, api_client, db):
+        response = api_client.get("/api/health/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "degraded"
+        assert data["tickers"]["stale"] is True
+        assert data["ipca"]["stale"] is True
 
 
 class TestPE10Endpoint:
