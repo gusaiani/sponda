@@ -38,7 +38,7 @@ def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
     sector = ticker_obj["sector"] if ticker_obj else ""
 
     if company_name:
-        page_title = f"{company_name} ({ticker}) · Sponda · Para investidores em valor"
+        page_title = f"{company_name} ({ticker}) · Indicadores Fundamentalistas · Sponda"
         og_title = page_title
         og_desc = (
             f"Indicadores fundamentalistas de {company_name} ({ticker}): "
@@ -46,7 +46,7 @@ def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
             f"Dados atualizados."
         )
     else:
-        page_title = f"{ticker} · Sponda · Para investidores em valor"
+        page_title = f"{ticker} · Indicadores Fundamentalistas · Sponda"
         og_title = page_title
         og_desc = (
             f"Indicadores fundamentalistas de {ticker}: "

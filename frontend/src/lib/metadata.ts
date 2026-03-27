@@ -28,8 +28,8 @@ export async function generateTickerMetadata(ticker: string, subPath?: string): 
   const fullPath = subPath ? `${ticker}/${subPath}` : ticker;
   const url = `${BASE_URL}/${fullPath}`;
   const title = companyName
-    ? `${companyName} (${ticker}) · Sponda · Para investidores em valor`
-    : `${ticker} · Sponda · Para investidores em valor`;
+    ? `${companyName} (${ticker}) · Indicadores Fundamentalistas · Sponda`
+    : `${ticker} · Indicadores Fundamentalistas · Sponda`;
 
   const description = companyName
     ? `Indicadores fundamentalistas de ${companyName} (${ticker}): P/L ajustado pela inflação (PE10), P/FCL10, PEG, CAGR e alavancagem. Dados atualizados.`
