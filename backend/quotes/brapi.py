@@ -354,7 +354,7 @@ def fetch_ipca_data() -> list[dict]:
 def sync_ipca() -> int:
     """Fetch IPCA data from BRAPI and store in DB. Returns number of records synced."""
     records = fetch_ipca_data()
-    count = 0
+    objects = []
     for record in records:
         date_str = record.get("date", "")
         value = record.get("value")
@@ -365,12 +365,16 @@ def sync_ipca() -> int:
         day, month, year = date_str.split("/")
         record_date = date(int(year), int(month), int(day))
 
-        IPCAIndex.objects.update_or_create(
-            date=record_date,
-            defaults={"annual_rate": Decimal(str(value))},
+        objects.append(IPCAIndex(date=record_date, annual_rate=Decimal(str(value))))
+
+    if objects:
+        IPCAIndex.objects.bulk_create(
+            objects,
+            update_conflicts=True,
+            unique_fields=["date"],
+            update_fields=["annual_rate"],
         )
-        count += 1
-    return count
+    return len(objects)
 
 
 def fetch_ticker_list() -> list[dict]:
@@ -392,7 +396,7 @@ def sync_tickers() -> int:
     from .views import format_display_name
 
     stocks = fetch_ticker_list()
-    count = 0
+    objects = []
     for stock in stocks:
         symbol = (stock.get("stock") or "").strip().upper()
         if not symbol:
@@ -401,15 +405,20 @@ def sync_tickers() -> int:
         if re.match(r"^[A-Z]+\d+F$", symbol):
             continue
         formal_name = stock.get("name") or ""
-        Ticker.objects.update_or_create(
+        objects.append(Ticker(
             symbol=symbol,
-            defaults={
-                "name": formal_name,
-                "display_name": format_display_name(formal_name),
-                "sector": stock.get("sector") or "",
-                "type": stock.get("type") or "",
-                "logo": stock.get("logo") or "",
-            },
+            name=formal_name,
+            display_name=format_display_name(formal_name),
+            sector=stock.get("sector") or "",
+            type=stock.get("type") or "",
+            logo=stock.get("logo") or "",
+        ))
+
+    if objects:
+        Ticker.objects.bulk_create(
+            objects,
+            update_conflicts=True,
+            unique_fields=["symbol"],
+            update_fields=["name", "display_name", "sector", "type", "logo"],
         )
-        count += 1
-    return count
+    return len(objects)
