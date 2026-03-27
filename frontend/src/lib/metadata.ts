@@ -27,8 +27,6 @@ export async function generateTickerMetadata(ticker: string, subPath?: string): 
 
   const fullPath = subPath ? `${ticker}/${subPath}` : ticker;
   const url = `${BASE_URL}/${fullPath}`;
-  const imageUrl = `${BASE_URL}/images/sponda-og.jpg`;
-
   const title = companyName
     ? `${companyName} (${ticker}) — Indicadores Fundamentalistas | Sponda`
     : `${ticker} — Sponda`;
@@ -45,7 +43,7 @@ export async function generateTickerMetadata(ticker: string, subPath?: string): 
       title: companyName ? `${companyName} (${ticker}) — Sponda` : title,
       description,
       url,
-      images: [{ url: imageUrl, width: 1200, height: 630 }],
+      images: [{ url: `${BASE_URL}/images/sponda-og.jpg`, width: 1200, height: 630 }],
       locale: "pt_BR",
       siteName: "Sponda",
     },
@@ -53,7 +51,7 @@ export async function generateTickerMetadata(ticker: string, subPath?: string): 
       card: "summary_large_image",
       title,
       description,
-      images: [imageUrl],
+      images: [`${BASE_URL}/images/sponda-og.jpg`],
     },
     other: {
       "structured-data": JSON.stringify([

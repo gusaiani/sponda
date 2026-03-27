@@ -25,7 +25,7 @@ _TAB_LABELS = {
 
 
 def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
-    """Replace default OG meta tags with ticker-specific ones for social crawlers."""
+    """Inject ticker-specific meta tags, structured data, and noscript content for crawlers."""
     from quotes.models import Ticker as TickerModel
     from quotes.views import format_display_name
 
@@ -173,8 +173,8 @@ def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
 def _serve_frontend(request, filepath=""):
     """Serve the built frontend SPA. Falls back to index.html for client-side routing.
 
-    For ticker pages (e.g. /PETR4), injects OG meta tags server-side so social
-    media crawlers see the right title, description, and image.
+    For ticker pages (e.g. /PETR4), injects meta tags and structured data
+    server-side so social media crawlers see the right content.
     """
     dist_dir = getattr(settings, "FRONTEND_DIST_DIR", None)
     if not dist_dir:
