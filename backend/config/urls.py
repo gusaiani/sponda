@@ -55,16 +55,12 @@ def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
 
     full_path = f"{ticker}/{path}" if path else ticker
     og_url = f"{_BASE_URL}/{full_path}"
-    og_image = f"{_BASE_URL}/images/sponda-og.jpg"
-
     replacements = [
         ('property="og:title"', og_title),
         ('property="og:description"', og_desc),
         ('property="og:url"', og_url),
-        ('property="og:image"', og_image),
         ('name="twitter:title"', page_title),
         ('name="twitter:description"', og_desc),
-        ('name="twitter:image"', og_image),
         ('name="twitter:card"', "summary_large_image"),
     ]
     for attr, content in replacements:

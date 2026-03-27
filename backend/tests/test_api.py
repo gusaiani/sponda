@@ -639,24 +639,7 @@ class TestOGTagInjection:
         result = _inject_og_tags(html, "PETR4")
         assert "Petroleo Brasileiro" in result
         assert "PETR4" in result
-        assert 'content="https://sponda.capital/images/sponda-og.jpg"' in result
         assert 'content="summary_large_image"' in result
-
-    def test_inject_og_tags_no_duplicate_og_image(self, db):
-        from config.urls import _inject_og_tags
-
-        Ticker.objects.create(symbol="VALE3", name="Vale", type="stock")
-        html = (
-            '<head>'
-            '<meta property="og:image" content="https://sponda.capital/og/home.png" />'
-            '<meta name="twitter:image" content="https://sponda.capital/og/home.png" />'
-            '<meta name="twitter:card" content="summary" />'
-            '</head>'
-        )
-        result = _inject_og_tags(html, "VALE3")
-        # Should have exactly ONE og:image tag, not two
-        assert result.count('property="og:image"') == 1
-        assert 'content="https://sponda.capital/images/sponda-og.jpg"' in result
 
     def test_inject_og_tags_canonical_includes_subpath(self, db):
         from config.urls import _inject_og_tags
