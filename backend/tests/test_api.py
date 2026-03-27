@@ -7,7 +7,7 @@ import pytest
 from django.test import Client
 
 from quotes.models import BalanceSheet, LookupLog, QuarterlyEarnings, Ticker
-from quotes.views import _clean_company_name
+from quotes.views import _clean_company_name, format_display_name
 
 
 @pytest.fixture
@@ -46,6 +46,59 @@ class TestCleanCompanyName:
 
     def test_b3_with_suffix(self):
         assert _clean_company_name("B3 SA - Brasil Bolsa Balcao") == "B3"
+
+
+class TestFormatDisplayName:
+    def test_extracts_trade_name_after_sa(self):
+        assert format_display_name("PETROLEO BRASILEIRO S.A. PETROBRAS") == "Petrobras"
+
+    def test_strips_sa_and_title_cases(self):
+        assert format_display_name("VALE S.A.") == "Vale"
+
+    def test_strips_sa_and_title_cases_multiword(self):
+        assert format_display_name("MAGAZINE LUIZA S.A.") == "Magazine Luiza"
+
+    def test_expands_bco_to_banco(self):
+        assert format_display_name("BCO BRASIL S.A.") == "Banco do Brasil"
+
+    def test_expands_bco_bradesco(self):
+        assert format_display_name("BCO BRADESCO S.A.") == "Banco Bradesco"
+
+    def test_cia_becomes_title_case(self):
+        assert format_display_name("CIA SIDERURGICA NACIONAL") == "Cia Siderúrgica Nacional"
+
+    def test_copel_extracts_trade_name_after_dash(self):
+        assert format_display_name("CIA PARANAENSE DE ENERGIA - COPEL") == "Copel"
+
+    def test_ambev(self):
+        assert format_display_name("AMBEV S.A.") == "Ambev"
+
+    def test_itau_unibanco(self):
+        assert format_display_name("ITAU UNIBANCO HOLDING S.A.") == "Itaú Unibanco"
+
+    def test_b3(self):
+        assert format_display_name("B3 S.A. - BRASIL. BOLSA. BALCÃO") == "B3"
+
+    def test_keeps_acronyms_uppercase(self):
+        assert format_display_name("WEG S.A.") == "WEG"
+
+    def test_lojas_renner(self):
+        assert format_display_name("LOJAS RENNER S.A.") == "Lojas Renner"
+
+    def test_returns_symbol_for_ticker_like_names(self):
+        assert format_display_name("MBRF3") == "MBRF3"
+
+    def test_empty_string(self):
+        assert format_display_name("") == ""
+
+    def test_braskem(self):
+        assert format_display_name("BRASKEM S.A.") == "Braskem"
+
+    def test_strips_holding_suffix(self):
+        assert format_display_name("ITAUSA S.A.") == "Itaúsa"
+
+    def test_bb_seguridade(self):
+        assert format_display_name("BB SEGURIDADE PARTICIPAÇÕES S.A.") == "BB Seguridade"
 
 
 class TestHealthEndpoint:

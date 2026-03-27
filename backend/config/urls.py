@@ -27,13 +27,14 @@ _TAB_LABELS = {
 def _inject_og_tags(html: str, ticker: str, path: str = "") -> str:
     """Replace default OG meta tags with ticker-specific ones for social crawlers."""
     from quotes.models import Ticker as TickerModel
+    from quotes.views import format_display_name
 
     ticker_obj = (
         TickerModel.objects.filter(symbol=ticker)
-        .values("name", "sector")
+        .values("name", "display_name", "sector")
         .first()
     )
-    company_name = ticker_obj["name"] if ticker_obj else ""
+    company_name = (ticker_obj["display_name"] or format_display_name(ticker_obj["name"])) if ticker_obj else ""
     sector = ticker_obj["sector"] if ticker_obj else ""
 
     if company_name:

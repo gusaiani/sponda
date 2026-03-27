@@ -389,6 +389,8 @@ def fetch_ticker_list() -> list[dict]:
 
 def sync_tickers() -> int:
     """Fetch all tickers from BRAPI and upsert into the Ticker model."""
+    from .views import format_display_name
+
     stocks = fetch_ticker_list()
     count = 0
     for stock in stocks:
@@ -398,10 +400,12 @@ def sync_tickers() -> int:
         # Skip fractional shares (e.g. PETR4F, VALE3F)
         if re.match(r"^[A-Z]+\d+F$", symbol):
             continue
+        formal_name = stock.get("name") or ""
         Ticker.objects.update_or_create(
             symbol=symbol,
             defaults={
-                "name": stock.get("name") or "",
+                "name": formal_name,
+                "display_name": format_display_name(formal_name),
                 "sector": stock.get("sector") or "",
                 "type": stock.get("type") or "",
                 "logo": stock.get("logo") or "",

@@ -97,6 +97,7 @@ class BalanceSheet(models.Model):
 class Ticker(models.Model):
     symbol = models.CharField(max_length=20, unique=True, db_index=True)
     name = models.CharField(max_length=200, blank=True, default="")
+    display_name = models.CharField(max_length=200, blank=True, default="")
     sector = models.CharField(max_length=100, blank=True, default="")
     type = models.CharField(max_length=50, blank=True, default="")
     logo = models.URLField(max_length=500, blank=True, default="")
@@ -106,7 +107,7 @@ class Ticker(models.Model):
         ordering = ["symbol"]
 
     def __str__(self):
-        return f"{self.symbol} — {self.name}"
+        return f"{self.symbol} — {self.display_name or self.name}"
 
 
 class LookupLog(models.Model):

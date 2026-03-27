@@ -35,10 +35,125 @@ def _clean_company_name(name: str) -> str:
     return cleaned.strip() or name
 
 
+# Words that should stay lowercase in title case (Portuguese prepositions/articles)
+_LOWERCASE_WORDS = {"de", "do", "da", "dos", "das", "e", "em", "no", "na", "nos", "nas"}
+
+# Common abbreviation expansions for formal BRAPI names
+_ABBREVIATIONS = {
+    "BCO": "Banco",
+    "CIA": "Cia",
+}
+
+# Words to strip (legal/corporate noise that adds no value)
+_STRIP_WORDS = {"PARTICIPAÇÕES", "PARTICIPACOES", "HOLDING", "EMPREENDIMENTOS",
+                "INVESTIMENTOS", "INVESTIMENTO", "SERVICOS", "SERVIÇOS",
+                "FINANCEIROS"}
+
+# Accent corrections for well-known names
+_ACCENT_FIXES = {
+    "itau": "Itaú",
+    "itausa": "Itaúsa",
+    "sao": "São",
+    "siderurgica": "Siderúrgica",
+    "acucar": "Açúcar",
+    "comercio": "Comércio",
+    "ceramica": "Cerâmica",
+    "eletrica": "Elétrica",
+    "energetica": "Energética",
+    "metalurgica": "Metalúrgica",
+}
+
+
+def _title_case_word(word: str, index: int) -> str:
+    """Title-case a single word, respecting Portuguese conventions."""
+    lower = word.lower()
+    if lower in _ACCENT_FIXES:
+        return _ACCENT_FIXES[lower]
+    if index > 0 and lower in _LOWERCASE_WORDS:
+        return lower
+    # Preserve known acronyms (2-3 letter all-caps that aren't common words)
+    _COMMON_SHORT_WORDS = {"RIO", "SUL", "SAO", "PET", "CEA", "BOA", "VIA", "CAR", "MAR"}
+    if word.isupper() and 2 <= len(word) <= 3 and word not in _COMMON_SHORT_WORDS:
+        return word
+    return word.capitalize()
+
+
+def format_display_name(formal_name: str) -> str:
+    """Convert a formal BRAPI ticker name into a human-friendly display name.
+
+    'PETROLEO BRASILEIRO S.A. PETROBRAS' → 'Petrobras'
+    'BCO BRASIL S.A.' → 'Banco do Brasil'
+    'CIA PARANAENSE DE ENERGIA - COPEL' → 'Copel'
+    'VALE S.A.' → 'Vale'
+    """
+    if not formal_name:
+        return ""
+
+    # If it looks like a bare ticker symbol (e.g. "MBRF3"), return as-is
+    if re.match(r"^[A-Z]{3,5}\d{1,2}$", formal_name):
+        return formal_name
+
+    # Check for trade name around dash (e.g., "CIA PARANAENSE DE ENERGIA - COPEL")
+    if " - " in formal_name:
+        before_dash, after_dash = formal_name.rsplit(" - ", 1)
+        # If the part before the dash is short after stripping S.A., prefer it (e.g., "B3 S.A.")
+        before_core = re.sub(r"\s+S[\./]?A\.?.*$", "", before_dash, flags=re.IGNORECASE).strip()
+        if before_core and len(before_core.split()) <= 2:
+            return " ".join(_title_case_word(w, i) for i, w in enumerate(before_core.split()))
+        # Otherwise use the after-dash part if it's a short trade name
+        after_cleaned = re.sub(r"\s+S[\./]?A\.?.*$", "", after_dash, flags=re.IGNORECASE).strip()
+        if after_cleaned and len(after_cleaned.split()) <= 3:
+            return " ".join(_title_case_word(w, i) for i, w in enumerate(after_cleaned.split()))
+
+    # Check for trade name after legal suffix
+    # e.g., "PETROLEO BRASILEIRO S.A. PETROBRAS" → extract "PETROBRAS"
+    sa_match = re.search(r"\bS[\./]?A\.?\s+(.+)$", formal_name, re.IGNORECASE)
+    if sa_match:
+        trade_name = sa_match.group(1).strip()
+        # Only use it if it's a single trade name word (not a descriptive phrase)
+        trade_words = trade_name.split()
+        if len(trade_words) == 1 and not any(w.upper() in _STRIP_WORDS for w in trade_words):
+            return " ".join(_title_case_word(w, i) for i, w in enumerate(trade_words))
+
+    # Strip legal suffixes: S.A., S/A, etc. and everything after
+    cleaned = re.split(r"\s+S[\./]?A\.?(?:\s|$)", formal_name, maxsplit=1, flags=re.IGNORECASE)[0]
+    cleaned = cleaned.strip().rstrip(".")
+
+    # Expand abbreviations
+    words = cleaned.split()
+    expanded = []
+    for word in words:
+        upper = word.upper()
+        if upper in _ABBREVIATIONS:
+            expanded.append(_ABBREVIATIONS[upper])
+        elif upper in _STRIP_WORDS:
+            continue
+        else:
+            expanded.append(word)
+    words = expanded
+
+    # Insert "do" after "Banco" only for geographic/institutional names
+    _BANCO_DO_TARGETS = {"BRASIL", "AMAZONIA", "NORDESTE", "ESTADO"}
+    if len(words) >= 2 and words[0] == "Banco" and words[1].upper() in _BANCO_DO_TARGETS:
+        words.insert(1, "do")
+
+    # Title case
+    result = " ".join(_title_case_word(w, i) for i, w in enumerate(words))
+
+    # Strip trailing prepositions/articles left over from word removal
+    result = re.sub(r"\s+(?:de|do|da|dos|das|e|em)\s*$", "", result, flags=re.IGNORECASE)
+
+    return result.strip()
+
+
 class TickerListView(APIView):
     def get(self, request):
-        tickers = Ticker.objects.filter(type="stock").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "sector", "type", "logo")
-        response = Response(list(tickers))
+        tickers = Ticker.objects.filter(type="stock").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "display_name", "sector", "type", "logo")
+        result = []
+        for ticker in tickers:
+            ticker["name"] = ticker.pop("display_name") or ticker["name"]
+            result.append(ticker)
+        response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
         return response
 
@@ -361,9 +476,9 @@ class OGImageView(APIView):
 
         name = ticker
         logo_url = None
-        ticker_obj = Ticker.objects.filter(symbol=ticker).values("name", "logo").first()
+        ticker_obj = Ticker.objects.filter(symbol=ticker).values("name", "display_name", "logo").first()
         if ticker_obj:
-            name = _clean_company_name(ticker_obj["name"]) if ticker_obj["name"] else ticker
+            name = ticker_obj["display_name"] or format_display_name(ticker_obj["name"]) or ticker
             logo_url = ticker_obj.get("logo") or None
 
         png = generate_og_image(ticker=ticker, name=name, logo_url=logo_url)
