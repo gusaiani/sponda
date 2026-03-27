@@ -359,34 +359,14 @@ class OGImageView(APIView):
 
         ticker = ticker.upper()
 
-        try:
-            quote = fetch_quote(ticker)
-        except BRAPIError:
-            png = generate_og_image(ticker=ticker, name=ticker)
-            response = HttpResponse(png, content_type="image/png")
-            response["Cache-Control"] = "public, max-age=3600"
-            return response
+        name = ticker
+        logo_url = None
+        ticker_obj = Ticker.objects.filter(symbol=ticker).values("name", "logo").first()
+        if ticker_obj:
+            name = _clean_company_name(ticker_obj["name"]) if ticker_obj["name"] else ticker
+            logo_url = ticker_obj.get("logo") or None
 
-        name = _clean_company_name(
-            quote.get("longName") or quote.get("shortName") or ticker
-        )
-        market_cap = quote.get("marketCap")
-        market_cap_decimal = Decimal(str(market_cap)) if market_cap else None
-
-        pe10_result = calculate_pe10(ticker, market_cap_decimal) if market_cap_decimal else {}
-        pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal) if market_cap_decimal else {}
-        peg_result = calculate_peg(ticker, pe10_result.get("pe10")) if pe10_result else {}
-
-        png = generate_og_image(
-            ticker=ticker,
-            name=name,
-            pe10=pe10_result.get("pe10"),
-            pe10_label=pe10_result.get("label", "PE10"),
-            pfcf10=pfcf10_result.get("pfcf10"),
-            pfcf10_label=pfcf10_result.get("label", "PFCF10"),
-            peg=peg_result.get("peg"),
-            market_cap=float(market_cap) if market_cap else None,
-        )
+        png = generate_og_image(ticker=ticker, name=name, logo_url=logo_url)
 
         response = HttpResponse(png, content_type="image/png")
         response["Cache-Control"] = "public, max-age=3600"

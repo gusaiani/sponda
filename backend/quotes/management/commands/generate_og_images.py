@@ -12,20 +12,14 @@ Usage:
     python manage.py generate_og_images --force        # regenerate all
     python manage.py generate_og_images PETR4 VALE3    # specific tickers
 """
-import time
-from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from quotes.brapi import BRAPIError, fetch_quote
 from quotes.models import Ticker
 from quotes.og_image import generate_homepage_og_image, generate_og_image
-from quotes.pe10 import calculate_pe10
-from quotes.peg import calculate_peg
-from quotes.pfcf10 import calculate_pfcf10
 from quotes.views import _clean_company_name
 
 DEFAULT_MAX_PER_RUN = 50
@@ -106,47 +100,19 @@ class Command(BaseCommand):
         )
 
         generated = 0
-        api_errors = 0
 
         for index, symbol in enumerate(batch, 1):
-            try:
-                quote = fetch_quote(symbol)
-                name = _clean_company_name(
-                    quote.get("longName") or quote.get("shortName") or symbol
-                )
-                market_cap = quote.get("marketCap")
-                market_cap_decimal = Decimal(str(market_cap)) if market_cap else None
+            ticker_obj = Ticker.objects.filter(symbol=symbol).values("name", "logo").first()
+            name = _clean_company_name(ticker_obj["name"]) if ticker_obj and ticker_obj["name"] else symbol
+            logo_url = (ticker_obj.get("logo") or None) if ticker_obj else None
 
-                pe10_result = calculate_pe10(symbol, market_cap_decimal) if market_cap_decimal else {}
-                pfcf10_result = calculate_pfcf10(symbol, market_cap_decimal) if market_cap_decimal else {}
-                peg_result = calculate_peg(symbol, pe10_result.get("pe10")) if pe10_result else {}
-
-                png = generate_og_image(
-                    ticker=symbol,
-                    name=name,
-                    pe10=pe10_result.get("pe10"),
-                    pe10_label=pe10_result.get("label", "PE10"),
-                    pfcf10=pfcf10_result.get("pfcf10"),
-                    pfcf10_label=pfcf10_result.get("label", "PFCF10"),
-                    peg=peg_result.get("peg"),
-                    market_cap=float(market_cap) if market_cap else None,
-                )
-            except BRAPIError:
-                # Generate image from database only (no BRAPI needed)
-                ticker_obj = Ticker.objects.filter(symbol=symbol).first()
-                name = ticker_obj.name if ticker_obj else symbol
-                png = generate_og_image(ticker=symbol, name=name)
-                api_errors += 1
-
+            png = generate_og_image(ticker=symbol, name=name, logo_url=logo_url)
             (og_dir / f"{symbol}.png").write_bytes(png)
             generated += 1
 
             if index % 10 == 0:
                 self.stdout.write(f"  [{index}/{len(batch)}] {symbol}")
-                time.sleep(2)  # Rate-limit: ~5 BRAPI requests per 10 seconds
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"Done: {generated} generated, {api_errors} from DB only"
-            )
+            self.style.SUCCESS(f"Done: {generated} images generated")
         )
