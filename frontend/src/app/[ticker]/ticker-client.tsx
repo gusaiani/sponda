@@ -61,6 +61,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: allTickers } = useTickers();
   const { lists } = useSavedLists();
+  const currentTicker = allTickers.find((t) => t.symbol === upperTicker);
 
   // Check for listId in URL search params (when opening a saved list)
   useEffect(() => {
@@ -205,7 +206,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               years={effectiveYears}
               maxYears={maxYears}
               onYearsChange={setYears}
-              sector={current?.sector}
+              sector={currentTicker?.sector}
             />
           )}
           {error && !isLoading && (
