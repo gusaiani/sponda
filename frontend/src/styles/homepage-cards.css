@@ -1,0 +1,165 @@
+@reference "tailwindcss";
+
+/* Homepage Company Cards */
+
+.hcc-section {
+  @apply mx-auto px-4;
+  max-width: 80rem;
+}
+
+.hcc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .hcc-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hcc-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+  }
+}
+
+/* Card */
+
+.hcc-card {
+  display: block;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+  color: inherit;
+}
+
+.hcc-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 1px 4px rgba(30, 64, 175, 0.08);
+}
+
+/* Header: logo + name */
+
+.hcc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+}
+
+.hcc-logo {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.hcc-name-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hcc-ticker {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-accent);
+  line-height: 1.2;
+}
+
+.hcc-name {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* Price row */
+
+.hcc-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.hcc-price {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.hcc-market-cap {
+  font-size: 0.6875rem;
+  color: var(--color-muted);
+}
+
+/* Indicators grid */
+
+.hcc-indicators-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.125rem 0.375rem;
+}
+
+.hcc-indicator {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.125rem 0;
+}
+
+.hcc-indicator-label {
+  font-size: 0.625rem;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.hcc-indicator-value {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: #334155;
+  text-align: right;
+}
+
+/* Loading state */
+
+.hcc-card-loading {
+  opacity: 0.5;
+}
+
+.hcc-logo-placeholder {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+
+.hcc-name-placeholder {
+  width: 4rem;
+  height: 0.75rem;
+  border-radius: 0.25rem;
+  background: #e2e8f0;
+}
+
+.hcc-indicator-placeholder {
+  height: 0.75rem;
+  border-radius: 0.25rem;
+  background: #f1f5f9;
+}
