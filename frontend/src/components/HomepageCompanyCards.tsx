@@ -95,9 +95,15 @@ export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isL
       </div>
 
       <div className="hcc-price-row">
-        <span className="hcc-price">R$ {br(data.currentPrice, 2)}</span>
+        <div className="hcc-price-item">
+          <span className="hcc-price-label">Preço</span>
+          <span className="hcc-price">R$ {br(data.currentPrice, 2)}</span>
+        </div>
         {data.marketCap && (
-          <span className="hcc-market-cap">{formatMarketCap(data.marketCap)}</span>
+          <div className="hcc-price-item">
+            <span className="hcc-price-label">Cap. Mercado</span>
+            <span className="hcc-market-cap">{formatMarketCap(data.marketCap)}</span>
+          </div>
         )}
       </div>
 
