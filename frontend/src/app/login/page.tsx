@@ -73,11 +73,7 @@ export default function LoginPage() {
         return;
       }
 
-      if (mode === "signup") {
-        setSignupSuccess(true);
-        return;
-      }
-
+      // Both signup and login: backend sets session cookie, redirect home
       window.location.href = "/";
     } catch {
       setError("Erro de conexão. Tente novamente.");

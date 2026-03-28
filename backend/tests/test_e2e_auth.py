@@ -219,7 +219,7 @@ class TestSignupPage:
         # Confirm password field should appear
         expect(page.locator("input#confirm-password")).to_be_visible(timeout=3000)
 
-    def test_signup_success(self, page: Page, url):
+    def test_signup_success_redirects_home_logged_in(self, page: Page, url):
         page.goto(f"{url}/login")
         page.locator(".auth-mode-toggle >> text=Criar conta").click()
 
@@ -228,8 +228,12 @@ class TestSignupPage:
         page.fill("input#confirm-password", "securepass123")
         submit_page_form(page)
 
-        # Should show success message
-        expect(page.locator("text=Conta criada")).to_be_visible(timeout=10000)
+        # Should redirect to homepage
+        page.wait_for_url(f"{url}/", timeout=10000)
+
+        # Should be logged in (sees "Minha conta", not "Entrar")
+        expect(page.locator("text=Minha conta")).to_be_visible(timeout=5000)
+        expect(page.locator("text=Entrar")).not_to_be_visible()
 
         # User should exist in DB
         assert User.objects.filter(email="newuser@example.com").exists()
@@ -273,7 +277,9 @@ class TestSignupPage:
         # Checkbox is checked by default — leave it
         submit_page_form(page)
 
-        expect(page.locator("text=Conta criada")).to_be_visible(timeout=10000)
+        # Should redirect to homepage after signup
+        page.wait_for_url(f"{url}/", timeout=10000)
+
         user = User.objects.get(email="contact@example.com")
         assert user.allow_contact is True
 
