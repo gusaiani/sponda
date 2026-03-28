@@ -60,7 +60,7 @@ function Indicator({ label, value, suffix = "" }: IndicatorProps) {
   );
 }
 
-function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isLoading: boolean }) {
+export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isLoading: boolean }) {
   if (isLoading || !data) {
     return (
       <div className="hcc-card hcc-card-loading">
