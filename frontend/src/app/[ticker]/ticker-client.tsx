@@ -20,29 +20,10 @@ import { getSectorPeers } from "../../utils/subsector";
 
 const DEFAULT_YEARS = 10;
 
-type TabKey = "metrics" | "charts" | "fundamentals" | "compare";
+import { resolveTab, buildTabPath, TAB_LABELS, type TabKey } from "../../utils/tabs";
 
 interface TickerPageClientProps {
   initialData?: QuoteResult | null;
-}
-
-const TAB_PATHS: Record<string, TabKey> = {
-  graficos: "charts",
-  fundamentos: "fundamentals",
-  comparar: "compare",
-};
-
-const TAB_TO_SUFFIX: Record<TabKey, string> = {
-  metrics: "",
-  charts: "/graficos",
-  fundamentals: "/fundamentos",
-  compare: "/comparar",
-};
-
-function resolveTab(pathname: string): TabKey {
-  const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
-  if (TAB_PATHS[lastSegment]) return TAB_PATHS[lastSegment];
-  return "metrics";
 }
 
 export function TickerPageClient({ initialData }: TickerPageClientProps) {
@@ -140,8 +121,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   }, [upperTicker, allTickers, fullData]);
 
   function switchTab(tab: TabKey) {
-    const path = `/${upperTicker}${TAB_TO_SUFFIX[tab]}`;
-    router.push(path);
+    router.push(buildTabPath(upperTicker, tab));
   }
 
 
