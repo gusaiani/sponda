@@ -37,7 +37,9 @@
 /* Card */
 
 .hcc-card {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   border: 1px solid #e2e8f0;
   border-radius: 0.5rem;
   padding: 0.75rem;
@@ -75,20 +77,20 @@
   min-width: 0;
 }
 
-.hcc-ticker {
-  font-family: 'Source Code Pro', monospace;
+.hcc-name {
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-accent);
-  line-height: 1.2;
-}
-
-.hcc-name {
-  font-size: 0.6875rem;
-  color: var(--color-muted);
+  color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.hcc-ticker {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 0.6875rem;
+  color: var(--color-muted);
   line-height: 1.2;
 }
 
@@ -133,8 +135,9 @@
 
 .hcc-indicators-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.125rem 0.375rem;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.125rem 0.75rem;
+  flex: 1;
 }
 
 .hcc-indicator {

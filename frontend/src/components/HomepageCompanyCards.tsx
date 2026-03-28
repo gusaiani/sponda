@@ -89,8 +89,8 @@ export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isL
           />
         )}
         <div className="hcc-name-block">
-          <span className="hcc-ticker">{data.ticker}</span>
           <span className="hcc-name">{data.name}</span>
+          <span className="hcc-ticker">{data.ticker}</span>
         </div>
       </div>
 
