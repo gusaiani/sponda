@@ -109,7 +109,7 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
 
       <div className="hcc-indicators-grid">
         {/* Balance sheet */}
-        <Indicator label="PL" value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity) : null} />
+        <Indicator label="Patr. Líq." value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity) : null} />
         <Indicator label="Passivo" value={data.totalLiabilities !== null ? formatLargeNumber(data.totalLiabilities) : null} />
         <Indicator label="Dív Bruta" value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0)) : null} />
         <Indicator label="Liq. Corr." value={data.currentRatio !== null ? br(data.currentRatio, 2) : null} />
