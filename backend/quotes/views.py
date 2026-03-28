@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from .brapi import BRAPIError, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
 from .leverage import calculate_leverage
-from .models import BalanceSheet, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from .models import BalanceSheet, CompanyAnalysis, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
@@ -481,6 +481,41 @@ class FundamentalsView(APIView):
         response["Cache-Control"] = "public, max-age=3600"
         return response
 
+
+
+class CompanyAnalysisView(APIView):
+    """Return the latest analysis and version history for a ticker."""
+
+    def get(self, request, ticker):
+        ticker = ticker.upper()
+
+        analyses = CompanyAnalysis.objects.filter(ticker=ticker).order_by("-generated_at")
+
+        if not analyses.exists():
+            return Response(
+                {"error": "Nenhuma análise disponível para este ticker."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        latest = analyses.first()
+        versions = [
+            {
+                "id": analysis.id,
+                "dataQuarter": analysis.data_quarter,
+                "generatedAt": analysis.generated_at.isoformat(),
+            }
+            for analysis in analyses
+        ]
+
+        response = Response({
+            "ticker": ticker,
+            "content": latest.content,
+            "dataQuarter": latest.data_quarter,
+            "generatedAt": latest.generated_at.isoformat(),
+            "versions": versions,
+        })
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
 
 
 class SitemapView(APIView):

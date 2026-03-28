@@ -8,6 +8,7 @@ import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../../components/
 import { MultiplesChart, MultiplesChartLoading } from "../../components/MultiplesChart";
 import { CompareTab } from "../../components/CompareTab";
 import { FundamentalsTab } from "../../components/FundamentalsTab";
+import { CompanyAnalysis } from "../../components/CompanyAnalysis";
 import { FavoriteButton } from "../../components/FavoriteButton";
 import { ShareButtons } from "../../components/ShareButtons";
 import { usePE10, fetchQuote, type QuoteResult } from "../../hooks/usePE10";
@@ -60,6 +61,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: allTickers } = useTickers();
   const { lists } = useSavedLists();
+  const currentTicker = allTickers?.find((t) => t.symbol === upperTicker);
 
   // Check for listId in URL search params (when opening a saved list)
   useEffect(() => {
@@ -204,6 +206,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               years={effectiveYears}
               maxYears={maxYears}
               onYearsChange={setYears}
+              sector={currentTicker?.sector}
             />
           )}
           {error && !isLoading && (
@@ -245,6 +248,11 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
           onExtraTickersChange={setCompareTickers}
           savedListId={activeListId}
         />
+      )}
+
+      {/* AI Analysis */}
+      {fullData && !isLoading && !error && (
+        <CompanyAnalysis ticker={upperTicker} />
       )}
 
       {/* Sector peers */}

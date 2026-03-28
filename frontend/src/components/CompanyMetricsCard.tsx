@@ -85,7 +85,10 @@ interface CompanyMetricsCardProps {
   years: number;
   maxYears: number;
   onYearsChange: (years: number) => void;
+  sector?: string;
 }
+
+const FINANCIAL_SECTORS = new Set(["Finance", "Financial Services"]);
 
 type ModalKey =
   | "debtToEquity" | "debtExLease" | "liabToEquity"
@@ -710,16 +713,27 @@ const MODAL_TITLES: Record<string, (data: QuoteData) => string> = {
 
 /* ── Main Card ── */
 
-export function CompanyMetricsCard({ data, years, maxYears, onYearsChange }: CompanyMetricsCardProps) {
+export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector }: CompanyMetricsCardProps) {
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
   const open = (key: ModalKey) => setActiveModal(key);
+  const isFinancial = sector ? FINANCIAL_SECTORS.has(sector) : false;
 
   return (
     <article className="pe10-card" aria-label={`Indicadores de ${data.name} (${data.ticker})`}>
       {/* ── Section: Dívida ── */}
+      {isFinancial ? (
+        <div className="card-section">
+          <div className="card-section-heading">Endividamento</div>
+          <p className="card-financial-note">
+            Indicadores de endividamento tradicionais (Dívida/PL, Passivo/PL etc.) não se aplicam
+            a instituições financeiras, pois captações e depósitos compõem o passivo por natureza
+            do negócio, não por alavancagem excessiva.
+          </p>
+        </div>
+      ) : (
       <div className="card-section">
         <div className="card-section-heading">Endividamento</div>
 
@@ -775,6 +789,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange }: Com
           </div>
         </div>
       </div>
+      )}
 
       {/* ── Section: Preço em relação a resultados ── */}
       <div className="card-section">

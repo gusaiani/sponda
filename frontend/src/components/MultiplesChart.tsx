@@ -23,11 +23,28 @@ const PRICE_COLOR = "#1e40af"; // --color-accent
 const MULTIPLE_COLOR = "#d97706"; // amber-600
 
 /** Format number with Brazilian convention (comma as decimal separator). */
-function brFmt(n: number, decimals = 2): string {
+export function brFmt(n: number, decimals = 2): string {
   return n.toLocaleString("pt-BR", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+}
+
+const MONTH_NAMES = [
+  "jan", "fev", "mar", "abr", "mai", "jun",
+  "jul", "ago", "set", "out", "nov", "dez",
+];
+
+/** Convert an ISO-style date string ("2024-01-31") to "jan/24". */
+export function formatPriceDate(dateString: string): string {
+  const [year, month] = dateString.split("-");
+  const label = `${MONTH_NAMES[parseInt(month, 10) - 1]}/${year.slice(2)}`;
+  return label;
+}
+
+/** Calculate a tick interval that shows roughly 8 ticks on the X axis. */
+export function calculateTickInterval(dataLength: number): number {
+  return Math.max(1, Math.floor(dataLength / 8));
 }
 
 interface PriceTooltipProps {
@@ -117,18 +134,13 @@ export function MultiplesChart({ data }: Props) {
   }
 
   // Format dates for display: "2015-01-31" → "jan/15"
-  const priceData = data.prices.map((p) => {
-    const [y, m] = p.date.split("-");
-    const monthNames = [
-      "jan", "fev", "mar", "abr", "mai", "jun",
-      "jul", "ago", "set", "out", "nov", "dez",
-    ];
-    const label = `${monthNames[parseInt(m, 10) - 1]}/${y.slice(2)}`;
-    return { date: label, adjustedClose: p.adjustedClose };
-  });
+  const priceData = data.prices.map((p) => ({
+    date: formatPriceDate(p.date),
+    adjustedClose: p.adjustedClose,
+  }));
 
   // Show ~8 ticks on X axis regardless of data length
-  const tickInterval = Math.max(1, Math.floor(priceData.length / 8));
+  const tickInterval = calculateTickInterval(priceData.length);
 
   // Find the hovered year's data in multiplesData; fall back to nearest year
   const hoveredMultiple = (() => {
