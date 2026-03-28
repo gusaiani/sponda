@@ -137,9 +137,16 @@
 
 .hcc-indicators-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1px 22px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px 16px;
   flex: 1;
+}
+
+@media (min-width: 480px) {
+  .hcc-indicators-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px 22px;
+  }
 }
 
 .hcc-indicator {
@@ -254,13 +261,19 @@
 
 .homepage-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 480px) {
   .homepage-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  .homepage-grid {
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }
 }
@@ -268,7 +281,6 @@
 @media (min-width: 1280px) {
   .homepage-grid {
     grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
   }
 }
 
@@ -287,7 +299,13 @@
 }
 
 .homepage-grid-item--span-2 {
-  grid-column: span 2;
+  grid-column: span 1;
+}
+
+@media (min-width: 480px) {
+  .homepage-grid-item--span-2 {
+    grid-column: span 2;
+  }
 }
 
 .homepage-grid-item--dragging {
