@@ -15,6 +15,7 @@ import responses
 from django.contrib.auth import get_user_model
 from playwright.sync_api import Page, expect
 
+from accounts.models import FavoriteCompany
 from quotes.models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
@@ -517,3 +518,69 @@ class TestHomepageAddFavoriteCard:
 
         # PETR4 should now be in their favorites (visible as a card on homepage)
         expect(page.locator(".hcc-ticker >> text=PETR4")).to_be_visible(timeout=15000)
+
+    def test_login_via_placeholder_shows_existing_favorites_plus_new(self, page: Page, url, test_user):
+        """Existing user logs in via placeholder. Homepage shows their existing
+        favorites plus the newly selected one."""
+        # Seed a second ticker for the new favorite
+        Ticker.objects.get_or_create(
+            symbol="VALE3", defaults=dict(
+                name="Vale", display_name="Vale",
+                sector="Non-Energy Minerals", type="stock",
+                logo="https://icons.brapi.dev/icons/VALE3.svg",
+            ),
+        )
+        # Give the existing user a pre-existing favorite (PETR4)
+        FavoriteCompany.objects.create(user=test_user, ticker="PETR4")
+
+        # Go to homepage (logged out)
+        page.goto(url)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=15000)
+
+        # Select VALE3 (a new favorite) from the placeholder
+        page.locator(".hcc-add-favorite-input").fill("VALE")
+        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=10000)
+        page.locator(".search-dropdown-item").first.click()
+
+        # Auth modal opens - login with existing account
+        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=10000)
+        page.fill("input#modal-email", "test@example.com")
+        page.fill("input#modal-password", "testpass123")
+        submit_modal_form(page)
+
+        # Modal closes, user is logged in
+        expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=15000)
+        expect(page.locator("text=Minha conta")).to_be_visible(timeout=15000)
+
+        # Homepage should show BOTH the existing favorite (PETR4)
+        # AND the newly added one (VALE3)
+        expect(page.locator(".hcc-ticker >> text=PETR4")).to_be_visible(timeout=15000)
+        expect(page.locator(".hcc-ticker >> text=VALE3")).to_be_visible(timeout=15000)
+
+    def test_login_via_placeholder_does_not_duplicate_existing_favorite(self, page: Page, url, test_user):
+        """If the selected company is already a favorite, don't duplicate it."""
+        # User already has PETR4 as favorite
+        FavoriteCompany.objects.create(user=test_user, ticker="PETR4")
+
+        page.goto(url)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=15000)
+
+        # Select PETR4 (already a favorite)
+        page.locator(".hcc-add-favorite-input").fill("PETR")
+        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=10000)
+        page.locator(".search-dropdown-item").first.click()
+
+        # Login
+        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=10000)
+        page.fill("input#modal-email", "test@example.com")
+        page.fill("input#modal-password", "testpass123")
+        submit_modal_form(page)
+
+        expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=15000)
+        expect(page.locator("text=Minha conta")).to_be_visible(timeout=15000)
+
+        # PETR4 should still be visible (not removed by toggle)
+        expect(page.locator(".hcc-ticker >> text=PETR4")).to_be_visible(timeout=15000)
+
+        # Should still have exactly 1 favorite (not duplicated)
+        assert FavoriteCompany.objects.filter(user=test_user, ticker="PETR4").count() == 1

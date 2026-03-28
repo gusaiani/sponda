@@ -193,14 +193,28 @@ export function AddFavoriteCard() {
 
       {showAuthModal && (
         <AuthModal
-          onSuccess={() => {
+          onSuccess={async () => {
             setShowAuthModal(false);
-            queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(() => {
-              if (pendingTicker) {
-                toggleFavorite(pendingTicker);
-                setPendingTicker(null);
+            const ticker = pendingTicker;
+            setPendingTicker(null);
+
+            // Refresh auth state and favorites after login/signup
+            await queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+            await queryClient.invalidateQueries({ queryKey: ["favorites"] });
+
+            if (ticker) {
+              // Refetch favorites to check if ticker is already there
+              const freshFavorites = await queryClient.fetchQuery<Array<{ ticker: string }>>({
+                queryKey: ["favorites"],
+                staleTime: 0,
+              });
+              const alreadyFavorited = freshFavorites.some(
+                (favorite) => favorite.ticker === ticker.toUpperCase(),
+              );
+              if (!alreadyFavorited) {
+                toggleFavorite(ticker);
               }
-            });
+            }
           }}
           onClose={() => {
             setShowAuthModal(false);
