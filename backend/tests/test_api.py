@@ -697,3 +697,50 @@ class TestOGTagInjection:
         assert '"@type": "BreadcrumbList"' in result
         assert "WEG" in result
         assert "Industrials" in result
+
+
+class TestHomepageLayout:
+    @pytest.fixture
+    def authenticated_client(self, db):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        user = User.objects.create_user(username="test@test.com", email="test@test.com", password="pass12345")
+        client = Client()
+        client.login(username="test@test.com", password="pass12345")
+        return client, user
+
+    def test_get_returns_empty_list_by_default(self, authenticated_client):
+        client, _ = authenticated_client
+        response = client.get("/api/auth/homepage-layout/")
+        assert response.status_code == 200
+        assert response.json() == {"layout": []}
+
+    def test_save_and_retrieve_layout(self, authenticated_client):
+        client, _ = authenticated_client
+        layout = [
+            {"type": "ticker", "id": "PETR4"},
+            {"type": "list", "id": "1"},
+            {"type": "ticker", "id": "VALE3"},
+        ]
+        response = client.put(
+            "/api/auth/homepage-layout/",
+            {"layout": layout},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+
+        response = client.get("/api/auth/homepage-layout/")
+        assert response.json()["layout"] == layout
+
+    def test_rejects_unauthenticated(self, api_client, db):
+        response = api_client.get("/api/auth/homepage-layout/")
+        assert response.status_code in [401, 403]
+
+    def test_rejects_invalid_layout_items(self, authenticated_client):
+        client, _ = authenticated_client
+        response = client.put(
+            "/api/auth/homepage-layout/",
+            {"layout": [{"type": "invalid", "id": "x"}]},
+            content_type="application/json",
+        )
+        assert response.status_code == 400

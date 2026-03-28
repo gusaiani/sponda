@@ -8,6 +8,7 @@ from .views import (
     FeedbackView,
     ForgotPasswordView,
     GoogleAuthView,
+    HomepageLayoutView,
     LoginView,
     LogoutView,
     MeView,
@@ -42,6 +43,7 @@ urlpatterns = [
     path("verify-email/", VerifyEmailView.as_view(), name="verify-email"),
     path("resend-verification/", ResendVerificationView.as_view(), name="resend-verification"),
     path("track/", TrackPageView.as_view(), name="track-page-view"),
+    path("homepage-layout/", HomepageLayoutView.as_view(), name="homepage-layout"),
     path("feedback/", FeedbackView.as_view(), name="feedback"),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
 ]
