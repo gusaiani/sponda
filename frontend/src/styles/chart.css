@@ -1,15 +1,21 @@
 @reference "tailwindcss";
 
-/* Tab pills */
-.tabs-wrapper {
+/* Tab pills — desktop only */
+.tabs-desktop {
   max-width: 768px;
   margin-left: auto;
   margin-right: auto;
-  display: flex;
+  display: none;
   justify-content: center;
   gap: 6px;
   margin-bottom: 0;
   padding: 0 16px;
+}
+
+@media (min-width: 550px) {
+  .tabs-desktop {
+    display: flex;
+  }
 }
 
 .tab-pill {
@@ -26,7 +32,6 @@
   background: #f1f5f9;
   color: #475569;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .tab-pill:hover {
@@ -44,25 +49,42 @@
   color: #ffffff;
 }
 
-/* Mobile: horizontal scroll, hide scrollbar */
-@media (max-width: 550px) {
-  .tabs-wrapper {
-    justify-content: flex-start;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-    gap: 8px;
-    padding: 0 16px;
-  }
+/* Tab dropdown — mobile only */
+.tabs-mobile {
+  display: block;
+  max-width: 768px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0;
+  margin-bottom: 0;
+}
 
-  .tabs-wrapper::-webkit-scrollbar {
+@media (min-width: 550px) {
+  .tabs-mobile {
     display: none;
   }
+}
 
-  .tab-pill {
-    font-size: 12px;
-    padding: 6px 14px;
-  }
+.tabs-dropdown {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--color-accent);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  outline: none;
+}
+
+.tabs-dropdown:focus {
+  border-color: var(--color-accent);
 }
 
 /* Chart container */

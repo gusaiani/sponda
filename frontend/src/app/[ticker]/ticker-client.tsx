@@ -166,34 +166,48 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs — pills on desktop, dropdown on mobile */}
       {!isLoading && !error && (
-        <div className="tabs-wrapper">
-          <button
-            className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
-            onClick={() => switchTab("metrics")}
-          >
-            Indicadores
-          </button>
-          <button
-            className={`tab-pill ${activeTab === "fundamentals" ? "tab-pill-active" : ""}`}
-            onClick={() => switchTab("fundamentals")}
-          >
-            Fundamentos
-          </button>
-          <button
-            className={`tab-pill ${activeTab === "compare" ? "tab-pill-active" : ""}`}
-            onClick={() => switchTab("compare")}
-          >
-            Comparar
-          </button>
-          <button
-            className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
-            onClick={() => switchTab("charts")}
-          >
-            Gráficos
-          </button>
-        </div>
+        <>
+          <div className="tabs-wrapper tabs-desktop">
+            <button
+              className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
+              onClick={() => switchTab("metrics")}
+            >
+              Indicadores
+            </button>
+            <button
+              className={`tab-pill ${activeTab === "fundamentals" ? "tab-pill-active" : ""}`}
+              onClick={() => switchTab("fundamentals")}
+            >
+              Fundamentos
+            </button>
+            <button
+              className={`tab-pill ${activeTab === "compare" ? "tab-pill-active" : ""}`}
+              onClick={() => switchTab("compare")}
+            >
+              Comparar
+            </button>
+            <button
+              className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
+              onClick={() => switchTab("charts")}
+            >
+              Gráficos
+            </button>
+          </div>
+          <div className="tabs-mobile">
+            <select
+              className="tabs-dropdown"
+              value={activeTab}
+              onChange={(e) => switchTab(e.target.value as "metrics" | "fundamentals" | "compare" | "charts")}
+            >
+              <option value="metrics">Indicadores</option>
+              <option value="fundamentals">Fundamentos</option>
+              <option value="compare">Comparar</option>
+              <option value="charts">Gráficos</option>
+            </select>
+          </div>
+        </>
       )}
 
       {/* Metrics tab */}
