@@ -37,11 +37,12 @@ async function fetchHomepageLayout(): Promise<LayoutItem[] | null> {
 
 export function HomepageGrid() {
   const { isAuthenticated } = useAuth();
-  const { favoriteTickers } = useFavorites();
+  const { favoriteTickers, isFavorite, toggleFavorite } = useFavorites();
   const { lists } = useSavedLists();
   const { data: allTickers = [] } = useTickers();
   const queryClient = useQueryClient();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingFavoriteTicker, setPendingFavoriteTicker] = useState<string | null>(null);
 
   const logoMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -172,11 +173,41 @@ export function HomepageGrid() {
     [activeLayout, isAuthenticated, saveLayoutMutation],
   );
 
-  const handleAuthSuccess = useCallback(() => {
+  const handleFavoriteSelect = useCallback((ticker: string) => {
+    if (isAuthenticated) {
+      if (!isFavorite(ticker)) {
+        toggleFavorite(ticker);
+      }
+    } else {
+      setPendingFavoriteTicker(ticker);
+      setShowAuthModal(true);
+    }
+  }, [isAuthenticated, isFavorite, toggleFavorite]);
+
+  const handleAuthSuccess = useCallback(async () => {
     setShowAuthModal(false);
-    queryClient.invalidateQueries({ queryKey: ["auth-user"] });
-    queryClient.invalidateQueries({ queryKey: ["homepage-layout"] });
-  }, [queryClient]);
+    const ticker = pendingFavoriteTicker;
+    setPendingFavoriteTicker(null);
+
+    // Refresh auth state and favorites after login/signup
+    await queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+    await queryClient.invalidateQueries({ queryKey: ["favorites"] });
+    await queryClient.invalidateQueries({ queryKey: ["homepage-layout"] });
+
+    if (ticker) {
+      // Refetch favorites to check if ticker is already there
+      const freshFavorites = await queryClient.fetchQuery<Array<{ ticker: string }>>({
+        queryKey: ["favorites"],
+        staleTime: 0,
+      });
+      const alreadyFavorited = freshFavorites.some(
+        (favorite) => favorite.ticker === ticker.toUpperCase(),
+      );
+      if (!alreadyFavorited) {
+        toggleFavorite(ticker);
+      }
+    }
+  }, [queryClient, pendingFavoriteTicker, toggleFavorite]);
 
   return (
     <section className="hcc-section">
@@ -217,7 +248,7 @@ export function HomepageGrid() {
         })}
         {showPlaceholder && (
           <div className="homepage-grid-item homepage-grid-item--no-drag">
-            <AddFavoriteCard />
+            <AddFavoriteCard onSelectTicker={handleFavoriteSelect} />
           </div>
         )}
       </div>
