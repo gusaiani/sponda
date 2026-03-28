@@ -60,7 +60,7 @@ function Indicator({ label, value, suffix = "" }: IndicatorProps) {
   );
 }
 
-export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isLoading: boolean }) {
+export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResult | null; isLoading: boolean; logoOverride?: string }) {
   if (isLoading || !data) {
     return (
       <div className="hcc-card hcc-card-loading">
@@ -80,10 +80,10 @@ export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isL
   return (
     <Link href={`/${data.ticker}`} className="hcc-card">
       <div className="hcc-card-header">
-        {data.logo && (
+        {(logoOverride || data.logo) && (
           <img
             className="hcc-logo"
-            src={data.logo}
+            src={logoOverride || data.logo}
             alt=""
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />

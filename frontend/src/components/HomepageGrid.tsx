@@ -16,6 +16,7 @@ import { csrfHeaders } from "../utils/csrf";
 import { CompanyCard } from "./HomepageCompanyCards";
 import { ListCard } from "./ListCard";
 import { AuthModal } from "./AuthModal";
+import { useTickers } from "../hooks/useTickers";
 import { useMemo } from "react";
 import "../styles/homepage-cards.css";
 
@@ -37,8 +38,17 @@ export function HomepageGrid() {
   const { isAuthenticated } = useAuth();
   const { favoriteTickers } = useFavorites();
   const { lists } = useSavedLists();
+  const { data: allTickers = [] } = useTickers();
   const queryClient = useQueryClient();
   const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const logoMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of allTickers) {
+      if (t.logo) map.set(t.symbol, t.logo);
+    }
+    return map;
+  }, [allTickers]);
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragCounter = useRef<Map<number, number>>(new Map());
@@ -196,7 +206,7 @@ export function HomepageGrid() {
               onDrop={(event) => handleDrop(event, index)}
             >
               {item.type === "ticker" ? (
-                <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} />
+                <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} logoMap={logoMap} />
               ) : (
                 <ListGridItem listId={item.id} lists={lists} />
               )}
@@ -218,14 +228,16 @@ export function HomepageGrid() {
 interface TickerGridItemProps {
   ticker: string;
   compareDataMap: Map<string, { data: import("../hooks/usePE10").QuoteResult | null; isLoading: boolean }>;
+  logoMap: Map<string, string>;
 }
 
-function TickerGridItem({ ticker, compareDataMap }: TickerGridItemProps) {
+function TickerGridItem({ ticker, compareDataMap, logoMap }: TickerGridItemProps) {
   const entry = compareDataMap.get(ticker);
   return (
     <CompanyCard
       data={entry?.data ?? null}
       isLoading={entry?.isLoading ?? true}
+      logoOverride={logoMap.get(ticker)}
     />
   );
 }
