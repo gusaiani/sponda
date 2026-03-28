@@ -6,6 +6,15 @@ import pytest
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
+@pytest.fixture(autouse=True)
+def _set_sqlite_busy_timeout(db):
+    """Prevent 'database table is locked' errors in SQLite during e2e tests."""
+    from django.db import connection
+    if connection.vendor == "sqlite":
+        with connection.cursor() as cursor:
+            cursor.execute("PRAGMA busy_timeout = 30000;")
+
+
 @pytest.fixture
 def sample_earnings(db):
     """Create 10 years of quarterly earnings for PETR4 (2016–2025)."""
