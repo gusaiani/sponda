@@ -6,13 +6,24 @@ import pytest
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
-@pytest.fixture(autouse=True)
-def _set_sqlite_busy_timeout(db):
-    """Prevent 'database table is locked' errors in SQLite during e2e tests."""
-    from django.db import connection
-    if connection.vendor == "sqlite":
-        with connection.cursor() as cursor:
-            cursor.execute("PRAGMA busy_timeout = 30000;")
+@pytest.fixture(scope="session")
+def django_db_setup(django_test_environment, django_db_blocker):
+    """Use file-based SQLite with WAL mode for e2e test concurrency."""
+    from django.test.utils import setup_databases, teardown_databases
+
+    with django_db_blocker.unblock():
+        db_cfg = setup_databases(verbosity=0, interactive=False)
+
+        # Enable WAL mode outside of any transaction
+        from django.db import connection
+        if connection.vendor == "sqlite":
+            connection.cursor().execute("PRAGMA journal_mode=WAL;")
+            connection.cursor().execute("PRAGMA busy_timeout=30000;")
+
+    yield
+
+    with django_db_blocker.unblock():
+        teardown_databases(db_cfg, verbosity=0)
 
 
 @pytest.fixture
