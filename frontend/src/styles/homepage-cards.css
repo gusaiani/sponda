@@ -265,7 +265,7 @@
   gap: 12px;
 }
 
-@media (min-width: 480px) {
+@media (min-width: 550px) {
   .homepage-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -302,7 +302,7 @@
   grid-column: span 1;
 }
 
-@media (min-width: 480px) {
+@media (min-width: 550px) {
   .homepage-grid-item--span-2 {
     grid-column: span 2;
   }
