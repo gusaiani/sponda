@@ -734,6 +734,41 @@ class SharedListView(APIView):
         })
 
 
+# ── Homepage Layout ──
+
+
+VALID_LAYOUT_TYPES = {"ticker", "list"}
+
+
+class HomepageLayoutView(APIView):
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"layout": request.user.homepage_layout})
+
+    def put(self, request):
+        if not request.user.is_authenticated:
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        layout = request.data.get("layout")
+        if not isinstance(layout, list):
+            return Response(
+                {"error": "layout must be a list"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        for item in layout:
+            if not isinstance(item, dict) or item.get("type") not in VALID_LAYOUT_TYPES or "id" not in item:
+                return Response(
+                    {"error": "Each item must have a valid type (ticker or list) and an id"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        request.user.homepage_layout = layout
+        request.user.save(update_fields=["homepage_layout"])
+        return Response({"layout": layout})
+
+
 # ── Feedback ──
 
 
