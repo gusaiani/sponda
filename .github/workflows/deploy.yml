@@ -103,6 +103,7 @@ jobs:
             cd /opt/sponda/backend
             python manage.py migrate --noinput
             python manage.py collectstatic --noinput
+            python manage.py import_analyses /opt/sponda/backend/analyses.json
 
             # Install systemd services and timers
             cp /opt/sponda/systemd/sponda-frontend.service /etc/systemd/system/

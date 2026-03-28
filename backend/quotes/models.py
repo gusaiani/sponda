@@ -110,6 +110,25 @@ class Ticker(models.Model):
         return f"{self.symbol} — {self.display_name or self.name}"
 
 
+class CompanyAnalysis(models.Model):
+    ticker = models.CharField(max_length=10, db_index=True)
+    content = models.TextField(
+        help_text="Analysis text in Portuguese (markdown format)",
+    )
+    data_quarter = models.CharField(
+        max_length=7,
+        help_text="Quarter covered by this analysis, e.g. '2025-Q4'",
+    )
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-generated_at"]
+        verbose_name_plural = "company analyses"
+
+    def __str__(self):
+        return f"{self.ticker} — {self.data_quarter}"
+
+
 class LookupLog(models.Model):
     session_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     user = models.ForeignKey(

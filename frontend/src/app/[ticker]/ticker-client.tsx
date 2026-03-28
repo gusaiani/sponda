@@ -8,6 +8,7 @@ import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../../components/
 import { MultiplesChart, MultiplesChartLoading } from "../../components/MultiplesChart";
 import { CompareTab } from "../../components/CompareTab";
 import { FundamentalsTab } from "../../components/FundamentalsTab";
+import { CompanyAnalysis } from "../../components/CompanyAnalysis";
 import { FavoriteButton } from "../../components/FavoriteButton";
 import { ShareButtons } from "../../components/ShareButtons";
 import { usePE10, fetchQuote, type QuoteResult } from "../../hooks/usePE10";
@@ -246,6 +247,11 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
           onExtraTickersChange={setCompareTickers}
           savedListId={activeListId}
         />
+      )}
+
+      {/* AI Analysis */}
+      {fullData && !isLoading && !error && (
+        <CompanyAnalysis ticker={upperTicker} />
       )}
 
       {/* Sector peers */}
