@@ -5,9 +5,6 @@ import { createPortal } from "react-dom";
 import Fuse from "fuse.js";
 import { useTickers, type TickerItem } from "../hooks/useTickers";
 import { useFavorites } from "../hooks/useFavorites";
-import { useAuth } from "../hooks/useAuth";
-import { useQueryClient } from "@tanstack/react-query";
-import { AuthModal } from "./AuthModal";
 import "../styles/homepage-cards.css";
 
 const MAX_FAVORITES_FOR_PLACEHOLDER = 3;
@@ -20,20 +17,20 @@ export function shouldShowAddFavoriteCard(
   return favoriteCount >= 1 && favoriteCount <= MAX_FAVORITES_FOR_PLACEHOLDER;
 }
 
-export function AddFavoriteCard() {
+interface AddFavoriteCardProps {
+  onSelectTicker: (ticker: string) => void;
+}
+
+export function AddFavoriteCard({ onSelectTicker }: AddFavoriteCardProps) {
   const [input, setInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [pendingTicker, setPendingTicker] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: allTickers = [] } = useTickers();
-  const { isAuthenticated } = useAuth();
-  const { favoriteTickers, toggleFavorite } = useFavorites();
-  const queryClient = useQueryClient();
+  const { favoriteTickers } = useFavorites();
   const excludeSet = useMemo(() => new Set(favoriteTickers), [favoriteTickers]);
 
   const tickers = useMemo(
@@ -75,12 +72,7 @@ export function AddFavoriteCard() {
   function select(item: TickerItem) {
     setInput("");
     setShowDropdown(false);
-    if (!isAuthenticated) {
-      setPendingTicker(item.symbol);
-      setShowAuthModal(true);
-      return;
-    }
-    toggleFavorite(item.symbol);
+    onSelectTicker(item.symbol);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -190,24 +182,6 @@ export function AddFavoriteCard() {
         onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
       />
       {dropdown}
-
-      {showAuthModal && (
-        <AuthModal
-          onSuccess={() => {
-            setShowAuthModal(false);
-            queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(() => {
-              if (pendingTicker) {
-                toggleFavorite(pendingTicker);
-                setPendingTicker(null);
-              }
-            });
-          }}
-          onClose={() => {
-            setShowAuthModal(false);
-            setPendingTicker(null);
-          }}
-        />
-      )}
     </div>
   );
 }
