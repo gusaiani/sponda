@@ -1,0 +1,116 @@
+@reference "tailwindcss";
+
+/* List Card — compact comparison table card */
+
+.list-card {
+  display: block;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  grid-column: span 2;
+}
+
+.list-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 1px 4px rgba(30, 64, 175, 0.08);
+}
+
+/* Header */
+
+.list-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.list-card-name {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.list-card-link {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: var(--color-accent);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.list-card-link:hover {
+  text-decoration: underline;
+}
+
+/* Table */
+
+.list-card-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.list-card-th {
+  font-family: 'Inter', sans-serif;
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--color-muted);
+  text-align: right;
+  padding: 0 4px 4px;
+  white-space: nowrap;
+}
+
+.list-card-th:first-child {
+  text-align: left;
+}
+
+.list-card-td {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 11px;
+  font-weight: 400;
+  color: #334155;
+  text-align: right;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.list-card-ticker {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-accent);
+  text-align: left;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.list-card-null {
+  color: var(--color-muted);
+}
+
+/* More indicator */
+
+.list-card-more {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  color: var(--color-muted);
+  text-align: center;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid #f1f5f9;
+}
+
+/* Loading state */
+
+.list-card-loading {
+  opacity: 0.5;
+}

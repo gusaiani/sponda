@@ -33,15 +33,15 @@
   position: relative;
   left: 50%;
   margin-left: -50vw;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 @media (min-width: 640px) {
   .chart-container {
     @apply py-8;
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: 32px;
+    padding-right: 32px;
   }
 }
 
@@ -107,13 +107,13 @@
 
 .chart-empty {
   @apply text-center italic py-12;
-  font-size: 0.8rem;
+  font-size: 12.8px;
   color: var(--color-muted);
 }
 
 .chart-error {
   @apply text-center italic py-8;
-  font-size: 0.7rem;
+  font-size: 11.2px;
   color: var(--color-muted);
 }
 
@@ -140,15 +140,15 @@
   position: relative;
   left: 50%;
   margin-left: -50vw;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 @media (min-width: 640px) {
   .chart-loading {
     @apply py-8;
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: 32px;
+    padding-right: 32px;
   }
 }
 
@@ -171,7 +171,7 @@
   letter-spacing: 0;
   color: var(--color-muted);
   border-bottom: 1px solid var(--color-accent);
-  padding-bottom: 0.35rem;
+  padding-bottom: 5.6px;
 }
 
 .sector-peers-list {

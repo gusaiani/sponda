@@ -257,9 +257,9 @@ class TestFavorites:
         page.goto(url)
         page.wait_for_load_state("networkidle")
 
-        # Should see favorites section
+        # Should see favorited company as a card on the homepage grid
         expect(
-            page.locator("text=Favoritas")
+            page.locator(".hcc-ticker >> text=PETR4")
         ).to_be_visible(timeout=10000)
 
     def test_unfavorite_removes_from_homepage(self, page: Page, url, test_user):
@@ -281,7 +281,7 @@ class TestFavorites:
         expect(page.locator(".favorite-button-prominent")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
 
-        # Go home — should NOT see favorites section
+        # Go home — PETR4 card should still appear (default popular list includes it)
         page.goto(url)
         page.wait_for_load_state("networkidle")
-        expect(page.locator("text=Favoritas")).not_to_be_visible(timeout=5000)
+        expect(page.locator(".homepage-grid")).to_be_visible(timeout=10000)

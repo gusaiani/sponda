@@ -12,6 +12,7 @@ class User(AbstractUser):
     allow_contact = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    homepage_layout = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return self.email

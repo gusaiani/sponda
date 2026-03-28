@@ -8,15 +8,15 @@
   position: relative;
   left: 50%;
   margin-left: -50vw;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 @media (min-width: 640px) {
   .pe10-card {
     @apply py-8;
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: 32px;
+    padding-right: 32px;
   }
 }
 
@@ -31,7 +31,7 @@
   letter-spacing: 0;
   color: var(--color-muted);
   border-bottom: 1px solid var(--color-accent);
-  padding-bottom: 0.35rem;
+  padding-bottom: 5.6px;
 }
 
 .card-financial-note {
@@ -43,7 +43,7 @@
 /* Years slider */
 .years-slider {
   @apply mt-5 pt-4 mx-auto;
-  max-width: 28rem;
+  max-width: 448px;
 }
 
 .years-slider-track {
@@ -54,7 +54,7 @@
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs;
   color: var(--color-muted);
-  min-width: 1.5rem;
+  min-width: 24px;
   text-align: center;
 }
 
@@ -150,7 +150,7 @@
   @apply w-full max-h-[85vh] overflow-y-auto relative;
   background: #ffffff;
   max-width: 680px;
-  margin: 1rem;
+  margin: 16px;
   border: 1px solid var(--color-border);
 }
 
@@ -201,7 +201,7 @@
 
 .pe10-label-note {
   @apply normal-case;
-  font-size: 0.6rem;
+  font-size: 9.6px;
   letter-spacing: 0.04em;
   opacity: 0.7;
 }
@@ -312,7 +312,7 @@
 
 .pe10-error {
   @apply text-center italic py-4;
-  font-size: 0.7rem;
+  font-size: 11.2px;
   color: var(--color-muted);
 }
 
@@ -324,15 +324,15 @@
   position: relative;
   left: 50%;
   margin-left: -50vw;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 @media (min-width: 640px) {
   .pe10-loading {
     @apply py-8;
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: 32px;
+    padding-right: 32px;
   }
 }
 

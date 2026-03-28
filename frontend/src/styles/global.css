@@ -67,7 +67,7 @@
 .app-main {
   @apply max-w-[880px] mx-auto px-4;
   padding-top: 24px;
-  padding-bottom: 3rem;
+  padding-bottom: 48px;
 }
 
 .back-home-wrapper {
@@ -81,7 +81,7 @@
   letter-spacing: 0.10em;
   color: var(--color-muted);
   text-decoration: none;
-  top: calc(-1.25rem + 24px);
+  top: calc(-20px + 24px);
 }
 
 .back-home-link:hover {
@@ -90,7 +90,7 @@
 
 @media (min-width: 640px) {
   .back-home-link {
-    padding-left: calc(2rem - 20px);
+    padding-left: calc(32px - 20px);
   }
 }
 
@@ -135,14 +135,14 @@
   position: relative;
   left: 50%;
   margin-left: -50vw;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
 @media (min-width: 640px) {
   .company-header {
-    padding-left: 2rem;
-    padding-right: 2rem;
+    padding-left: 32px;
+    padding-right: 32px;
   }
 }
 
@@ -177,7 +177,7 @@
   content: "";
   display: block;
   max-width: 240px;
-  margin: 0 auto 1.5rem;
+  margin: 0 auto 24px;
   border-top: 1px solid var(--color-border);
 }
 
@@ -209,7 +209,7 @@
 .app-footer-performance {
   @apply block mt-4;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: 0.65rem;
+  font-size: 10.4px;
   line-height: 1.6;
   letter-spacing: 0.06em;
   color: var(--color-muted);
@@ -218,7 +218,7 @@
 .app-footer-cta {
   @apply block mt-2 font-semibold;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: 0.75rem;
+  font-size: 12px;
   letter-spacing: 0.06em;
   color: var(--color-accent);
 }

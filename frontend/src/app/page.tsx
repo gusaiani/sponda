@@ -1,21 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FavoriteCompanies } from "../components/FavoriteCompanies";
-import { SavedLists } from "../components/SavedLists";
+import { HomepageGrid } from "../components/HomepageGrid";
 import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
-import { useAuth } from "../hooks/useAuth";
 
 export default function HomePage() {
-  const { isAuthenticated } = useAuth();
-
   return (
     <div>
-
-      {isAuthenticated && <FavoriteCompanies />}
-      {isAuthenticated && <SavedLists />}
-      {isAuthenticated && <hr className="favorites-separator" />}
+      <HomepageGrid />
 
       <PopularCompanies />
 
