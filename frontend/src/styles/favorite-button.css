@@ -40,3 +40,9 @@
 .favorite-button-prominent-label {
   @apply whitespace-nowrap;
 }
+
+@media (max-width: 550px) {
+  .favorite-button-prominent-label {
+    display: none;
+  }
+}

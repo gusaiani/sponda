@@ -14,7 +14,7 @@
 }
 
 .app-header {
-  @apply sticky top-0 z-50 flex flex-col gap-2 px-4 py-2.5;
+  @apply flex flex-col gap-2 px-4 py-2.5;
   background: #ffffff;
 }
 
