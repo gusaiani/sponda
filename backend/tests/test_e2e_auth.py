@@ -452,3 +452,64 @@ class TestAuthModalFromSaveList:
 
         # Save form should open
         expect(page.locator(".compare-save-modal")).to_be_visible(timeout=10000)
+
+
+# ── Homepage Add Favorite Card ──
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("_build_frontend")
+class TestHomepageAddFavoriteCard:
+    @pytest.fixture(autouse=True)
+    def _setup(self, seed_data, mock_brapi):
+        pass
+
+    @pytest.fixture
+    def url(self, _nextjs):
+        return _nextjs
+
+    def test_placeholder_visible_when_logged_out(self, page: Page, url):
+        page.goto(url)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=10000)
+        expect(page.locator(".hcc-add-favorite-input")).to_be_visible()
+
+    def test_auth_modal_opens_on_select(self, page: Page, url):
+        """Selecting a company in the placeholder should open auth modal."""
+        page.goto(url)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=10000)
+
+        page.locator(".hcc-add-favorite-input").fill("PETR")
+        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=5000)
+        page.locator(".search-dropdown-item").first.click()
+
+        # Auth modal should appear
+        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=5000)
+
+    def test_signup_via_placeholder_adds_favorite(self, page: Page, url):
+        """Full flow: select company -> signup -> company auto-added as favorite."""
+        page.goto(url)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=10000)
+
+        # Select PETR4 from the placeholder search
+        page.locator(".hcc-add-favorite-input").fill("PETR")
+        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=5000)
+        page.locator(".search-dropdown-item").first.click()
+
+        # Auth modal opens - switch to signup
+        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=5000)
+        page.locator(".feedback-panel .auth-mode-toggle >> text=Criar conta").click()
+
+        # Fill signup form
+        page.locator(".feedback-panel input#modal-email").fill("homepage-fav@test.com")
+        page.locator(".feedback-panel input#modal-password").fill("securepass123")
+        page.locator(".feedback-panel input#modal-confirm-password").fill("securepass123")
+        submit_modal_form(page)
+
+        # Wait for modal to close and page to update
+        expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=10000)
+
+        # User should be logged in
+        expect(page.locator("text=Minha conta")).to_be_visible(timeout=10000)
+
+        # PETR4 should now be in their favorites (visible as a card on homepage)
+        expect(page.locator(".hcc-ticker >> text=PETR4")).to_be_visible(timeout=10000)

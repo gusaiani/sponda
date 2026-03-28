@@ -190,6 +190,61 @@
   background: #f1f5f9;
 }
 
+/* Add Favorite placeholder card */
+
+.hcc-add-favorite-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  border-style: dashed;
+  border-color: #cbd5e1;
+}
+
+.hcc-add-favorite-card:hover {
+  border-color: var(--color-accent);
+}
+
+.hcc-add-favorite-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.hcc-add-favorite-star {
+  font-size: 24px;
+  color: #94a3b8;
+}
+
+.hcc-add-favorite-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.hcc-add-favorite-input {
+  width: 100%;
+  max-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #334155;
+  outline: none;
+  text-align: center;
+}
+
+.hcc-add-favorite-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(30, 64, 175, 0.08);
+}
+
+.hcc-add-favorite-input::placeholder {
+  color: #94a3b8;
+}
+
 /* ===== Homepage Unified Grid ===== */
 
 .homepage-grid {

@@ -15,6 +15,7 @@ import {
 import { csrfHeaders } from "../utils/csrf";
 import { CompanyCard } from "./HomepageCompanyCards";
 import { ListCard } from "./ListCard";
+import { AddFavoriteCard, shouldShowAddFavoriteCard } from "./AddFavoriteCard";
 import { AuthModal } from "./AuthModal";
 import { useTickers } from "../hooks/useTickers";
 import { useMemo } from "react";
@@ -76,9 +77,10 @@ export function HomepageGrid() {
     },
   });
 
+  const showPlaceholder = shouldShowAddFavoriteCard(isAuthenticated, favoriteTickers.length);
   const tickers = isAuthenticated && favoriteTickers.length > 0
     ? favoriteTickers.slice(0, 8)
-    : DEFAULT_TICKERS;
+    : DEFAULT_TICKERS.slice(0, showPlaceholder ? 7 : 8);
 
   const layout = useMemo(() => {
     if (savedLayout) {
@@ -213,6 +215,11 @@ export function HomepageGrid() {
             </div>
           );
         })}
+        {showPlaceholder && (
+          <div className="homepage-grid-item">
+            <AddFavoriteCard />
+          </div>
+        )}
       </div>
 
       {showAuthModal && (
