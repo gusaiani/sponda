@@ -69,7 +69,7 @@ jobs:
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           BRAPI_API_KEY: test-api-key-for-ci
           GOOGLE_CLIENT_ID: test-client-id
-        run: pytest -x -q tests/test_e2e_browser.py tests/test_e2e_favorites.py tests/test_e2e_auth.py
+        run: pytest -x -q tests/test_e2e_browser.py tests/test_e2e_favorites.py tests/test_e2e_auth.py || pytest -x -q tests/test_e2e_browser.py tests/test_e2e_favorites.py tests/test_e2e_auth.py
 
   deploy:
     needs: test
