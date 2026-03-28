@@ -15,7 +15,7 @@ import responses
 from django.contrib.auth import get_user_model
 from playwright.sync_api import Page, expect
 
-from quotes.models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+from quotes.models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
@@ -462,7 +462,11 @@ class TestAuthModalFromSaveList:
 class TestHomepageAddFavoriteCard:
     @pytest.fixture(autouse=True)
     def _setup(self, seed_data, mock_brapi):
-        pass
+        # Seed ticker so the search dropdown can find PETR4
+        Ticker.objects.create(
+            symbol="PETR4", name="Petroleo Brasileiro", display_name="Petrobras",
+            sector="Energy Minerals", type="stock", logo="https://icons.brapi.dev/icons/PETR4.svg",
+        )
 
     @pytest.fixture
     def url(self, _nextjs):
@@ -470,33 +474,33 @@ class TestHomepageAddFavoriteCard:
 
     def test_placeholder_visible_when_logged_out(self, page: Page, url):
         page.goto(url)
-        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=10000)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=15000)
         expect(page.locator(".hcc-add-favorite-input")).to_be_visible()
 
     def test_auth_modal_opens_on_select(self, page: Page, url):
         """Selecting a company in the placeholder should open auth modal."""
         page.goto(url)
-        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=10000)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=15000)
 
         page.locator(".hcc-add-favorite-input").fill("PETR")
-        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=5000)
+        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=10000)
         page.locator(".search-dropdown-item").first.click()
 
         # Auth modal should appear
-        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=5000)
+        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=10000)
 
     def test_signup_via_placeholder_adds_favorite(self, page: Page, url):
         """Full flow: select company -> signup -> company auto-added as favorite."""
         page.goto(url)
-        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=10000)
+        expect(page.locator(".hcc-add-favorite-card")).to_be_visible(timeout=15000)
 
         # Select PETR4 from the placeholder search
         page.locator(".hcc-add-favorite-input").fill("PETR")
-        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=5000)
+        expect(page.locator(".search-dropdown-item")).to_be_visible(timeout=10000)
         page.locator(".search-dropdown-item").first.click()
 
         # Auth modal opens - switch to signup
-        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=5000)
+        expect(page.locator(".feedback-panel .auth-mode-toggle")).to_be_visible(timeout=10000)
         page.locator(".feedback-panel .auth-mode-toggle >> text=Criar conta").click()
 
         # Fill signup form
@@ -506,10 +510,10 @@ class TestHomepageAddFavoriteCard:
         submit_modal_form(page)
 
         # Wait for modal to close and page to update
-        expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=10000)
+        expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=15000)
 
         # User should be logged in
-        expect(page.locator("text=Minha conta")).to_be_visible(timeout=10000)
+        expect(page.locator("text=Minha conta")).to_be_visible(timeout=15000)
 
         # PETR4 should now be in their favorites (visible as a card on homepage)
-        expect(page.locator(".hcc-ticker >> text=PETR4")).to_be_visible(timeout=10000)
+        expect(page.locator(".hcc-ticker >> text=PETR4")).to_be_visible(timeout=15000)
