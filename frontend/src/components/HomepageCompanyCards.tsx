@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCompareData } from "../hooks/useCompareData";
 import { useFavorites } from "../hooks/useFavorites";
 import { useAuth } from "../hooks/useAuth";
-import { br } from "../utils/format";
+import { br, formatLargeNumber } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/homepage-cards.css";
 
@@ -108,6 +108,17 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
       </div>
 
       <div className="hcc-indicators-grid">
+        {/* Balance sheet */}
+        <Indicator label="PL" value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity) : null} />
+        <Indicator label="Passivo" value={data.totalLiabilities !== null ? formatLargeNumber(data.totalLiabilities) : null} />
+        <Indicator label="Dív-Arr" value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0)) : null} />
+        <Indicator label="Pass/PL" value={data.liabilitiesToEquity !== null ? br(data.liabilitiesToEquity, 2) : null} />
+        <Indicator label="Dív/PL" value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
+        <Indicator label="Liq. Corr." value={data.currentRatio !== null ? br(data.currentRatio, 2) : null} />
+        {/* Debt coverage */}
+        <Indicator label="Dív/Lucro" value={data.debtToAvgEarnings !== null ? br(data.debtToAvgEarnings, 1) : null} />
+        <Indicator label="Dív/FCL" value={data.debtToAvgFCF !== null ? br(data.debtToAvgFCF, 1) : null} />
+        {/* Valuation & growth */}
         <Indicator label="P/L10" value={data.pe10 !== null ? br(data.pe10, 1) : null} />
         <Indicator label="P/FCL10" value={data.pfcf10 !== null ? br(data.pfcf10, 1) : null} />
         <Indicator label="PEG" value={data.peg !== null ? br(data.peg, 2) : null} />
@@ -116,10 +127,6 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
         <Indicator label="CAGR FCL" value={data.fcfCAGR !== null ? br(data.fcfCAGR, 1) : null} suffix="%" />
         <Indicator label="ROE" value={data.roe !== null ? br(data.roe, 1) : null} suffix="%" />
         <Indicator label="P/VPA" value={data.priceToBook !== null ? br(data.priceToBook, 2) : null} />
-        <Indicator label="Dív/PL" value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
-        <Indicator label="Pass/PL" value={data.liabilitiesToEquity !== null ? br(data.liabilitiesToEquity, 2) : null} />
-        <Indicator label="Liq. Corr." value={data.currentRatio !== null ? br(data.currentRatio, 2) : null} />
-        <Indicator label="Dív/Lucro" value={data.debtToAvgEarnings !== null ? br(data.debtToAvgEarnings, 1) : null} />
       </div>
     </Link>
   );
