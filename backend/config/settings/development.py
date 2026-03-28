@@ -10,6 +10,9 @@ DATABASES = {
         "OPTIONS": {
             "timeout": 30,
         },
+        "TEST": {
+            "NAME": BASE_DIR / "test_db.sqlite3",
+        },
     }
 }
 
