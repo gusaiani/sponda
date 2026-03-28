@@ -76,8 +76,8 @@
 /* Separator between favorites and popular */
 .favorites-separator {
   @apply max-w-3xl mx-auto;
-  margin-top: 1.5rem;
-  margin-bottom: calc(1.5rem + 10px);
+  margin-top: 24px;
+  margin-bottom: calc(24px + 10px);
   border: none;
   border-top: 1px solid var(--color-border);
   opacity: 0.5;

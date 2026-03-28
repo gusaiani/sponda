@@ -18,6 +18,10 @@ This project follows strict TDD:
 
 Backend tests use pytest + pytest-django + factory-boy. Frontend tests use vitest. E2E tests use playwright.
 
+## CSS Units
+
+- **Always use px.** Never use rem, em, or other relative units. All font sizes, padding, margins, gaps, border-radius, widths, and heights must be in pixels.
+
 ## Clean Code
 
 Follow clean code principles (Martin Fowler, Uncle Bob / Robert C. Martin):

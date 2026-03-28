@@ -2,13 +2,13 @@
 
 .saved-lists {
   @apply max-w-3xl mx-auto mb-4;
-  margin-top: 1.5rem;
+  margin-top: 24px;
 }
 
 .saved-lists-title {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs uppercase text-center;
-  margin-bottom: calc(0.75rem + 10px);
+  margin-bottom: calc(12px + 10px);
   letter-spacing: 0.06em;
   color: var(--color-muted);
 }
@@ -21,7 +21,7 @@
   @apply flex items-center justify-between bg-white no-underline;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  padding: 0.6rem 1rem;
+  padding: 9.6px 16px;
   transition: border-color 0.15s;
 }
 
@@ -156,5 +156,5 @@
   color: var(--color-muted);
   white-space: nowrap;
   flex-shrink: 0;
-  margin-left: 1rem;
+  margin-left: 16px;
 }
