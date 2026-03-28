@@ -14,9 +14,8 @@ import {
 } from "../utils/homepageLayout";
 import { csrfHeaders } from "../utils/csrf";
 import { CompanyCard } from "./HomepageCompanyCards";
-import { SavedListCard } from "./SavedLists";
+import { ListCard } from "./ListCard";
 import { AuthModal } from "./AuthModal";
-import { useTickers, TickerItem } from "../hooks/useTickers";
 import { useMemo } from "react";
 import "../styles/homepage-cards.css";
 
@@ -30,7 +29,8 @@ async function fetchHomepageLayout(): Promise<LayoutItem[] | null> {
     credentials: "include",
   });
   if (!response.ok) return null;
-  return response.json();
+  const data = await response.json();
+  return data.layout;
 }
 
 export function HomepageGrid() {
@@ -38,14 +38,6 @@ export function HomepageGrid() {
   const { favoriteTickers } = useFavorites();
   const { lists } = useSavedLists();
   const queryClient = useQueryClient();
-  const { data: allTickers = [] } = useTickers();
-
-  const tickerMap = useMemo(() => {
-    const map = new Map<string, TickerItem>();
-    for (const ticker of allTickers) map.set(ticker.symbol, ticker);
-    return map;
-  }, [allTickers]);
-
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -64,7 +56,7 @@ export function HomepageGrid() {
         method: "PUT",
         headers: csrfHeaders(),
         credentials: "include",
-        body: JSON.stringify(layout),
+        body: JSON.stringify({ layout }),
       });
       if (!response.ok) throw new Error("Failed to save layout");
       return response.json();
@@ -206,7 +198,7 @@ export function HomepageGrid() {
               {item.type === "ticker" ? (
                 <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} />
               ) : (
-                <ListGridItem listId={item.id} lists={lists} tickerMap={tickerMap} />
+                <ListGridItem listId={item.id} lists={lists} />
               )}
             </div>
           );
@@ -241,11 +233,10 @@ function TickerGridItem({ ticker, compareDataMap }: TickerGridItemProps) {
 interface ListGridItemProps {
   listId: string;
   lists: { id: number; name: string; tickers: string[]; years: number }[];
-  tickerMap: Map<string, TickerItem>;
 }
 
-function ListGridItem({ listId, lists, tickerMap }: ListGridItemProps) {
+function ListGridItem({ listId, lists }: ListGridItemProps) {
   const list = lists.find((l) => String(l.id) === listId);
   if (!list) return null;
-  return <SavedListCard list={list} tickerMap={tickerMap} />;
+  return <ListCard listId={list.id} name={list.name} tickers={list.tickers} years={list.years} />;
 }

@@ -2,9 +2,13 @@
 
 /* Homepage Company Cards */
 
+/* Break out of .app-main max-width to use full viewport */
 .hcc-section {
-  @apply mx-auto px-4;
-  max-width: 80rem;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding: 0 1rem;
 }
 
 .hcc-grid {
