@@ -204,6 +204,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               years={effectiveYears}
               maxYears={maxYears}
               onYearsChange={setYears}
+              sector={current?.sector}
             />
           )}
           {error && !isLoading && (
