@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FavoriteCompanies } from "../components/FavoriteCompanies";
 import { SavedLists } from "../components/SavedLists";
+import { HomepageCompanyCards } from "../components/HomepageCompanyCards";
 import { PopularCompanies } from "../components/PopularCompanies";
 import { ShareButtons } from "../components/ShareButtons";
 import { useAuth } from "../hooks/useAuth";
@@ -13,9 +13,9 @@ export default function HomePage() {
   return (
     <div>
 
-      {isAuthenticated && <FavoriteCompanies />}
       {isAuthenticated && <SavedLists />}
-      {isAuthenticated && <hr className="favorites-separator" />}
+
+      <HomepageCompanyCards />
 
       <PopularCompanies />
 
