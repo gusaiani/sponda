@@ -216,7 +216,7 @@ export function HomepageGrid() {
           );
         })}
         {showPlaceholder && (
-          <div className="homepage-grid-item">
+          <div className="homepage-grid-item homepage-grid-item--no-drag">
             <AddFavoriteCard />
           </div>
         )}

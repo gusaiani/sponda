@@ -161,7 +161,10 @@ export function AddFavoriteCard() {
       : null;
 
   return (
-    <div className="hcc-card hcc-add-favorite-card">
+    <div
+      className="hcc-card hcc-add-favorite-card"
+      onClick={() => inputRef.current?.focus()}
+    >
       <div className="hcc-add-favorite-prompt">
         <span className="hcc-add-favorite-star">☆</span>
         <span className="hcc-add-favorite-text">Adicione favoritas</span>
