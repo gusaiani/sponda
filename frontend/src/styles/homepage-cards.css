@@ -2,17 +2,24 @@
 
 /* Homepage Company Cards */
 
-/* Break out of .app-main max-width to use full viewport */
+/* Break out of .app-main max-width to use full viewport.
+   Padding matches .app-header: px-4 mobile, px-6 at 640px+ */
 .hcc-section {
   width: 100vw;
   position: relative;
   left: 50%;
   margin-left: -50vw;
-  padding: 0 24px;
+  padding: 0 16px;
   margin-bottom: 64px;
   box-sizing: border-box;
   max-width: 100vw;
   overflow: hidden;
+}
+
+@media (min-width: 640px) {
+  .hcc-section {
+    padding: 0 24px;
+  }
 }
 
 .hcc-grid {
@@ -254,13 +261,19 @@
 
 .homepage-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 550px) {
   .homepage-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  .homepage-grid {
+    grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }
 }
@@ -268,7 +281,6 @@
 @media (min-width: 1280px) {
   .homepage-grid {
     grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
   }
 }
 
@@ -287,7 +299,13 @@
 }
 
 .homepage-grid-item--span-2 {
-  grid-column: span 2;
+  grid-column: span 1;
+}
+
+@media (min-width: 550px) {
+  .homepage-grid-item--span-2 {
+    grid-column: span 2;
+  }
 }
 
 .homepage-grid-item--dragging {
