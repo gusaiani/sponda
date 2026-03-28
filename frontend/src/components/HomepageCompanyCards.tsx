@@ -111,12 +111,9 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
         {/* Balance sheet */}
         <Indicator label="PL" value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity) : null} />
         <Indicator label="Passivo" value={data.totalLiabilities !== null ? formatLargeNumber(data.totalLiabilities) : null} />
-        <Indicator label="Dív-Arr" value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0)) : null} />
-        <Indicator label="Pass/PL" value={data.liabilitiesToEquity !== null ? br(data.liabilitiesToEquity, 2) : null} />
-        <Indicator label="Dív/PL" value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
+        <Indicator label="Dív Bruta" value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0)) : null} />
         <Indicator label="Liq. Corr." value={data.currentRatio !== null ? br(data.currentRatio, 2) : null} />
-        {/* Debt coverage */}
-        <Indicator label="Dív/Lucro" value={data.debtToAvgEarnings !== null ? br(data.debtToAvgEarnings, 1) : null} />
+        <Indicator label="Dív/PL" value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
         <Indicator label="Dív/FCL" value={data.debtToAvgFCF !== null ? br(data.debtToAvgFCF, 1) : null} />
         {/* Valuation & growth */}
         <Indicator label="P/L10" value={data.pe10 !== null ? br(data.pe10, 1) : null} />
