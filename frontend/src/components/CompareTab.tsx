@@ -27,7 +27,7 @@ interface SortState {
   dir: SortDir;
 }
 
-function getColumns(years: number): ColumnDef[] {
+export function getColumns(years: number): ColumnDef[] {
   const n = years;
   return [
     // Endividamento
