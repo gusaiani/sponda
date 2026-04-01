@@ -3,9 +3,9 @@
  * site footer, share text, and any future templates.
  */
 
-export const POEMA_RETURN = "355,64%";
-export const IBOVESPA_RETURN = "167,55%";
-export const POEMA_PERIOD = "jan/2017–dez/2025";
+export const POEMA_RETURN = "394,83%";
+export const IBOVESPA_RETURN = "211,30%";
+export const POEMA_PERIOD = "jan/2017–mar/2026";
 
 export const POEMA_PERFORMANCE_LINE =
   `Retorno acumulado da Poema: ${POEMA_RETURN} vs Ibovespa: ${IBOVESPA_RETURN} (${POEMA_PERIOD}).`;
