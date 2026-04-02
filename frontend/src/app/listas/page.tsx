@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSavedLists, SavedListEntry } from "../../hooks/useSavedLists";
 import { useAuth } from "../../hooks/useAuth";
 import { useTickers, TickerItem } from "../../hooks/useTickers";
+import { useDragGhost } from "../../hooks/useDragGhost";
 import { SavedListCard } from "../../components/SavedLists";
 
 export default function AllListsPage() {
@@ -13,6 +14,9 @@ export default function AllListsPage() {
   const { data: allTickers = [] } = useTickers();
   const [localOrder, setLocalOrder] = useState<SavedListEntry[] | null>(null);
   const dragIndexRef = useRef<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
+  const { startGhost, stopGhost } = useDragGhost();
 
   const tickerMap = useMemo(() => {
     const map = new Map<string, TickerItem>();
@@ -44,17 +48,37 @@ export default function AllListsPage() {
 
   const displayedLists = localOrder ?? lists;
 
-  function handleDragStart(index: number) {
+  function handleDragStart(index: number, event: React.DragEvent) {
     dragIndexRef.current = index;
+    setDragSourceIndex(index);
+    const element = event.currentTarget as HTMLElement;
+    startGhost(element, event);
+    event.dataTransfer.effectAllowed = "move";
   }
 
-  function handleDragOver(event: React.DragEvent, _index: number) {
+  function handleDragOver(event: React.DragEvent, index: number) {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
+    setDragOverIndex(index);
+  }
+
+  function handleDragLeave(_event: React.DragEvent, index: number) {
+    setDragOverIndex((current) => (current === index ? null : current));
+  }
+
+  function handleDragEnd() {
+    stopGhost();
+    setDragSourceIndex(null);
+    setDragOverIndex(null);
+    dragIndexRef.current = null;
   }
 
   function handleDrop(targetIndex: number) {
     const sourceIndex = dragIndexRef.current;
+    stopGhost();
+    setDragSourceIndex(null);
+    setDragOverIndex(null);
+
     if (sourceIndex === null || sourceIndex === targetIndex) return;
 
     const reordered = [...displayedLists];
@@ -82,19 +106,43 @@ export default function AllListsPage() {
         <p className="saved-lists-page-text">Nenhuma lista salva.</p>
       ) : (
         <div className="saved-lists-page-list">
-          {displayedLists.map((list, index) => (
-            <div
-              key={list.id}
-              className="saved-lists-page-item"
-              draggable
-              onDragStart={() => handleDragStart(index)}
-              onDragOver={(event) => handleDragOver(event, index)}
-              onDrop={() => handleDrop(index)}
-            >
-              <span className="saved-lists-page-drag-handle">⠿</span>
-              <SavedListCard list={list} tickerMap={tickerMap} />
-            </div>
-          ))}
+          {displayedLists.map((list, index) => {
+            const isDragging = dragSourceIndex === index;
+            const isDragOver = dragOverIndex === index && dragSourceIndex !== index;
+
+            const classNames = [
+              "saved-lists-page-item",
+              isDragging ? "saved-lists-page-item--dragging" : "",
+              isDragOver ? "saved-lists-page-item--drag-over" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            return (
+              <div
+                key={list.id}
+                className={classNames}
+                draggable
+                onDragStart={(event) => handleDragStart(index, event)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(event) => handleDragOver(event, index)}
+                onDragLeave={(event) => handleDragLeave(event, index)}
+                onDrop={() => handleDrop(index)}
+              >
+                <span className="saved-lists-page-drag-handle">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                    <circle cx="4" cy="2" r="1.2" />
+                    <circle cx="8" cy="2" r="1.2" />
+                    <circle cx="4" cy="6" r="1.2" />
+                    <circle cx="8" cy="6" r="1.2" />
+                    <circle cx="4" cy="10" r="1.2" />
+                    <circle cx="8" cy="10" r="1.2" />
+                  </svg>
+                </span>
+                <SavedListCard list={list} tickerMap={tickerMap} />
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useFavorites } from "../hooks/useFavorites";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useCompareData } from "../hooks/useCompareData";
+import { useDragGhost } from "../hooks/useDragGhost";
 import {
   LayoutItem,
   buildDefaultLayout,
@@ -21,10 +22,45 @@ import { useTickers } from "../hooks/useTickers";
 import { useMemo } from "react";
 import "../styles/homepage-cards.css";
 
+export function getGridItemClassNames(
+  isSpan2: boolean,
+  isDragging: boolean,
+  isDragOver: boolean,
+): string {
+  return [
+    "homepage-grid-item",
+    isSpan2 ? "homepage-grid-item--span-2" : "",
+    isDragging ? "homepage-grid-item--dragging" : "",
+    isDragOver ? "homepage-grid-item--drag-over" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 const DEFAULT_TICKERS = [
   "PETR4", "VALE3", "ITUB4", "WEGE3",
   "ABEV3", "BBAS3", "RENT3", "SUZB3",
 ];
+
+function DragHandleIcon() {
+  return (
+    <svg
+      className="homepage-grid-drag-icon"
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <circle cx="4" cy="2" r="1.2" />
+      <circle cx="8" cy="2" r="1.2" />
+      <circle cx="4" cy="6" r="1.2" />
+      <circle cx="8" cy="6" r="1.2" />
+      <circle cx="4" cy="10" r="1.2" />
+      <circle cx="8" cy="10" r="1.2" />
+    </svg>
+  );
+}
 
 async function fetchHomepageLayout(): Promise<LayoutItem[] | null> {
   const response = await fetch("/api/auth/homepage-layout/", {
@@ -42,6 +78,7 @@ export function HomepageGrid() {
   const { data: allTickers = [] } = useTickers();
   const queryClient = useQueryClient();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMessage, setAuthModalMessage] = useState<string | undefined>(undefined);
   const [pendingFavoriteTicker, setPendingFavoriteTicker] = useState<string | null>(null);
 
   const logoMap = useMemo(() => {
@@ -54,6 +91,7 @@ export function HomepageGrid() {
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragCounter = useRef<Map<number, number>>(new Map());
+  const { startGhost, stopGhost } = useDragGhost();
 
   const { data: savedLayout } = useQuery({
     queryKey: ["homepage-layout"],
@@ -117,16 +155,19 @@ export function HomepageGrid() {
   }, [compareEntries]);
 
   const handleDragStart = useCallback((event: DragEvent, index: number) => {
+    const element = event.currentTarget as HTMLElement;
+    startGhost(element, event);
     setDragSourceIndex(index);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", String(index));
-  }, []);
+  }, [startGhost]);
 
   const handleDragEnd = useCallback(() => {
+    stopGhost();
     setDragSourceIndex(null);
     setDragOverIndex(null);
     dragCounter.current.clear();
-  }, []);
+  }, [stopGhost]);
 
   const handleDragOver = useCallback((event: DragEvent) => {
     event.preventDefault();
@@ -155,6 +196,7 @@ export function HomepageGrid() {
       event.preventDefault();
       const sourceIndex = parseInt(event.dataTransfer.getData("text/plain"), 10);
 
+      stopGhost();
       setDragSourceIndex(null);
       setDragOverIndex(null);
       dragCounter.current.clear();
@@ -167,10 +209,13 @@ export function HomepageGrid() {
       if (isAuthenticated) {
         saveLayoutMutation.mutate(newLayout);
       } else {
+        setAuthModalMessage(
+          "Para salvar a organização dos seus cards, entre ou crie uma conta gratuita.",
+        );
         setShowAuthModal(true);
       }
     },
-    [activeLayout, isAuthenticated, saveLayoutMutation],
+    [activeLayout, isAuthenticated, saveLayoutMutation, stopGhost],
   );
 
   const handleFavoriteSelect = useCallback((ticker: string) => {
@@ -180,12 +225,14 @@ export function HomepageGrid() {
       }
     } else {
       setPendingFavoriteTicker(ticker);
+      setAuthModalMessage(undefined);
       setShowAuthModal(true);
     }
   }, [isAuthenticated, isFavorite, toggleFavorite]);
 
   const handleAuthSuccess = useCallback(async () => {
     setShowAuthModal(false);
+    setAuthModalMessage(undefined);
     const ticker = pendingFavoriteTicker;
     setPendingFavoriteTicker(null);
 
@@ -209,6 +256,11 @@ export function HomepageGrid() {
     }
   }, [queryClient, pendingFavoriteTicker, toggleFavorite]);
 
+  const handleCloseAuthModal = useCallback(() => {
+    setShowAuthModal(false);
+    setAuthModalMessage(undefined);
+  }, []);
+
   return (
     <section className="hcc-section">
       <div className="homepage-grid">
@@ -217,14 +269,7 @@ export function HomepageGrid() {
           const isDragging = dragSourceIndex === index;
           const isDragOver = dragOverIndex === index && dragSourceIndex !== index;
 
-          const classNames = [
-            "homepage-grid-item",
-            isSpan2 ? "homepage-grid-item--span-2" : "",
-            isDragging ? "homepage-grid-item--dragging" : "",
-            isDragOver ? "homepage-grid-item--drag-over" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
+          const classNames = getGridItemClassNames(isSpan2, isDragging, isDragOver);
 
           return (
             <div
@@ -238,6 +283,9 @@ export function HomepageGrid() {
               onDragLeave={(event) => handleDragLeave(event, index)}
               onDrop={(event) => handleDrop(event, index)}
             >
+              <span className="homepage-grid-drag-handle">
+                <DragHandleIcon />
+              </span>
               {item.type === "ticker" ? (
                 <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} logoMap={logoMap} />
               ) : (
@@ -256,7 +304,8 @@ export function HomepageGrid() {
       {showAuthModal && (
         <AuthModal
           onSuccess={handleAuthSuccess}
-          onClose={() => setShowAuthModal(false)}
+          onClose={handleCloseAuthModal}
+          message={authModalMessage}
         />
       )}
     </section>

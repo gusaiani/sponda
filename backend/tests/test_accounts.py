@@ -111,6 +111,9 @@ class TestSignup:
             content_type="application/json",
         )
         assert response.status_code == 400
+        data = response.json()
+        error_message = data["email"][0]
+        assert error_message == "Já existe uma conta com este email."
 
     def test_signup_short_password_fails(self, api_client, db):
         response = api_client.post(

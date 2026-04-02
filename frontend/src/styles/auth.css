@@ -27,6 +27,16 @@
   color: var(--color-ink);
 }
 
+/* Contextual message above toggle */
+.auth-modal-message {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm text-center;
+  color: var(--color-muted);
+  margin-top: 20px;
+  margin-bottom: 0;
+  line-height: 1.5;
+}
+
 /* Mode toggle (login/signup) */
 .auth-mode-toggle {
   @apply flex mb-6;

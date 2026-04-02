@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from rest_framework.validators import UniqueValidator
 
 from .models import FavoriteCompany, SavedList
 
@@ -7,6 +8,14 @@ User = get_user_model()
 
 
 class SignupSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(
+        validators=[
+            UniqueValidator(
+                queryset=User.objects.all(),
+                message="Já existe uma conta com este email.",
+            ),
+        ],
+    )
     password = serializers.CharField(write_only=True, min_length=8)
     allow_contact = serializers.BooleanField(required=False, default=False)
 

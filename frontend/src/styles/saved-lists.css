@@ -123,6 +123,8 @@
 .saved-lists-page-item {
   @apply flex items-center gap-2;
   cursor: grab;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  border-radius: 6px;
 }
 
 .saved-lists-page-item:active {
@@ -133,11 +135,45 @@
   @apply flex-1;
 }
 
+/* Source element while being dragged */
+.saved-lists-page-item--dragging {
+  opacity: 0.2;
+  transform: scale(0.98);
+}
+
+/* Drop target indicator */
+.saved-lists-page-item--drag-over {
+  position: relative;
+}
+
+.saved-lists-page-item--drag-over::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-accent, #1e40af);
+  border-radius: 1px;
+}
+
+.saved-lists-page-item--drag-over .saved-list-item {
+  border-color: var(--color-accent, #1e40af);
+  background: rgba(30, 64, 175, 0.02);
+}
+
 .saved-lists-page-drag-handle {
-  @apply text-lg;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-border);
   flex-shrink: 0;
   user-select: none;
+  transition: color 0.15s ease;
+}
+
+.saved-lists-page-item:hover .saved-lists-page-drag-handle {
+  color: var(--color-muted);
 }
 
 .saved-lists-page-badge {
