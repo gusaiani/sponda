@@ -226,6 +226,11 @@
   @apply w-6 px-0;
   border-bottom-color: transparent !important;
   background: transparent;
+  transition: background 0.15s;
+}
+
+.compare-table tbody tr:hover .compare-drag-col {
+  background: #f1f5f9;
 }
 
 .compare-drag-handle {
@@ -235,6 +240,12 @@
 }
 
 .compare-drag-handle:hover {
+  color: var(--color-muted);
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+}
+
+.compare-table tbody tr:hover .compare-drag-handle {
   color: var(--color-muted);
 }
 
