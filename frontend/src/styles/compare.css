@@ -244,11 +244,16 @@
 
 /* Drag states */
 .compare-row-dragging {
-  opacity: 0.4;
+  opacity: 0.2;
+}
+
+.compare-row-dragging td {
+  background: #f8fafc !important;
 }
 
 .compare-row-drag-over td {
   border-top: 2px solid var(--color-accent) !important;
+  background: rgba(30, 64, 175, 0.02);
 }
 
 /* Company link */

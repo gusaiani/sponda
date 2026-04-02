@@ -285,9 +285,10 @@
 }
 
 .homepage-grid-item {
+  position: relative;
   cursor: grab;
   user-select: none;
-  transition: opacity 0.15s, border-color 0.15s;
+  transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .homepage-grid-item:active {
@@ -296,6 +297,10 @@
 
 .homepage-grid-item--no-drag {
   cursor: pointer;
+}
+
+.homepage-grid-item--no-drag .homepage-grid-drag-handle {
+  display: none;
 }
 
 .homepage-grid-item--span-2 {
@@ -308,12 +313,58 @@
   }
 }
 
-.homepage-grid-item--dragging {
-  opacity: 0.4;
+/* Drag handle overlay */
+.homepage-grid-drag-handle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  pointer-events: none;
 }
 
+.homepage-grid-drag-icon {
+  color: var(--color-muted);
+}
+
+.homepage-grid-item:hover .homepage-grid-drag-handle {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.homepage-grid-item:hover .homepage-grid-drag-handle:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* Source element while being dragged */
+.homepage-grid-item--dragging {
+  opacity: 0.25;
+  transform: scale(0.97);
+}
+
+.homepage-grid-item--dragging .homepage-grid-drag-handle {
+  display: none;
+}
+
+/* Drop target indicator */
 .homepage-grid-item--drag-over {
   border-radius: 8px;
-  outline: 2px dashed var(--color-accent, #1e40af);
+  outline: 2px solid var(--color-accent, #1e40af);
   outline-offset: 2px;
+  background: rgba(30, 64, 175, 0.03);
+}
+
+.homepage-grid-item--drag-over .hcc-card {
+  border-color: var(--color-accent, #1e40af);
+}
+
+.homepage-grid-item--drag-over .saved-list-item {
+  border-color: var(--color-accent, #1e40af);
 }

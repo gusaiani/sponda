@@ -7,9 +7,10 @@ type AuthMode = "login" | "signup";
 interface AuthModalProps {
   onSuccess: () => void;
   onClose: () => void;
+  message?: string;
 }
 
-export function AuthModal({ onSuccess, onClose }: AuthModalProps) {
+export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -76,6 +77,10 @@ export function AuthModal({ onSuccess, onClose }: AuthModalProps) {
         <button className="feedback-close" onClick={onClose} aria-label="Fechar">
           ×
         </button>
+
+        {message && (
+          <p className="auth-modal-message">{message}</p>
+        )}
 
         <div className="auth-mode-toggle" style={{ marginTop: "20px", marginBottom: "1.5rem" }}>
           <button

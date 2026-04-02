@@ -5,6 +5,7 @@ import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useAuth } from "../hooks/useAuth";
 import { useFavorites } from "../hooks/useFavorites";
+import { useDragGhost } from "../hooks/useDragGhost";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br } from "../utils/format";
@@ -86,6 +87,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const entries = useCompareData(allTickers, years);
   const columns = getColumns(years);
   const dragIndexRef = useRef<number | null>(null);
+  const { startGhost, stopGhost } = useDragGhost();
   const [sort, setSort] = useState<SortState | null>(null);
   const [saveName, setSaveName] = useState("");
   const [showSaveForm, setShowSaveForm] = useState(false);
@@ -93,6 +95,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const [showRenameForm, setShowRenameForm] = useState(false);
   const [renameName, setRenameName] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMessage, setAuthModalMessage] = useState<string | undefined>(undefined);
   const { isAuthenticated } = useAuth();
   const { favorites } = useFavorites();
   const { saveList, updateList, deleteList, lists } = useSavedLists();
@@ -223,6 +226,13 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                 dragIndexRef={dragIndexRef}
                 onReorder={handleReorder}
                 totalRows={sortedEntries.length}
+                startGhost={startGhost}
+                stopGhost={stopGhost}
+                isAuthenticated={isAuthenticated}
+                onRequireAuth={() => {
+                  setAuthModalMessage("Para reordenar as empresas, entre ou crie uma conta gratuita.");
+                  setShowAuthModal(true);
+                }}
               />
             ))}
             {/* Add company row */}
@@ -426,16 +436,24 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
         </div>
       )}
 
-      {/* Auth modal — triggered when unauthenticated user tries to save */}
+      {/* Auth modal — triggered when unauthenticated user tries to save or reorder */}
       {showAuthModal && (
         <AuthModal
+          message={authModalMessage}
           onSuccess={() => {
+            const wasTriggeredBySave = !authModalMessage;
             setShowAuthModal(false);
+            setAuthModalMessage(undefined);
             queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(() => {
-              setShowSaveForm(true);
+              if (wasTriggeredBySave) {
+                setShowSaveForm(true);
+              }
             });
           }}
-          onClose={() => setShowAuthModal(false)}
+          onClose={() => {
+            setShowAuthModal(false);
+            setAuthModalMessage(undefined);
+          }}
         />
       )}
     </div>
@@ -453,6 +471,10 @@ function CompareRow({
   dragIndexRef,
   onReorder,
   totalRows,
+  startGhost,
+  stopGhost,
+  isAuthenticated,
+  onRequireAuth,
 }: {
   entry: CompareEntry;
   index: number;
@@ -462,21 +484,28 @@ function CompareRow({
   dragIndexRef: React.MutableRefObject<number | null>;
   onReorder: (from: number, to: number) => void;
   totalRows: number;
+  startGhost: (element: HTMLElement, event: React.DragEvent) => void;
+  stopGhost: () => void;
+  isAuthenticated: boolean;
+  onRequireAuth: () => void;
 }) {
   const { ticker, data, isLoading, error } = entry;
 
   function handleDragStart(e: React.DragEvent) {
     dragIndexRef.current = index;
     e.dataTransfer.effectAllowed = "move";
-    // Make the dragged row semi-transparent
+
+    // Use the row as the ghost source
     const row = (e.target as HTMLElement).closest("tr");
     if (row) {
+      startGhost(row, e);
       setTimeout(() => row.classList.add("compare-row-dragging"), 0);
     }
   }
 
   function handleDragEnd(e: React.DragEvent) {
     dragIndexRef.current = null;
+    stopGhost();
     const row = (e.target as HTMLElement).closest("tr");
     if (row) row.classList.remove("compare-row-dragging");
     // Remove all drag-over indicators
@@ -499,9 +528,15 @@ function CompareRow({
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
+    stopGhost();
     const row = (e.target as HTMLElement).closest("tr");
     if (row) row.classList.remove("compare-row-drag-over");
     if (dragIndexRef.current !== null && dragIndexRef.current !== index) {
+      if (!isAuthenticated) {
+        dragIndexRef.current = null;
+        onRequireAuth();
+        return;
+      }
       onReorder(dragIndexRef.current, index);
     }
   }

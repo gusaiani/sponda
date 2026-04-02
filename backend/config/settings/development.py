@@ -4,16 +4,7 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-        "OPTIONS": {
-            "timeout": 30,
-        },
-        "TEST": {
-            "NAME": BASE_DIR / "test_db.sqlite3",
-        },
-    }
+    "default": env.db("DEV_DATABASE_URL", default="postgres:///sponda"),  # noqa: F405
 }
 
 CORS_ALLOW_ALL_ORIGINS = True

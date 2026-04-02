@@ -20,9 +20,13 @@
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "25.5.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "jsdom": "^29.0.1",
     "tailwindcss": "^4.0.0",
     "typescript": "~5.7.0",
     "vitest": "^4.1.0"
