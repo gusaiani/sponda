@@ -146,9 +146,7 @@ class TestBrowserSearch:
     def test_homepage_loads(self, page: Page, url):
         page.goto(url)
         expect(page.locator("text=SPONDA").first).to_be_visible()
-        # Tagline is locale-dependent: PT or EN
-        tagline = page.locator("text=/investidores em valor|value investors/i").first
-        expect(tagline).to_be_visible()
+        expect(page.locator("text=investidores em valor").first).to_be_visible()
 
     def test_search_bar_is_visible(self, page: Page, url):
         page.goto(url)
@@ -337,6 +335,4 @@ class TestCompareDragAndDrop:
         # Auth modal should appear with the reorder message
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
         expect(page.locator(".auth-modal-message")).to_be_visible()
-        # Message is locale-dependent (PT "reordenar" or EN "reorder")
-        message_text = page.locator(".auth-modal-message").text_content()
-        assert "reord" in message_text.lower(), f"Expected reorder message, got: {message_text}"
+        expect(page.locator(".auth-modal-message")).to_contain_text("reordenar")
