@@ -6,10 +6,6 @@ from django.core.management.base import BaseCommand
 from quotes.models import Ticker
 
 
-BATCH_SIZE = 50
-ALLOWED_EXCHANGES = {"NYSE", "NASDAQ"}
-
-
 class Command(BaseCommand):
     help = "Fetch and update the US stock ticker list from FMP"
 
@@ -17,67 +13,49 @@ class Command(BaseCommand):
         self.stdout.write("Fetching US stock list from FMP...")
         try:
             stocks = self._fetch_stock_list()
-            self.stdout.write(f"Found {len(stocks)} US stocks. Fetching profiles...")
-            tickers = self._fetch_profiles_in_batches(stocks)
-            self._upsert_tickers(tickers)
-            self.stdout.write(self.style.SUCCESS(f"Synced {len(tickers)} US tickers."))
+            self.stdout.write(f"Found {len(stocks)} US stocks. Upserting...")
+            self._upsert_tickers(stocks)
+            self.stdout.write(self.style.SUCCESS(f"Synced {len(stocks)} US tickers."))
         except Exception as error:
             self.stderr.write(self.style.ERROR(f"Failed to sync US tickers: {error}"))
 
     def _fetch_stock_list(self) -> list[dict]:
-        """Fetch the full stock list and filter to US common stocks."""
-        url = f"{settings.FMP_BASE_URL}/stable/company-symbols-list"
+        """Fetch the full stock list from FMP.
+
+        Returns all entries with a symbol and company name. Filters out
+        tickers with dots (preferred shares like BRK.B) since they cause
+        URL routing issues, and tickers that look Brazilian (letters + digits).
+        """
+        url = f"{settings.FMP_BASE_URL}/stable/stock-list"
         response = requests.get(url, params={"apikey": settings.FMP_API_KEY}, timeout=60)
         response.raise_for_status()
         all_stocks = response.json()
 
+        import re
+        brazilian_pattern = re.compile(r"^[A-Z]+\d+$")
+
         return [
             stock for stock in all_stocks
-            if stock.get("exchangeShortName") in ALLOWED_EXCHANGES
-            and stock.get("type") == "stock"
-            and stock.get("symbol")
-            and "." not in stock.get("symbol", "")
+            if stock.get("symbol")
+            and stock.get("companyName")
+            and "." not in stock["symbol"]
+            and not brazilian_pattern.match(stock["symbol"])
         ]
 
-    def _fetch_profiles_in_batches(self, stocks: list[dict]) -> list[dict]:
-        """Fetch company profiles in batches (FMP supports comma-separated symbols)."""
-        symbols = [stock["symbol"] for stock in stocks]
-        tickers = []
-
-        for batch_start in range(0, len(symbols), BATCH_SIZE):
-            batch = symbols[batch_start:batch_start + BATCH_SIZE]
-            joined_symbols = ",".join(batch)
-            url = f"{settings.FMP_BASE_URL}/stable/profile-symbol"
-            try:
-                response = requests.get(
-                    url,
-                    params={"symbol": joined_symbols, "apikey": settings.FMP_API_KEY},
-                    timeout=60,
-                )
-                response.raise_for_status()
-                profiles = response.json()
-                if isinstance(profiles, list):
-                    tickers.extend(profiles)
-            except requests.RequestException as error:
-                self.stderr.write(f"  Batch failed ({batch[0]}..{batch[-1]}): {error}")
-
-        return tickers
-
-    def _upsert_tickers(self, profiles: list[dict]) -> None:
-        """Upsert profile data into the Ticker model."""
+    def _upsert_tickers(self, stocks: list[dict]) -> None:
+        """Upsert stock list data into the Ticker model."""
         objects = []
-        for profile in profiles:
-            symbol = (profile.get("symbol") or "").strip().upper()
-            if not symbol:
-                continue
+        for stock in stocks:
+            symbol = stock["symbol"].strip().upper()
+            company_name = stock.get("companyName") or ""
 
             objects.append(Ticker(
                 symbol=symbol,
-                name=profile.get("companyName") or "",
-                display_name=profile.get("companyName") or "",
-                sector=profile.get("sector") or "",
+                name=company_name,
+                display_name=company_name,
+                sector="",
                 type="stock",
-                logo=profile.get("image") or "",
+                logo=f"https://financialmodelingprep.com/image-stock/{symbol}.png",
             ))
 
         if objects:
@@ -85,5 +63,5 @@ class Command(BaseCommand):
                 objects,
                 update_conflicts=True,
                 unique_fields=["symbol"],
-                update_fields=["name", "display_name", "sector", "type", "logo"],
+                update_fields=["name", "display_name", "type", "logo"],
             )

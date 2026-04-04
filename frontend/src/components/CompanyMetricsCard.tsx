@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import "../styles/card.css";
 import { useTranslation, type TranslationKey } from "../i18n";
+import { isBrazilianTicker } from "../utils/ticker";
 
 interface QuarterlyEarningsDetail {
   end_date: string;
@@ -345,7 +346,7 @@ function PL10Info({ data }: { data: QuoteData }) {
                 <tr>
                   <th>{t("modal.pl10_col_year")}</th>
                   <th>{t("modal.pl10_col_net_income")}</th>
-                  <th>{t("modal.pl10_col_ipca_factor")}</th>
+                  <th>{isBrazilianTicker(data.ticker) ? t("modal.pl10_col_ipca_factor") : t("modal.pl10_col_cpi_factor")}</th>
                   <th>{t("modal.pl10_col_adjusted")}</th>
                   <th></th>
                 </tr>
@@ -443,7 +444,7 @@ function PFCL10Info({ data }: { data: QuoteData }) {
                 <tr>
                   <th>{t("modal.pl10_col_year")}</th>
                   <th>{t("modal.pfcl10_col_fcf")}</th>
-                  <th>{t("modal.pl10_col_ipca_factor")}</th>
+                  <th>{isBrazilianTicker(data.ticker) ? t("modal.pl10_col_ipca_factor") : t("modal.pl10_col_cpi_factor")}</th>
                   <th>{t("modal.pfcl10_col_adjusted")}</th>
                   <th></th>
                 </tr>

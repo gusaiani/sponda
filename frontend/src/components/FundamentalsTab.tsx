@@ -3,6 +3,7 @@ import { useFundamentals, type FundamentalsYear } from "../hooks/useFundamentals
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n";
 import { br } from "../utils/format";
+import { isBrazilianTicker } from "../utils/ticker";
 import "../styles/fundamentals.css";
 
 /* ── Augmented row with Shiller PE ratios ── */
@@ -236,7 +237,7 @@ export function FundamentalsTab({ ticker }: Props) {
           className={`fundamentals-toggle-pill ${valueMode === "adjusted" ? "fundamentals-toggle-pill-active" : ""}`}
           onClick={() => setValueMode(valueMode === "adjusted" ? "nominal" : "adjusted")}
         >
-          {t("fundamentals.ipca")}
+          {isBrazilianTicker(ticker) ? t("fundamentals.ipca") : t("fundamentals.cpi")}
         </button>
       </div>
 

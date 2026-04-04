@@ -172,6 +172,7 @@ export interface TranslationDictionary {
   /* ── Fundamentals ── */
   "fundamentals.nominal": string;
   "fundamentals.ipca": string;
+  "fundamentals.cpi": string;
   "fundamentals.balance": string;
   "fundamentals.income": string;
   "fundamentals.cash_flow": string;
@@ -267,6 +268,7 @@ export interface TranslationDictionary {
   "modal.pl10_col_year": string;
   "modal.pl10_col_net_income": string;
   "modal.pl10_col_ipca_factor": string;
+  "modal.pl10_col_cpi_factor": string;
   "modal.pl10_col_adjusted": string;
   "modal.pl10_sum": string;
   "modal.pl10_avg_label": string;
