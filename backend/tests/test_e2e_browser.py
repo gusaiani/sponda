@@ -146,7 +146,9 @@ class TestBrowserSearch:
     def test_homepage_loads(self, page: Page, url):
         page.goto(url)
         expect(page.locator("text=SPONDA").first).to_be_visible()
-        expect(page.locator("text=investidores em valor").first).to_be_visible()
+        # Tagline is locale-dependent: PT or EN
+        tagline = page.locator("text=/investidores em valor|value investors/i").first
+        expect(tagline).to_be_visible()
 
     def test_search_bar_is_visible(self, page: Page, url):
         page.goto(url)
