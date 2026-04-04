@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect, FormEvent } from "react";
 import Fuse from "fuse.js";
 import { useTickers, TickerItem } from "../hooks/useTickers";
+import { useTranslation } from "../i18n";
 import "../styles/search.css";
 
 interface SearchBarProps {
@@ -10,6 +11,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -93,8 +95,8 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
           ref={inputRef}
           type="search"
           className="search-input"
-          aria-label="Buscar empresa por ticker ou nome"
-          placeholder="Ticker ou nome da empresa"
+          aria-label={t("search.aria_label")}
+          placeholder={t("search.placeholder")}
           value={input}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}

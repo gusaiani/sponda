@@ -19,6 +19,7 @@ import { ListCard } from "./ListCard";
 import { AddFavoriteCard, shouldShowAddFavoriteCard } from "./AddFavoriteCard";
 import { AuthModal } from "./AuthModal";
 import { useTickers } from "../hooks/useTickers";
+import { useTranslation } from "../i18n";
 import { useMemo } from "react";
 import "../styles/homepage-cards.css";
 
@@ -72,6 +73,7 @@ async function fetchHomepageLayout(): Promise<LayoutItem[] | null> {
 }
 
 export function HomepageGrid() {
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { favoriteTickers, isFavorite, toggleFavorite } = useFavorites();
   const { lists } = useSavedLists();
@@ -210,7 +212,7 @@ export function HomepageGrid() {
         saveLayoutMutation.mutate(newLayout);
       } else {
         setAuthModalMessage(
-          "Para salvar a organização dos seus cards, entre ou crie uma conta gratuita.",
+          t("homepage.auth_save_layout"),
         );
         setShowAuthModal(true);
       }

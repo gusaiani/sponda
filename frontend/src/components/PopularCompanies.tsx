@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useTickers, TickerItem } from "../hooks/useTickers";
 import { useFavorites } from "../hooks/useFavorites";
 import { useAuth } from "../hooks/useAuth";
+import { useTranslation } from "../i18n";
 import "../styles/popular.css";
 
 const MAX_DISPLAYED = 40;
@@ -24,6 +25,7 @@ const POPULAR_SYMBOLS = [
 ];
 
 export function PopularCompanies() {
+  const { t } = useTranslation();
   const { data: tickers = [] } = useTickers();
   const { isAuthenticated } = useAuth();
   const { favoriteTickers } = useFavorites();
@@ -47,7 +49,7 @@ export function PopularCompanies() {
 
   return (
     <>
-    <p className={`popular-section-title ${hasFavorites ? "" : "popular-section-title-standalone"}`}>Mais acompanhadas</p>
+    <p className={`popular-section-title ${hasFavorites ? "" : "popular-section-title-standalone"}`}>{t("popular.title")}</p>
     <div className="popular-grid">
       {companies.map((company) => (
         <Link

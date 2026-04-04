@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCompareData } from "../hooks/useCompareData";
+import { useTranslation } from "../i18n";
 import { br } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/list-card.css";
@@ -39,6 +40,7 @@ interface ListCardProps {
 }
 
 export function ListCard({ listId, name, tickers, years }: ListCardProps) {
+  const { t } = useTranslation();
   const entries = useCompareData(tickers, years);
   const columns = getListCardColumns(years);
   const visibleEntries = entries.slice(0, MAX_VISIBLE_TICKERS);
@@ -51,7 +53,7 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
       <div className="list-card-header">
         <span className="list-card-name" title={name}>{name}</span>
         <Link href={compareUrl} className="list-card-link">
-          Ver completa &rarr;
+          {t("lists.view_full")}
         </Link>
       </div>
 
@@ -95,7 +97,7 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
       </table>
 
       {hiddenCount > 0 && (
-        <p className="list-card-more">+{hiddenCount} mais</p>
+        <p className="list-card-more">{t("lists.more", { count: hiddenCount })}</p>
       )}
     </div>
   );

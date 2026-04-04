@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useFavorites } from "../hooks/useFavorites";
 import { useTickers, TickerItem } from "../hooks/useTickers";
+import { useTranslation } from "../i18n";
 import "../styles/popular.css";
 
 interface FavoriteDisplayItem {
@@ -10,6 +11,7 @@ interface FavoriteDisplayItem {
 }
 
 export function FavoriteCompanies() {
+  const { t } = useTranslation();
   const { favoriteTickers, isLoading: favoritesLoading } = useFavorites();
   const { data: allTickers = [] } = useTickers();
 
@@ -31,7 +33,7 @@ export function FavoriteCompanies() {
 
   return (
     <>
-      <p className="favorites-section-title">Favoritas</p>
+      <p className="favorites-section-title">{t("favorites.title")}</p>
       <div className="favorites-grid">
         {favoriteCompanies.map((company) => (
           <Link

@@ -3,16 +3,19 @@
 import { Suspense, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useTranslation } from "../../i18n";
 
 export default function ResetPasswordPage() {
+  const { t } = useTranslation();
   return (
-    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">Carregando…</p></div></div>}>
+    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">{t("common.loading")}</p></div></div>}>
       <ResetPasswordContent />
     </Suspense>
   );
 }
 
 function ResetPasswordContent() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const [password, setPassword] = useState("");
@@ -26,7 +29,7 @@ function ResetPasswordContent() {
     setError(null);
 
     if (password !== confirmPassword) {
-      setError("As senhas não coincidem");
+      setError(t("auth.passwords_dont_match"));
       return;
     }
 
@@ -41,13 +44,13 @@ function ResetPasswordContent() {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || "Erro ao redefinir senha");
+        setError(data.error || t("reset.error"));
         return;
       }
 
       setSuccess(true);
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError(t("auth.connection_error"));
     } finally {
       setLoading(false);
     }
@@ -60,12 +63,12 @@ function ResetPasswordContent() {
           <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
-          <h1 className="auth-title">Link inválido</h1>
+          <h1 className="auth-title">{t("reset.invalid_link")}</h1>
           <p className="auth-success-text">
-            Este link de recuperação é inválido ou expirou.
+            {t("reset.invalid_link_text")}
           </p>
           <p className="auth-link">
-            <Link href="/forgot-password">Solicitar novo link</Link>
+            <Link href="/forgot-password">{t("reset.request_new_link")}</Link>
           </p>
         </div>
       </div>
@@ -79,12 +82,12 @@ function ResetPasswordContent() {
           <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
-          <h1 className="auth-title">Senha redefinida!</h1>
+          <h1 className="auth-title">{t("reset.success_title")}</h1>
           <p className="auth-success-text">
-            Sua senha foi alterada com sucesso.
+            {t("reset.success_text")}
           </p>
           <p className="auth-link">
-            <Link href="/login">Fazer login</Link>
+            <Link href="/login">{t("auth.do_login")}</Link>
           </p>
         </div>
       </div>
@@ -97,11 +100,11 @@ function ResetPasswordContent() {
         <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
-        <h1 className="auth-title">Nova Senha</h1>
+        <h1 className="auth-title">{t("reset.title")}</h1>
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
             <label className="auth-label" htmlFor="password">
-              Nova senha
+              {t("reset.new_password")}
             </label>
             <input
               id="password"
@@ -113,11 +116,11 @@ function ResetPasswordContent() {
               required
               autoFocus
             />
-            <span className="auth-hint">Mínimo 8 caracteres</span>
+            <span className="auth-hint">{t("auth.min_8_chars")}</span>
           </div>
           <div>
             <label className="auth-label" htmlFor="confirm-password">
-              Confirmar nova senha
+              {t("reset.confirm_new_password")}
             </label>
             <input
               id="confirm-password"
@@ -131,7 +134,7 @@ function ResetPasswordContent() {
           </div>
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? "Salvando…" : "Redefinir senha"}
+            {loading ? t("reset.saving") : t("reset.submit")}
           </button>
         </form>
       </div>

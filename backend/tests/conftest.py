@@ -6,6 +6,12 @@ import pytest
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args):
+    """Force browser locale to Portuguese so E2E tests match the default UI language."""
+    return {**browser_context_args, "locale": "pt-BR"}
+
+
 @pytest.fixture
 def sample_earnings(db):
     """Create 10 years of quarterly earnings for PETR4 (2016–2025)."""

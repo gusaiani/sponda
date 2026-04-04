@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { MultiplesHistoryResult } from "../hooks/useMultiplesHistory";
+import { useTranslation } from "../i18n";
 import "../styles/chart.css";
 
 type MultipleType = "pl" | "pfcl";
@@ -30,16 +31,14 @@ export function brFmt(n: number, decimals = 2): string {
   });
 }
 
-const MONTH_NAMES = [
-  "jan", "fev", "mar", "abr", "mai", "jun",
-  "jul", "ago", "set", "out", "nov", "dez",
-];
+const MONTH_NAMES_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+const MONTH_NAMES_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** Convert an ISO-style date string ("2024-01-31") to "jan/24". */
-export function formatPriceDate(dateString: string): string {
+/** Convert an ISO-style date string ("2024-01-31") to "jan/24" (pt) or "Jan/24" (en). */
+export function formatPriceDate(dateString: string, dateLocale: string = "pt"): string {
+  const months = dateLocale === "pt" ? MONTH_NAMES_PT : MONTH_NAMES_EN;
   const [year, month] = dateString.split("-");
-  const label = `${MONTH_NAMES[parseInt(month, 10) - 1]}/${year.slice(2)}`;
-  return label;
+  return `${months[parseInt(month, 10) - 1]}/${year.slice(2)}`;
 }
 
 /** Calculate a tick interval that shows roughly 8 ticks on the X axis. */
@@ -93,6 +92,7 @@ interface Props {
 }
 
 export function MultiplesChart({ data }: Props) {
+  const { t, locale } = useTranslation();
   const [activeMultiple, setActiveMultiple] = useState<MultipleType>("pl");
   const [showPriceInfo, setShowPriceInfo] = useState(false);
   const [hoveredYear, setHoveredYear] = useState<number | null>(null);
@@ -128,14 +128,14 @@ export function MultiplesChart({ data }: Props) {
   if (!data.prices.length) {
     return (
       <div className="chart-container">
-        <div className="chart-empty">Dados históricos indisponíveis</div>
+        <div className="chart-empty">{t("charts.no_data")}</div>
       </div>
     );
   }
 
   // Format dates for display: "2015-01-31" → "jan/15"
   const priceData = data.prices.map((p) => ({
-    date: formatPriceDate(p.date),
+    date: formatPriceDate(p.date, locale),
     adjustedClose: p.adjustedClose,
   }));
 
@@ -165,10 +165,10 @@ export function MultiplesChart({ data }: Props) {
       {/* Price panel */}
       <div className="chart-panel">
         <div className="chart-panel-title">
-          Preço ajustado (R$)
+          {t("charts.adjusted_price")}
           <button
             className="info-btn"
-            aria-label="O que é preço ajustado?"
+            aria-label={t("charts.what_is_adjusted")}
             onClick={() => setShowPriceInfo(!showPriceInfo)}
           >
             ?
@@ -176,10 +176,7 @@ export function MultiplesChart({ data }: Props) {
         </div>
         {showPriceInfo && (
           <p className="chart-info-text">
-            Preço ajustado por dividendos e desdobramentos. Reflete o retorno
-            total do acionista, como se todos os proventos tivessem sido
-            reinvestidos na ação. Diferente do preço nominal, permite comparar
-            períodos sem distorção por eventos corporativos.
+            {t("charts.adjusted_explanation")}
           </p>
         )}
         <ResponsiveContainer width="100%" height={220}>
@@ -233,7 +230,7 @@ export function MultiplesChart({ data }: Props) {
       {/* Multiples panel */}
       <div className="chart-panel" ref={bottomPanelRef} style={{ position: "relative" }}>
         <div className="chart-panel-title">
-          {LABELS[activeMultiple]} histórico
+          {LABELS[activeMultiple]} {t("charts.historical")}
         </div>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart

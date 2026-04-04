@@ -3,16 +3,19 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useTranslation } from "../../i18n";
 
 export default function VerifyEmailPage() {
+  const { t } = useTranslation();
   return (
-    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">Carregando…</p></div></div>}>
+    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">{t("common.loading")}</p></div></div>}>
       <VerifyEmailContent />
     </Suspense>
   );
 }
 
 function VerifyEmailContent() {
+  const { t } = useTranslation();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
@@ -22,7 +25,7 @@ function VerifyEmailContent() {
 
     if (!token) {
       setStatus("error");
-      setErrorMessage("Link inválido — token não encontrado.");
+      setErrorMessage(t("verify.invalid_token"));
       return;
     }
 
@@ -35,7 +38,7 @@ function VerifyEmailContent() {
       .then((response) => {
         if (!response.ok) {
           return response.json().then((data) => {
-            throw new Error(data.error || "Erro ao verificar email");
+            throw new Error(data.error || t("verify.error"));
           });
         }
         setStatus("success");
@@ -44,7 +47,7 @@ function VerifyEmailContent() {
         setStatus("error");
         setErrorMessage(fetchError.message);
       });
-  }, [searchParams]);
+  }, [searchParams, t]);
 
   return (
     <div className="auth-container">
@@ -54,32 +57,32 @@ function VerifyEmailContent() {
         </Link>
 
         {status === "loading" && (
-          <p className="auth-success-text">Verificando...</p>
+          <p className="auth-success-text">{t("verify.verifying")}</p>
         )}
 
         {status === "success" && (
           <>
-            <h1 className="auth-title">Email verificado!</h1>
+            <h1 className="auth-title">{t("verify.success_title")}</h1>
             <p className="auth-success-text">
-              Seu email foi confirmado. Todas as funcionalidades estão ativas.
+              {t("verify.success_text")}
             </p>
             <p className="auth-link">
-              <Link href="/">Ir para a página inicial</Link>
+              <Link href="/">{t("auth.go_to_homepage")}</Link>
             </p>
           </>
         )}
 
         {status === "error" && (
           <>
-            <h1 className="auth-title">Link inválido</h1>
+            <h1 className="auth-title">{t("verify.invalid_link")}</h1>
             <p className="auth-error" style={{ marginBottom: "1rem" }}>
               {errorMessage}
             </p>
             <p className="auth-success-text">
-              O link pode ter expirado. Solicite um novo na sua conta.
+              {t("verify.expired_text")}
             </p>
             <p className="auth-link">
-              <Link href="/account">Minha conta</Link>
+              <Link href="/account">{t("auth.my_account")}</Link>
             </p>
           </>
         )}

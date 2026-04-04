@@ -4,8 +4,9 @@ import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useAuth } from "../../hooks/useAuth";
 import { csrfHeaders } from "../../utils/csrf";
+import { useTranslation, type TranslationKey } from "../../i18n";
 
-function formatTimeSince(dateString: string): string {
+function formatTimeSince(dateString: string, pluralize: (count: number, singular: TranslationKey, plural: TranslationKey) => string): string {
   const joined = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - joined.getTime();
@@ -16,15 +17,15 @@ function formatTimeSince(dateString: string): string {
   const months = Math.floor(days / 30);
   const years = Math.floor(days / 365);
 
-  if (years > 0) return `${years} ${years === 1 ? "ano" : "anos"}`;
-  if (months > 0) return `${months} ${months === 1 ? "mês" : "meses"}`;
-  if (days > 0) return `${days} ${days === 1 ? "dia" : "dias"}`;
-  if (hours > 0) return `${hours} ${hours === 1 ? "hora" : "horas"}`;
-  return `${minutes} ${minutes === 1 ? "minuto" : "minutos"}`;
+  if (years > 0) return `${years} ${pluralize(years, "common.year_singular", "common.year_plural")}`;
+  if (months > 0) return `${months} ${pluralize(months, "common.month_singular", "common.month_plural")}`;
+  if (days > 0) return `${days} ${pluralize(days, "common.day_singular", "common.day_plural")}`;
+  if (hours > 0) return `${hours} ${pluralize(hours, "common.hour_singular", "common.hour_plural")}`;
+  return `${minutes} ${pluralize(minutes, "common.minute_singular", "common.minute_plural")}`;
 }
 
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("pt-BR", {
+function formatDate(dateString: string, locale: string): string {
+  return new Date(dateString).toLocaleDateString(locale === "pt" ? "pt-BR" : "en-US", {
     day: "2-digit",
     month: "long",
     year: "numeric",
@@ -36,12 +37,13 @@ type AccountView = "main" | "change-password";
 export default function AccountPage() {
   const { user, isLoading, isAuthenticated, logout } = useAuth();
   const [view, setView] = useState<AccountView>("main");
+  const { t, locale, pluralize } = useTranslation();
 
   if (isLoading) {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <p className="auth-success-text">Carregando…</p>
+          <p className="auth-success-text">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -54,12 +56,12 @@ export default function AccountPage() {
           <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
-          <h1 className="auth-title">Acesso restrito</h1>
+          <h1 className="auth-title">{t("auth.restricted_access")}</h1>
           <p className="auth-success-text">
-            Você precisa estar logado para acessar esta página.
+            {t("auth.must_be_logged_in")}
           </p>
           <p className="auth-link">
-            <Link href="/login">Fazer login</Link>
+            <Link href="/login">{t("auth.do_login")}</Link>
           </p>
         </div>
       </div>
@@ -81,12 +83,12 @@ export default function AccountPage() {
         <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
-        <h1 className="auth-title">Minha Conta</h1>
+        <h1 className="auth-title">{t("auth.my_account")}</h1>
 
         <p className="account-membership">
-          Você faz parte da Sponda desde{" "}
-          <strong>{formatDate(user.date_joined)}</strong>
-          {" "}— há {formatTimeSince(user.date_joined)}.
+          {t("auth.member_since")}{" "}
+          <strong>{formatDate(user.date_joined, locale)}</strong>
+          {" "}— {formatTimeSince(user.date_joined, pluralize)}.
         </p>
 
         <div className="account-actions">
@@ -95,19 +97,19 @@ export default function AccountPage() {
             className="account-action-link"
             onClick={() => setView("change-password")}
           >
-            Trocar senha
+            {t("auth.change_password")}
           </button>
           <button
             type="button"
             className="account-action-link"
             onClick={handleLogout}
           >
-            Fazer logout
+            {t("auth.logout")}
           </button>
         </div>
 
         <p className="auth-link">
-          <Link href="/">Voltar para a página inicial</Link>
+          <Link href="/">{t("auth.back_to_homepage")}</Link>
         </p>
       </div>
     </div>
@@ -115,6 +117,7 @@ export default function AccountPage() {
 }
 
 function ChangePasswordView({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -128,7 +131,7 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
     setSuccess(null);
 
     if (newPassword !== confirmPassword) {
-      setError("As senhas não coincidem");
+      setError(t("auth.passwords_dont_match"));
       return;
     }
 
@@ -147,16 +150,16 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || "Erro ao alterar senha");
+        setError(data.error || t("auth.change_password_error"));
         return;
       }
 
-      setSuccess("Senha alterada com sucesso!");
+      setSuccess(t("auth.password_changed"));
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError(t("auth.connection_error"));
     } finally {
       setLoading(false);
     }
@@ -168,12 +171,12 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
         <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
-        <h1 className="auth-title">Trocar Senha</h1>
+        <h1 className="auth-title">{t("auth.change_password_title")}</h1>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
             <label className="auth-label" htmlFor="current-password">
-              Senha atual
+              {t("auth.current_password")}
             </label>
             <input
               id="current-password"
@@ -187,7 +190,7 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
           </div>
           <div>
             <label className="auth-label" htmlFor="new-password">
-              Nova senha
+              {t("auth.new_password")}
             </label>
             <input
               id="new-password"
@@ -198,11 +201,11 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
               minLength={8}
               required
             />
-            <span className="auth-hint">Mínimo 8 caracteres</span>
+            <span className="auth-hint">{t("auth.min_8_chars")}</span>
           </div>
           <div>
             <label className="auth-label" htmlFor="confirm-new-password">
-              Confirmar nova senha
+              {t("auth.confirm_new_password")}
             </label>
             <input
               id="confirm-new-password"
@@ -217,13 +220,13 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
           {error && <p className="auth-error">{error}</p>}
           {success && <p className="auth-success-text" style={{ color: "#16a34a" }}>{success}</p>}
           <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? "Salvando…" : "Alterar senha"}
+            {loading ? t("auth.saving") : t("auth.change_password_button")}
           </button>
         </form>
 
         <p className="auth-link">
           <button type="button" className="account-back-link" onClick={onBack}>
-            ← Voltar
+            ← {t("common.back")}
           </button>
         </p>
       </div>

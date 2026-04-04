@@ -2,12 +2,14 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import { useTranslation } from "../../i18n";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const { t } = useTranslation();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -23,13 +25,13 @@ export default function ForgotPasswordPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || "Erro ao enviar email");
+        setError(data.error || t("forgot.send_error"));
         return;
       }
 
       setSent(true);
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError(t("auth.connection_error"));
     } finally {
       setLoading(false);
     }
@@ -42,13 +44,12 @@ export default function ForgotPasswordPage() {
           <Link href="/" className="auth-logo-link">
             <span className="auth-logo">SPONDA</span>
           </Link>
-          <h1 className="auth-title">Email enviado</h1>
+          <h1 className="auth-title">{t("forgot.email_sent")}</h1>
           <p className="auth-success-text">
-            Se existe uma conta com esse email, você receberá um link para
-            redefinir sua senha.
+            {t("forgot.email_sent_text")}
           </p>
           <p className="auth-link">
-            <Link href="/login">Voltar para login</Link>
+            <Link href="/login">{t("forgot.back_to_login")}</Link>
           </p>
         </div>
       </div>
@@ -61,14 +62,14 @@ export default function ForgotPasswordPage() {
         <Link href="/" className="auth-logo-link">
           <span className="auth-logo">SPONDA</span>
         </Link>
-        <h1 className="auth-title">Recuperar Senha</h1>
+        <h1 className="auth-title">{t("forgot.title")}</h1>
         <p className="auth-success-text">
-          Digite seu email e enviaremos um link para redefinir sua senha.
+          {t("forgot.description")}
         </p>
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
             <label className="auth-label" htmlFor="email">
-              Email
+              {t("auth.email")}
             </label>
             <input
               id="email"
@@ -82,11 +83,11 @@ export default function ForgotPasswordPage() {
           </div>
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" className="auth-button" disabled={loading}>
-            {loading ? "Enviando…" : "Enviar link de recuperação"}
+            {loading ? t("forgot.sending") : t("forgot.send_link")}
           </button>
         </form>
         <p className="auth-link">
-          <Link href="/login">Voltar para login</Link>
+          <Link href="/login">{t("forgot.back_to_login")}</Link>
         </p>
       </div>
     </div>

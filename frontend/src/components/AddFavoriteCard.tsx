@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Fuse from "fuse.js";
 import { useTickers, type TickerItem } from "../hooks/useTickers";
 import { useFavorites } from "../hooks/useFavorites";
+import { useTranslation } from "../i18n";
 import "../styles/homepage-cards.css";
 
 const MAX_FAVORITES_FOR_PLACEHOLDER = 3;
@@ -22,6 +23,7 @@ interface AddFavoriteCardProps {
 }
 
 export function AddFavoriteCard({ onSelectTicker }: AddFavoriteCardProps) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -159,13 +161,13 @@ export function AddFavoriteCard({ onSelectTicker }: AddFavoriteCardProps) {
     >
       <div className="hcc-add-favorite-prompt">
         <span className="hcc-add-favorite-star">☆</span>
-        <span className="hcc-add-favorite-text">Adicione favoritas</span>
+        <span className="hcc-add-favorite-text">{t("favorites.add_card_title")}</span>
       </div>
       <input
         ref={inputRef}
         type="text"
         className="hcc-add-favorite-input"
-        placeholder="Buscar empresa..."
+        placeholder={t("favorites.search_placeholder")}
         value={input}
         onChange={(e) => {
           setInput(e.target.value);

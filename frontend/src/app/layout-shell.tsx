@@ -7,11 +7,13 @@ import { SearchBar } from "../components/SearchBar";
 import { AuthHeader } from "../components/AuthHeader";
 import { FeedbackButton } from "../components/FeedbackButton";
 import { usePageTracking } from "../hooks/usePageTracking";
-import { POEMA_PERFORMANCE_LINE, POEMA_DISCLAIMER, POEMA_CTA } from "../utils/branding";
+import { POEMA_RETURN, IBOVESPA_RETURN, POEMA_PERIOD } from "../utils/branding";
+import { useTranslation } from "../i18n";
 
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"];
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation();
   usePageTracking();
   const router = useRouter();
   const pathname = usePathname();
@@ -31,7 +33,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           <div className="app-header-top">
             <Link href="/" className="app-header-brand">
               <span className="app-header-logo">SPONDA</span>
-              <span className="app-header-tagline">Para investidores em valor</span>
+              <span className="app-header-tagline">{t("header.tagline")}</span>
             </Link>
             <AuthHeader />
           </div>
@@ -50,18 +52,18 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           <img src="/poema-logo.jpg" alt="Poema" className="app-footer-logo" />
         </a>
         <p className="app-footer-text">
-          Uma ferramenta da{" "}
+          {t("footer.tool_by")}{" "}
           <a href="https://poe.ma" target="_blank" rel="noopener noreferrer" className="app-footer-link">
             Poema Parceria de Investimentos
           </a>
         </p>
         <a href="https://poe.ma" target="_blank" rel="noopener noreferrer" className="app-footer-link app-footer-performance">
-          {POEMA_PERFORMANCE_LINE}
+          {t("footer.cumulative_return", { poemaReturn: POEMA_RETURN, ibovespaReturn: IBOVESPA_RETURN, period: POEMA_PERIOD })}
           <br />
-          {POEMA_DISCLAIMER}
+          {t("footer.past_results")}
         </a>
         <a href="https://poe.ma" target="_blank" rel="noopener noreferrer" className="app-footer-link app-footer-cta">
-          {POEMA_CTA}
+          {t("footer.looking_for_partners")}
         </a>
       </footer>
     </div>

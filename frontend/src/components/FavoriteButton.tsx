@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useFavorites } from "../hooks/useFavorites";
+import { useTranslation } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import "../styles/favorite-button.css";
 
@@ -10,6 +11,7 @@ interface FavoriteButtonProps {
 }
 
 export function FavoriteButton({ ticker }: FavoriteButtonProps) {
+  const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { isFavorite, toggleFavorite, favorites } = useFavorites();
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -40,11 +42,11 @@ export function FavoriteButton({ ticker }: FavoriteButtonProps) {
         <button
           className="favorite-button-prominent"
           onClick={handleClick}
-          aria-label="Adicionar a Favoritos"
-          title="Adicionar a Favoritos"
+          aria-label={t("favorites.add_prominent")}
+          title={t("favorites.add_prominent")}
         >
           <span className="favorite-button-prominent-star">☆</span>
-          <span className="favorite-button-prominent-label">Adicionar a Favoritos</span>
+          <span className="favorite-button-prominent-label">{t("favorites.add_prominent")}</span>
         </button>
 
         {showAuthModal && (
@@ -62,8 +64,8 @@ export function FavoriteButton({ ticker }: FavoriteButtonProps) {
       <button
         className={`favorite-button ${favorited ? "favorite-button-active" : ""}`}
         onClick={handleClick}
-        aria-label={favorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-        title={favorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+        aria-label={favorited ? t("favorites.remove") : t("favorites.add")}
+        title={favorited ? t("favorites.remove") : t("favorites.add")}
       >
         {favorited ? "★" : "☆"}
       </button>

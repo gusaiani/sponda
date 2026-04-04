@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useFundamentals, type FundamentalsYear } from "../hooks/useFundamentals";
+import { useTranslation } from "../i18n";
+import type { TranslationKey } from "../i18n";
 import { br } from "../utils/format";
 import "../styles/fundamentals.css";
 
@@ -102,79 +104,81 @@ function ratio(value: number | null): string | null {
   return br(value, 2);
 }
 
-const COLUMNS: ColumnDef[] = [
-  // Balanço
-  {
-    key: "debtExLease", label: "Dívida (M)", group: "balanco",
-    format: (row, mode) => millions(mode === "adjusted" ? row.debtExLeaseAdjusted : row.debtExLease),
-  },
-  {
-    key: "totalLiabilities", label: "Passivo (M)", group: "balanco",
-    format: (row, mode) => millions(mode === "adjusted" ? row.totalLiabilitiesAdjusted : row.totalLiabilities),
-  },
-  {
-    key: "equity", label: "PL (M)", group: "balanco",
-    format: (row, mode) => millions(mode === "adjusted" ? row.stockholdersEquityAdjusted : row.stockholdersEquity),
-  },
-  {
-    key: "debtToEquity", label: "Dív/PL", group: "balanco",
-    format: (row) => ratio(row.debtToEquity),
-  },
-  {
-    key: "liabToEquity", label: "Pass/PL", group: "balanco",
-    format: (row) => ratio(row.liabilitiesToEquity),
-  },
-  {
-    key: "currentRatio", label: "Liq. Corr.", group: "balanco",
-    format: (row) => ratio(row.currentRatio),
-  },
-  // Resultado
-  {
-    key: "revenue", label: "Receita (M)", group: "resultado",
-    format: (row, mode) => millions(mode === "adjusted" ? row.revenueAdjusted : row.revenue),
-  },
-  {
-    key: "netIncome", label: "Lucro (M)", group: "resultado",
-    format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome),
-  },
-  {
-    key: "pe10", label: "P/L10", group: "resultado",
-    format: (row) => ratio(row.pe10),
-  },
-  {
-    key: "pe5", label: "P/L5", group: "resultado",
-    format: (row) => ratio(row.pe5),
-  },
-  // Caixa
-  {
-    key: "fcf", label: "FCL (M)", group: "caixa",
-    format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.fcfAdjusted : row.fcf),
-  },
-  {
-    key: "pfcl10", label: "P/FCL10", group: "caixa",
-    format: (row) => ratio(row.pfcl10),
-  },
-  {
-    key: "pfcl5", label: "P/FCL5", group: "caixa",
-    format: (row) => ratio(row.pfcl5),
-  },
-  {
-    key: "operatingCF", label: "FC Oper. (M)", group: "caixa",
-    format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.operatingCashFlowAdjusted : row.operatingCashFlow),
-  },
-  // Retorno
-  {
-    key: "marketCap", label: "Cap. Mercado (M)", group: "retorno",
-    format: (row, mode) => millions(mode === "adjusted" ? row.marketCapAdjusted : row.marketCap),
-  },
-  {
-    key: "dividends", label: "Proventos (M)", group: "retorno",
-    format: (row, mode) => {
-      const value = mode === "adjusted" ? row.dividendsAdjusted : row.dividendsPaid;
-      return millions(value ?? 0);
+function getTranslatedColumns(t: (key: TranslationKey) => string): ColumnDef[] {
+  return [
+    // Balanço
+    {
+      key: "debtExLease", label: t("fundamentals.col.debt"), group: "balanco",
+      format: (row, mode) => millions(mode === "adjusted" ? row.debtExLeaseAdjusted : row.debtExLease),
     },
-  },
-];
+    {
+      key: "totalLiabilities", label: t("fundamentals.col.liabilities"), group: "balanco",
+      format: (row, mode) => millions(mode === "adjusted" ? row.totalLiabilitiesAdjusted : row.totalLiabilities),
+    },
+    {
+      key: "equity", label: t("fundamentals.col.equity"), group: "balanco",
+      format: (row, mode) => millions(mode === "adjusted" ? row.stockholdersEquityAdjusted : row.stockholdersEquity),
+    },
+    {
+      key: "debtToEquity", label: t("fundamentals.col.debt_equity"), group: "balanco",
+      format: (row) => ratio(row.debtToEquity),
+    },
+    {
+      key: "liabToEquity", label: t("fundamentals.col.liab_equity"), group: "balanco",
+      format: (row) => ratio(row.liabilitiesToEquity),
+    },
+    {
+      key: "currentRatio", label: t("fundamentals.col.current_ratio"), group: "balanco",
+      format: (row) => ratio(row.currentRatio),
+    },
+    // Resultado
+    {
+      key: "revenue", label: t("fundamentals.col.revenue"), group: "resultado",
+      format: (row, mode) => millions(mode === "adjusted" ? row.revenueAdjusted : row.revenue),
+    },
+    {
+      key: "netIncome", label: t("fundamentals.col.net_income"), group: "resultado",
+      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome),
+    },
+    {
+      key: "pe10", label: "P/L10", group: "resultado",
+      format: (row) => ratio(row.pe10),
+    },
+    {
+      key: "pe5", label: "P/L5", group: "resultado",
+      format: (row) => ratio(row.pe5),
+    },
+    // Caixa
+    {
+      key: "fcf", label: t("fundamentals.col.fcf"), group: "caixa",
+      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.fcfAdjusted : row.fcf),
+    },
+    {
+      key: "pfcl10", label: "P/FCL10", group: "caixa",
+      format: (row) => ratio(row.pfcl10),
+    },
+    {
+      key: "pfcl5", label: "P/FCL5", group: "caixa",
+      format: (row) => ratio(row.pfcl5),
+    },
+    {
+      key: "operatingCF", label: t("fundamentals.col.operating_cf"), group: "caixa",
+      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.operatingCashFlowAdjusted : row.operatingCashFlow),
+    },
+    // Retorno
+    {
+      key: "marketCap", label: t("fundamentals.col.market_cap"), group: "retorno",
+      format: (row, mode) => millions(mode === "adjusted" ? row.marketCapAdjusted : row.marketCap),
+    },
+    {
+      key: "dividends", label: t("fundamentals.col.dividends"), group: "retorno",
+      format: (row, mode) => {
+        const value = mode === "adjusted" ? row.dividendsAdjusted : row.dividendsPaid;
+        return millions(value ?? 0);
+      },
+    },
+  ];
+}
 
 const BALANCE_COUNT = 6;
 const RESULTADO_COUNT = 4;
@@ -195,7 +199,9 @@ interface Props {
 
 export function FundamentalsTab({ ticker }: Props) {
   const { data: rawData, isLoading, error } = useFundamentals(ticker, true);
+  const { t } = useTranslation();
   const [valueMode, setValueMode] = useState<ValueMode>("nominal");
+  const columns = useMemo(() => getTranslatedColumns(t), [t]);
   const data = useMemo(
     () => (rawData ? augmentWithPERatios(rawData) : null),
     [rawData],
@@ -212,7 +218,7 @@ export function FundamentalsTab({ ticker }: Props) {
   if (!data || data.length === 0) {
     return (
       <div className="fundamentals-container">
-        <div className="fundamentals-error">Sem dados fundamentais disponíveis.</div>
+        <div className="fundamentals-error">{t("fundamentals.no_data")}</div>
       </div>
     );
   }
@@ -224,13 +230,13 @@ export function FundamentalsTab({ ticker }: Props) {
           className={`fundamentals-toggle-pill ${valueMode === "nominal" ? "fundamentals-toggle-pill-active" : ""}`}
           onClick={() => setValueMode(valueMode === "nominal" ? "adjusted" : "nominal")}
         >
-          Nominal
+          {t("fundamentals.nominal")}
         </button>
         <button
           className={`fundamentals-toggle-pill ${valueMode === "adjusted" ? "fundamentals-toggle-pill-active" : ""}`}
           onClick={() => setValueMode(valueMode === "adjusted" ? "nominal" : "adjusted")}
         >
-          IPCA
+          {t("fundamentals.ipca")}
         </button>
       </div>
 
@@ -240,15 +246,15 @@ export function FundamentalsTab({ ticker }: Props) {
             {/* Group header row */}
             <tr className="fundamentals-group-row">
               <th className="fundamentals-sticky-col" />
-              <th colSpan={BALANCE_COUNT}>Balanço</th>
-              <th colSpan={RESULTADO_COUNT} className="fundamentals-group-separator">Resultado</th>
-              <th colSpan={CAIXA_COUNT} className="fundamentals-group-separator">Caixa</th>
-              <th colSpan={RETORNO_COUNT} className="fundamentals-group-separator">Retorno</th>
+              <th colSpan={BALANCE_COUNT}>{t("fundamentals.balance")}</th>
+              <th colSpan={RESULTADO_COUNT} className="fundamentals-group-separator">{t("fundamentals.income")}</th>
+              <th colSpan={CAIXA_COUNT} className="fundamentals-group-separator">{t("fundamentals.cash_flow")}</th>
+              <th colSpan={RETORNO_COUNT} className="fundamentals-group-separator">{t("fundamentals.returns")}</th>
             </tr>
             {/* Column header row */}
             <tr>
-              <th className="fundamentals-sticky-col">Ano</th>
-              {COLUMNS.map((col, index) => (
+              <th className="fundamentals-sticky-col">{t("fundamentals.year")}</th>
+              {columns.map((col, index) => (
                 <th
                   key={col.key}
                   className={GROUP_START_INDICES.has(index) ? "fundamentals-group-separator" : undefined}
@@ -267,7 +273,7 @@ export function FundamentalsTab({ ticker }: Props) {
                     <span className="fundamentals-partial">{row.quarters}T</span>
                   )}
                 </td>
-                {COLUMNS.map((col, index) => {
+                {columns.map((col, index) => {
                   const formatted = col.format(row, valueMode);
                   const separatorClass = GROUP_START_INDICES.has(index) ? "fundamentals-group-separator" : "";
                   if (formatted === null) {

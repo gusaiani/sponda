@@ -2,6 +2,7 @@ import { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Fuse from "fuse.js";
 import { useTickers, type TickerItem } from "../hooks/useTickers";
+import { useTranslation } from "../i18n";
 import "../styles/compare.css";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -151,7 +153,7 @@ export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
         ref={inputRef}
         type="text"
         className="compare-add-input"
-        placeholder="Adicionar empresa..."
+        placeholder={t("compare.add_company")}
         value={input}
         onChange={(e) => {
           setInput(e.target.value);
