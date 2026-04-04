@@ -78,4 +78,7 @@ REST_FRAMEWORK = {
 BRAPI_API_KEY = env("BRAPI_API_KEY")
 BRAPI_BASE_URL = "https://brapi.dev/api"
 
+FMP_API_KEY = env("FMP_API_KEY", default="")
+FMP_BASE_URL = "https://financialmodelingprep.com"
+
 SPONDA_FREE_LOOKUPS_PER_DAY = 3

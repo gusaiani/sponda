@@ -1,24 +1,62 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "./useTranslation";
 import type { Locale } from "./types";
 
+const LANGUAGE_OPTIONS: { locale: Locale; flag: string; label: string }[] = [
+  { locale: "pt", flag: "🇧🇷", label: "PT" },
+  { locale: "en", flag: "🇺🇸", label: "EN" },
+];
+
 export function LanguageToggle() {
   const { locale, setLocale } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  function handleToggle() {
-    const next: Locale = locale === "pt" ? "en" : "pt";
-    setLocale(next);
+  const currentOption = LANGUAGE_OPTIONS.find((option) => option.locale === locale)!;
+
+  function handleSelect(selected: Locale) {
+    setLocale(selected);
+    setIsOpen(false);
   }
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   return (
-    <button
-      className="language-toggle"
-      onClick={handleToggle}
-      aria-label={locale === "pt" ? "Switch to English" : "Mudar para Portugu\u00eas"}
-      title={locale === "pt" ? "Switch to English" : "Mudar para Portugu\u00eas"}
-    >
-      <span className="language-toggle-label">{locale === "pt" ? "EN" : "PT"}</span>
-    </button>
+    <div className="language-dropdown" ref={dropdownRef}>
+      <button
+        className="language-dropdown-trigger"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-label={locale === "pt" ? "Switch to English" : "Mudar para Português"}
+        aria-expanded={isOpen}
+      >
+        <span className="language-dropdown-flag">{currentOption.flag}</span>
+        <span className="language-dropdown-label">{currentOption.label}</span>
+      </button>
+      {isOpen && (
+        <ul className="language-dropdown-menu">
+          {LANGUAGE_OPTIONS.map((option) => (
+            <li key={option.locale}>
+              <button
+                className={`language-dropdown-option${option.locale === locale ? " active" : ""}`}
+                onClick={() => handleSelect(option.locale)}
+              >
+                <span className="language-dropdown-flag">{option.flag}</span>
+                <span className="language-dropdown-label">{option.label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

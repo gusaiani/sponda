@@ -172,6 +172,7 @@ export const en: TranslationDictionary = {
   /* ── Fundamentals ── */
   "fundamentals.nominal": "Nominal",
   "fundamentals.ipca": "IPCA",
+  "fundamentals.cpi": "CPI",
   "fundamentals.balance": "Balance Sheet",
   "fundamentals.income": "Income",
   "fundamentals.cash_flow": "Cash Flow",
@@ -267,6 +268,7 @@ export const en: TranslationDictionary = {
   "modal.pl10_col_year": "Year",
   "modal.pl10_col_net_income": "Net Income",
   "modal.pl10_col_ipca_factor": "IPCA Factor",
+  "modal.pl10_col_cpi_factor": "CPI Factor",
   "modal.pl10_col_adjusted": "Adjusted Income",
   "modal.pl10_sum": "Sum of adjusted earnings",
   "modal.pl10_avg_label": "Avg Adjusted Net Income ({years}y)",

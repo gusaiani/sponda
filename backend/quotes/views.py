@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .brapi import BRAPIError, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .providers import ProviderError, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
 from .leverage import calculate_leverage
 from .models import BalanceSheet, CompanyAnalysis, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
@@ -193,7 +193,7 @@ def _ensure_fresh_data(ticker: str) -> None:
     if not has_fresh_earnings:
         try:
             sync_earnings(ticker)
-        except BRAPIError:
+        except ProviderError:
             pass
 
     has_fresh_cf = QuarterlyCashFlow.objects.filter(
@@ -202,7 +202,7 @@ def _ensure_fresh_data(ticker: str) -> None:
     if not has_fresh_cf:
         try:
             sync_cash_flows(ticker)
-        except BRAPIError:
+        except ProviderError:
             pass
 
     has_fresh_bs = BalanceSheet.objects.filter(
@@ -211,7 +211,7 @@ def _ensure_fresh_data(ticker: str) -> None:
     if not has_fresh_bs:
         try:
             sync_balance_sheets(ticker)
-        except BRAPIError:
+        except ProviderError:
             pass
 
 
@@ -225,7 +225,7 @@ class PE10View(APIView):
         # Fetch current price
         try:
             quote = fetch_quote(ticker)
-        except BRAPIError as e:
+        except ProviderError as e:
             msg = str(e)
             if "No results" in msg:
                 return Response(
@@ -382,7 +382,7 @@ class MultiplesHistoryView(APIView):
 
         try:
             quote = fetch_quote(ticker)
-        except BRAPIError as e:
+        except ProviderError as e:
             msg = str(e)
             if "No results" in msg:
                 return Response(
@@ -405,7 +405,7 @@ class MultiplesHistoryView(APIView):
 
         try:
             historical = fetch_historical_prices(ticker)
-        except BRAPIError:
+        except ProviderError:
             return Response(
                 {"error": "Não foi possível obter os dados históricos. Tente novamente mais tarde."},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -433,7 +433,7 @@ class FundamentalsView(APIView):
 
         try:
             quote = fetch_quote(ticker)
-        except BRAPIError as e:
+        except ProviderError as e:
             msg = str(e)
             if "No results" in msg:
                 return Response(
@@ -450,7 +450,7 @@ class FundamentalsView(APIView):
 
         try:
             historical_prices = fetch_historical_prices(ticker)
-        except BRAPIError:
+        except ProviderError:
             historical_prices = []
 
         # Fetch dividend data and compute total proventos per year
@@ -466,7 +466,7 @@ class FundamentalsView(APIView):
                     stock_dividends=dividends_data["stockDividends"],
                     current_shares=current_shares,
                 )
-            except BRAPIError:
+            except ProviderError:
                 pass
 
         fundamentals = compute_fundamentals(

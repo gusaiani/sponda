@@ -2,7 +2,8 @@
 from collections import defaultdict
 from decimal import Decimal
 
-from .models import IPCAIndex, QuarterlyEarnings
+from .inflation import get_inflation_adjustment_factors
+from .models import QuarterlyEarnings
 
 
 def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
@@ -39,49 +40,6 @@ def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
     return result[:max_years]
 
 
-def get_ipca_adjustment_factors(years: list[int]) -> dict[int, Decimal]:
-    """
-    Build IPCA adjustment factors for each year.
-
-    Uses the December reading for each year (12-month accumulated rate).
-    Compounds rates from each year forward to bring historical earnings
-    to current purchasing power.
-
-    Returns {year: adjustment_factor} where factor >= 1 for past years.
-    """
-    if not years:
-        return {}
-
-    # Get all IPCA entries we need (December of each year + most recent)
-    all_entries = list(IPCAIndex.objects.order_by("date"))
-    if not all_entries:
-        return {}
-
-    # Build a map: year -> December annual rate (or closest available)
-    year_rates: dict[int, Decimal] = {}
-    for entry in all_entries:
-        y = entry.date.year
-        m = entry.date.month
-        # Prefer December; overwrite earlier months of same year
-        if y not in year_rates or m >= 12:
-            year_rates[y] = entry.annual_rate
-
-    # The most recent year's rate represents "current" inflation
-    most_recent_year = max(year_rates.keys())
-
-    # Compound adjustment: for year Y, multiply earnings by product of
-    # (1 + rate/100) for each year from Y+1 to most_recent_year
-    factors = {}
-    for year in years:
-        factor = Decimal("1")
-        for y in range(year + 1, most_recent_year + 1):
-            rate = year_rates.get(y, Decimal("0"))
-            factor *= (1 + rate / 100)
-        factors[year] = factor
-
-    return factors
-
-
 def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dict:
     """
     Calculate PE10 for a given ticker using Market Cap / Avg Adjusted Net Income.
@@ -110,7 +68,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
         }
 
     years = [d["year"] for d in annual_data]
-    ipca_factors = get_ipca_adjustment_factors(years)
+    ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     adjusted_values = []
     yearly_breakdown = []

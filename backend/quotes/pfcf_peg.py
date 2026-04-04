@@ -2,7 +2,7 @@
 from decimal import Decimal
 
 from .cagr import compute_cagr
-from .pe10 import get_ipca_adjustment_factors
+from .inflation import get_inflation_adjustment_factors
 from .pfcf10 import get_annual_fcf
 
 
@@ -36,7 +36,7 @@ def calculate_pfcf_peg(ticker: str, pfcf10: float | None, max_years: int = 10) -
         return {**empty, "pfcfPegError": "Dados insuficientes para calcular crescimento"}
 
     years = [d["year"] for d in annual_data]
-    ipca_factors = get_ipca_adjustment_factors(years)
+    ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     yearly_values = [
         (d["year"], float(d["fcf"] * ipca_factors.get(d["year"], Decimal("1"))))

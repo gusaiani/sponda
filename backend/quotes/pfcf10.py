@@ -2,8 +2,8 @@
 from collections import defaultdict
 from decimal import Decimal
 
+from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyCashFlow
-from .pe10 import get_ipca_adjustment_factors
 
 
 def get_annual_fcf(ticker: str, max_years: int = 10) -> list[dict]:
@@ -66,7 +66,7 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
         }
 
     years = [d["year"] for d in annual_data]
-    ipca_factors = get_ipca_adjustment_factors(years)
+    ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     adjusted_values = []
     yearly_breakdown = []

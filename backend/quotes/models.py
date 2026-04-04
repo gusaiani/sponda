@@ -94,6 +94,20 @@ class BalanceSheet(models.Model):
         return f"{self.ticker} {self.end_date} BS"
 
 
+class USCPIIndex(models.Model):
+    date = models.DateField(unique=True)
+    annual_rate = models.DecimalField(
+        max_digits=10, decimal_places=4,
+        help_text="Year-over-year CPI rate (%) for the US",
+    )
+
+    class Meta:
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"US CPI {self.date}: {self.annual_rate}%"
+
+
 class Ticker(models.Model):
     symbol = models.CharField(max_length=20, unique=True, db_index=True)
     name = models.CharField(max_length=200, blank=True, default="")

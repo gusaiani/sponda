@@ -258,7 +258,7 @@ class TestPE10Endpoint:
     def test_handles_brapi_error(
         self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, api_client, db
     ):
-        from quotes.brapi import BRAPIError
+        from quotes.providers import ProviderError as BRAPIError
 
         mock_quote.side_effect = BRAPIError("Service unavailable")
         response = api_client.get("/api/quote/PETR4/")
@@ -393,7 +393,7 @@ class TestFundamentalsEndpoint:
         self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
         api_client, db
     ):
-        from quotes.brapi import BRAPIError
+        from quotes.providers import ProviderError as BRAPIError
         mock_quote.side_effect = BRAPIError("No results for ticker FAKE3")
         response = api_client.get("/api/quote/FAKE3/fundamentals/")
         assert response.status_code == 404
@@ -476,7 +476,7 @@ class TestMultiplesHistoryEndpoint:
     def test_returns_404_for_unknown_ticker(
         self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, api_client, db
     ):
-        from quotes.brapi import BRAPIError
+        from quotes.providers import ProviderError as BRAPIError
         mock_quote.side_effect = BRAPIError("No results for ticker FAKE3")
         response = api_client.get("/api/quote/FAKE3/multiples-history/")
         assert response.status_code == 404
@@ -488,7 +488,7 @@ class TestMultiplesHistoryEndpoint:
     def test_returns_502_on_brapi_error(
         self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, api_client, db
     ):
-        from quotes.brapi import BRAPIError
+        from quotes.providers import ProviderError as BRAPIError
         mock_quote.side_effect = BRAPIError("Service unavailable")
         response = api_client.get("/api/quote/PETR4/multiples-history/")
         assert response.status_code == 502
@@ -502,7 +502,7 @@ class TestMultiplesHistoryEndpoint:
         self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
         api_client, db, mock_brapi_quote
     ):
-        from quotes.brapi import BRAPIError
+        from quotes.providers import ProviderError as BRAPIError
         mock_quote.return_value = mock_brapi_quote
         mock_hist.side_effect = BRAPIError("Timeout")
         response = api_client.get("/api/quote/PETR4/multiples-history/")
