@@ -137,10 +137,12 @@ MOCK_DIVIDENDS = [
 ]
 
 MOCK_CPI_RESPONSE = [
-    {"date": "2025-01-01", "value": 3.0, "country": "US", "name": "CPI"},
-    {"date": "2024-01-01", "value": 3.4, "country": "US", "name": "CPI"},
-    {"date": "2023-01-01", "value": 6.5, "country": "US", "name": "CPI"},
-    {"date": "2022-01-01", "value": 7.0, "country": "US", "name": "CPI"},
+    {"date": "2025-12-01", "value": 320.0, "name": "CPI"},
+    {"date": "2025-01-01", "value": 310.0, "name": "CPI"},
+    {"date": "2024-12-01", "value": 310.0, "name": "CPI"},
+    {"date": "2024-01-01", "value": 300.0, "name": "CPI"},
+    {"date": "2023-12-01", "value": 300.0, "name": "CPI"},
+    {"date": "2023-01-01", "value": 290.0, "name": "CPI"},
 ]
 
 
@@ -323,18 +325,20 @@ class TestSyncBalanceSheets:
 
 class TestSyncUSCPI:
     @patch("quotes.fmp._get")
-    def test_creates_cpi_records(self, mock_get, db):
+    def test_computes_yoy_rates_from_index(self, mock_get, db):
         mock_get.return_value = MOCK_CPI_RESPONSE
         count = sync_us_cpi()
+        # 6 records but only 4 have a prior-year match (2025-12, 2025-01, 2024-12, 2024-01)
         assert count == 4
         assert USCPIIndex.objects.count() == 4
 
     @patch("quotes.fmp._get")
-    def test_stores_correct_values(self, mock_get, db):
+    def test_stores_correct_yoy_rate(self, mock_get, db):
         mock_get.return_value = MOCK_CPI_RESPONSE
         sync_us_cpi()
+        # 2025-01: (310/300 - 1) * 100 = 3.3333%
         entry = USCPIIndex.objects.get(date=date(2025, 1, 1))
-        assert entry.annual_rate == Decimal("3.0")
+        assert abs(float(entry.annual_rate) - 3.3333) < 0.01
 
     @patch("quotes.fmp._get")
     def test_updates_existing_records(self, mock_get, db):

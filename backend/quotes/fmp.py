@@ -201,18 +201,33 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
 
 
 def sync_us_cpi() -> int:
-    """Fetch US CPI data from FMP and store in DB. Returns number of records synced."""
-    records = _get("/stable/economics-indicators", params={"name": "CPI"})
-    objects = []
+    """Fetch US CPI data from FMP and store as year-over-year rates.
 
+    FMP returns absolute CPI index values (e.g. 327.46). We convert to
+    YoY percentage change so the inflation module can compound them the
+    same way it handles IPCA rates.
+    """
+    records = _get("/stable/economic-indicators", params={"name": "CPI", "from": "2010-01-01"})
+
+    # Build a map of (year, month) -> index value
+    index_by_date: dict[tuple[int, int], Decimal] = {}
     for record in records:
         date_string = (record.get("date") or "")[:10]
         value = record.get("value")
         if not date_string or value is None:
             continue
-
         record_date = date.fromisoformat(date_string)
-        objects.append(USCPIIndex(date=record_date, annual_rate=Decimal(str(value))))
+        index_by_date[(record_date.year, record_date.month)] = Decimal(str(value))
+
+    # Compute YoY rate for each month: (index_now / index_12mo_ago - 1) * 100
+    objects = []
+    for (year, month), current_value in index_by_date.items():
+        prior_value = index_by_date.get((year - 1, month))
+        if prior_value is None or prior_value == 0:
+            continue
+        yoy_rate = (current_value / prior_value - 1) * 100
+        record_date = date(year, month, 1)
+        objects.append(USCPIIndex(date=record_date, annual_rate=round(yoy_rate, 4)))
 
     if objects:
         USCPIIndex.objects.bulk_create(
