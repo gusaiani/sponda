@@ -102,6 +102,44 @@ class TestFormatDisplayName:
         assert format_display_name("BB SEGURIDADE PARTICIPAÇÕES S.A.") == "BB Seguridade"
 
 
+class TestTickerSearchEndpoint:
+    def test_returns_empty_without_query(self, api_client, db):
+        response = api_client.get("/api/tickers/search/")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_searches_by_symbol_prefix(self, api_client, db):
+        Ticker.objects.create(symbol="AAPL", name="Apple Inc.", display_name="Apple", type="stock")
+        Ticker.objects.create(symbol="AMZN", name="Amazon", display_name="Amazon", type="stock")
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", display_name="Petrobras", type="stock")
+        response = api_client.get("/api/tickers/search/?q=AA")
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["symbol"] == "AAPL"
+
+    def test_searches_by_name(self, api_client, db):
+        Ticker.objects.create(symbol="AAPL", name="Apple Inc.", display_name="Apple", type="stock")
+        Ticker.objects.create(symbol="MSFT", name="Microsoft", display_name="Microsoft", type="stock")
+        response = api_client.get("/api/tickers/search/?q=micro")
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["symbol"] == "MSFT"
+
+    def test_limits_results_to_8(self, api_client, db):
+        for i in range(15):
+            Ticker.objects.create(symbol=f"T{i:03d}", name=f"Test Corp {i}", display_name=f"Test Corp {i}", type="stock")
+        response = api_client.get("/api/tickers/search/?q=T")
+        data = response.json()
+        assert len(data) == 8
+
+    def test_symbol_matches_come_first(self, api_client, db):
+        Ticker.objects.create(symbol="MSFT", name="Microsoft", display_name="Microsoft", type="stock")
+        Ticker.objects.create(symbol="AAPL", name="Apple has MSFT partnership", display_name="Apple has MSFT partnership", type="stock")
+        response = api_client.get("/api/tickers/search/?q=MSFT")
+        data = response.json()
+        assert data[0]["symbol"] == "MSFT"
+
+
 class TestHealthEndpoint:
     def test_returns_ok_when_data_is_fresh(self, api_client, db):
         Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock")

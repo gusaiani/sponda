@@ -147,13 +147,55 @@ def format_display_name(formal_name: str) -> str:
 
 class TickerListView(APIView):
     def get(self, request):
-        tickers = Ticker.objects.filter(type="stock").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "display_name", "sector", "type", "logo")
+        tickers = Ticker.objects.filter(type="stock", symbol__regex=r"^[A-Z]+\d+$").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "display_name", "sector", "type", "logo")
         result = []
         for ticker in tickers:
             ticker["name"] = ticker.pop("display_name") or ticker["name"]
             result.append(ticker)
         response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
+class TickerSearchView(APIView):
+    """Fast server-side ticker search. Returns up to 8 matches."""
+
+    SEARCH_LIMIT = 8
+
+    def get(self, request):
+        query = (request.query_params.get("q") or "").strip()
+        if len(query) < 1:
+            return Response([])
+
+        query_upper = query.upper()
+
+        # Exact symbol prefix match first (fast, most useful)
+        prefix_matches = (
+            Ticker.objects.filter(type="stock", symbol__istartswith=query_upper)
+            .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+            .values("symbol", "name", "display_name", "sector", "type", "logo")
+            [:self.SEARCH_LIMIT]
+        )
+        results = list(prefix_matches)
+
+        # Fill remaining slots with name search
+        if len(results) < self.SEARCH_LIMIT:
+            found_symbols = {r["symbol"] for r in results}
+            remaining = self.SEARCH_LIMIT - len(results)
+            name_matches = (
+                Ticker.objects.filter(type="stock", display_name__icontains=query)
+                .exclude(symbol__in=found_symbols)
+                .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+                .values("symbol", "name", "display_name", "sector", "type", "logo")
+                [:remaining]
+            )
+            results.extend(name_matches)
+
+        for ticker in results:
+            ticker["name"] = ticker.pop("display_name") or ticker["name"]
+
+        response = Response(results)
+        response["Cache-Control"] = "public, max-age=60"
         return response
 
 
