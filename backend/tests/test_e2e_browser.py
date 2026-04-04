@@ -337,4 +337,6 @@ class TestCompareDragAndDrop:
         # Auth modal should appear with the reorder message
         expect(page.locator(".feedback-panel")).to_be_visible(timeout=5000)
         expect(page.locator(".auth-modal-message")).to_be_visible()
-        expect(page.locator(".auth-modal-message")).to_contain_text("reordenar")
+        # Message is locale-dependent (PT "reordenar" or EN "reorder")
+        message_text = page.locator(".auth-modal-message").text_content()
+        assert "reord" in message_text.lower(), f"Expected reorder message, got: {message_text}"
