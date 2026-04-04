@@ -1,7 +1,7 @@
-import { useState, useRef, useMemo, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import Fuse from "fuse.js";
-import { useTickers, type TickerItem } from "../hooks/useTickers";
+import { useTickerSearch } from "../hooks/useTickerSearch";
+import type { TickerItem } from "../hooks/useTickers";
 import { useTranslation } from "../i18n";
 import "../styles/compare.css";
 
@@ -19,35 +19,13 @@ export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: allTickers = [] } = useTickers();
-
-  const excludeSet = useMemo(() => new Set(excludeTickers), [excludeTickers]);
-
-  const tickers = useMemo(
-    () => allTickers.filter((t) => !excludeSet.has(t.symbol)),
-    [allTickers, excludeSet],
-  );
-
-  const fuse = useMemo(
-    () =>
-      new Fuse(tickers, {
-        keys: [
-          { name: "symbol", weight: 2 },
-          { name: "name", weight: 1 },
-        ],
-        threshold: 0.35,
-      }),
-    [tickers],
-  );
-
-  const results = useMemo(() => {
-    if (!input.trim()) return [];
-    return fuse.search(input, { limit: 6 }).map((r) => r.item);
-  }, [fuse, input]);
+  const excludeSet = new Set(excludeTickers);
+  const { results: rawResults } = useTickerSearch(input);
+  const results = rawResults.filter((t) => !excludeSet.has(t.symbol)).slice(0, 6);
 
   useEffect(() => {
     setSelectedIndex(-1);
-  }, [results]);
+  }, [results.length]);
 
   const updateDropdownPos = useCallback(() => {
     if (!inputRef.current) return;

@@ -1,6 +1,6 @@
-import { useState, useRef, useMemo, useEffect, FormEvent } from "react";
-import Fuse from "fuse.js";
-import { useTickers, TickerItem } from "../hooks/useTickers";
+import { useState, useRef, useEffect, FormEvent } from "react";
+import { useTickerSearch } from "../hooks/useTickerSearch";
+import type { TickerItem } from "../hooks/useTickers";
 import { useTranslation } from "../i18n";
 import "../styles/search.css";
 
@@ -18,24 +18,7 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: tickers = [] } = useTickers();
-
-  const fuse = useMemo(
-    () =>
-      new Fuse(tickers, {
-        keys: [
-          { name: "symbol", weight: 2 },
-          { name: "name", weight: 1 },
-        ],
-        threshold: 0.35,
-      }),
-    [tickers],
-  );
-
-  const results = useMemo(() => {
-    if (!input.trim()) return [];
-    return fuse.search(input, { limit: 8 }).map((r) => r.item);
-  }, [fuse, input]);
+  const { results } = useTickerSearch(input);
 
   useEffect(() => {
     setSelectedIndex(-1);
@@ -79,7 +62,6 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
     setShowDropdown(value.trim().length > 0);
   }
 
-  // Scroll selected item into view
   useEffect(() => {
     if (selectedIndex < 0 || !dropdownRef.current) return;
     const items = dropdownRef.current.children;
