@@ -37,12 +37,24 @@ function getInitialLocale(): Locale {
   return detectBrowserLocale();
 }
 
+const SSR_DEFAULT: Locale = "pt";
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(getInitialLocale);
+  // Always start with "pt" to match the server render and avoid hydration mismatches.
+  // The real locale is resolved in a useEffect after mount.
+  const [locale, setLocaleState] = useState<Locale>(SSR_DEFAULT);
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
     localStorage.setItem(STORAGE_KEY, newLocale);
+  }, []);
+
+  // After hydration, resolve the real locale from localStorage or browser detection
+  useEffect(() => {
+    const resolved = getInitialLocale();
+    if (resolved !== SSR_DEFAULT) {
+      setLocaleState(resolved);
+    }
   }, []);
 
   // Sync html lang attribute
