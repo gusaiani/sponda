@@ -6,7 +6,7 @@ import pytest
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def browser_context_args(browser_context_args):
     """Force browser locale to Portuguese so E2E tests match the default UI language."""
     return {**browser_context_args, "locale": "pt-BR"}
