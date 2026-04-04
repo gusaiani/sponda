@@ -9,6 +9,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sponda
+          POSTGRES_PASSWORD: sponda
+          POSTGRES_DB: sponda_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v5
 
@@ -61,7 +75,7 @@ jobs:
         env:
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           BRAPI_API_KEY: test-api-key-for-ci
-          DEV_DATABASE_URL: sqlite:///test_db.sqlite3
+          DEV_DATABASE_URL: postgres://sponda:sponda@localhost:5432/sponda_test
         run: pytest -x -q --ignore=tests/test_e2e.py --ignore=tests/test_e2e_browser.py --ignore=tests/test_e2e_favorites.py --ignore=tests/test_e2e_auth.py
 
       - name: Run e2e tests
@@ -70,7 +84,7 @@ jobs:
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           BRAPI_API_KEY: test-api-key-for-ci
           GOOGLE_CLIENT_ID: test-client-id
-          DEV_DATABASE_URL: sqlite:///test_db.sqlite3
+          DEV_DATABASE_URL: postgres://sponda:sponda@localhost:5432/sponda_test
         run: pytest -x -q --timeout=120 tests/test_e2e_browser.py tests/test_e2e_favorites.py tests/test_e2e_auth.py || pytest -x -q --timeout=120 tests/test_e2e_browser.py tests/test_e2e_favorites.py tests/test_e2e_auth.py
 
   deploy:
