@@ -3,8 +3,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from .inflation import get_inflation_adjustment_factors
 from .models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
-from .pe10 import get_ipca_adjustment_factors
 
 
 def _aggregate_balance_sheets(ticker: str) -> dict[int, dict]:
@@ -192,7 +192,7 @@ def compute_fundamentals(
         return []
 
     # IPCA adjustment factors
-    ipca_factors = get_ipca_adjustment_factors(all_years)
+    ipca_factors = get_inflation_adjustment_factors(ticker, all_years)
 
     # Estimate shares outstanding for historical market cap approximation
     shares_outstanding = None

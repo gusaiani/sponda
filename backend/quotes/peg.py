@@ -2,7 +2,8 @@
 from decimal import Decimal
 
 from .cagr import compute_cagr
-from .pe10 import get_annual_earnings, get_ipca_adjustment_factors
+from .inflation import get_inflation_adjustment_factors
+from .pe10 import get_annual_earnings
 
 
 def calculate_peg(ticker: str, pe10: float | None, max_years: int = 10) -> dict:
@@ -36,7 +37,7 @@ def calculate_peg(ticker: str, pe10: float | None, max_years: int = 10) -> dict:
         return {**empty, "pegError": "Dados insuficientes para calcular crescimento"}
 
     years = [d["year"] for d in annual_data]
-    ipca_factors = get_ipca_adjustment_factors(years)
+    ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     # Build (year, adjusted_value) pairs for the CAGR calculator
     yearly_values = [
