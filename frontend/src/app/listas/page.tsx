@@ -7,8 +7,10 @@ import { useAuth } from "../../hooks/useAuth";
 import { useTickers, TickerItem } from "../../hooks/useTickers";
 import { useDragGhost } from "../../hooks/useDragGhost";
 import { SavedListCard } from "../../components/SavedLists";
+import { useTranslation } from "../../i18n";
 
 export default function AllListsPage() {
+  const { t } = useTranslation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { lists, isLoading, reorderLists } = useSavedLists();
   const { data: allTickers = [] } = useTickers();
@@ -27,7 +29,7 @@ export default function AllListsPage() {
   if (authLoading || isLoading) {
     return (
       <div className="saved-lists-page">
-        <p className="saved-lists-page-loading">Carregando…</p>
+        <p className="saved-lists-page-loading">{t("common.loading")}</p>
       </div>
     );
   }
@@ -35,12 +37,12 @@ export default function AllListsPage() {
   if (!isAuthenticated) {
     return (
       <div className="saved-lists-page">
-        <h1 className="saved-lists-page-title">Acesso restrito</h1>
+        <h1 className="saved-lists-page-title">{t("auth.restricted_access")}</h1>
         <p className="saved-lists-page-text">
-          Você precisa estar logado para ver suas listas.
+          {t("lists.must_login")}
         </p>
         <p className="auth-link">
-          <Link href="/login">Fazer login</Link>
+          <Link href="/login">{t("auth.do_login")}</Link>
         </p>
       </div>
     );
@@ -97,13 +99,13 @@ export default function AllListsPage() {
       <Link href="/" className="auth-logo-link">
         <span className="auth-logo">SPONDA</span>
       </Link>
-      <h1 className="saved-lists-page-title">Suas Listas</h1>
+      <h1 className="saved-lists-page-title">{t("lists.page_title")}</h1>
       <p className="saved-lists-page-hint">
-        Arraste para reordenar. As 3 primeiras aparecem na página inicial.
+        {t("lists.page_hint")}
       </p>
 
       {displayedLists.length === 0 ? (
-        <p className="saved-lists-page-text">Nenhuma lista salva.</p>
+        <p className="saved-lists-page-text">{t("lists.no_lists")}</p>
       ) : (
         <div className="saved-lists-page-list">
           {displayedLists.map((list, index) => {
@@ -147,7 +149,7 @@ export default function AllListsPage() {
       )}
 
       <p className="auth-link" style={{ marginTop: "2rem" }}>
-        <Link href="/">Voltar para a página inicial</Link>
+        <Link href="/">{t("auth.back_to_homepage")}</Link>
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCompareData } from "../hooks/useCompareData";
 import { useFavorites } from "../hooks/useFavorites";
 import { useAuth } from "../hooks/useAuth";
+import { useTranslation } from "../i18n";
 import { br, formatLargeNumber } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/homepage-cards.css";
@@ -61,6 +62,8 @@ function Indicator({ label, value, suffix = "" }: IndicatorProps) {
 }
 
 export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResult | null; isLoading: boolean; logoOverride?: string }) {
+  const { t } = useTranslation();
+
   if (isLoading || !data) {
     return (
       <div className="hcc-card hcc-card-loading">
@@ -96,12 +99,12 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
 
       <div className="hcc-price-row">
         <div className="hcc-price-item">
-          <span className="hcc-price-label">Preço</span>
+          <span className="hcc-price-label">{t("homepage.price")}</span>
           <span className="hcc-price">R$ {br(data.currentPrice, 2)}</span>
         </div>
         {data.marketCap && (
           <div className="hcc-price-item">
-            <span className="hcc-price-label">Cap. Mercado</span>
+            <span className="hcc-price-label">{t("homepage.market_cap")}</span>
             <span className="hcc-market-cap">{formatMarketCap(data.marketCap)}</span>
           </div>
         )}
@@ -109,11 +112,11 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
 
       <div className="hcc-indicators-grid">
         {/* Balance sheet */}
-        <Indicator label="Patr. Líq." value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity) : null} />
-        <Indicator label="Passivo" value={data.totalLiabilities !== null ? formatLargeNumber(data.totalLiabilities) : null} />
-        <Indicator label="Dív Bruta" value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0)) : null} />
-        <Indicator label="Liq. Corr." value={data.currentRatio !== null ? br(data.currentRatio, 2) : null} />
-        <Indicator label="Dív/PL" value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
+        <Indicator label={t("homepage.equity")} value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity) : null} />
+        <Indicator label={t("homepage.liabilities")} value={data.totalLiabilities !== null ? formatLargeNumber(data.totalLiabilities) : null} />
+        <Indicator label={t("homepage.gross_debt")} value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0)) : null} />
+        <Indicator label={t("homepage.current_ratio")} value={data.currentRatio !== null ? br(data.currentRatio, 2) : null} />
+        <Indicator label={t("fundamentals.col.debt_equity")} value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
         <Indicator label="Dív/FCL" value={data.debtToAvgFCF !== null ? br(data.debtToAvgFCF, 1) : null} />
         {/* Valuation & growth */}
         <Indicator label="P/L10" value={data.pe10 !== null ? br(data.pe10, 1) : null} />

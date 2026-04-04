@@ -1,4 +1,5 @@
 import { useState, FormEvent } from "react";
+import { useTranslation } from "../i18n";
 import "../styles/auth.css";
 import "../styles/feedback.css";
 
@@ -11,6 +12,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +33,7 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
     setError(null);
 
     if (mode === "signup" && password !== confirmPassword) {
-      setError("As senhas não coincidem");
+      setError(t("auth.passwords_dont_match"));
       return;
     }
 
@@ -53,17 +55,17 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
       if (!response.ok) {
         const data = await response.json();
         if (mode === "login") {
-          setError(data.error || "Email ou senha incorretos");
+          setError(data.error || t("auth.wrong_credentials"));
         } else {
           const firstError = Object.values(data).flat()[0];
-          setError(String(firstError) || "Erro ao criar conta");
+          setError(String(firstError) || t("auth.signup_error"));
         }
         return;
       }
 
       onSuccess();
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError(t("auth.connection_error"));
     } finally {
       setLoading(false);
     }
@@ -74,7 +76,7 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
   return (
     <div className="feedback-overlay" onClick={onClose}>
       <div className="feedback-panel" onClick={(event) => event.stopPropagation()} style={{ maxWidth: "400px" }}>
-        <button className="feedback-close" onClick={onClose} aria-label="Fechar">
+        <button className="feedback-close" onClick={onClose} aria-label={t("common.close")}>
           ×
         </button>
 
@@ -88,20 +90,20 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
             className={`auth-mode-button ${isLogin ? "auth-mode-active" : ""}`}
             onClick={() => switchMode("login")}
           >
-            Entrar
+            {t("auth.login")}
           </button>
           <button
             type="button"
             className={`auth-mode-button ${!isLogin ? "auth-mode-active" : ""}`}
             onClick={() => switchMode("signup")}
           >
-            Criar conta
+            {t("auth.signup")}
           </button>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <div>
-            <label className="auth-label" htmlFor="modal-email">Email</label>
+            <label className="auth-label" htmlFor="modal-email">{t("auth.email")}</label>
             <input
               id="modal-email"
               type="email"
@@ -113,7 +115,7 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
             />
           </div>
           <div>
-            <label className="auth-label" htmlFor="modal-password">Senha</label>
+            <label className="auth-label" htmlFor="modal-password">{t("auth.password")}</label>
             <input
               id="modal-password"
               type="password"
@@ -123,11 +125,11 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
               minLength={mode === "signup" ? 8 : undefined}
               required
             />
-            {!isLogin && <span className="auth-hint">Mínimo 8 caracteres</span>}
+            {!isLogin && <span className="auth-hint">{t("auth.min_8_chars")}</span>}
           </div>
           {!isLogin && (
             <div>
-              <label className="auth-label" htmlFor="modal-confirm-password">Confirmar Senha</label>
+              <label className="auth-label" htmlFor="modal-confirm-password">{t("auth.confirm_password")}</label>
               <input
                 id="modal-confirm-password"
                 type="password"
@@ -147,19 +149,19 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
                 onChange={(event) => setAllowContact(event.target.checked)}
                 className="auth-checkbox"
               />
-              Aceito receber atualizações e novidades da Sponda por email
+              {t("auth.allow_contact")}
             </label>
           )}
           {error && <p className="auth-error">{error}</p>}
           <button type="submit" className="auth-button" disabled={loading}>
             {loading
-              ? (isLogin ? "Entrando…" : "Criando…")
-              : (isLogin ? "Entrar" : "Criar Conta")}
+              ? (isLogin ? t("auth.logging_in") : t("auth.creating"))
+              : (isLogin ? t("auth.login") : t("auth.create_account"))}
           </button>
         </form>
 
         <div className="auth-divider">
-          <span className="auth-divider-text">ou</span>
+          <span className="auth-divider-text">{t("common.or")}</span>
         </div>
         <GoogleSignInButton />
       </div>
@@ -168,6 +170,8 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
 }
 
 function GoogleSignInButton() {
+  const { t } = useTranslation();
+
   function handleGoogleAuth() {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     if (!clientId) return;
@@ -192,7 +196,7 @@ function GoogleSignInButton() {
         <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
       </svg>
-      Continuar com Google
+      {t("auth.continue_with_google")}
     </button>
   );
 }

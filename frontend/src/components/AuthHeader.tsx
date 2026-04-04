@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
+import { useTranslation, LanguageToggle } from "../i18n";
 import "../styles/auth-header.css";
 
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
@@ -9,6 +10,7 @@ export function AuthHeader() {
   const { isAuthenticated, isSuperuser, isLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const isOnAuthPage = AUTH_PAGES.some((path) => pathname.startsWith(path));
 
@@ -16,6 +18,7 @@ export function AuthHeader() {
 
   return (
     <div className="auth-header">
+      <LanguageToggle />
       {isAuthenticated ? (
         <>
           {isSuperuser && (
@@ -24,20 +27,20 @@ export function AuthHeader() {
             </Link>
           )}
           <Link href="/account" className="auth-header-link">
-            Minha conta
+            {t("auth.my_account")}
           </Link>
         </>
       ) : isOnAuthPage ? (
         <button
           className="auth-header-link auth-header-close"
           onClick={() => router.push("/")}
-          aria-label="Fechar"
+          aria-label={t("common.close")}
         >
           ✕
         </button>
       ) : (
         <Link href="/login" className="auth-header-link auth-header-signup">
-          Entrar
+          {t("auth.login")}
         </Link>
       )}
     </div>

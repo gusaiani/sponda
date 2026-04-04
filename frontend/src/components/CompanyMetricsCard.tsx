@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import "../styles/card.css";
+import { useTranslation, type TranslationKey } from "../i18n";
 
 interface QuarterlyEarningsDetail {
   end_date: string;
@@ -101,9 +102,9 @@ import { ptLabel, br, formatLargeNumber, formatQuarterLabel } from "../utils/for
 
 /* ── Inline ? button ── */
 
-function InfoBtn({ onClick }: { onClick: () => void }) {
+function InfoBtn({ onClick, ariaLabel }: { onClick: () => void; ariaLabel: string }) {
   return (
-    <button className="info-btn" onClick={onClick} type="button" aria-label="Mais informações">
+    <button className="info-btn" onClick={onClick} type="button" aria-label={ariaLabel}>
       ?
     </button>
   );
@@ -141,40 +142,41 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 /* ── Balance sheet components helper ── */
 
 function BalanceSheetComponents({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   if (data.stockholdersEquity === null) return null;
   return (
     <div className="pe10-calc-details">
       {data.leverageDate && (
         <div className="pe10-calc-section">
-          <div className="pe10-calc-section-title">Data do balanço</div>
+          <div className="pe10-calc-section-title">{t("modal.balance_date")}</div>
           <div className="pe10-calc-formula">
-            <span>Referência</span>
+            <span>{t("modal.reference")}</span>
             <span className="pe10-calc-formula-val">{data.leverageDate}</span>
           </div>
         </div>
       )}
       <div className="pe10-calc-section">
-        <div className="pe10-calc-section-title">Componentes</div>
+        <div className="pe10-calc-section-title">{t("modal.components")}</div>
         {data.totalDebt !== null && (
           <div className="pe10-calc-formula">
-            <span>Dívida Bruta</span>
+            <span>{t("modal.gross_debt")}</span>
             <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
           </div>
         )}
         {data.totalLease !== null && (
           <div className="pe10-calc-formula">
-            <span>Arrendamentos (Leasing)</span>
+            <span>{t("modal.leases")}</span>
             <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLease)}</span>
           </div>
         )}
         {data.totalLiabilities !== null && (
           <div className="pe10-calc-formula">
-            <span>Passivo Total</span>
+            <span>{t("modal.total_liabilities")}</span>
             <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLiabilities)}</span>
           </div>
         )}
         <div className="pe10-calc-formula">
-          <span>Patrimônio Líquido</span>
+          <span>{t("modal.equity")}</span>
           <span className="pe10-calc-formula-val">{formatLargeNumber(data.stockholdersEquity)}</span>
         </div>
       </div>
@@ -185,25 +187,18 @@ function BalanceSheetComponents({ data }: { data: QuoteData }) {
 /* ── Per-metric modal content ── */
 
 function DebtToEquityInfo({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          <strong>Dívida Bruta / PL</strong> mede quanto da estrutura de capital
-          da empresa é financiada por dívida em relação ao patrimônio dos
-          acionistas. Valores altos indicam maior alavancagem financeira e,
-          portanto, maior risco em cenários adversos.
-        </p>
-        <p>
-          Compare entre empresas do mesmo setor. Setores como infraestrutura e
-          bancos operam naturalmente com alavancagem mais elevada.
-        </p>
+        <p>{t("modal.debt_equity_explain")}</p>
+        <p>{t("modal.debt_equity_compare")}</p>
       </div>
       <BalanceSheetComponents data={data} />
       {data.debtToEquity !== null && data.stockholdersEquity !== null && (
         <div className="pe10-calc-details">
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{formatLargeNumber(data.totalDebt!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
               <span className="pe10-calc-formula-val">= {br(data.debtToEquity, 2)}</span>
@@ -216,22 +211,17 @@ function DebtToEquityInfo({ data }: { data: QuoteData }) {
 }
 
 function DebtExLeaseInfo({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          <strong>Dív - Arrend. / PL</strong> é a dívida bruta excluindo
-          arrendamentos (leasing) dividida pelo patrimônio líquido. Com a adoção
-          do IFRS 16, obrigações de leasing passaram a ser registradas como
-          dívida no balanço. Excluí-las mostra a alavancagem financeira "pura",
-          sem o componente operacional de arrendamentos.
-        </p>
+        <p>{t("modal.debt_ex_lease_explain")}</p>
       </div>
       <BalanceSheetComponents data={data} />
       {data.debtExLeaseToEquity !== null && data.totalDebt !== null && data.stockholdersEquity !== null && (
         <div className="pe10-calc-details">
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>({formatLargeNumber(data.totalDebt)} − {formatLargeNumber(data.totalLease ?? 0)}) ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
               <span className="pe10-calc-formula-val">= {br(data.debtExLeaseToEquity, 2)}</span>
@@ -244,25 +234,18 @@ function DebtExLeaseInfo({ data }: { data: QuoteData }) {
 }
 
 function LiabToEquityInfo({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          <strong>Passivo / PL</strong> considera todas as obrigações da empresa
-          (não apenas dívidas financeiras, mas também fornecedores, tributos,
-          provisões etc.) em relação ao patrimônio líquido. Valores elevados
-          sugerem dependência de capital de terceiros.
-        </p>
-        <p>
-          É uma medida mais ampla que Dív. Bruta / PL. Compare sempre entre
-          empresas do mesmo setor.
-        </p>
+        <p>{t("modal.liab_equity_explain")}</p>
+        <p>{t("modal.liab_equity_broader")}</p>
       </div>
       <BalanceSheetComponents data={data} />
       {data.liabilitiesToEquity !== null && data.stockholdersEquity !== null && (
         <div className="pe10-calc-details">
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{formatLargeNumber(data.totalLiabilities!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
               <span className="pe10-calc-formula-val">= {br(data.liabilitiesToEquity, 2)}</span>
@@ -275,29 +258,23 @@ function LiabToEquityInfo({ data }: { data: QuoteData }) {
 }
 
 function DebtToEarningsInfo({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          <strong>Dív. Bruta / Lucro Médio</strong> indica quantos anos de lucro
-          líquido médio (ajustado pela inflação, últimos 10 anos) seriam
-          necessários para quitar a dívida bruta. Quanto menor, mais confortável.
-        </p>
-        <p>
-          A média de 10 anos suaviza ciclos econômicos e resultados atípicos.
-          N/A indica lucro médio negativo no período.
-        </p>
+        <p>{t("modal.debt_earnings_explain")}</p>
+        <p>{t("modal.debt_earnings_note")}</p>
       </div>
       {data.totalDebt !== null && data.debtToAvgEarnings !== null && data.avgAdjustedNetIncome !== null && (
         <div className="pe10-calc-details">
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
-              <span>Dívida Bruta</span>
+              <span>{t("modal.gross_debt")}</span>
               <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>Lucro Líquido Médio Ajustado ({data.pe10YearsOfData}a)</span>
+              <span>{t("modal.pl10_avg_label", { years: data.pe10YearsOfData })}</span>
               <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedNetIncome)}</span>
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
@@ -312,27 +289,22 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
 }
 
 function DebtToFCFInfo({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          <strong>Dív. Bruta / FCL Médio</strong> indica quantos anos de fluxo de
-          caixa livre médio (ajustado pela inflação, últimos 10 anos) seriam
-          necessários para quitar a dívida bruta. Como o FCL representa dinheiro
-          que de fato entra no caixa, tende a ser mais conservador que o
-          indicador baseado em lucro.
-        </p>
+        <p>{t("modal.debt_fcf_explain")}</p>
       </div>
       {data.totalDebt !== null && data.debtToAvgFCF !== null && data.avgAdjustedFCF !== null && (
         <div className="pe10-calc-details">
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
-              <span>Dívida Bruta</span>
+              <span>{t("modal.gross_debt")}</span>
               <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>FCL Médio Ajustado ({data.pfcf10YearsOfData}a)</span>
+              <span>{t("modal.pfcl10_avg_label", { years: data.pfcf10YearsOfData })}</span>
               <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedFCF)}</span>
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
@@ -347,6 +319,7 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
 }
 
 function PL10Info({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
   const label = ptLabel(data.pe10Label);
   const hasCalc = data.pe10CalculationDetails.length > 0;
@@ -357,32 +330,23 @@ function PL10Info({ data }: { data: QuoteData }) {
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          O <strong>{label}</strong> (CAPE) é o preço/lucro calculado sobre a
-          média dos lucros reais (ajustados pela inflação) dos últimos 10 anos.
-          Suaviza oscilações cíclicas e mostra quanto o mercado paga por real de
-          lucro de forma mais estável.
-        </p>
-        <p>
-          Valores elevados sugerem ativo caro; valores baixos podem indicar
-          oportunidades. Para empresas em forte crescimento ou declínio, a média
-          de 10 anos pode não refletir a trajetória recente.
-        </p>
+        <p>{t("modal.pl10_explain", { label })}</p>
+        <p>{t("modal.pl10_high_low")}</p>
       </div>
 
       {hasCalc && (
         <div className="pe10-calc-details">
-          <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
+          <h4 className="pe10-calc-title">{t("modal.how_calculated")}</h4>
 
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">1. Lucros anuais e ajuste por inflação (IPCA)</div>
+            <div className="pe10-calc-section-title">{t("modal.pl10_step1")}</div>
             <table className="pe10-calc-table">
               <thead>
                 <tr>
-                  <th>Ano</th>
-                  <th>Lucro Líquido</th>
-                  <th>Fator IPCA</th>
-                  <th>Lucro Ajustado</th>
+                  <th>{t("modal.pl10_col_year")}</th>
+                  <th>{t("modal.pl10_col_net_income")}</th>
+                  <th>{t("modal.pl10_col_ipca_factor")}</th>
+                  <th>{t("modal.pl10_col_adjusted")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -406,7 +370,7 @@ function PL10Info({ data }: { data: QuoteData }) {
                     {expandedYear === year.year && year.quarterlyDetail.map((q) => (
                       <tr key={q.end_date} className="pe10-calc-quarter-row">
                         <td className="pe10-calc-quarter-label">{formatQuarterLabel(q.end_date)}</td>
-                        <td colSpan={4}>Lucro líquido: {formatLargeNumber(q.net_income)}</td>
+                        <td colSpan={4}>{t("modal.quarterly_net_income", { value: formatLargeNumber(q.net_income) })}</td>
                       </tr>
                     ))}
                   </>
@@ -416,13 +380,13 @@ function PL10Info({ data }: { data: QuoteData }) {
           </div>
 
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">2. Lucro líquido médio ajustado</div>
+            <div className="pe10-calc-section-title">{t("modal.pl10_step2")}</div>
             <div className="pe10-calc-formula">
-              <span>Soma dos lucros ajustados</span>
+              <span>{t("modal.pl10_sum")}</span>
               <span className="pe10-calc-formula-val">{formatLargeNumber(total)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>÷ {data.pe10YearsOfData} anos</span>
+              <span>÷ {data.pe10YearsOfData} {t("common.year_plural")}</span>
               <span className="pe10-calc-formula-val">
                 = {data.avgAdjustedNetIncome !== null ? formatLargeNumber(data.avgAdjustedNetIncome) : "N/A"}
               </span>
@@ -431,13 +395,13 @@ function PL10Info({ data }: { data: QuoteData }) {
 
           {data.pe10 !== null && data.avgAdjustedNetIncome !== null && data.marketCap !== null && (
             <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">3. {label}</div>
+              <div className="pe10-calc-section-title">{t("modal.pl10_step3", { label })}</div>
               <div className="pe10-calc-formula">
-                <span>Market Cap</span>
+                <span>{t("modal.pl10_market_cap")}</span>
                 <span className="pe10-calc-formula-val">{formatLargeNumber(data.marketCap)}</span>
               </div>
               <div className="pe10-calc-formula">
-                <span>÷ Lucro líquido médio ajustado</span>
+                <span>÷ {t("modal.pl10_divided_by")}</span>
                 <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedNetIncome)}</span>
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
@@ -453,6 +417,7 @@ function PL10Info({ data }: { data: QuoteData }) {
 }
 
 function PFCL10Info({ data }: { data: QuoteData }) {
+  const { t } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
   const label = ptLabel(data.pfcf10Label);
   const hasCalc = data.pfcf10CalculationDetails.length > 0;
@@ -463,31 +428,23 @@ function PFCL10Info({ data }: { data: QuoteData }) {
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          O <strong>{label}</strong> é o preço/fluxo de caixa livre calculado
-          sobre a média do FCL real (ajustado pela inflação) dos últimos 10 anos.
-          FCL = fluxo de caixa operacional + fluxo de caixa de investimento.
-        </p>
-        <p>
-          Diferente do lucro contábil, o FCL mostra quanto dinheiro realmente
-          entrou no caixa — mais difícil de manipular. Compare o {label} com
-          o {ptLabel(data.pe10Label)} para ver se lucros se traduzem em caixa.
-        </p>
+        <p>{t("modal.pfcl10_explain", { label })}</p>
+        <p>{t("modal.pfcl10_compare", { pfclLabel: label, peLabel: ptLabel(data.pe10Label) })}</p>
       </div>
 
       {hasCalc && (
         <div className="pe10-calc-details">
-          <h4 className="pe10-calc-title">Como é feito o cálculo</h4>
+          <h4 className="pe10-calc-title">{t("modal.how_calculated")}</h4>
 
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">1. FCL anual e ajuste por inflação (IPCA)</div>
+            <div className="pe10-calc-section-title">{t("modal.pfcl10_step1")}</div>
             <table className="pe10-calc-table">
               <thead>
                 <tr>
-                  <th>Ano</th>
-                  <th>FCL Nominal</th>
-                  <th>Fator IPCA</th>
-                  <th>FCL Ajustado</th>
+                  <th>{t("modal.pl10_col_year")}</th>
+                  <th>{t("modal.pfcl10_col_fcf")}</th>
+                  <th>{t("modal.pl10_col_ipca_factor")}</th>
+                  <th>{t("modal.pfcl10_col_adjusted")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -512,9 +469,9 @@ function PFCL10Info({ data }: { data: QuoteData }) {
                       <tr key={q.end_date} className="pe10-calc-quarter-row">
                         <td className="pe10-calc-quarter-label">{formatQuarterLabel(q.end_date)}</td>
                         <td colSpan={4}>
-                          Operacional: {formatLargeNumber(q.operating_cash_flow)}
+                          {t("modal.quarterly_operating", { value: formatLargeNumber(q.operating_cash_flow) })}
                           {" · "}
-                          Investimento: {formatLargeNumber(q.investment_cash_flow)}
+                          {t("modal.quarterly_investing", { value: formatLargeNumber(q.investment_cash_flow) })}
                         </td>
                       </tr>
                     ))}
@@ -525,13 +482,13 @@ function PFCL10Info({ data }: { data: QuoteData }) {
           </div>
 
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">2. FCL médio ajustado</div>
+            <div className="pe10-calc-section-title">{t("modal.pfcl10_step2")}</div>
             <div className="pe10-calc-formula">
-              <span>Soma dos FCL ajustados</span>
+              <span>{t("modal.pfcl10_sum")}</span>
               <span className="pe10-calc-formula-val">{formatLargeNumber(total)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>÷ {data.pfcf10YearsOfData} anos</span>
+              <span>÷ {data.pfcf10YearsOfData} {t("common.year_plural")}</span>
               <span className="pe10-calc-formula-val">
                 = {data.avgAdjustedFCF !== null ? formatLargeNumber(data.avgAdjustedFCF) : "N/A"}
               </span>
@@ -540,13 +497,13 @@ function PFCL10Info({ data }: { data: QuoteData }) {
 
           {data.pfcf10 !== null && data.avgAdjustedFCF !== null && data.marketCap !== null && (
             <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">3. {label}</div>
+              <div className="pe10-calc-section-title">{t("modal.pl10_step3", { label })}</div>
               <div className="pe10-calc-formula">
-                <span>Market Cap</span>
+                <span>{t("modal.pl10_market_cap")}</span>
                 <span className="pe10-calc-formula-val">{formatLargeNumber(data.marketCap)}</span>
               </div>
               <div className="pe10-calc-formula">
-                <span>÷ FCL médio ajustado</span>
+                <span>÷ {t("modal.pfcl10_divided_by")}</span>
                 <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedFCF)}</span>
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
@@ -562,6 +519,7 @@ function PFCL10Info({ data }: { data: QuoteData }) {
 }
 
 function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fcf" }) {
+  const { t, locale } = useTranslation();
   const isEarnings = variant === "earnings";
   const label = isEarnings ? "PEG" : "PFCLG";
   const baseLabel = isEarnings ? ptLabel(data.pe10Label) : ptLabel(data.pfcf10Label);
@@ -570,39 +528,31 @@ function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fc
   const peg = isEarnings ? data.peg : data.pfcfPeg;
   const method = isEarnings ? data.earningsCAGRMethod : data.fcfCAGRMethod;
   const excludedYears = isEarnings ? data.earningsCAGRExcludedYears : data.fcfCAGRExcludedYears;
-  const metricName = isEarnings ? "lucros" : "fluxo de caixa livre";
+  const metricName = isEarnings
+    ? (locale === "pt" ? "lucros" : "earnings")
+    : (locale === "pt" ? "fluxo de caixa livre" : "free cash flow");
+  const cagrType = isEarnings ? t("modal.cagr_real_earnings") : t("modal.cagr_real_fcf");
 
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          O <strong>{label}</strong>, popularizado por Peter Lynch, relaciona o
-          múltiplo de {metricName} com o crescimento real da empresa:
-          {" "}<strong>{baseLabel}</strong> ÷ <strong>CAGR</strong> {isEarnings ? "dos lucros reais" : "do FCL real"}.
-        </p>
-        <p>
-          Abaixo de 1 sugere preço atrativo em relação ao crescimento. Acima de
-          1, o mercado pode estar pagando caro. Só é calculável quando o {baseLabel} é
-          positivo e houve crescimento no período.
-        </p>
+        <p>{t("modal.peg_explain", { label, metricName, baseLabel, cagrType })}</p>
+        <p>{t("modal.peg_below_one", { baseLabel })}</p>
         {!isEarnings && (
-          <p>
-            O PFCLG complementa o PEG: usa fluxo de caixa livre em vez de lucro
-            contábil — mais difícil de manipular.
-          </p>
+          <p>{t("modal.pfclg_complement")}</p>
         )}
       </div>
 
       {peg !== null && baseValue !== null && cagr !== null && (
         <div className="pe10-calc-details">
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Cálculo</div>
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{baseLabel}</span>
               <span className="pe10-calc-formula-val">{br(baseValue, 2)}</span>
             </div>
             <div className="pe10-calc-formula">
-              <span>CAGR {isEarnings ? "lucros reais" : "FCL real"}{method === "regression" ? " (regressão)" : ""}</span>
+              <span>CAGR {isEarnings ? t("modal.cagr_real_earnings") : t("modal.cagr_real_fcf")}{method === "regression" ? ` (${locale === "pt" ? "regressão" : "regression"})` : ""}</span>
               <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
@@ -612,11 +562,9 @@ function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fc
           </div>
           {method === "regression" && excludedYears.length > 0 && (
             <div className="pe10-calc-section">
-              <div className="pe10-calc-section-title">Nota</div>
+              <div className="pe10-calc-section-title">{t("modal.note")}</div>
               <p className="modal-note">
-                Anos com {isEarnings ? "lucro" : "FCL"} negativo/zero ({excludedYears.join(", ")}) foram
-                excluídos. O CAGR foi estimado por regressão log-linear sobre os
-                demais anos — método mais robusto que o cálculo ponto a ponto.
+                {t("modal.peg_excluded_note", { metric: isEarnings ? (locale === "pt" ? "lucro" : "earnings") : "FCL", years: excludedYears.join(", ") })}
               </p>
             </div>
           )}
@@ -627,48 +575,37 @@ function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fc
 }
 
 function CAGRInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fcf" }) {
+  const { t, locale } = useTranslation();
   const isEarnings = variant === "earnings";
   const method = isEarnings ? data.earningsCAGRMethod : data.fcfCAGRMethod;
   const excludedYears = isEarnings ? data.earningsCAGRExcludedYears : data.fcfCAGRExcludedYears;
   const cagr = isEarnings ? data.earningsCAGR : data.fcfCAGR;
+  const metricType = isEarnings
+    ? (locale === "pt" ? "dos lucros líquidos" : "of net earnings")
+    : (locale === "pt" ? "do fluxo de caixa livre" : "of free cash flow");
+  const metric = isEarnings ? (locale === "pt" ? "lucro" : "earnings") : "FCL";
+  const metricPlural = isEarnings ? (locale === "pt" ? "os lucros" : "earnings") : (locale === "pt" ? "o FCL" : "FCF");
 
   return (
     <>
       <div className="modal-explainer">
-        <p>
-          <strong>CAGR</strong> (taxa de crescimento anual composta) mede o
-          crescimento real {isEarnings ? "dos lucros líquidos" : "do fluxo de caixa livre"} ao
-          longo do período disponível, ajustado pela inflação (IPCA).
-        </p>
+        <p>{t("modal.cagr_explain", { metricType })}</p>
         {method === "endpoint" && (
-          <p>
-            O cálculo compara o {isEarnings ? "lucro" : "FCL"} ajustado do ano mais
-            antigo com o mais recente: CAGR = (valor final / valor inicial)^(1/n) − 1.
-            Valores negativos indicam que {isEarnings ? "os lucros" : "o FCL"} encolheram
-            em termos reais.
-          </p>
+          <p>{t("modal.cagr_endpoint", { metric, metricPlural })}</p>
         )}
         {method === "regression" && (
-          <p>
-            Como houve anos com {isEarnings ? "lucro" : "FCL"} negativo ou zero
-            ({excludedYears.join(", ")}), o CAGR foi estimado por <strong>regressão
-            log-linear</strong> sobre os anos positivos — método mais robusto que usa
-            todos os dados disponíveis em vez de depender apenas dos pontos extremos.
-          </p>
+          <p>{t("modal.cagr_regression", { metric, years: excludedYears.join(", ") })}</p>
         )}
         {method === null && (
-          <p>
-            O cálculo compara o {isEarnings ? "lucro" : "FCL"} ajustado do ano mais
-            antigo com o mais recente: CAGR = (valor final / valor inicial)^(1/n) − 1.
-          </p>
+          <p>{t("modal.cagr_default", { metric })}</p>
         )}
       </div>
       {cagr !== null && (
         <div className="pe10-calc-details">
           <div className="pe10-calc-section">
-            <div className="pe10-calc-section-title">Resultado</div>
+            <div className="pe10-calc-section-title">{t("modal.cagr_result")}</div>
             <div className="pe10-calc-formula">
-              <span>CAGR {isEarnings ? "lucros reais" : "FCL real"}{method === "regression" ? " (regressão)" : ""}</span>
+              <span>CAGR {isEarnings ? t("modal.cagr_real_earnings") : t("modal.cagr_real_fcf")}{method === "regression" ? ` (${locale === "pt" ? "regressão" : "regression"})` : ""}</span>
               <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
             </div>
           </div>
@@ -697,51 +634,51 @@ function ModalContent({ modalKey, data }: { modalKey: ModalKey; data: QuoteData 
   }
 }
 
-const MODAL_TITLES: Record<string, (data: QuoteData) => string> = {
-  debtToEquity: () => "Dív. Bruta / PL",
-  debtExLease: () => "Dív - Arrend. / PL",
-  liabToEquity: () => "Passivo / PL",
-  debtToEarnings: () => "Dív. Bruta / Lucro Médio",
-  debtToFCF: () => "Dív. Bruta / FCL Médio",
+const MODAL_TITLES: Record<string, (data: QuoteData, t: (key: TranslationKey, params?: Record<string, string | number>) => string) => string> = {
+  debtToEquity: (_d, t) => t("modal.title.debt_equity"),
+  debtExLease: (_d, t) => t("modal.title.debt_ex_lease"),
+  liabToEquity: (_d, t) => t("modal.title.liab_equity"),
+  debtToEarnings: (_d, t) => t("modal.title.debt_earnings"),
+  debtToFCF: (_d, t) => t("modal.title.debt_fcf"),
   pl10: (d) => ptLabel(d.pe10Label),
-  peg: () => "PEG",
-  cagrEarnings: () => "CAGR Lucros",
+  peg: (_d, t) => t("modal.title.peg"),
+  cagrEarnings: (_d, t) => t("modal.title.cagr_earnings"),
   pfcl10: (d) => ptLabel(d.pfcf10Label),
-  pfclg: () => "PFCLG",
-  cagrFCF: () => "CAGR FCL",
+  pfclg: (_d, t) => t("modal.title.pfclg"),
+  cagrFCF: (_d, t) => t("modal.title.cagr_fcf"),
 };
 
 /* ── Main Card ── */
 
 export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector }: CompanyMetricsCardProps) {
+  const { t, pluralize } = useTranslation();
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
   const open = (key: ModalKey) => setActiveModal(key);
   const isFinancial = sector ? FINANCIAL_SECTORS.has(sector) : false;
+  const moreInfo = t("metrics.more_info");
 
   return (
-    <article className="pe10-card" aria-label={`Indicadores de ${data.name} (${data.ticker})`}>
+    <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
       {/* ── Section: Dívida ── */}
       {isFinancial ? (
         <div className="card-section">
-          <div className="card-section-heading">Endividamento</div>
+          <div className="card-section-heading">{t("metrics.debt_section")}</div>
           <p className="card-financial-note">
-            Indicadores de endividamento tradicionais (Dívida/PL, Passivo/PL etc.) não se aplicam
-            a instituições financeiras, pois captações e depósitos compõem o passivo por natureza
-            do negócio, não por alavancagem excessiva.
+            {t("metrics.financial_note")}
           </p>
         </div>
       ) : (
       <div className="card-section">
-        <div className="card-section-heading">Endividamento</div>
+        <div className="card-section-heading">{t("metrics.debt_section")}</div>
 
         {/* All 5 leverage indicators in one row */}
         <div className="metrics-row leverage-row-5col">
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">Dív. Bruta / PL <InfoBtn onClick={() => open("debtToEquity")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} /></div>
               {data.debtToEquity !== null ? (
                 <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
               ) : (
@@ -752,14 +689,14 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           {data.debtExLeaseToEquity !== null && (
             <div className="metric-block">
               <div className="metric-value-container">
-                <div className="pe10-label">Dív - Arrend. / PL <InfoBtn onClick={() => open("debtExLease")} /></div>
+                <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /></div>
                 <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
               </div>
             </div>
           )}
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">Passivo / PL <InfoBtn onClick={() => open("liabToEquity")} /></div>
+              <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} /></div>
               {data.liabilitiesToEquity !== null ? (
                 <div className="pe10-value">{br(data.liabilitiesToEquity, 2)}</div>
               ) : (
@@ -769,7 +706,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">Dív. Bruta / Lucro <span className="pe10-label-note">média {data.pe10YearsOfData}a</span> <InfoBtn onClick={() => open("debtToEarnings")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
               {data.debtToAvgEarnings !== null ? (
                 <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
               ) : (
@@ -779,7 +716,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">Dív. Bruta / FCL <span className="pe10-label-note">média {data.pfcf10YearsOfData}a</span> <InfoBtn onClick={() => open("debtToFCF")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
               {data.debtToAvgFCF !== null ? (
                 <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
               ) : (
@@ -793,13 +730,13 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
       {/* ── Section: Preço em relação a resultados ── */}
       <div className="card-section">
-        <div className="card-section-heading">Preço em relação a {years} {years === 1 ? "ano" : "anos"} de resultados</div>
+        <div className="card-section-heading">{t("metrics.price_vs_results", { years: years, yearLabel: pluralize(years, "common.year_singular", "common.year_plural") })}</div>
 
         {/* All 6 valuation indicators in one row */}
         <div className="metrics-row valuation-row-6col">
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">{pl10Label} <InfoBtn onClick={() => open("pl10")} /></div>
+              <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} /></div>
               {data.pe10 !== null ? (
                 <div className="pe10-value">{br(data.pe10, 1)}</div>
               ) : (
@@ -809,7 +746,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">PEG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("peg")} /></div>
+              <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} /></div>
               {data.peg !== null ? (
                 <div className="pe10-value">{br(data.peg, 2)}</div>
               ) : (
@@ -819,7 +756,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">CAGR Lucros <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrEarnings")} /></div>
+              <div className="pe10-label">{t("metrics.cagr_earnings")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrEarnings")} /></div>
               {data.earningsCAGR !== null ? (
                 <div className="pe10-value">{br(data.earningsCAGR, 1)}%</div>
               ) : (
@@ -829,7 +766,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">{pfcl10Label} <InfoBtn onClick={() => open("pfcl10")} /></div>
+              <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} /></div>
               {data.pfcf10 !== null ? (
                 <div className="pe10-value">{br(data.pfcf10, 1)}</div>
               ) : (
@@ -839,7 +776,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">PFCLG <span className="pe10-label-note">Lynch</span> <InfoBtn onClick={() => open("pfclg")} /></div>
+              <div className="pe10-label">PFCLG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
               {data.pfcfPeg !== null ? (
                 <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
               ) : (
@@ -849,7 +786,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">CAGR FCL <span className="pe10-label-note">real</span> <InfoBtn onClick={() => open("cagrFCF")} /></div>
+              <div className="pe10-label">{t("metrics.cagr_fcf")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrFCF")} /></div>
               {data.fcfCAGR !== null ? (
                 <div className="pe10-value">{br(data.fcfCAGR, 1)}%</div>
               ) : (
@@ -877,9 +814,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               <span className="years-slider-bound">{maxYears}</span>
             </div>
             <p className="years-slider-caption">
-              Analisando os últimos <strong>{years} {years === 1 ? "ano" : "anos"}</strong> de resultados.
-              Arraste para alterar o horizonte e ver como os indicadores de
-              valuation mudam conforme o período considerado.
+              {t("metrics.slider_caption")} <strong>{years} {pluralize(years, "common.year_singular", "common.year_plural")}</strong> {t("metrics.slider_drag_hint")}
             </p>
           </div>
         )}
@@ -887,26 +822,25 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (
         <div className="pe10-warning">
-          Atenção: usando demonstrações anuais. Dados trimestrais
-          indisponíveis para este ticker.
+          {t("metrics.annual_warning")}
         </div>
       )}
 
       <div className="pe10-details">
         <div className="pe10-detail-item">
-          <div className="pe10-detail-label">Preço Atual</div>
+          <div className="pe10-detail-label">{t("metrics.current_price")}</div>
           <div className="pe10-detail-value">
             R$ {br(data.currentPrice, 2)}
           </div>
         </div>
         <div className="pe10-detail-item">
-          <div className="pe10-detail-label">Market Cap</div>
+          <div className="pe10-detail-label">{t("metrics.market_cap")}</div>
           <div className="pe10-detail-value">
             {data.marketCap !== null ? formatLargeNumber(data.marketCap) : "N/A"}
           </div>
         </div>
         <div className="pe10-detail-item">
-          <div className="pe10-detail-label">Anos de Dados</div>
+          <div className="pe10-detail-label">{t("metrics.years_of_data")}</div>
           <div className="pe10-detail-value">
             {data.pe10YearsOfData === data.pfcf10YearsOfData
               ? data.pe10YearsOfData
@@ -917,7 +851,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
       {activeModal && (
         <Modal
-          title={`${MODAL_TITLES[activeModal]?.(data) ?? ""} — ${data.name}`}
+          title={`${MODAL_TITLES[activeModal]?.(data, t) ?? ""} — ${data.name}`}
           onClose={() => setActiveModal(null)}
         >
           <ModalContent modalKey={activeModal} data={data} />

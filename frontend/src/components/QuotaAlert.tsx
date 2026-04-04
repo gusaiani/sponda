@@ -1,7 +1,9 @@
 import { useQuota } from "../hooks/useQuota";
+import { useTranslation } from "../i18n";
 import "../styles/auth.css";
 
 export function QuotaAlert() {
+  const { t, locale } = useTranslation();
   const { data } = useQuota();
 
   if (!data || data.remaining > 0) return null;
@@ -9,11 +11,11 @@ export function QuotaAlert() {
   return (
     <div className="quota-alert">
       <p className="quota-alert-text">
-        Você atingiu o limite de {data.limit} consultas diárias.{" "}
+        {t("quota.limit_reached")} {data.limit} {locale === "pt" ? "consultas diárias" : "daily queries"}.{" "}
         <a href="/signup" className="quota-alert-link">
-          Crie uma conta
+          {t("quota.create_account")}
         </a>{" "}
-        para continuar.
+        {t("quota.to_continue")}
       </p>
     </div>
   );

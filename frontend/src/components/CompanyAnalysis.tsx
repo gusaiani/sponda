@@ -2,24 +2,26 @@
 
 import { useState } from "react";
 import { useCompanyAnalysis, type AnalysisVersion } from "../hooks/useCompanyAnalysis";
+import { useTranslation } from "../i18n";
 import "../styles/analysis.css";
 
 interface CompanyAnalysisProps {
   ticker: string;
 }
 
-function formatDate(isoDate: string): string {
+function formatDate(isoDate: string, dateLocale: string): string {
   const date = new Date(isoDate);
-  return date.toLocaleDateString("pt-BR", {
+  return date.toLocaleDateString(dateLocale === "pt" ? "pt-BR" : "en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
 }
 
-function formatQuarter(dataQuarter: string): string {
+function formatQuarter(dataQuarter: string, dateLocale: string): string {
   const [year, quarter] = dataQuarter.split("-");
-  return `${quarter.replace("Q", "")}T ${year}`;
+  const qNum = quarter.replace("Q", "");
+  return dateLocale === "pt" ? `${qNum}T ${year}` : `Q${qNum} ${year}`;
 }
 
 function renderContent(content: string): string {
@@ -56,11 +58,13 @@ function VersionSelector({
   currentId: number;
   onSelect: (version: AnalysisVersion) => void;
 }) {
+  const { t, locale } = useTranslation();
+
   if (versions.length <= 1) return null;
 
   return (
     <div className="analysis-versions">
-      <label className="analysis-versions-label">Versões anteriores</label>
+      <label className="analysis-versions-label">{t("analysis.previous_versions")}</label>
       <select
         className="analysis-versions-select"
         value={currentId}
@@ -73,7 +77,7 @@ function VersionSelector({
       >
         {versions.map((version) => (
           <option key={version.id} value={version.id}>
-            {formatQuarter(version.dataQuarter)} · {formatDate(version.generatedAt)}
+            {formatQuarter(version.dataQuarter, locale)} · {formatDate(version.generatedAt, locale)}
           </option>
         ))}
       </select>
@@ -82,6 +86,7 @@ function VersionSelector({
 }
 
 export function CompanyAnalysis({ ticker }: CompanyAnalysisProps) {
+  const { t, locale } = useTranslation();
   const { data, isLoading, error } = useCompanyAnalysis(ticker, true);
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
 
@@ -98,9 +103,9 @@ export function CompanyAnalysis({ ticker }: CompanyAnalysisProps) {
               <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
               <path d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
             </svg>
-            Análise de longo prazo
+            {t("analysis.long_term")}
           </div>
-          <span className="analysis-quarter">{formatQuarter(data.dataQuarter)}</span>
+          <span className="analysis-quarter">{formatQuarter(data.dataQuarter, locale)}</span>
         </div>
 
         <div
@@ -110,7 +115,7 @@ export function CompanyAnalysis({ ticker }: CompanyAnalysisProps) {
 
         <div className="analysis-footer">
           <div className="analysis-attribution">
-            Análise por Claude · Dados: BRAPI · {formatDate(data.generatedAt)}
+            {t("analysis.attribution", { date: formatDate(data.generatedAt, locale) })}
           </div>
           <VersionSelector
             versions={data.versions}

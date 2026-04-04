@@ -1,4 +1,5 @@
 import { useState, FormEvent } from "react";
+import { useTranslation } from "../i18n";
 import "../styles/feedback.css";
 
 const MATH_A = 3;
@@ -6,6 +7,7 @@ const MATH_B = 4;
 const EXPECTED_ANSWER = MATH_A + MATH_B;
 
 export function FeedbackButton() {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
@@ -20,7 +22,7 @@ export function FeedbackButton() {
 
     const answer = parseInt(humanCheck, 10);
     if (isNaN(answer) || answer !== EXPECTED_ANSWER) {
-      setError("Resposta incorreta. Tente novamente.");
+      setError(t("feedback.wrong_answer"));
       return;
     }
 
@@ -39,13 +41,13 @@ export function FeedbackButton() {
 
       if (!response.ok) {
         const data = await response.json();
-        setError(data.error || "Erro ao enviar feedback");
+        setError(data.error || t("feedback.send_error"));
         return;
       }
 
       setSuccess(true);
     } catch {
-      setError("Erro de conexão. Tente novamente.");
+      setError(t("auth.connection_error"));
     } finally {
       setLoading(false);
     }
@@ -65,38 +67,38 @@ export function FeedbackButton() {
       <button
         className="feedback-trigger"
         onClick={() => setIsOpen(true)}
-        aria-label="Enviar feedback"
+        aria-label={t("feedback.trigger")}
       >
-        Feedback
+        {t("feedback.trigger")}
       </button>
 
       {isOpen && (
         <div className="feedback-overlay" onClick={handleClose}>
           <div className="feedback-panel" onClick={(event) => event.stopPropagation()}>
-            <button className="feedback-close" onClick={handleClose} aria-label="Fechar">
+            <button className="feedback-close" onClick={handleClose} aria-label={t("common.close")}>
               ×
             </button>
 
             {success ? (
               <div className="feedback-success">
-                <h2 className="feedback-title">Obrigado!</h2>
+                <h2 className="feedback-title">{t("feedback.thanks")}</h2>
                 <p className="feedback-text">
-                  Seu feedback foi enviado. Agradecemos sua contribuição.
+                  {t("feedback.thanks_text")}
                 </p>
                 <button className="auth-button" onClick={handleClose}>
-                  Fechar
+                  {t("common.close")}
                 </button>
               </div>
             ) : (
               <>
-                <h2 className="feedback-title">Enviar Feedback</h2>
+                <h2 className="feedback-title">{t("feedback.title")}</h2>
                 <p className="feedback-text">
-                  Sua opinião é importante para melhorarmos a Sponda.
+                  {t("feedback.subtitle")}
                 </p>
                 <form className="auth-form" onSubmit={handleSubmit}>
                   <div>
                     <label className="auth-label" htmlFor="feedback-email">
-                      Seu email
+                      {t("feedback.email_label")}
                     </label>
                     <input
                       id="feedback-email"
@@ -109,7 +111,7 @@ export function FeedbackButton() {
                   </div>
                   <div>
                     <label className="auth-label" htmlFor="feedback-message">
-                      Mensagem
+                      {t("feedback.message_label")}
                     </label>
                     <textarea
                       id="feedback-message"
@@ -117,12 +119,12 @@ export function FeedbackButton() {
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
                       required
-                      placeholder="O que você gostaria de compartilhar?"
+                      placeholder={t("feedback.message_placeholder")}
                     />
                   </div>
                   <div>
                     <label className="auth-label" htmlFor="feedback-human">
-                      Quanto é {MATH_A} + {MATH_B}?
+                      {t("feedback.math_question")} {MATH_A} + {MATH_B}?
                     </label>
                     <input
                       id="feedback-human"
@@ -136,7 +138,7 @@ export function FeedbackButton() {
                   </div>
                   {error && <p className="auth-error">{error}</p>}
                   <button type="submit" className="auth-button" disabled={loading}>
-                    {loading ? "Enviando…" : "Enviar"}
+                    {loading ? t("feedback.sending") : t("feedback.send")}
                   </button>
                 </form>
               </>

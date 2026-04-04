@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslation } from "../i18n";
 
 interface ShareButtonsProps {
   ticker?: string;
@@ -7,13 +8,14 @@ interface ShareButtonsProps {
 }
 
 export function ShareButtons({ ticker, companyName }: ShareButtonsProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const pathname = usePathname();
 
   const url = `https://sponda.capital${pathname}`;
   const text = ticker
-    ? `${companyName || ticker} · indicadores de valor no Sponda`
-    : "Sponda · indicadores de empresas brasileiras para investidores em valor";
+    ? t("share.text_with_ticker", { name: companyName || ticker })
+    : t("share.text_without_ticker");
 
   const encodedUrl = encodeURIComponent(url);
   const encodedText = encodeURIComponent(text);
@@ -26,7 +28,7 @@ export function ShareButtons({ ticker, companyName }: ShareButtonsProps) {
 
   return (
     <div className="share-container">
-      <div className="share-label">Compartilhe</div>
+      <div className="share-label">{t("share.label")}</div>
       <div className="share-buttons">
         <a
           className="share-btn"
@@ -90,7 +92,7 @@ export function ShareButtons({ ticker, companyName }: ShareButtonsProps) {
         <button
           className="share-btn"
           onClick={copyLink}
-          title={copied ? "Copiado!" : "Copiar link"}
+          title={copied ? t("share.copied") : t("share.copy_link")}
         >
           {copied ? (
             <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" className="share-icon">

@@ -6,6 +6,7 @@ import { useSavedLists } from "../hooks/useSavedLists";
 import { useAuth } from "../hooks/useAuth";
 import { useFavorites } from "../hooks/useFavorites";
 import { useDragGhost } from "../hooks/useDragGhost";
+import { useTranslation } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br } from "../utils/format";
@@ -83,6 +84,7 @@ interface Props {
 }
 
 export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extraTickers, onExtraTickersChange, savedListId }: Props) {
+  const { t, pluralize, locale } = useTranslation();
   const allTickers = [currentTicker, ...extraTickers];
   const entries = useCompareData(allTickers, years);
   const columns = getColumns(years);
@@ -193,15 +195,15 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
             <tr className="compare-group-row">
               <th className="compare-drag-col" />
               <th className="compare-sticky-col" />
-              <th colSpan={DEBT_COUNT}>Endividamento</th>
-              <th colSpan={RENT_COUNT}>Rentabilidade</th>
-              <th colSpan={VAL_COUNT}>Preço vs. Resultados</th>
+              <th colSpan={DEBT_COUNT}>{t("compare.debt_group")}</th>
+              <th colSpan={RENT_COUNT}>{t("compare.profitability_group")}</th>
+              <th colSpan={VAL_COUNT}>{t("compare.valuation_group")}</th>
               <th />
             </tr>
             {/* Column headers */}
             <tr>
               <th className="compare-drag-col" />
-              <th className="compare-sticky-col">Empresa</th>
+              <th className="compare-sticky-col">{t("compare.company")}</th>
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -230,7 +232,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                 stopGhost={stopGhost}
                 isAuthenticated={isAuthenticated}
                 onRequireAuth={() => {
-                  setAuthModalMessage("Para reordenar as empresas, entre ou crie uma conta gratuita.");
+                  setAuthModalMessage(t("compare.auth_reorder"));
                   setShowAuthModal(true);
                 }}
               />
@@ -266,7 +268,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
             <span className="years-slider-bound">{maxYears}</span>
           </div>
           <p className="years-slider-caption">
-            Analisando os últimos <strong>{years} {years === 1 ? "ano" : "anos"}</strong>
+            {t("compare.analyzing_last")} <strong>{years} {pluralize(years, "common.year_singular", "common.year_plural")}</strong>
           </p>
         </div>
       </div>
@@ -282,22 +284,22 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                 setShowRenameForm(true);
               }}
             >
-              Renomear
+              {t("compare.rename")}
             </button>
             <button
               className="compare-save-floating"
               onClick={() => {
-                setSaveName(existingList.name + " (cópia)");
+                setSaveName(existingList.name + (locale === "pt" ? " (cópia)" : " (copy)"));
                 setShowSaveForm(true);
               }}
             >
-              Duplicar
+              {t("compare.duplicate")}
             </button>
             <button
               className="compare-save-floating compare-save-floating-danger"
               onClick={() => setShowDeleteConfirm(true)}
             >
-              Apagar
+              {t("common.delete")}
             </button>
           </div>
         ) : (
@@ -312,7 +314,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                 setShowSaveForm(true);
               }}
             >
-              Salvar lista
+              {t("compare.save_list")}
             </button>
           </div>
         )
@@ -322,7 +324,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
       {showRenameForm && existingList && (
         <div className="compare-save-overlay" onClick={() => setShowRenameForm(false)}>
           <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
-            <h3 className="compare-save-modal-title">Renomear lista</h3>
+            <h3 className="compare-save-modal-title">{t("compare.rename_list")}</h3>
             <form onSubmit={(event) => {
               event.preventDefault();
               if (!renameName.trim()) return;
@@ -334,17 +336,17 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
               <input
                 type="text"
                 className="auth-input"
-                placeholder="Novo nome"
+                placeholder={t("compare.new_name")}
                 value={renameName}
                 onChange={(event) => setRenameName(event.target.value)}
                 autoFocus
               />
               <div className="compare-save-modal-actions">
                 <button type="submit" className="auth-button" disabled={!renameName.trim()}>
-                  Renomear
+                  {t("compare.rename")}
                 </button>
                 <button type="button" className="auth-button-secondary" onClick={() => setShowRenameForm(false)}>
-                  Cancelar
+                  {t("common.cancel")}
                 </button>
               </div>
             </form>
@@ -356,9 +358,9 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
       {showDeleteConfirm && existingList && (
         <div className="compare-save-overlay" onClick={() => setShowDeleteConfirm(false)}>
           <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
-            <h3 className="compare-save-modal-title">Apagar lista</h3>
+            <h3 className="compare-save-modal-title">{t("compare.delete_list")}</h3>
             <p className="compare-save-modal-detail">
-              Tem certeza que deseja apagar "{existingList.name}"?
+              {t("compare.delete_confirm")} "{existingList.name}"?
             </p>
             <div className="compare-save-modal-actions">
               <button
@@ -368,13 +370,13 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                   setShowDeleteConfirm(false);
                 }}
               >
-                Apagar
+                {t("common.delete")}
               </button>
               <button
                 className="auth-button-secondary"
                 onClick={() => setShowDeleteConfirm(false)}
               >
-                Cancelar
+                {t("common.cancel")}
               </button>
             </div>
           </div>
@@ -386,10 +388,10 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
         <div className="compare-save-overlay" onClick={() => setShowSaveForm(false)}>
           <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
             <h3 className="compare-save-modal-title">
-              {existingList ? "Duplicar lista" : "Salvar lista"}
+              {existingList ? t("compare.duplicate_list") : t("compare.save_list")}
             </h3>
             <p className="compare-save-modal-detail">
-              {allTickers.length} empresas · {years} {years === 1 ? "ano" : "anos"}
+              {allTickers.length} {t("common.companies")} · {years} {pluralize(years, "common.year_singular", "common.year_plural")}
             </p>
             <form onSubmit={(event) => {
                 event.preventDefault();
@@ -410,7 +412,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                 <input
                   type="text"
                   className="auth-input"
-                  placeholder="Nome da lista"
+                  placeholder={t("compare.list_name")}
                   value={saveName}
                   onChange={(event) => setSaveName(event.target.value)}
                   autoFocus
@@ -421,14 +423,14 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                     className="auth-button"
                     disabled={!saveName.trim()}
                   >
-                    Salvar
+                    {t("common.save")}
                   </button>
                   <button
                     type="button"
                     className="auth-button-secondary"
                     onClick={() => setShowSaveForm(false)}
                   >
-                    Cancelar
+                    {t("common.cancel")}
                   </button>
                 </div>
               </form>
@@ -489,6 +491,7 @@ function CompareRow({
   isAuthenticated: boolean;
   onRequireAuth: () => void;
 }) {
+  const { t } = useTranslation();
   const { ticker, data, isLoading, error } = entry;
 
   function handleDragStart(e: React.DragEvent) {
@@ -600,7 +603,7 @@ function CompareRow({
         </td>
         <td colSpan={columns.length}>
           <span className="compare-error-cell">
-            {error?.message ?? "Dados indisponíveis"}
+            {error?.message ?? t("compare.data_unavailable")}
           </span>
         </td>
         <td>

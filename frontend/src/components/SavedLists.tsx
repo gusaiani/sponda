@@ -2,12 +2,14 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useTickers, TickerItem } from "../hooks/useTickers";
+import { useTranslation } from "../i18n";
 import "../styles/saved-lists.css";
 
 const MAX_LOGOS = 5;
 const MAX_DISPLAYED_ON_HOME = 3;
 
 export function SavedLists() {
+  const { t } = useTranslation();
   const { lists, isLoading } = useSavedLists();
   const { data: allTickers = [] } = useTickers();
 
@@ -24,7 +26,7 @@ export function SavedLists() {
 
   return (
     <div className="saved-lists">
-      <p className="saved-lists-title">Suas listas</p>
+      <p className="saved-lists-title">{t("lists.your_lists")}</p>
       <div className="saved-lists-list">
         {displayedLists.map((list) => (
           <SavedListCard key={list.id} list={list} tickerMap={tickerMap} />
@@ -33,7 +35,7 @@ export function SavedLists() {
       {hasMoreLists && (
         <p className="saved-lists-see-all">
           <Link href="/listas" className="saved-lists-see-all-link">
-            Ver todas as listas
+            {t("lists.see_all")}
           </Link>
         </p>
       )}
@@ -47,6 +49,7 @@ interface SavedListCardProps {
 }
 
 export function SavedListCard({ list, tickerMap }: SavedListCardProps) {
+  const { t, pluralize } = useTranslation();
   const firstTicker = list.tickers[0];
   const compareUrl = `/${firstTicker}/comparar?listId=${list.id}`;
   const displayedTickers = list.tickers.slice(0, MAX_LOGOS);
@@ -80,13 +83,13 @@ export function SavedListCard({ list, tickerMap }: SavedListCardProps) {
           })}
           {remainingCount > 0 && (
             <span className="saved-list-more">
-              e mais {remainingCount}
+              {t("lists.and_more", { count: remainingCount })}
             </span>
           )}
         </div>
       </div>
       <span className="saved-list-detail">
-        Prazo: {list.years} {list.years === 1 ? "ano" : "anos"}
+        {t("lists.term", { years: list.years, yearLabel: pluralize(list.years, "common.year_singular", "common.year_plural") })}
       </span>
     </a>
   );
