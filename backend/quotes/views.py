@@ -159,9 +159,17 @@ class TickerListView(APIView):
 
 
 class TickerSearchView(APIView):
-    """Fast server-side ticker search. Returns up to 8 matches."""
+    """Fast server-side ticker search. Returns up to 8 matches.
+
+    Always blends symbol prefix matches with name matches so that
+    popular companies surface even when many obscure tickers share
+    the same prefix (e.g. typing "mic" shows Microsoft alongside
+    MIC, MICC, etc.).
+    """
 
     SEARCH_LIMIT = 8
+    MAX_SYMBOL_MATCHES = 5
+    MIN_NAME_SLOTS = 3
 
     def get(self, request):
         query = (request.query_params.get("q") or "").strip()
@@ -169,35 +177,40 @@ class TickerSearchView(APIView):
             return Response([])
 
         query_upper = query.upper()
-
         market_cap_ordering = F("market_cap").desc(nulls_last=True)
+        exclude_fractional = r"^[A-Z]+\d+F$"
 
-        # Exact symbol prefix match first (fast, most useful)
-        prefix_matches = (
+        fields = ("symbol", "name", "display_name", "sector", "type", "logo", "market_cap")
+
+        # Symbol prefix matches (capped to leave room for name matches)
+        symbol_matches = list(
             Ticker.objects.filter(type="stock", symbol__istartswith=query_upper)
-            .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+            .exclude(symbol__regex=exclude_fractional)
             .order_by(market_cap_ordering)
-            .values("symbol", "name", "display_name", "sector", "type", "logo")
-            [:self.SEARCH_LIMIT]
+            .values(*fields)
+            [:self.MAX_SYMBOL_MATCHES]
         )
-        results = list(prefix_matches)
 
-        # Fill remaining slots with name search
-        if len(results) < self.SEARCH_LIMIT:
-            found_symbols = {r["symbol"] for r in results}
-            remaining = self.SEARCH_LIMIT - len(results)
-            name_matches = (
-                Ticker.objects.filter(type="stock", display_name__icontains=query)
-                .exclude(symbol__in=found_symbols)
-                .exclude(symbol__regex=r"^[A-Z]+\d+F$")
-                .order_by(market_cap_ordering)
-                .values("symbol", "name", "display_name", "sector", "type", "logo")
-                [:remaining]
-            )
-            results.extend(name_matches)
+        # Name matches (always fetched to blend in popular companies)
+        found_symbols = {r["symbol"] for r in symbol_matches}
+        name_slots = max(self.MIN_NAME_SLOTS, self.SEARCH_LIMIT - len(symbol_matches))
+        name_matches = list(
+            Ticker.objects.filter(type="stock", display_name__icontains=query)
+            .exclude(symbol__in=found_symbols)
+            .exclude(symbol__regex=exclude_fractional)
+            .order_by(market_cap_ordering)
+            .values(*fields)
+            [:name_slots]
+        )
+
+        # Merge and sort: all results together, ranked by market cap
+        results = symbol_matches + name_matches
+        results.sort(key=lambda r: (r["market_cap"] is None, -(r["market_cap"] or 0)))
+        results = results[:self.SEARCH_LIMIT]
 
         for ticker in results:
             ticker["name"] = ticker.pop("display_name") or ticker["name"]
+            del ticker["market_cap"]
 
         response = Response(results)
         response["Cache-Control"] = "public, max-age=60"
