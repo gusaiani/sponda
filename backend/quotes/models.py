@@ -139,6 +139,9 @@ class CompanyAnalysis(models.Model):
     class Meta:
         ordering = ["-generated_at"]
         verbose_name_plural = "company analyses"
+        indexes = [
+            models.Index(fields=["ticker", "-generated_at"]),
+        ]
 
     def __str__(self):
         return f"{self.ticker} — {self.data_quarter}"
@@ -154,6 +157,10 @@ class LookupLog(models.Model):
 
     class Meta:
         ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["user", "timestamp"]),
+            models.Index(fields=["session_key", "timestamp"]),
+        ]
 
     def __str__(self):
         return f"{self.session_key or self.user} → {self.ticker} @ {self.timestamp}"

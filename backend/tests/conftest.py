@@ -2,8 +2,17 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from django.core.cache import cache
 
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    """Clear Django cache before each test to prevent cross-test pollution."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 @pytest.fixture(scope="session")

@@ -24,3 +24,10 @@ SITE_BASE_URL = "http://localhost:5174"
 # Google OAuth
 GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")  # noqa: F405
 GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")  # noqa: F405
+
+# Use in-memory cache for local dev (no Redis required)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}

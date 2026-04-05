@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import type { TickerItem } from "./useTickers";
 
-const DEBOUNCE_MS = 200;
+const DEBOUNCE_MS = 300;
 
 async function searchTickers(query: string): Promise<TickerItem[]> {
   const response = await fetch(`/api/tickers/search/?q=${encodeURIComponent(query)}`, {

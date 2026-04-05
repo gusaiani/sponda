@@ -4,11 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../../components/CompanyMetricsCard";
 import { MultiplesChart, MultiplesChartLoading } from "../../components/MultiplesChart";
-import { CompareTab } from "../../components/CompareTab";
-import { FundamentalsTab } from "../../components/FundamentalsTab";
-import { CompanyAnalysis } from "../../components/CompanyAnalysis";
+
+const CompareTab = dynamic(
+  () => import("../../components/CompareTab").then((mod) => mod.CompareTab),
+  { ssr: false }
+);
+const FundamentalsTab = dynamic(
+  () => import("../../components/FundamentalsTab").then((mod) => mod.FundamentalsTab),
+  { ssr: false }
+);
+const CompanyAnalysis = dynamic(
+  () => import("../../components/CompanyAnalysis").then((mod) => mod.CompanyAnalysis),
+  { ssr: false }
+);
 import { FavoriteButton } from "../../components/FavoriteButton";
 import { ShareButtons } from "../../components/ShareButtons";
 import { usePE10, fetchQuote, type QuoteResult } from "../../hooks/usePE10";

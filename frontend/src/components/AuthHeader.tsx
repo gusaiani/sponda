@@ -14,7 +14,14 @@ export function AuthHeader() {
 
   const isOnAuthPage = AUTH_PAGES.some((path) => pathname.startsWith(path));
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div className="auth-header auth-header--loading">
+        <LanguageToggle />
+        <span className="auth-header-link auth-header-signup">&nbsp;</span>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-header">

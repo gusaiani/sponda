@@ -82,3 +82,11 @@ FMP_API_KEY = env("FMP_API_KEY", default="")
 FMP_BASE_URL = "https://financialmodelingprep.com"
 
 SPONDA_FREE_LOOKUPS_PER_DAY = 3
+
+# Redis cache (production override can change LOCATION via env)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/0"),
+    }
+}

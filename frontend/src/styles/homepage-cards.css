@@ -176,6 +176,10 @@
   opacity: 0.5;
 }
 
+.hcc-card-loading .hcc-indicators-grid {
+  grid-auto-rows: 29px;
+}
+
 .hcc-logo-placeholder {
   width: 28px;
   height: 28px;
@@ -191,11 +195,14 @@
   background: #e2e8f0;
 }
 
-.hcc-indicator-placeholder {
-  height: 12px;
+.hcc-ticker-placeholder {
+  width: 40px;
+  height: 11px;
   border-radius: 4px;
-  background: #f1f5f9;
+  background: #e2e8f0;
+  margin-top: 2px;
 }
+
 
 /* Add Favorite placeholder card */
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import type { TickerItem } from "../hooks/useTickers";
@@ -19,7 +19,7 @@ export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const excludeSet = new Set(excludeTickers);
+  const excludeSet = useMemo(() => new Set(excludeTickers), [excludeTickers]);
   const { results: rawResults } = useTickerSearch(input);
   const results = rawResults.filter((t) => !excludeSet.has(t.symbol)).slice(0, 6);
 
