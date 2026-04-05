@@ -21,6 +21,9 @@ MOCK_STOCK_LIST = [
     {"symbol": "PRIF-PG", "companyName": "Priority Income Fund, Inc."},
     {"symbol": "DXSLX", "companyName": "Direxion Monthly Small Cap Bull 2X Fund"},
     {"symbol": "GOOGL", "companyName": "Alphabet Inc."},
+    {"symbol": "AAHTX", "companyName": "American Funds 2045 Trgt Date Retire A"},
+    {"symbol": "AEGFX", "companyName": "American Funds EuroPacific Growth Cl F-1 Shs"},
+    {"symbol": "WTFC", "companyName": "Wintrust Financial Corporation"},
 ]
 
 MOCK_ETF_LIST = [
@@ -63,6 +66,9 @@ class TestRefreshUsTickers:
         assert not Ticker.objects.filter(symbol="VGSH").exists()
         assert not Ticker.objects.filter(symbol="PRIF-PG").exists()
         assert not Ticker.objects.filter(symbol="DXSLX").exists()
+        # "Funds" (plural) and target-date/class-share patterns
+        assert not Ticker.objects.filter(symbol="AAHTX").exists()
+        assert not Ticker.objects.filter(symbol="AEGFX").exists()
 
     @patch("quotes.management.commands.refresh_us_tickers.fetch_etf_symbols")
     @patch("quotes.management.commands.refresh_us_tickers.requests.get")
@@ -76,6 +82,8 @@ class TestRefreshUsTickers:
         assert Ticker.objects.filter(symbol="AAPL").exists()
         assert Ticker.objects.filter(symbol="MSFT").exists()
         assert Ticker.objects.filter(symbol="GOOGL").exists()
+        # Companies with "Trust" in their name should NOT be filtered
+        assert Ticker.objects.filter(symbol="WTFC").exists()
 
     @patch("quotes.management.commands.refresh_us_tickers.fetch_etf_symbols")
     @patch("quotes.management.commands.refresh_us_tickers.requests.get")
@@ -119,4 +127,4 @@ class TestRefreshUsTickers:
         _run_sync()
 
         symbols = set(Ticker.objects.values_list("symbol", flat=True))
-        assert symbols == {"AAPL", "MSFT", "GOOGL"}
+        assert symbols == {"AAPL", "MSFT", "GOOGL", "WTFC"}

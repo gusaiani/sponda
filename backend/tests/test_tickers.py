@@ -121,7 +121,7 @@ class TestSyncTickers:
         assert Ticker.objects.filter(symbol="PETR4").exists()
 
     @patch("quotes.brapi.fetch_ticker_list")
-    def test_skips_fractional_bdrs_and_funds(self, mock_fetch, db):
+    def test_skips_non_company_instruments(self, mock_fetch, db):
         mock_fetch.return_value = [
             {"stock": "PETR4", "name": "Petrobras"},
             {"stock": "PETR4F", "name": "Petrobras Frac"},
@@ -130,6 +130,9 @@ class TestSyncTickers:
             {"stock": "AAPL34", "name": "Apple BDR"},
             {"stock": "SANB39", "name": "Santander Receipt"},
             {"stock": "KNRI11", "name": "Kinea Renda"},
+            {"stock": "ABCB10", "name": "Banco ABC Brasil", "type": "bdr"},
+            {"stock": "PINE10", "name": "Banco Pine", "type": "bdr"},
+            {"stock": "XPBR31", "name": "XP Inc", "type": "bdr"},
         ]
         count = sync_tickers()
         assert count == 2
@@ -140,6 +143,9 @@ class TestSyncTickers:
         assert not Ticker.objects.filter(symbol="AAPL34").exists()
         assert not Ticker.objects.filter(symbol="SANB39").exists()
         assert not Ticker.objects.filter(symbol="KNRI11").exists()
+        assert not Ticker.objects.filter(symbol="ABCB10").exists()
+        assert not Ticker.objects.filter(symbol="PINE10").exists()
+        assert not Ticker.objects.filter(symbol="XPBR31").exists()
 
     @patch("quotes.brapi.fetch_ticker_list")
     def test_deletes_tickers_no_longer_in_source(self, mock_fetch, db):

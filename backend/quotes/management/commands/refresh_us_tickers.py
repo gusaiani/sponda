@@ -16,10 +16,12 @@ BRAZILIAN_TICKER_PATTERN = re.compile(r"^[A-Z]+\d+$")
 
 NON_COMPANY_NAME_PATTERNS = re.compile(
     r"\b("
-    r"ETF|Fund|Trust|Index|"
-    r"iShares|Vanguard|SPDR|ProShares|Invesco.*ETF|"
-    r"Direxion|WisdomTree|VanEck"
-    r")\b",
+    r"ETF|Funds?\b|"
+    r"iShares|Vanguard|SPDR|ProShares|"
+    r"Direxion|WisdomTree|VanEck|"
+    r"Trgt Date|Target Date|"
+    r"Class [A-Z]\d|Cl [A-Z][-\d]"
+    r")",
     re.IGNORECASE,
 )
 
