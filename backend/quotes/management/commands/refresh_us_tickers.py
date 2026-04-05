@@ -49,6 +49,9 @@ class Command(BaseCommand):
             symbol = stock["symbol"].strip().upper()
             company_name = stock.get("companyName") or ""
 
+            market_cap_raw = stock.get("marketCap")
+            market_cap = int(market_cap_raw) if market_cap_raw is not None else None
+
             objects.append(Ticker(
                 symbol=symbol,
                 name=company_name,
@@ -56,6 +59,7 @@ class Command(BaseCommand):
                 sector="",
                 type="stock",
                 logo=f"https://financialmodelingprep.com/image-stock/{symbol}.png",
+                market_cap=market_cap,
             ))
 
         if objects:
@@ -63,5 +67,5 @@ class Command(BaseCommand):
                 objects,
                 update_conflicts=True,
                 unique_fields=["symbol"],
-                update_fields=["name", "display_name", "type", "logo"],
+                update_fields=["name", "display_name", "type", "logo", "market_cap"],
             )

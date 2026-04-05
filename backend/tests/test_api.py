@@ -139,6 +139,24 @@ class TestTickerSearchEndpoint:
         data = response.json()
         assert data[0]["symbol"] == "MSFT"
 
+    def test_results_sorted_by_market_cap_descending(self, api_client, db):
+        Ticker.objects.create(symbol="AAPL", name="Apple", display_name="Apple", type="stock", market_cap=3_000_000_000_000)
+        Ticker.objects.create(symbol="AMZN", name="Amazon", display_name="Amazon", type="stock", market_cap=2_000_000_000_000)
+        Ticker.objects.create(symbol="ABNB", name="Airbnb", display_name="Airbnb", type="stock", market_cap=80_000_000_000)
+        response = api_client.get("/api/tickers/search/?q=A")
+        data = response.json()
+        assert data[0]["symbol"] == "AAPL"
+        assert data[1]["symbol"] == "AMZN"
+        assert data[2]["symbol"] == "ABNB"
+
+    def test_null_market_cap_sorted_last(self, api_client, db):
+        Ticker.objects.create(symbol="AAPL", name="Apple", display_name="Apple", type="stock", market_cap=3_000_000_000_000)
+        Ticker.objects.create(symbol="ACME", name="Acme Corp", display_name="Acme Corp", type="stock", market_cap=None)
+        response = api_client.get("/api/tickers/search/?q=A")
+        data = response.json()
+        assert data[0]["symbol"] == "AAPL"
+        assert data[1]["symbol"] == "ACME"
+
 
 class TestHealthEndpoint:
     def test_returns_ok_when_data_is_fresh(self, api_client, db):

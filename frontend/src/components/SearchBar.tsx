@@ -113,16 +113,17 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
                 }}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                {item.logo && (
-                  <img
-                    className="search-dropdown-logo"
-                    src={item.logo}
-                    alt=""
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                )}
+                <img
+                  className="search-dropdown-logo"
+                  src={item.logo || "/favicon.svg"}
+                  alt=""
+                  onError={(e) => {
+                    const image = e.target as HTMLImageElement;
+                    if (image.src !== window.location.origin + "/favicon.svg") {
+                      image.src = "/favicon.svg";
+                    }
+                  }}
+                />
                 <span className="search-dropdown-symbol">{item.symbol}</span>
                 <span className="search-dropdown-name">
                   {item.name !== item.symbol ? item.name : ""}
