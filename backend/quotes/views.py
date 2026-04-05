@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.db.models import F
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
@@ -169,10 +170,13 @@ class TickerSearchView(APIView):
 
         query_upper = query.upper()
 
+        market_cap_ordering = F("market_cap").desc(nulls_last=True)
+
         # Exact symbol prefix match first (fast, most useful)
         prefix_matches = (
             Ticker.objects.filter(type="stock", symbol__istartswith=query_upper)
             .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+            .order_by(market_cap_ordering)
             .values("symbol", "name", "display_name", "sector", "type", "logo")
             [:self.SEARCH_LIMIT]
         )
@@ -186,6 +190,7 @@ class TickerSearchView(APIView):
                 Ticker.objects.filter(type="stock", display_name__icontains=query)
                 .exclude(symbol__in=found_symbols)
                 .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+                .order_by(market_cap_ordering)
                 .values("symbol", "name", "display_name", "sector", "type", "logo")
                 [:remaining]
             )

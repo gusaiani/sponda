@@ -115,6 +115,7 @@ class Ticker(models.Model):
     sector = models.CharField(max_length=100, blank=True, default="")
     type = models.CharField(max_length=50, blank=True, default="")
     logo = models.URLField(max_length=500, blank=True, default="")
+    market_cap = models.BigIntegerField(null=True, blank=True, default=None)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
