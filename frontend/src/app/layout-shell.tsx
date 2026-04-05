@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -49,7 +50,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       </main>
       <footer className="app-footer">
         <a href="https://poe.ma" target="_blank" rel="noopener noreferrer" className="app-footer-logo-link">
-          <img src="/poema-logo.jpg" alt="Poema" className="app-footer-logo" />
+          <Image src="/poema-logo.jpg" alt="Poema" className="app-footer-logo" width={42} height={42} />
         </a>
         <p className="app-footer-text">
           {t("footer.tool_by")}{" "}

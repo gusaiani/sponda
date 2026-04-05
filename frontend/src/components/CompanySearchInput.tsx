@@ -108,6 +108,7 @@ export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
                   className="search-dropdown-logo"
                   src={item.logo || "/favicon.svg"}
                   alt=""
+                  loading="lazy"
                   onError={(e) => {
                     const image = e.target as HTMLImageElement;
                     if (image.src !== window.location.origin + "/favicon.svg") {
