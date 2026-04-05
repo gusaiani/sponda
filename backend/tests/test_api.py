@@ -157,6 +157,51 @@ class TestTickerSearchEndpoint:
         assert data[0]["symbol"] == "AAPL"
         assert data[1]["symbol"] == "ACME"
 
+    def test_name_matches_blend_with_symbol_matches(self, api_client, db):
+        """When 8+ symbol prefix matches exist, name matches should still
+        appear so that popular companies surface (e.g. Microsoft for 'mic')."""
+        # Create many obscure tickers starting with "MIC"
+        for i in range(10):
+            Ticker.objects.create(
+                symbol=f"MIC{chr(65 + i)}", name=f"Micro Corp {i}",
+                display_name=f"Micro Corp {i}", type="stock",
+            )
+        # Microsoft doesn't start with MIC but its name contains "mic"
+        Ticker.objects.create(
+            symbol="MSFT", name="Microsoft Corporation",
+            display_name="Microsoft Corporation", type="stock",
+            market_cap=2_700_000_000_000,
+        )
+        response = api_client.get("/api/tickers/search/?q=mic")
+        data = response.json()
+        symbols = [d["symbol"] for d in data]
+        assert "MSFT" in symbols, f"Microsoft should appear in results: {symbols}"
+
+    def test_name_matches_with_market_cap_rank_higher(self, api_client, db):
+        """Name matches with high market cap should appear before obscure
+        symbol prefix matches with no market cap."""
+        for i in range(10):
+            Ticker.objects.create(
+                symbol=f"MIC{chr(65 + i)}", name=f"Micro Corp {i}",
+                display_name=f"Micro Corp {i}", type="stock",
+            )
+        Ticker.objects.create(
+            symbol="MSFT", name="Microsoft Corporation",
+            display_name="Microsoft Corporation", type="stock",
+            market_cap=2_700_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="MU", name="Micron Technology",
+            display_name="Micron Technology", type="stock",
+            market_cap=100_000_000_000,
+        )
+        response = api_client.get("/api/tickers/search/?q=mic")
+        data = response.json()
+        symbols = [d["symbol"] for d in data]
+        # Both popular companies should appear
+        assert "MSFT" in symbols
+        assert "MU" in symbols
+
 
 class TestHealthEndpoint:
     def test_returns_ok_when_data_is_fresh(self, api_client, db):
