@@ -6,6 +6,7 @@ import Fuse from "fuse.js";
 import { useTickers, type TickerItem } from "../hooks/useTickers";
 import { useFavorites } from "../hooks/useFavorites";
 import { useTranslation } from "../i18n";
+import { logoUrl } from "../utils/format";
 import "../styles/homepage-cards.css";
 
 const MAX_FAVORITES_FOR_PLACEHOLDER = 3;
@@ -133,16 +134,14 @@ export function AddFavoriteCard({ onSelectTicker }: AddFavoriteCardProps) {
                 }}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                {item.logo && (
-                  <img
-                    className="search-dropdown-logo"
-                    src={item.logo}
-                    alt=""
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                  />
-                )}
+                <img
+                  className="search-dropdown-logo"
+                  src={logoUrl(item.symbol)}
+                  alt=""
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
                 <span className="search-dropdown-symbol">{item.symbol}</span>
                 <span className="search-dropdown-name">
                   {item.name !== item.symbol ? item.name : ""}

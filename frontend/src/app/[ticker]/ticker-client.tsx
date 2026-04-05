@@ -56,6 +56,7 @@ import { useTickers } from "../../hooks/useTickers";
 import { useMultiplesHistory } from "../../hooks/useMultiplesHistory";
 import { deriveForYears } from "../../hooks/deriveForYears";
 import { useSavedLists } from "../../hooks/useSavedLists";
+import { logoUrl } from "../../utils/format";
 import { getSectorPeers } from "../../utils/subsector";
 import { useTranslation } from "../../i18n";
 
@@ -177,7 +178,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
             {fullData.logo && (
               <img
                 className="company-header-logo"
-                src={fullData.logo}
+                src={logoUrl(fullData.ticker)}
                 alt={`Logo ${fullData.name}`}
                 loading="lazy"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}

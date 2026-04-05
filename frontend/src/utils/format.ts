@@ -5,6 +5,11 @@ export function currencySymbol(ticker: string): string {
   return isBrazilianTicker(ticker) ? "R$" : "$";
 }
 
+/** Proxied logo URL served from our server. */
+export function logoUrl(symbol: string): string {
+  return `/api/logos/${symbol}.png`;
+}
+
 /** Map backend labels (PE10, PFCF7…) to Portuguese equivalents */
 export function ptLabel(label: string): string {
   return label.replace(/^PE/, "P/L").replace(/^PFCF/, "P/FCL");

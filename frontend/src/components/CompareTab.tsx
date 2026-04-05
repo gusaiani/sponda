@@ -9,7 +9,7 @@ import { useDragGhost } from "../hooks/useDragGhost";
 import { useTranslation } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
-import { br } from "../utils/format";
+import { br, logoUrl } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/compare.css";
 
@@ -626,7 +626,7 @@ function CompareRow({
             {data.logo && (
               <img
                 className="compare-company-logo"
-                src={data.logo}
+                src={logoUrl(data.ticker)}
                 alt=""
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />

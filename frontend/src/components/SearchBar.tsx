@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, FormEvent } from "react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import type { TickerItem } from "../hooks/useTickers";
 import { useTranslation } from "../i18n";
+import { logoUrl } from "../utils/format";
 import "../styles/search.css";
 
 interface SearchBarProps {
@@ -115,7 +116,7 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
               >
                 <img
                   className="search-dropdown-logo"
-                  src={item.logo || "/favicon.svg"}
+                  src={logoUrl(item.symbol)}
                   alt=""
                   loading="lazy"
                   onError={(e) => {
