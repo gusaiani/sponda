@@ -158,7 +158,7 @@ class TickerListView(APIView):
     def get(self, request):
         result = cache.get(TICKER_LIST_CACHE_KEY)
         if result is None:
-            tickers = Ticker.objects.filter(type="stock", symbol__regex=r"^[A-Z]+\d+$").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "display_name", "sector", "type", "logo")
+            tickers = Ticker.objects.filter(type="stock").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "display_name", "sector", "type", "logo")
             result = []
             for ticker in tickers:
                 ticker["name"] = ticker.pop("display_name") or ticker["name"]

@@ -259,7 +259,7 @@ export const en: TranslationDictionary = {
   "modal.debt_earnings_note": "The 10-year average smooths economic cycles and atypical results. N/A indicates negative average earnings in the period.",
   "modal.debt_fcf_explain": "Gross Debt / Avg FCF indicates how many years of average free cash flow (inflation-adjusted, last 10 years) would be needed to pay off gross debt. Since FCF represents actual cash entering the company, it tends to be more conservative than the earnings-based indicator.",
 
-  "modal.pl10_explain": "The {label} (CAPE) is the price/earnings ratio calculated on the average of real earnings (inflation-adjusted) over the last 10 years. It smooths cyclical fluctuations and shows how much the market pays per real of earnings more stably.",
+  "modal.pl10_explain": "The {label} (CAPE) is the price/earnings ratio calculated on the average of real earnings (inflation-adjusted) over the last 10 years. It smooths cyclical fluctuations and shows how much the market pays per unit of earnings more stably.",
   "modal.pl10_high_low": "High values suggest an expensive asset; low values may indicate opportunities. For companies in strong growth or decline, the 10-year average may not reflect the recent trajectory.",
   "modal.pl10_how_title": "How it is calculated",
   "modal.pl10_step1": "1. Annual earnings and inflation adjustment (IPCA)",
@@ -315,7 +315,7 @@ export const en: TranslationDictionary = {
   "explainer.hide": "Hide",
   "explainer.what_is_pe10": "What is PE10?",
   "explainer.pe10_text_1": "PE10 (also known as CAPE) is the price/earnings ratio calculated on the average of real earnings (inflation-adjusted) over the last 10 years.",
-  "explainer.pe10_text_2": "By smoothing short-term cyclical fluctuations, PE10 provides a more stable view of how much the market is paying per real of earnings. High values suggest the asset may be expensive relative to its profitability history, while low values may indicate opportunities.",
+  "explainer.pe10_text_2": "By smoothing short-term cyclical fluctuations, PE10 provides a more stable view of how much the market is paying per unit of earnings. High values suggest the asset may be expensive relative to its profitability history, while low values may indicate opportunities.",
   "explainer.pe10_text_3": "Note: for companies in strong growth or decline, PE10 can lead to misleading conclusions, as the 10-year average does not reflect the recent earnings trajectory. Use it as one factor in your analysis, not as the sole criterion.",
   "explainer.what_is_pfcf10": "What is PFCF10?",
   "explainer.pfcf10_text_1": "PFCF10 is the price/free cash flow ratio calculated on the average of real free cash flow (inflation-adjusted) over the last 10 years.",
@@ -337,6 +337,12 @@ export const en: TranslationDictionary = {
   "homepage.gross_debt": "Gross Debt",
   "homepage.current_ratio": "Curr. Ratio",
   "homepage.auth_save_layout": "To save your card layout, log in or create a free account.",
+  "homepage.debt_fcf": "Debt/FCF",
+  "homepage.pe10": "PE10",
+  "homepage.pfcf10": "PFCF10",
+  "homepage.cagr_earnings_short": "CAGR E",
+  "homepage.cagr_fcf_short": "CAGR FCF",
+  "homepage.price_to_book": "P/B",
 
   /* ── Saved Lists ── */
   "lists.your_lists": "Your lists",

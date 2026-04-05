@@ -337,6 +337,12 @@ export const pt: TranslationDictionary = {
   "homepage.gross_debt": "D\u00edv Bruta",
   "homepage.current_ratio": "Liq. Corr.",
   "homepage.auth_save_layout": "Para salvar a organiza\u00e7\u00e3o dos seus cards, entre ou crie uma conta gratuita.",
+  "homepage.debt_fcf": "D\u00edv/FCL",
+  "homepage.pe10": "P/L10",
+  "homepage.pfcf10": "P/FCL10",
+  "homepage.cagr_earnings_short": "CAGR L",
+  "homepage.cagr_fcf_short": "CAGR FCL",
+  "homepage.price_to_book": "P/VPA",
 
   /* ── Saved Lists ── */
   "lists.your_lists": "Suas listas",

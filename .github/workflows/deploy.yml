@@ -133,11 +133,10 @@ jobs:
             systemctl daemon-reload
             systemctl enable --now sponda-refresh.timer
 
-            # Update Apache: proxy sponda domains to Next.js (port 3100)
-            # Handle both fresh (8710) and previous deploy (3000) states
-            sed -i -E 's|ProxyPass / http://127.0.0.1:(8710\|3000)/|ProxyPass / http://127.0.0.1:3100/|g' /etc/apache2/sites-enabled/*.conf
-            sed -i -E 's|ProxyPassReverse / http://127.0.0.1:(8710\|3000)/|ProxyPassReverse / http://127.0.0.1:3100/|g' /etc/apache2/sites-enabled/*.conf
-            apachectl configtest && systemctl reload apache2
+            # Update Nginx config and reload
+            cp /opt/sponda/nginx/sponda.capital.conf /etc/nginx/sites-available/
+            cp /opt/sponda/nginx/sponda.poe.ma.conf /etc/nginx/sites-available/
+            nginx -t && systemctl reload nginx
 
             # Restart services
             systemctl restart sponda

@@ -15,15 +15,11 @@
 | Search debounce | 200ms to 300ms |
 | Dynamic imports | CompareTab, FundamentalsTab, CompanyAnalysis lazy-loaded |
 | useMemo fix | CompanySearchInput excludeSet |
-| Reduce Gunicorn workers | 3 to 2 (1 vCPU machine) |
 | Cache PE10/fundamentals endpoints | Redis cache on PE10View (5 min TTL) and FundamentalsView (10 min TTL) |
 | Enable pg_stat_statements | Query performance monitoring on production PostgreSQL |
 | Dynamic import CompanyMetricsCard + Recharts | Code-split via next/dynamic; Recharts no longer in initial bundle |
 | Lazy-load images | `loading="lazy"` on all logo `<img>` tags; footer logo via Next.js `<Image>` |
 
-## Remaining
-
-| Item | Impact | Effort |
-|------|--------|--------|
-| Upgrade or separate VPS | High (the real ceiling: 1 vCPU / 2 GB shared, 420 MB swap) | Decision needed |
-| Replace Apache with Caddy or Nginx | Medium (frees ~200 MB RAM) | Medium |
+| Upgrade VPS | 2 vCPU / 4 GB RAM (from 1 vCPU / 2 GB), swap removed |
+| Replace Apache with Nginx | All sites migrated, certbot renewals switched to nginx plugin |
+| Bump Gunicorn workers | 2 to 3 (now 2 vCPU) |
