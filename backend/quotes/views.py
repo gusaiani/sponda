@@ -22,6 +22,9 @@ from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
 
+PE10_CACHE_TTL = 5 * 60  # 5 minutes
+FUNDAMENTALS_CACHE_TTL = 10 * 60  # 10 minutes
+
 
 def _clean_company_name(name: str) -> str:
     """Strip legal suffixes and ticker-like noise from a company name.
@@ -299,6 +302,12 @@ class PE10View(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        cache_key = f"pe10:{ticker}"
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            self._log_lookup(request, ticker)
+            return Response(cached_result)
+
         # Ensure we have fresh data (< 24h old)
         _ensure_fresh_data(ticker)
 
@@ -362,7 +371,7 @@ class PE10View(APIView):
         # Log the lookup
         self._log_lookup(request, ticker)
 
-        return Response({
+        result = {
             "ticker": ticker,
             "name": name,
             "logo": logo,
@@ -411,7 +420,9 @@ class PE10View(APIView):
             "pfcfPegError": pfcf_peg_result["pfcfPegError"],
             "fcfCAGRMethod": pfcf_peg_result["fcfCAGRMethod"],
             "fcfCAGRExcludedYears": pfcf_peg_result["fcfCAGRExcludedYears"],
-        })
+        }
+        cache.set(cache_key, result, PE10_CACHE_TTL)
+        return Response(result)
 
     DAILY_DISTINCT_TICKER_LIMIT = 200
 
@@ -509,6 +520,13 @@ class FundamentalsView(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        cache_key = f"fundamentals:{ticker}"
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            response = Response(cached_result)
+            response["Cache-Control"] = "public, max-age=3600"
+            return response
+
         _ensure_fresh_data(ticker)
 
         try:
@@ -557,6 +575,7 @@ class FundamentalsView(APIView):
             proventos_by_year=proventos_by_year,
         )
 
+        cache.set(cache_key, fundamentals, FUNDAMENTALS_CACHE_TTL)
         response = Response(fundamentals)
         response["Cache-Control"] = "public, max-age=3600"
         return response

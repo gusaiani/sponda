@@ -421,6 +421,64 @@ class TestPE10Endpoint:
         assert data["liabilitiesToEquity"] is None
         assert data["leverageError"] is not None
 
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_second_request_served_from_cache(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        """Second request for the same ticker skips fetch_quote (served from Redis)."""
+        mock_quote.return_value = mock_brapi_quote
+        response_1 = api_client.get("/api/quote/PETR4/")
+        assert response_1.status_code == 200
+        response_2 = api_client.get("/api/quote/PETR4/")
+        assert response_2.status_code == 200
+        assert response_1.json()["pe10"] == response_2.json()["pe10"]
+        # fetch_quote called only once — second request served from cache
+        assert mock_quote.call_count == 1
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_cache_is_per_ticker(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        """Different tickers are cached independently."""
+        mock_quote.return_value = mock_brapi_quote
+        api_client.get("/api/quote/PETR4/")
+        mock_quote.return_value = {
+            **mock_brapi_quote, "symbol": "VALE3",
+            "longName": "Vale SA", "regularMarketPrice": 60.0,
+        }
+        api_client.get("/api/quote/VALE3/")
+        assert mock_quote.call_count == 2
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_error_responses_are_not_cached(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, db, sample_ipca
+    ):
+        """A 502 error should not be cached — next request retries."""
+        from quotes.providers import ProviderError
+        mock_quote.side_effect = ProviderError("Service unavailable")
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 502
+        # Fix the provider and retry
+        mock_quote.side_effect = None
+        mock_quote.return_value = {
+            "symbol": "PETR4", "longName": "Petrobras",
+            "regularMarketPrice": 45.0, "marketCap": 585000000000,
+        }
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+
 
 class TestFundamentalsEndpoint:
     @patch("quotes.views.fetch_quote")
@@ -525,6 +583,24 @@ class TestFundamentalsEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert len(data) > 0
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_second_request_served_from_cache(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_cash_flows, sample_balance_sheet, sample_ipca, mock_brapi_quote
+    ):
+        """Second request for fundamentals skips computation (served from cache)."""
+        mock_quote.return_value = mock_brapi_quote
+        response_1 = api_client.get("/api/quote/PETR4/fundamentals/")
+        assert response_1.status_code == 200
+        response_2 = api_client.get("/api/quote/PETR4/fundamentals/")
+        assert response_2.status_code == 200
+        assert response_1.json() == response_2.json()
+        # fetch_quote called only once — second request served from cache
+        assert mock_quote.call_count == 1
 
 
 MOCK_HISTORICAL_PRICES = [

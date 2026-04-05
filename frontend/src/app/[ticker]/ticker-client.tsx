@@ -5,8 +5,37 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { CompanyMetricsCard, CompanyMetricsCardLoading } from "../../components/CompanyMetricsCard";
-import { MultiplesChart, MultiplesChartLoading } from "../../components/MultiplesChart";
+const CompanyMetricsCard = dynamic(
+  () => import("../../components/CompanyMetricsCard").then((mod) => mod.CompanyMetricsCard),
+  { ssr: false }
+);
+const MultiplesChart = dynamic(
+  () => import("../../components/MultiplesChart").then((mod) => mod.MultiplesChart),
+  { ssr: false }
+);
+
+function CompanyMetricsCardLoading() {
+  return (
+    <div className="pe10-loading">
+      <div className="pe10-loading-bar" />
+      <div className="pe10-loading-bar-lg" />
+      <div className="pe10-loading-bar-row">
+        <div className="pe10-loading-bar-sm" />
+        <div className="pe10-loading-bar-sm" />
+        <div className="pe10-loading-bar-sm" />
+      </div>
+    </div>
+  );
+}
+
+function MultiplesChartLoading() {
+  return (
+    <div className="chart-loading">
+      <div className="chart-loading-bar" />
+      <div className="chart-loading-bar-sm" />
+    </div>
+  );
+}
 
 const CompareTab = dynamic(
   () => import("../../components/CompareTab").then((mod) => mod.CompareTab),
@@ -150,6 +179,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
                 className="company-header-logo"
                 src={fullData.logo}
                 alt={`Logo ${fullData.name}`}
+                loading="lazy"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             )}

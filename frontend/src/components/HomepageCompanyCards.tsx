@@ -104,6 +104,7 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
             className="hcc-logo"
             src={logoOverride || data.logo}
             alt=""
+            loading="lazy"
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
           />
         )}
