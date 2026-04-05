@@ -20,3 +20,9 @@ class Command(BaseCommand):
             call_command("refresh_us_tickers")
         except Exception as error:
             self.stderr.write(self.style.ERROR(f"Failed to sync US tickers: {error}"))
+
+        self.stdout.write("Syncing market caps for US tickers...")
+        try:
+            call_command("sync_market_caps")
+        except Exception as error:
+            self.stderr.write(self.style.ERROR(f"Failed to sync market caps: {error}"))

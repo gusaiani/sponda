@@ -20,10 +20,16 @@ NON_COMPANY_NAME_PATTERNS = re.compile(
     r"iShares|Vanguard|SPDR|ProShares|"
     r"Direxion|WisdomTree|VanEck|"
     r"Trgt Date|Target Date|"
-    r"Class [A-Z]\d|Cl [A-Z][-\d]"
+    r"Class [A-Z]\d|Cl [A-Z][-\d]|"
+    r"Preferred|Depositary Shares|Convertible|"
+    r"Warrant|Notes Due|Debenture"
     r")",
     re.IGNORECASE,
 )
+
+# Instruments with a percentage in the name (e.g. "4.125%", "5.70%") are
+# almost always fixed-income securities, not common stock.
+FIXED_RATE_PATTERN = re.compile(r"\d+\.\d+%")
 
 
 class Command(BaseCommand):
@@ -70,6 +76,8 @@ class Command(BaseCommand):
             if symbol in etf_symbols:
                 continue
             if NON_COMPANY_NAME_PATTERNS.search(company_name):
+                continue
+            if FIXED_RATE_PATTERN.search(company_name):
                 continue
 
             companies.append(stock)
