@@ -55,12 +55,42 @@ Dual-panel chart showing historical adjusted prices alongside year-end P/L (Pric
 
 **API endpoint:** `GET /api/quote/<ticker>/multiples-history/`
 
+## Performance
+
+### Database
+
+- **Trigram indexes** (pg_trgm) on `Ticker.display_name` and `symbol` for sub-millisecond ILIKE search across 27K+ tickers
+- **Composite indexes** on `CompanyAnalysis(ticker, -generated_at)`, `LookupLog(user, timestamp)`, `LookupLog(session_key, timestamp)`
+- **PostgreSQL tuning** for SSD + 2 GB RAM: `shared_buffers=512MB`, `work_mem=8MB`, `random_page_cost=1.1`
+- **pg_stat_statements** enabled for query performance monitoring
+
+### Caching (Redis)
+
+| Endpoint | TTL | What it avoids |
+|---|---|---|
+| Ticker list (27K rows) | 1 hour | Full table scan on every page load |
+| Search results | 2 min | Trigram query + sorting per keystroke |
+| PE10 metrics | 5 min | 6+ DB queries + external API call + inflation adjustment |
+| Fundamentals | 10 min | All balance sheets, earnings, cash flows + IPCA table + external API |
+
+### Frontend
+
+- **Search debounce** at 300ms to reduce API calls during typing
+- **Dynamic imports** via `next/dynamic` for CompanyMetricsCard, MultiplesChart (Recharts), CompareTab, FundamentalsTab, and CompanyAnalysis. Recharts (~100KB) only loads when the Charts tab is opened.
+- **Lazy-loaded images** on all company logos; footer logo served via Next.js `<Image>` with WebP optimization
+- **useMemo** on frequently recomputed derived state (excludeSet, sectorPeerLinks)
+
+### Query optimization
+
+- **N+1 fix** in AdminDashboard: replaced per-user loops with `annotate(Count(...))` (1,200+ queries down to 1)
+- **CompanyAnalysisView**: 3 queries reduced to 1 with `.values()`
+
 ## Stack
 
-- **Backend:** Django 5 + Django REST Framework + PostgreSQL
-- **Frontend:** React 19 + TypeScript + Vite + TanStack Query/Router
-- **Styling:** Tailwind CSS v4 (`@apply` only — no utility classes in JSX)
-- **Deploy:** Docker Compose + Nginx + GitHub Actions → `sponda.poe.ma`
+- **Backend:** Django 5 + Django REST Framework + PostgreSQL + Redis
+- **Frontend:** React 19 + TypeScript + Next.js 15 + TanStack Query
+- **Styling:** Tailwind CSS v4 (`@apply` only -- no utility classes in JSX)
+- **Deploy:** GitHub Actions CI/CD → DigitalOcean VPS
 
 ## Local Development
 
