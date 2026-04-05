@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useFavorites } from "../hooks/useFavorites";
 import { useTickers, TickerItem } from "../hooks/useTickers";
 import { useTranslation } from "../i18n";
+import { logoUrl } from "../utils/format";
 import "../styles/popular.css";
 
 interface FavoriteDisplayItem {
@@ -44,7 +45,7 @@ export function FavoriteCompanies() {
             {company.logo ? (
               <img
                 className="popular-logo"
-                src={company.logo}
+                src={logoUrl(company.symbol)}
                 alt=""
                 onError={(event) => {
                   (event.target as HTMLImageElement).style.display = "none";

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTickerSearch } from "../hooks/useTickerSearch";
 import type { TickerItem } from "../hooks/useTickers";
 import { useTranslation } from "../i18n";
+import { logoUrl } from "../utils/format";
 import "../styles/compare.css";
 
 interface Props {
@@ -106,7 +107,7 @@ export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
               >
                 <img
                   className="search-dropdown-logo"
-                  src={item.logo || "/favicon.svg"}
+                  src={logoUrl(item.symbol)}
                   alt=""
                   loading="lazy"
                   onError={(e) => {

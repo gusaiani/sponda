@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useTickers, TickerItem } from "../hooks/useTickers";
 import { useTranslation } from "../i18n";
+import { logoUrl } from "../utils/format";
 import "../styles/saved-lists.css";
 
 const MAX_LOGOS = 5;
@@ -66,19 +67,17 @@ export function SavedListCard({ list, tickerMap }: SavedListCardProps) {
         <div className="saved-list-logos">
           {displayedTickers.map((ticker) => {
             const tickerData = tickerMap.get(ticker);
-            return tickerData?.logo ? (
+            return (
               <img
                 key={ticker}
                 className="saved-list-logo"
-                src={tickerData.logo}
+                src={logoUrl(ticker)}
                 alt={ticker}
                 title={ticker}
                 onError={(event) => {
                   (event.target as HTMLImageElement).style.display = "none";
                 }}
               />
-            ) : (
-              <div key={ticker} className="saved-list-logo-placeholder" title={ticker} />
             );
           })}
           {remainingCount > 0 && (

@@ -6,7 +6,7 @@ import { useFavorites } from "../hooks/useFavorites";
 import { useAuth } from "../hooks/useAuth";
 import { useRegion } from "../hooks/useRegion";
 import { useTranslation } from "../i18n";
-import { br, formatLargeNumber, currencySymbol } from "../utils/format";
+import { br, formatLargeNumber, currencySymbol, logoUrl } from "../utils/format";
 import { getDefaultTickers } from "../utils/suggestedCompanies";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/homepage-cards.css";
@@ -59,7 +59,7 @@ function Indicator({ label, value, suffix = "" }: IndicatorProps) {
   );
 }
 
-export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResult | null; isLoading: boolean; logoOverride?: string }) {
+export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isLoading: boolean }) {
   const { t } = useTranslation();
 
   if (isLoading || !data) {
@@ -97,15 +97,13 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
   return (
     <Link href={`/${data.ticker}`} className="hcc-card">
       <div className="hcc-card-header">
-        {(logoOverride || data.logo) && (
-          <img
-            className="hcc-logo"
-            src={logoOverride || data.logo}
-            alt=""
-            loading="lazy"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
-        )}
+        <img
+          className="hcc-logo"
+          src={logoUrl(data.ticker)}
+          alt=""
+          loading="lazy"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+        />
         <div className="hcc-name-block">
           <span className="hcc-name">{data.name}</span>
           <span className="hcc-ticker">{data.ticker}</span>

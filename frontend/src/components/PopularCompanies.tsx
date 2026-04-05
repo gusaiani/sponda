@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useRegion } from "../hooks/useRegion";
 import { useTranslation } from "../i18n";
 import { getPopularSymbols } from "../utils/suggestedCompanies";
+import { logoUrl } from "../utils/format";
 import "../styles/popular.css";
 
 const MAX_DISPLAYED = 40;
@@ -45,18 +46,15 @@ export function PopularCompanies() {
           href={`/${company.symbol}`}
           className="popular-item"
         >
-          {company.logo ? (
-            <img
-              className="popular-logo"
-              src={company.logo}
-              alt=""
-              onError={(event) => {
-                (event.target as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
-            <div className="popular-logo-placeholder" />
-          )}
+          <img
+            className="popular-logo"
+            src={logoUrl(company.symbol)}
+            alt=""
+            loading="lazy"
+            onError={(event) => {
+              (event.target as HTMLImageElement).style.display = "none";
+            }}
+          />
           <span className="popular-name">{company.symbol}</span>
         </Link>
       ))}

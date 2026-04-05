@@ -1,16 +1,21 @@
 import hashlib
+import logging
 import re
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
+from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import F
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+logger = logging.getLogger(__name__)
 
 from .providers import ProviderError, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
@@ -618,6 +623,51 @@ class CompanyAnalysisView(APIView):
             "versions": versions,
         })
         response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
+LOGO_CACHE_MAX_AGE = 30 * 24 * 3600  # 30 days
+
+class LogoProxyView(APIView):
+    """Proxy and cache company logos on our server."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, symbol):
+        symbol = symbol.upper()
+        if not re.match(r"^[A-Z0-9.]+$", symbol):
+            return HttpResponse(status=404)
+
+        cache_dir = Path(settings.LOGO_CACHE_DIR)
+        cached_path = cache_dir / f"{symbol}.png"
+
+        if cached_path.exists():
+            response = FileResponse(open(cached_path, "rb"), content_type="image/png")
+            response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
+            return response
+
+        try:
+            ticker = Ticker.objects.get(symbol=symbol)
+        except Ticker.DoesNotExist:
+            return HttpResponse(status=404)
+
+        if not ticker.logo:
+            return HttpResponse(status=404)
+
+        try:
+            logo_request = Request(ticker.logo, headers={"User-Agent": "Sponda/1.0"})
+            with urlopen(logo_request, timeout=10) as logo_response:
+                image_data = logo_response.read()
+        except Exception:
+            logger.warning("Failed to download logo for %s from %s", symbol, ticker.logo)
+            return HttpResponse(status=404)
+
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cached_path.write_bytes(image_data)
+
+        response = HttpResponse(image_data, content_type="image/png")
+        response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
         return response
 
 
