@@ -24,6 +24,18 @@ def _get(endpoint: str, params: dict | None = None) -> dict | list:
     return response.json()
 
 
+def fetch_etf_symbols() -> set[str]:
+    """Fetch all ETF symbols from FMP to use as an exclusion set."""
+    data = _get("/stable/etf-list")
+    if not isinstance(data, list):
+        return set()
+    return {
+        (entry.get("symbol") or "").upper()
+        for entry in data
+        if entry.get("symbol")
+    }
+
+
 def fetch_quote(ticker: str) -> dict:
     """Fetch current quote data for a US ticker."""
     data = _get("/stable/quote", params={"symbol": ticker})
