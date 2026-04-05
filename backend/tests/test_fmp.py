@@ -10,6 +10,7 @@ from quotes.fmp import (
     fetch_balance_sheets,
     fetch_cash_flow_statements,
     fetch_dividends,
+    fetch_etf_symbols,
     fetch_historical_prices,
     fetch_income_statements,
     fetch_quote,
@@ -352,3 +353,36 @@ class TestSyncUSCPI:
         mock_get.return_value = [{"date": "2025-01-01", "value": None}]
         count = sync_us_cpi()
         assert count == 0
+
+
+class TestFetchEtfSymbols:
+    @patch("quotes.fmp._get")
+    def test_returns_uppercase_symbols(self, mock_get):
+        mock_get.return_value = [
+            {"symbol": "SPY", "name": "SPDR S&P 500 ETF"},
+            {"symbol": "QQQ", "name": "Invesco QQQ Trust"},
+        ]
+        result = fetch_etf_symbols()
+        assert result == {"SPY", "QQQ"}
+
+    @patch("quotes.fmp._get")
+    def test_handles_empty_response(self, mock_get):
+        mock_get.return_value = []
+        result = fetch_etf_symbols()
+        assert result == set()
+
+    @patch("quotes.fmp._get")
+    def test_handles_non_list_response(self, mock_get):
+        mock_get.return_value = {"error": "something"}
+        result = fetch_etf_symbols()
+        assert result == set()
+
+    @patch("quotes.fmp._get")
+    def test_skips_entries_without_symbol(self, mock_get):
+        mock_get.return_value = [
+            {"symbol": "SPY", "name": "SPDR"},
+            {"name": "No Symbol"},
+            {"symbol": "", "name": "Empty"},
+        ]
+        result = fetch_etf_symbols()
+        assert result == {"SPY"}
