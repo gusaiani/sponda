@@ -69,11 +69,27 @@ export function CompanyCard({ data, isLoading, logoOverride }: { data: QuoteResu
       <div className="hcc-card hcc-card-loading">
         <div className="hcc-card-header">
           <div className="hcc-logo-placeholder" />
-          <div className="hcc-name-placeholder" />
+          <div className="hcc-name-block">
+            <div className="hcc-name-placeholder" />
+            <div className="hcc-ticker-placeholder" />
+          </div>
+        </div>
+        <div className="hcc-price-row">
+          <div className="hcc-price-item">
+            <span className="hcc-price-label">&nbsp;</span>
+            <span className="hcc-price">&nbsp;</span>
+          </div>
+          <div className="hcc-price-item">
+            <span className="hcc-price-label">&nbsp;</span>
+            <span className="hcc-market-cap">&nbsp;</span>
+          </div>
         </div>
         <div className="hcc-indicators-grid">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="hcc-indicator-placeholder" />
+          {Array.from({ length: 14 }).map((_, i) => (
+            <div key={i} className="hcc-indicator">
+              <span className="hcc-indicator-label">&nbsp;</span>
+              <span className="hcc-indicator-value">&nbsp;</span>
+            </div>
           ))}
         </div>
       </div>

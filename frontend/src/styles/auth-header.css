@@ -2,6 +2,7 @@
 
 .auth-header {
   @apply flex items-center gap-3;
+  animation: auth-header-fade-in 0.3s ease both;
 }
 
 .auth-header-link {
@@ -103,4 +104,15 @@
 .language-dropdown-option.active {
   color: var(--color-accent);
   font-weight: 600;
+}
+
+/* Fade in when auth state resolves */
+@keyframes auth-header-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.auth-header--loading {
+  animation: none;
+  visibility: hidden;
 }

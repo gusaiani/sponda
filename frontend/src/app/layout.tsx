@@ -71,7 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body>
+      <body style={{ margin: 0 }}>
         <Providers>
           <LayoutShell>{children}</LayoutShell>
         </Providers>
