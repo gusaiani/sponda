@@ -55,7 +55,7 @@ def fetch_income_statements(ticker: str) -> list[dict]:
 def fetch_cash_flow_statements(ticker: str) -> list[dict]:
     """Fetch quarterly cash flow statements for a US ticker."""
     return _get(
-        "/stable/cashflow-statement",
+        "/stable/cash-flow-statement",
         params={"symbol": ticker, "period": "quarter", "limit": 80},
     )
 
@@ -141,11 +141,11 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         if operating_cash_flow is not None:
             operating_cash_flow = int(operating_cash_flow)
 
-        investing_cash_flow = statement.get("investingCashFlow")
+        investing_cash_flow = statement.get("netCashProvidedByInvestingActivities")
         if investing_cash_flow is not None:
             investing_cash_flow = int(investing_cash_flow)
 
-        dividends_paid = statement.get("dividendsPaid")
+        dividends_paid = statement.get("commonDividendsPaid")
         if dividends_paid is not None:
             dividends_paid = int(dividends_paid)
 
