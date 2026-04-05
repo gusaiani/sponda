@@ -337,6 +337,12 @@ export interface TranslationDictionary {
   "homepage.gross_debt": string;
   "homepage.current_ratio": string;
   "homepage.auth_save_layout": string;
+  "homepage.debt_fcf": string;
+  "homepage.pe10": string;
+  "homepage.pfcf10": string;
+  "homepage.cagr_earnings_short": string;
+  "homepage.cagr_fcf_short": string;
+  "homepage.price_to_book": string;
 
   /* ── Saved Lists ── */
   "lists.your_lists": string;

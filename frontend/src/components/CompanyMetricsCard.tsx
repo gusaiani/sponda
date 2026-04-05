@@ -99,7 +99,7 @@ type ModalKey =
   | "pfcl10" | "pfclg" | "cagrFCF"
   | null;
 
-import { ptLabel, br, formatLargeNumber, formatQuarterLabel } from "../utils/format";
+import { ptLabel, br, formatLargeNumber, currencySymbol, formatQuarterLabel } from "../utils/format";
 
 /* ── Inline ? button ── */
 
@@ -140,10 +140,16 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
+/** formatLargeNumber bound to a specific ticker's currency */
+function makeFormatAmount(ticker: string) {
+  return (value: number) => formatLargeNumber(value, ticker);
+}
+
 /* ── Balance sheet components helper ── */
 
 function BalanceSheetComponents({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker);
   if (data.stockholdersEquity === null) return null;
   return (
     <div className="pe10-calc-details">
@@ -161,24 +167,24 @@ function BalanceSheetComponents({ data }: { data: QuoteData }) {
         {data.totalDebt !== null && (
           <div className="pe10-calc-formula">
             <span>{t("modal.gross_debt")}</span>
-            <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+            <span className="pe10-calc-formula-val">{formatAmount(data.totalDebt)}</span>
           </div>
         )}
         {data.totalLease !== null && (
           <div className="pe10-calc-formula">
             <span>{t("modal.leases")}</span>
-            <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLease)}</span>
+            <span className="pe10-calc-formula-val">{formatAmount(data.totalLease)}</span>
           </div>
         )}
         {data.totalLiabilities !== null && (
           <div className="pe10-calc-formula">
             <span>{t("modal.total_liabilities")}</span>
-            <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalLiabilities)}</span>
+            <span className="pe10-calc-formula-val">{formatAmount(data.totalLiabilities)}</span>
           </div>
         )}
         <div className="pe10-calc-formula">
           <span>{t("modal.equity")}</span>
-          <span className="pe10-calc-formula-val">{formatLargeNumber(data.stockholdersEquity)}</span>
+          <span className="pe10-calc-formula-val">{formatAmount(data.stockholdersEquity)}</span>
         </div>
       </div>
     </div>
@@ -189,6 +195,7 @@ function BalanceSheetComponents({ data }: { data: QuoteData }) {
 
 function DebtToEquityInfo({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker);
   return (
     <>
       <div className="modal-explainer">
@@ -201,7 +208,7 @@ function DebtToEquityInfo({ data }: { data: QuoteData }) {
           <div className="pe10-calc-section">
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
-              <span>{formatLargeNumber(data.totalDebt!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+              <span>{formatAmount(data.totalDebt!)} ÷ {formatAmount(data.stockholdersEquity)}</span>
               <span className="pe10-calc-formula-val">= {br(data.debtToEquity, 2)}</span>
             </div>
           </div>
@@ -213,6 +220,7 @@ function DebtToEquityInfo({ data }: { data: QuoteData }) {
 
 function DebtExLeaseInfo({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker);
   return (
     <>
       <div className="modal-explainer">
@@ -224,7 +232,7 @@ function DebtExLeaseInfo({ data }: { data: QuoteData }) {
           <div className="pe10-calc-section">
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
-              <span>({formatLargeNumber(data.totalDebt)} − {formatLargeNumber(data.totalLease ?? 0)}) ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+              <span>({formatAmount(data.totalDebt)} − {formatAmount(data.totalLease ?? 0)}) ÷ {formatAmount(data.stockholdersEquity)}</span>
               <span className="pe10-calc-formula-val">= {br(data.debtExLeaseToEquity, 2)}</span>
             </div>
           </div>
@@ -236,6 +244,7 @@ function DebtExLeaseInfo({ data }: { data: QuoteData }) {
 
 function LiabToEquityInfo({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker);
   return (
     <>
       <div className="modal-explainer">
@@ -248,7 +257,7 @@ function LiabToEquityInfo({ data }: { data: QuoteData }) {
           <div className="pe10-calc-section">
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
-              <span>{formatLargeNumber(data.totalLiabilities!)} ÷ {formatLargeNumber(data.stockholdersEquity)}</span>
+              <span>{formatAmount(data.totalLiabilities!)} ÷ {formatAmount(data.stockholdersEquity)}</span>
               <span className="pe10-calc-formula-val">= {br(data.liabilitiesToEquity, 2)}</span>
             </div>
           </div>
@@ -260,6 +269,7 @@ function LiabToEquityInfo({ data }: { data: QuoteData }) {
 
 function DebtToEarningsInfo({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker);
   return (
     <>
       <div className="modal-explainer">
@@ -272,14 +282,14 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{t("modal.gross_debt")}</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+              <span className="pe10-calc-formula-val">{formatAmount(data.totalDebt)}</span>
             </div>
             <div className="pe10-calc-formula">
               <span>{t("modal.pl10_avg_label", { years: data.pe10YearsOfData })}</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedNetIncome)}</span>
+              <span className="pe10-calc-formula-val">{formatAmount(data.avgAdjustedNetIncome)}</span>
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
-              <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedNetIncome)}</span>
+              <span>{formatAmount(data.totalDebt)} ÷ {formatAmount(data.avgAdjustedNetIncome)}</span>
               <span className="pe10-calc-formula-val">= {br(data.debtToAvgEarnings, 2)}</span>
             </div>
           </div>
@@ -291,6 +301,7 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
 
 function DebtToFCFInfo({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker);
   return (
     <>
       <div className="modal-explainer">
@@ -302,14 +313,14 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{t("modal.gross_debt")}</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(data.totalDebt)}</span>
+              <span className="pe10-calc-formula-val">{formatAmount(data.totalDebt)}</span>
             </div>
             <div className="pe10-calc-formula">
               <span>{t("modal.pfcl10_avg_label", { years: data.pfcf10YearsOfData })}</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedFCF)}</span>
+              <span className="pe10-calc-formula-val">{formatAmount(data.avgAdjustedFCF)}</span>
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
-              <span>{formatLargeNumber(data.totalDebt)} ÷ {formatLargeNumber(data.avgAdjustedFCF)}</span>
+              <span>{formatAmount(data.totalDebt)} ÷ {formatAmount(data.avgAdjustedFCF)}</span>
               <span className="pe10-calc-formula-val">= {br(data.debtToAvgFCF, 2)}</span>
             </div>
           </div>
@@ -322,6 +333,7 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
 function PL10Info({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
+  const formatAmount = makeFormatAmount(data.ticker);
   const label = ptLabel(data.pe10Label);
   const hasCalc = data.pe10CalculationDetails.length > 0;
   const total = hasCalc
@@ -356,9 +368,9 @@ function PL10Info({ data }: { data: QuoteData }) {
                   <>
                     <tr key={year.year} className="pe10-calc-year-row">
                       <td>{year.year}</td>
-                      <td>{formatLargeNumber(year.nominalNetIncome)}</td>
+                      <td>{formatAmount(year.nominalNetIncome)}</td>
                       <td>{br(year.ipcaFactor, 4)}×</td>
-                      <td>{formatLargeNumber(year.adjustedNetIncome)}</td>
+                      <td>{formatAmount(year.adjustedNetIncome)}</td>
                       <td>
                         <button
                           className="pe10-calc-expand-btn"
@@ -371,7 +383,7 @@ function PL10Info({ data }: { data: QuoteData }) {
                     {expandedYear === year.year && year.quarterlyDetail.map((q) => (
                       <tr key={q.end_date} className="pe10-calc-quarter-row">
                         <td className="pe10-calc-quarter-label">{formatQuarterLabel(q.end_date)}</td>
-                        <td colSpan={4}>{t("modal.quarterly_net_income", { value: formatLargeNumber(q.net_income) })}</td>
+                        <td colSpan={4}>{t("modal.quarterly_net_income", { value: formatAmount(q.net_income) })}</td>
                       </tr>
                     ))}
                   </>
@@ -384,12 +396,12 @@ function PL10Info({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.pl10_step2")}</div>
             <div className="pe10-calc-formula">
               <span>{t("modal.pl10_sum")}</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(total)}</span>
+              <span className="pe10-calc-formula-val">{formatAmount(total)}</span>
             </div>
             <div className="pe10-calc-formula">
               <span>÷ {data.pe10YearsOfData} {t("common.year_plural")}</span>
               <span className="pe10-calc-formula-val">
-                = {data.avgAdjustedNetIncome !== null ? formatLargeNumber(data.avgAdjustedNetIncome) : "N/A"}
+                = {data.avgAdjustedNetIncome !== null ? formatAmount(data.avgAdjustedNetIncome) : "N/A"}
               </span>
             </div>
           </div>
@@ -399,11 +411,11 @@ function PL10Info({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">{t("modal.pl10_step3", { label })}</div>
               <div className="pe10-calc-formula">
                 <span>{t("modal.pl10_market_cap")}</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.marketCap)}</span>
+                <span className="pe10-calc-formula-val">{formatAmount(data.marketCap)}</span>
               </div>
               <div className="pe10-calc-formula">
                 <span>÷ {t("modal.pl10_divided_by")}</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedNetIncome)}</span>
+                <span className="pe10-calc-formula-val">{formatAmount(data.avgAdjustedNetIncome)}</span>
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
                 <span>= {label}</span>
@@ -420,6 +432,7 @@ function PL10Info({ data }: { data: QuoteData }) {
 function PFCL10Info({ data }: { data: QuoteData }) {
   const { t } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
+  const formatAmount = makeFormatAmount(data.ticker);
   const label = ptLabel(data.pfcf10Label);
   const hasCalc = data.pfcf10CalculationDetails.length > 0;
   const total = hasCalc
@@ -454,9 +467,9 @@ function PFCL10Info({ data }: { data: QuoteData }) {
                   <>
                     <tr key={year.year} className="pe10-calc-year-row">
                       <td>{year.year}</td>
-                      <td>{formatLargeNumber(year.nominalFCF)}</td>
+                      <td>{formatAmount(year.nominalFCF)}</td>
                       <td>{br(year.ipcaFactor, 4)}×</td>
-                      <td>{formatLargeNumber(year.adjustedFCF)}</td>
+                      <td>{formatAmount(year.adjustedFCF)}</td>
                       <td>
                         <button
                           className="pe10-calc-expand-btn"
@@ -470,9 +483,9 @@ function PFCL10Info({ data }: { data: QuoteData }) {
                       <tr key={q.end_date} className="pe10-calc-quarter-row">
                         <td className="pe10-calc-quarter-label">{formatQuarterLabel(q.end_date)}</td>
                         <td colSpan={4}>
-                          {t("modal.quarterly_operating", { value: formatLargeNumber(q.operating_cash_flow) })}
+                          {t("modal.quarterly_operating", { value: formatAmount(q.operating_cash_flow) })}
                           {" · "}
-                          {t("modal.quarterly_investing", { value: formatLargeNumber(q.investment_cash_flow) })}
+                          {t("modal.quarterly_investing", { value: formatAmount(q.investment_cash_flow) })}
                         </td>
                       </tr>
                     ))}
@@ -486,12 +499,12 @@ function PFCL10Info({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.pfcl10_step2")}</div>
             <div className="pe10-calc-formula">
               <span>{t("modal.pfcl10_sum")}</span>
-              <span className="pe10-calc-formula-val">{formatLargeNumber(total)}</span>
+              <span className="pe10-calc-formula-val">{formatAmount(total)}</span>
             </div>
             <div className="pe10-calc-formula">
               <span>÷ {data.pfcf10YearsOfData} {t("common.year_plural")}</span>
               <span className="pe10-calc-formula-val">
-                = {data.avgAdjustedFCF !== null ? formatLargeNumber(data.avgAdjustedFCF) : "N/A"}
+                = {data.avgAdjustedFCF !== null ? formatAmount(data.avgAdjustedFCF) : "N/A"}
               </span>
             </div>
           </div>
@@ -501,11 +514,11 @@ function PFCL10Info({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">{t("modal.pl10_step3", { label })}</div>
               <div className="pe10-calc-formula">
                 <span>{t("modal.pl10_market_cap")}</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.marketCap)}</span>
+                <span className="pe10-calc-formula-val">{formatAmount(data.marketCap)}</span>
               </div>
               <div className="pe10-calc-formula">
                 <span>÷ {t("modal.pfcl10_divided_by")}</span>
-                <span className="pe10-calc-formula-val">{formatLargeNumber(data.avgAdjustedFCF)}</span>
+                <span className="pe10-calc-formula-val">{formatAmount(data.avgAdjustedFCF)}</span>
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
                 <span>= {label}</span>
@@ -654,6 +667,7 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: (key: TranslationKey, pa
 export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector }: CompanyMetricsCardProps) {
   const { t, pluralize } = useTranslation();
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
+  const formatAmount = makeFormatAmount(data.ticker);
 
   const pl10Label = ptLabel(data.pe10Label);
   const pfcl10Label = ptLabel(data.pfcf10Label);
@@ -831,13 +845,13 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
         <div className="pe10-detail-item">
           <div className="pe10-detail-label">{t("metrics.current_price")}</div>
           <div className="pe10-detail-value">
-            R$ {br(data.currentPrice, 2)}
+            {currencySymbol(data.ticker)} {br(data.currentPrice, 2)}
           </div>
         </div>
         <div className="pe10-detail-item">
           <div className="pe10-detail-label">{t("metrics.market_cap")}</div>
           <div className="pe10-detail-value">
-            {data.marketCap !== null ? formatLargeNumber(data.marketCap) : "N/A"}
+            {data.marketCap !== null ? formatAmount(data.marketCap) : "N/A"}
           </div>
         </div>
         <div className="pe10-detail-item">

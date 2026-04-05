@@ -19,7 +19,9 @@ import { ListCard } from "./ListCard";
 import { AddFavoriteCard, shouldShowAddFavoriteCard } from "./AddFavoriteCard";
 import { AuthModal } from "./AuthModal";
 import { useTickers } from "../hooks/useTickers";
+import { useRegion } from "../hooks/useRegion";
 import { useTranslation } from "../i18n";
+import { getDefaultTickers } from "../utils/suggestedCompanies";
 import { useMemo } from "react";
 import "../styles/homepage-cards.css";
 
@@ -37,11 +39,6 @@ export function getGridItemClassNames(
     .filter(Boolean)
     .join(" ");
 }
-
-const DEFAULT_TICKERS = [
-  "PETR4", "VALE3", "ITUB4", "WEGE3",
-  "ABEV3", "BBAS3", "RENT3", "SUZB3",
-];
 
 function DragHandleIcon() {
   return (
@@ -78,6 +75,7 @@ export function HomepageGrid() {
   const { favoriteTickers, isFavorite, toggleFavorite } = useFavorites();
   const { lists } = useSavedLists();
   const { data: allTickers = [] } = useTickers();
+  const region = useRegion();
   const queryClient = useQueryClient();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMessage, setAuthModalMessage] = useState<string | undefined>(undefined);
@@ -118,10 +116,11 @@ export function HomepageGrid() {
     },
   });
 
+  const defaultTickers = getDefaultTickers(region);
   const showPlaceholder = shouldShowAddFavoriteCard(isAuthenticated, favoriteTickers.length);
   const tickers = isAuthenticated && favoriteTickers.length > 0
     ? favoriteTickers.slice(0, 8)
-    : DEFAULT_TICKERS.slice(0, showPlaceholder ? 7 : 8);
+    : defaultTickers.slice(0, showPlaceholder ? 7 : 8);
 
   const layout = useMemo(() => {
     if (savedLayout) {
