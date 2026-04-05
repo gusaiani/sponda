@@ -402,8 +402,13 @@ def sync_tickers() -> int:
         if not symbol:
             continue
         # Only keep standard stock tickers (e.g. PETR4, VALE3)
-        # Skip fractional (F), BDRs (34), receipts (39), and funds/ETFs (11)
-        if re.search(r"(F|34|39|11)$", symbol):
+        # Skip fractional (F), BDRs (34), receipts (39), funds/ETFs (11),
+        # and units/other instruments (10, 31, 32, 33, 35)
+        if re.search(r"(F|\d{2})$", symbol):
+            continue
+        # Only keep actual stocks
+        ticker_type = stock.get("type") or ""
+        if ticker_type and ticker_type != "stock":
             continue
         formal_name = stock.get("name") or ""
         objects.append(Ticker(
