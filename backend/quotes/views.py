@@ -1,8 +1,10 @@
+import hashlib
 import re
 from datetime import date, timedelta
 from decimal import Decimal
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db.models import F
 from django.http import HttpResponse
 from django.utils import timezone
@@ -146,13 +148,19 @@ def format_display_name(formal_name: str) -> str:
     return result.strip()
 
 
+TICKER_LIST_CACHE_KEY = "ticker_list_v1"
+TICKER_LIST_CACHE_TIMEOUT = 3600  # 1 hour
+
 class TickerListView(APIView):
     def get(self, request):
-        tickers = Ticker.objects.filter(type="stock", symbol__regex=r"^[A-Z]+\d+$").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "display_name", "sector", "type", "logo")
-        result = []
-        for ticker in tickers:
-            ticker["name"] = ticker.pop("display_name") or ticker["name"]
-            result.append(ticker)
+        result = cache.get(TICKER_LIST_CACHE_KEY)
+        if result is None:
+            tickers = Ticker.objects.filter(type="stock", symbol__regex=r"^[A-Z]+\d+$").exclude(symbol__regex=r"^[A-Z]+\d+F$").values("symbol", "name", "display_name", "sector", "type", "logo")
+            result = []
+            for ticker in tickers:
+                ticker["name"] = ticker.pop("display_name") or ticker["name"]
+                result.append(ticker)
+            cache.set(TICKER_LIST_CACHE_KEY, result, TICKER_LIST_CACHE_TIMEOUT)
         response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
         return response
@@ -171,10 +179,20 @@ class TickerSearchView(APIView):
     MAX_SYMBOL_MATCHES = 5
     MIN_NAME_SLOTS = 3
 
+    SEARCH_CACHE_TIMEOUT = 120  # 2 minutes
+
     def get(self, request):
         query = (request.query_params.get("q") or "").strip()
         if len(query) < 1:
             return Response([])
+
+        # Check cache first
+        cache_key = f"search:{hashlib.md5(query.lower().encode()).hexdigest()}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            response = Response(cached)
+            response["Cache-Control"] = "public, max-age=60"
+            return response
 
         query_upper = query.upper()
         market_cap_ordering = F("market_cap").desc(nulls_last=True)
@@ -211,6 +229,8 @@ class TickerSearchView(APIView):
         for ticker in results:
             ticker["name"] = ticker.pop("display_name") or ticker["name"]
             del ticker["market_cap"]
+
+        cache.set(cache_key, results, self.SEARCH_CACHE_TIMEOUT)
 
         response = Response(results)
         response["Cache-Control"] = "public, max-age=60"
@@ -549,29 +569,33 @@ class CompanyAnalysisView(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
-        analyses = CompanyAnalysis.objects.filter(ticker=ticker).order_by("-generated_at")
+        analyses = list(
+            CompanyAnalysis.objects.filter(ticker=ticker)
+            .order_by("-generated_at")
+            .values("id", "content", "data_quarter", "generated_at")
+        )
 
-        if not analyses.exists():
+        if not analyses:
             return Response(
                 {"error": "Nenhuma análise disponível para este ticker."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        latest = analyses.first()
+        latest = analyses[0]
         versions = [
             {
-                "id": analysis.id,
-                "dataQuarter": analysis.data_quarter,
-                "generatedAt": analysis.generated_at.isoformat(),
+                "id": analysis["id"],
+                "dataQuarter": analysis["data_quarter"],
+                "generatedAt": analysis["generated_at"].isoformat(),
             }
             for analysis in analyses
         ]
 
         response = Response({
             "ticker": ticker,
-            "content": latest.content,
-            "dataQuarter": latest.data_quarter,
-            "generatedAt": latest.generated_at.isoformat(),
+            "content": latest["content"],
+            "dataQuarter": latest["data_quarter"],
+            "generatedAt": latest["generated_at"].isoformat(),
             "versions": versions,
         })
         response["Cache-Control"] = "public, max-age=3600"

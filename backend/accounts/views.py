@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
@@ -925,23 +925,38 @@ class AdminDashboardView(APIView):
         })
 
     def _get_user_stats(self, boundaries):
-        """List all users with email, last login, and visit counts per period."""
-        users = User.objects.all().order_by("-last_login")
+        """List all users with email, last login, and visit counts per period.
+
+        Uses annotate() to compute all counts in a single query instead of
+        N+1 queries per user per period.
+        """
+        annotations = {}
+        for period_name, cutoff in boundaries.items():
+            annotations[f"page_views_{period_name}"] = Count(
+                "pageview", filter=Q(pageview__timestamp__gte=cutoff)
+            )
+            annotations[f"lookups_{period_name}"] = Count(
+                "lookuplog", filter=Q(lookuplog__timestamp__gte=cutoff)
+            )
+        annotations["favorites_count"] = Count("favorites", distinct=True)
+        annotations["saved_lists_count"] = Count("saved_lists", distinct=True)
+
+        users = (
+            User.objects.all()
+            .annotate(**annotations)
+            .order_by("-last_login")
+        )
+
         user_list = []
-
         for user in users:
-            visit_counts = {}
-            for period_name, cutoff in boundaries.items():
-                visit_counts[period_name] = PageView.objects.filter(
-                    user=user, timestamp__gte=cutoff
-                ).count()
-
-            lookup_counts = {}
-            for period_name, cutoff in boundaries.items():
-                lookup_counts[period_name] = LookupLog.objects.filter(
-                    user=user, timestamp__gte=cutoff
-                ).count()
-
+            visit_counts = {
+                period_name: getattr(user, f"page_views_{period_name}")
+                for period_name in boundaries
+            }
+            lookup_counts = {
+                period_name: getattr(user, f"lookups_{period_name}")
+                for period_name in boundaries
+            }
             user_list.append({
                 "email": user.email,
                 "date_joined": user.date_joined,
@@ -950,8 +965,8 @@ class AdminDashboardView(APIView):
                 "is_superuser": user.is_superuser,
                 "page_views": visit_counts,
                 "lookups": lookup_counts,
-                "favorites_count": user.favorites.count(),
-                "saved_lists_count": user.saved_lists.count(),
+                "favorites_count": user.favorites_count,
+                "saved_lists_count": user.saved_lists_count,
             })
 
         return user_list
