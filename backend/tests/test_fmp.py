@@ -87,21 +87,21 @@ MOCK_CASH_FLOW_STATEMENTS = [
         "date": "2025-09-30",
         "symbol": "AAPL",
         "operatingCashFlow": 26900000000,
-        "investingCashFlow": -4500000000,
-        "financingCashFlow": -22000000000,
+        "netCashProvidedByInvestingActivities": -4500000000,
+        "netCashProvidedByFinancingActivities": -22000000000,
         "capitalExpenditure": -2800000000,
         "freeCashFlow": 24100000000,
-        "dividendsPaid": -3800000000,
+        "commonDividendsPaid": -3800000000,
     },
     {
         "date": "2025-06-30",
         "symbol": "AAPL",
         "operatingCashFlow": 28500000000,
-        "investingCashFlow": -3900000000,
-        "financingCashFlow": -25000000000,
+        "netCashProvidedByInvestingActivities": -3900000000,
+        "netCashProvidedByFinancingActivities": -25000000000,
         "capitalExpenditure": -2600000000,
         "freeCashFlow": 25900000000,
-        "dividendsPaid": -3700000000,
+        "commonDividendsPaid": -3700000000,
     },
 ]
 
@@ -192,7 +192,7 @@ class TestFetchCashFlowStatements:
         assert len(result) == 2
         assert result[0]["operatingCashFlow"] == 26900000000
         mock_get.assert_called_once_with(
-            "/stable/cashflow-statement",
+            "/stable/cash-flow-statement",
             params={"symbol": "AAPL", "period": "quarter", "limit": 80},
         )
 
