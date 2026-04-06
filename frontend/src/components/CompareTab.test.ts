@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { getColumns } from "./CompareTab";
 import type { QuoteResult } from "../hooks/usePE10";
+import { pt } from "../i18n/locales/pt";
+import type { TranslationKey } from "../i18n";
+
+const t = (key: TranslationKey) => pt[key];
 
 function makeQuoteResult(overrides: Partial<QuoteResult> = {}): QuoteResult {
   return {
@@ -54,12 +58,12 @@ function makeQuoteResult(overrides: Partial<QuoteResult> = {}): QuoteResult {
 
 describe("getColumns", () => {
   it("returns 14 columns", () => {
-    const columns = getColumns(5);
+    const columns = getColumns(5, t);
     expect(columns).toHaveLength(14);
   });
 
   it("includes the year number in dynamic labels", () => {
-    const columns = getColumns(5);
+    const columns = getColumns(5, t);
     const labels = columns.map((column) => column.label);
 
     expect(labels).toContain("Dív/Lucro5");
@@ -74,7 +78,7 @@ describe("getColumns", () => {
   });
 
   it("uses different year number when years changes", () => {
-    const columns = getColumns(10);
+    const columns = getColumns(10, t);
     const labels = columns.map((column) => column.label);
 
     expect(labels).toContain("Dív/Lucro10");
@@ -83,8 +87,8 @@ describe("getColumns", () => {
   });
 
   it("keeps fixed labels unchanged regardless of years", () => {
-    const columnsWith5 = getColumns(5);
-    const columnsWith10 = getColumns(10);
+    const columnsWith5 = getColumns(5, t);
+    const columnsWith10 = getColumns(10, t);
 
     const fixedLabels = ["Dív/PL", "Dív-Arr/PL", "Pass/PL", "Liq. Corr.", "P/VPA"];
 
@@ -94,8 +98,25 @@ describe("getColumns", () => {
     }
   });
 
+  it("uses English labels when given English translations", async () => {
+    const { en } = await import("../i18n/locales/en");
+    const tEn = (key: TranslationKey) => en[key];
+    const columns = getColumns(10, tEn);
+    const labels = columns.map((c) => c.label);
+
+    expect(labels).toContain("D/E");
+    expect(labels).toContain("D-Lease/E");
+    expect(labels).toContain("L/E");
+    expect(labels).toContain("Curr. Ratio");
+    expect(labels).toContain("P/B");
+    expect(labels).toContain("D/Earn10");
+    expect(labels).toContain("P/E10");
+    expect(labels).toContain("PEG10");
+    expect(labels).toContain("CAGR E10");
+  });
+
   it("has 6 endividamento, 2 rentabilidade, and 6 valuation columns", () => {
-    const columns = getColumns(5);
+    const columns = getColumns(5, t);
 
     const endividamento = columns.filter((column) => column.group === "endividamento");
     const rentabilidade = columns.filter((column) => column.group === "rentabilidade");
@@ -107,7 +128,7 @@ describe("getColumns", () => {
   });
 
   it("format() returns null when the field is null", () => {
-    const columns = getColumns(5);
+    const columns = getColumns(5, t);
     const quoteResult = makeQuoteResult();
 
     for (const column of columns) {
@@ -116,7 +137,7 @@ describe("getColumns", () => {
   });
 
   it("format() returns a formatted string when field has a value", () => {
-    const columns = getColumns(5);
+    const columns = getColumns(5, t);
     const quoteResult = makeQuoteResult({
       debtToEquity: 1.5,
       debtExLeaseToEquity: 0.8,
@@ -153,7 +174,7 @@ describe("getColumns", () => {
   });
 
   it("value() extracts the raw number from the quote result", () => {
-    const columns = getColumns(5);
+    const columns = getColumns(5, t);
     const quoteResult = makeQuoteResult({
       debtToEquity: 1.5,
       pe10: 12.5,
@@ -175,7 +196,7 @@ describe("getColumns", () => {
   });
 
   it("value() returns null when the field is null", () => {
-    const columns = getColumns(5);
+    const columns = getColumns(5, t);
     const quoteResult = makeQuoteResult();
 
     for (const column of columns) {
