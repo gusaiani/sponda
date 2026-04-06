@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTickerSearch } from "../hooks/useTickerSearch";
-import type { TickerItem } from "../hooks/useTickers";
+import type { TickerItem } from "../hooks/useTickerSearch";
 import { useTranslation } from "../i18n";
 import { logoUrl } from "../utils/format";
 import "../styles/compare.css";

@@ -211,6 +211,75 @@ class TestTickerListEndpoint:
         assert "BOVA11" not in symbols
 
 
+class TestTickerPeersEndpoint:
+    def test_returns_peers_for_same_sector(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", sector="Energy Minerals", type="stock")
+        Ticker.objects.create(symbol="PRIO3", name="PRIO", sector="Energy Minerals", type="stock")
+        Ticker.objects.create(symbol="RECV3", name="PetroReconcavo", sector="Energy Minerals", type="stock")
+        Ticker.objects.create(symbol="VALE3", name="Vale", sector="Non-Energy Minerals", type="stock")
+        response = api_client.get("/api/tickers/PETR4/peers/")
+        assert response.status_code == 200
+        symbols = [p["symbol"] for p in response.json()]
+        assert "PRIO3" in symbols
+        assert "RECV3" in symbols
+        assert "VALE3" not in symbols
+        assert "PETR4" not in symbols
+
+    def test_returns_name_in_response(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", sector="Energy Minerals", type="stock")
+        Ticker.objects.create(symbol="PRIO3", name="PRIO", sector="Energy Minerals", type="stock")
+        response = api_client.get("/api/tickers/PETR4/peers/")
+        peer = response.json()[0]
+        assert "symbol" in peer
+        assert "name" in peer
+
+    def test_returns_404_for_unknown_ticker(self, api_client, db):
+        response = api_client.get("/api/tickers/ZZZZ3/peers/")
+        assert response.status_code == 404
+
+    def test_returns_empty_for_no_sector(self, api_client, db):
+        Ticker.objects.create(symbol="TEST3", name="Test", sector="", type="stock")
+        response = api_client.get("/api/tickers/TEST3/peers/")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_deduplicates_on_pn_variants(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", sector="Energy Minerals", type="stock")
+        Ticker.objects.create(symbol="CSAN3", name="Cosan", sector="Energy Minerals", type="stock")
+        Ticker.objects.create(symbol="CSAN4", name="Cosan", sector="Energy Minerals", type="stock")
+        response = api_client.get("/api/tickers/PETR4/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        assert len(symbols) == 1
+
+    def test_has_cache_header(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", sector="Energy Minerals", type="stock")
+        response = api_client.get("/api/tickers/PETR4/peers/")
+        assert "max-age=3600" in response["Cache-Control"]
+
+    def test_finance_subsector_groups_banks(self, api_client, db):
+        Ticker.objects.create(symbol="ITUB4", name="Itau Unibanco", sector="Finance", type="stock")
+        Ticker.objects.create(symbol="BBDC4", name="BCO Bradesco", sector="Finance", type="stock")
+        Ticker.objects.create(symbol="BBAS3", name="BCO Brasil", sector="Finance", type="stock")
+        Ticker.objects.create(symbol="SANB11", name="Banco Santander", sector="Finance", type="stock")
+        Ticker.objects.create(symbol="SULA11", name="Sul America Seguros", sector="Finance", type="stock")
+        response = api_client.get("/api/tickers/ITUB4/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        assert "BBDC4" in symbols
+        assert "BBAS3" in symbols
+        assert "SANB11" in symbols
+        assert "SULA11" not in symbols
+
+    def test_falls_back_to_broad_sector_when_few_subsector_peers(self, api_client, db):
+        Ticker.objects.create(symbol="SULA11", name="Sul America Seguros", sector="Finance", type="stock")
+        Ticker.objects.create(symbol="ITUB4", name="Itau Unibanco", sector="Finance", type="stock")
+        Ticker.objects.create(symbol="BBDC4", name="BCO Bradesco", sector="Finance", type="stock")
+        Ticker.objects.create(symbol="BBAS3", name="BCO Brasil", sector="Finance", type="stock")
+        # SULA11's subsector is "Seguros", only 0 peers there → falls back to broader "Finance"
+        response = api_client.get("/api/tickers/SULA11/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        assert len(symbols) >= 2
+
+
 class TestTickerDetailEndpoint:
     def test_returns_single_ticker(self, api_client, sample_tickers):
         response = api_client.get("/api/tickers/PETR4/")

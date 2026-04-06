@@ -1,9 +1,7 @@
-import { useMemo } from "react";
-import Link from "next/link";
 import { useSavedLists } from "../hooks/useSavedLists";
-import { useTickers, TickerItem } from "../hooks/useTickers";
 import { useTranslation } from "../i18n";
 import { logoUrl } from "../utils/format";
+import Link from "next/link";
 import "../styles/saved-lists.css";
 
 const MAX_LOGOS = 5;
@@ -12,13 +10,6 @@ const MAX_DISPLAYED_ON_HOME = 3;
 export function SavedLists() {
   const { t } = useTranslation();
   const { lists, isLoading } = useSavedLists();
-  const { data: allTickers = [] } = useTickers();
-
-  const tickerMap = useMemo(() => {
-    const map = new Map<string, TickerItem>();
-    for (const ticker of allTickers) map.set(ticker.symbol, ticker);
-    return map;
-  }, [allTickers]);
 
   if (isLoading || lists.length === 0) return null;
 
@@ -30,7 +21,7 @@ export function SavedLists() {
       <p className="saved-lists-title">{t("lists.your_lists")}</p>
       <div className="saved-lists-list">
         {displayedLists.map((list) => (
-          <SavedListCard key={list.id} list={list} tickerMap={tickerMap} />
+          <SavedListCard key={list.id} list={list} />
         ))}
       </div>
       {hasMoreLists && (
@@ -46,10 +37,9 @@ export function SavedLists() {
 
 interface SavedListCardProps {
   list: { id: number; name: string; tickers: string[]; years: number };
-  tickerMap: Map<string, TickerItem>;
 }
 
-export function SavedListCard({ list, tickerMap }: SavedListCardProps) {
+export function SavedListCard({ list }: SavedListCardProps) {
   const { t, pluralize } = useTranslation();
   const firstTicker = list.tickers[0];
   const compareUrl = `/${firstTicker}/comparar?listId=${list.id}`;
@@ -65,21 +55,18 @@ export function SavedListCard({ list, tickerMap }: SavedListCardProps) {
         <span className="saved-list-name">{list.name}</span>
         <span className="saved-list-dot">·</span>
         <div className="saved-list-logos">
-          {displayedTickers.map((ticker) => {
-            const tickerData = tickerMap.get(ticker);
-            return (
-              <img
-                key={ticker}
-                className="saved-list-logo"
-                src={logoUrl(ticker)}
-                alt={ticker}
-                title={ticker}
-                onError={(event) => {
-                  (event.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            );
-          })}
+          {displayedTickers.map((ticker) => (
+            <img
+              key={ticker}
+              className="saved-list-logo"
+              src={logoUrl(ticker)}
+              alt={ticker}
+              title={ticker}
+              onError={(event) => {
+                (event.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ))}
           {remainingCount > 0 && (
             <span className="saved-list-more">
               {t("lists.and_more", { count: remainingCount })}

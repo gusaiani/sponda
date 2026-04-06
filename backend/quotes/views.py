@@ -195,6 +195,104 @@ class TickerDetailView(APIView):
         return response
 
 
+FINANCE_SUBSECTOR_RULES = [
+    (re.compile(r"\bBCO\b|BANCO\b|BANESTES|ITAU|BRADESC|BANESE", re.IGNORECASE), "Bancos"),
+    (re.compile(r"SEGUR|SEGURAD|RESSEGURO", re.IGNORECASE), "Seguros"),
+    (re.compile(r"CONSTRU|INCORPOR|EMPREEND.*IMOB|REALTY|ENGENHARIA|TENDA|CURY|CYRELA|DIRECIONAL|EVEN|GAFISA|LAVVI|MITRE|MOURA|PLANO|TECNISA|PDG|ALPHAVILLE", re.IGNORECASE), "Construção e Incorporação"),
+    (re.compile(r"SHOPPING|IGUATEMI|MULTIPLAN|ALLOS", re.IGNORECASE), "Shoppings"),
+    (re.compile(r"LOCAÇÃO|LOCACAO|RENT A CAR|MOVIDA|VAMOS|ARMAC|MILLS", re.IGNORECASE), "Locação"),
+    (re.compile(r"AGRO|AGRICOLA|TERRA SANTA", re.IGNORECASE), "Agronegócio"),
+    (re.compile(r"BOLSA|BALCÃO|B3 S\.A", re.IGNORECASE), "Infraestrutura de Mercado"),
+    (re.compile(r"HOLDING|PARTICIPAC", re.IGNORECASE), "Holdings"),
+]
+
+
+def get_subsector(name, sector):
+    if sector == "Finance":
+        for pattern, subsector in FINANCE_SUBSECTOR_RULES:
+            if pattern.search(name):
+                return subsector
+    return sector
+
+
+def ticker_base(symbol):
+    return re.sub(r"\d+$", "", symbol)
+
+
+def deduplicate_by_company(tickers):
+    suffix_priority = {"4": 0, "3": 1, "11": 2}
+    best = {}
+    for ticker in tickers:
+        base = ticker_base(ticker["symbol"])
+        suffix = ticker["symbol"][len(base):]
+        priority = suffix_priority.get(suffix, 9)
+        existing = best.get(base)
+        if existing is None or priority < existing["priority"]:
+            best[base] = {**ticker, "priority": priority}
+    return [{k: v for k, v in entry.items() if k != "priority"} for entry in best.values()]
+
+
+class TickerPeersView(APIView):
+    MAX_PEERS = 10
+    MIN_PEERS = 3
+    CACHE_TIMEOUT = 3600
+
+    def get(self, request, symbol):
+        symbol_upper = symbol.upper()
+        cache_key = f"ticker_peers_{symbol_upper}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            response = Response(cached)
+            response["Cache-Control"] = "public, max-age=3600"
+            return response
+
+        current = Ticker.objects.filter(
+            symbol__iexact=symbol, type="stock"
+        ).values("symbol", "name", "display_name", "sector").first()
+
+        if current is None:
+            return Response({"detail": "Not found"}, status=404)
+
+        current_name = current["display_name"] or current["name"]
+        current_sector = current["sector"]
+        current_base = ticker_base(current["symbol"])
+
+        if not current_sector:
+            result = []
+        else:
+            all_sector_tickers = list(
+                Ticker.objects.filter(type="stock", sector=current_sector)
+                .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+                .values("symbol", "name", "display_name", "sector")
+            )
+            for ticker in all_sector_tickers:
+                ticker["name"] = ticker.pop("display_name") or ticker["name"]
+
+            current_subsector = get_subsector(current_name, current_sector)
+
+            subsector_matches = [
+                t for t in all_sector_tickers
+                if ticker_base(t["symbol"]) != current_base
+                and get_subsector(t["name"], t["sector"]) == current_subsector
+            ]
+            subsector_peers = deduplicate_by_company(subsector_matches)[:self.MAX_PEERS]
+
+            if len(subsector_peers) >= self.MIN_PEERS:
+                result = [{"symbol": p["symbol"], "name": p["name"]} for p in subsector_peers]
+            else:
+                sector_matches = [
+                    t for t in all_sector_tickers
+                    if ticker_base(t["symbol"]) != current_base
+                ]
+                sector_peers = deduplicate_by_company(sector_matches)[:self.MAX_PEERS]
+                result = [{"symbol": p["symbol"], "name": p["name"]} for p in sector_peers]
+
+        cache.set(cache_key, result, self.CACHE_TIMEOUT)
+        response = Response(result)
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
 class TickerSearchView(APIView):
     """Fast server-side ticker search. Returns up to 8 matches.
 

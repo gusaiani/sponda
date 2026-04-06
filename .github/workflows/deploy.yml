@@ -168,6 +168,7 @@ jobs:
             systemctl enable --now sponda-refresh.timer
 
             # Update Nginx config and reload
+            cp /opt/sponda/nginx/gzip.conf /etc/nginx/conf.d/gzip.conf
             cp /opt/sponda/nginx/sponda.capital.conf /etc/nginx/sites-available/
             cp /opt/sponda/nginx/sponda.poe.ma.conf /etc/nginx/sites-available/
             nginx -t && systemctl reload nginx

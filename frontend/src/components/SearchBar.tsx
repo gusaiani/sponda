@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, FormEvent } from "react";
 import { useTickerSearch } from "../hooks/useTickerSearch";
-import type { TickerItem } from "../hooks/useTickers";
+import type { TickerItem } from "../hooks/useTickerSearch";
 import { useTranslation } from "../i18n";
 import { logoUrl } from "../utils/format";
 import "../styles/search.css";
