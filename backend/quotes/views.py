@@ -27,8 +27,9 @@ from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
 
-PE10_CACHE_TTL = 5 * 60  # 5 minutes
-FUNDAMENTALS_CACHE_TTL = 10 * 60  # 10 minutes
+PE10_CACHE_TTL = 4 * 60 * 60  # 4 hours
+FUNDAMENTALS_CACHE_TTL = 6 * 60 * 60  # 6 hours
+MULTIPLES_HISTORY_CACHE_TTL = 6 * 60 * 60  # 6 hours
 
 
 def _clean_company_name(name: str) -> str:
@@ -593,6 +594,13 @@ class MultiplesHistoryView(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        cache_key = f"multiples_history:{ticker}"
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            response = Response(cached_result)
+            response["Cache-Control"] = "public, max-age=3600"
+            return response
+
         _ensure_fresh_data(ticker)
 
         try:
@@ -633,6 +641,7 @@ class MultiplesHistoryView(APIView):
             current_price=current_price,
         )
 
+        cache.set(cache_key, result, MULTIPLES_HISTORY_CACHE_TTL)
         response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
         return response

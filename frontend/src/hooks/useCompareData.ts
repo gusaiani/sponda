@@ -17,7 +17,7 @@ export function useCompareData(tickers: string[], years: number): CompareEntry[]
       queryFn: () => fetchQuote(t),
       enabled: !!t,
       retry: false as const,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 30 * 60 * 1000,
     })),
   });
 

@@ -37,7 +37,7 @@ export interface FundamentalsYear {
   ipcaFactor: number;
 }
 
-async function fetchFundamentals(ticker: string): Promise<FundamentalsYear[]> {
+export async function fetchFundamentals(ticker: string): Promise<FundamentalsYear[]> {
   const response = await fetch(`/api/quote/${ticker}/fundamentals/`, {
     credentials: "include",
   });
@@ -60,6 +60,6 @@ export function useFundamentals(ticker: string | null, enabled: boolean) {
     queryFn: () => fetchFundamentals(ticker!),
     enabled: !!ticker && enabled,
     retry: false,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
   });
 }

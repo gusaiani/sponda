@@ -145,7 +145,7 @@ export function usePE10(ticker: string | null, initialData?: QuoteResult) {
     queryFn: () => fetchQuote(ticker!),
     enabled: !!ticker,
     retry: false,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
     initialData,
   });
 }

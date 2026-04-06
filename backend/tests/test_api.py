@@ -699,6 +699,27 @@ class TestMultiplesHistoryEndpoint:
         response = api_client.get("/api/quote/PETR4/multiples-history/")
         assert "max-age=3600" in response["Cache-Control"]
 
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_second_request_served_from_cache(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        api_client, sample_earnings, sample_cash_flows, mock_brapi_quote
+    ):
+        """Second request for multiples-history skips external calls (served from cache)."""
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.return_value = MOCK_HISTORICAL_PRICES
+        response_1 = api_client.get("/api/quote/PETR4/multiples-history/")
+        assert response_1.status_code == 200
+        response_2 = api_client.get("/api/quote/PETR4/multiples-history/")
+        assert response_2.status_code == 200
+        assert response_1.json() == response_2.json()
+        # fetch_quote and fetch_historical_prices called only once
+        assert mock_quote.call_count == 1
+        assert mock_hist.call_count == 1
+
 
 class TestSignupEndpoint:
     def test_creates_user(self, api_client, db):

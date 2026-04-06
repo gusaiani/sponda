@@ -6,7 +6,13 @@ unchanged regardless of data source.
 import re
 from datetime import datetime, timezone
 
+from django.core.cache import cache
+
 from quotes import brapi, fmp
+
+PROVIDER_QUOTE_CACHE_TTL = 15 * 60  # 15 minutes
+PROVIDER_HISTORICAL_CACHE_TTL = 60 * 60  # 1 hour
+PROVIDER_DIVIDENDS_CACHE_TTL = 60 * 60  # 1 hour
 
 
 class ProviderError(Exception):
@@ -83,45 +89,69 @@ def _normalize_fmp_dividends(fmp_dividends: list[dict]) -> dict:
 
 
 def fetch_quote(ticker: str) -> dict:
+    cache_key = f"provider:quote:{ticker.upper()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if is_brazilian_ticker(ticker):
         try:
-            return brapi.fetch_quote(ticker)
+            result = brapi.fetch_quote(ticker)
         except brapi.BRAPIError as error:
             raise ProviderError(str(error)) from error
     else:
         try:
             raw = fmp.fetch_quote(ticker)
-            return _normalize_fmp_quote(raw)
+            result = _normalize_fmp_quote(raw)
         except fmp.FMPError as error:
             raise ProviderError(str(error)) from error
 
+    cache.set(cache_key, result, PROVIDER_QUOTE_CACHE_TTL)
+    return result
+
 
 def fetch_dividends(ticker: str):
+    cache_key = f"provider:dividends:{ticker.upper()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if is_brazilian_ticker(ticker):
         try:
-            return brapi.fetch_dividends(ticker)
+            result = brapi.fetch_dividends(ticker)
         except brapi.BRAPIError as error:
             raise ProviderError(str(error)) from error
     else:
         try:
             raw = fmp.fetch_dividends(ticker)
-            return _normalize_fmp_dividends(raw)
+            result = _normalize_fmp_dividends(raw)
         except fmp.FMPError as error:
             raise ProviderError(str(error)) from error
 
+    cache.set(cache_key, result, PROVIDER_DIVIDENDS_CACHE_TTL)
+    return result
+
 
 def fetch_historical_prices(ticker: str):
+    cache_key = f"provider:historical:{ticker.upper()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     if is_brazilian_ticker(ticker):
         try:
-            return brapi.fetch_historical_prices(ticker)
+            result = brapi.fetch_historical_prices(ticker)
         except brapi.BRAPIError as error:
             raise ProviderError(str(error)) from error
     else:
         try:
             raw = fmp.fetch_historical_prices(ticker)
-            return _normalize_fmp_historical_prices(raw)
+            result = _normalize_fmp_historical_prices(raw)
         except fmp.FMPError as error:
             raise ProviderError(str(error)) from error
+
+    cache.set(cache_key, result, PROVIDER_HISTORICAL_CACHE_TTL)
+    return result
 
 
 def sync_earnings(ticker: str):

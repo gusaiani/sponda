@@ -154,3 +154,55 @@ class TestFetchHistoricalPricesRouting:
         assert len(result) == 1
         assert result[0]["adjustedClose"] == 178.5
         assert isinstance(result[0]["date"], int)  # unix timestamp
+
+
+class TestProviderLayerCaching:
+    """Provider functions cache results in Redis to avoid redundant external API calls."""
+
+    @patch("quotes.providers.brapi")
+    def test_fetch_quote_caches_result(self, mock_brapi):
+        mock_brapi.fetch_quote.return_value = {"symbol": "VALE3", "regularMarketPrice": 60.0}
+        result_1 = fetch_quote("VALE3")
+        result_2 = fetch_quote("VALE3")
+        assert result_1 == result_2
+        mock_brapi.fetch_quote.assert_called_once()
+
+    @patch("quotes.providers.brapi")
+    def test_fetch_historical_prices_caches_result(self, mock_brapi):
+        mock_brapi.fetch_historical_prices.return_value = [{"date": 1000, "adjustedClose": 10.0}]
+        result_1 = fetch_historical_prices("PETR4")
+        result_2 = fetch_historical_prices("PETR4")
+        assert result_1 == result_2
+        mock_brapi.fetch_historical_prices.assert_called_once()
+
+    @patch("quotes.providers.brapi")
+    def test_fetch_dividends_caches_result(self, mock_brapi):
+        mock_brapi.fetch_dividends.return_value = {"cashDividends": [], "stockDividends": []}
+        result_1 = fetch_dividends("ITUB3")
+        result_2 = fetch_dividends("ITUB3")
+        assert result_1 == result_2
+        mock_brapi.fetch_dividends.assert_called_once()
+
+    @patch("quotes.providers.brapi")
+    def test_cache_is_per_ticker(self, mock_brapi):
+        mock_brapi.fetch_quote.side_effect = [
+            {"symbol": "VALE3", "regularMarketPrice": 60.0},
+            {"symbol": "PETR4", "regularMarketPrice": 45.0},
+        ]
+        fetch_quote("VALE3")
+        fetch_quote("PETR4")
+        assert mock_brapi.fetch_quote.call_count == 2
+
+    @patch("quotes.providers.brapi")
+    def test_errors_are_not_cached(self, mock_brapi):
+        from quotes.brapi import BRAPIError
+        mock_brapi.BRAPIError = BRAPIError
+        mock_brapi.fetch_quote.side_effect = BRAPIError("Timeout")
+        with pytest.raises(ProviderError):
+            fetch_quote("VALE3")
+        # After fixing the error, it should retry
+        mock_brapi.fetch_quote.side_effect = None
+        mock_brapi.fetch_quote.return_value = {"symbol": "VALE3", "regularMarketPrice": 60.0}
+        result = fetch_quote("VALE3")
+        assert result["symbol"] == "VALE3"
+        assert mock_brapi.fetch_quote.call_count == 2
