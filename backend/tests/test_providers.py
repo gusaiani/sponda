@@ -147,7 +147,7 @@ class TestFetchHistoricalPricesRouting:
     @patch("quotes.providers.fmp")
     def test_routes_us_ticker_to_fmp_and_normalizes(self, mock_fmp):
         mock_fmp.fetch_historical_prices.return_value = [
-            {"date": "2025-01-02", "adjClose": 178.5},
+            {"date": "2025-01-02", "close": 178.5},
         ]
         result = fetch_historical_prices("META")
         mock_fmp.fetch_historical_prices.assert_called_once_with("META")

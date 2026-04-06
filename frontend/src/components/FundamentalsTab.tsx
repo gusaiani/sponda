@@ -142,11 +142,11 @@ function getTranslatedColumns(t: (key: TranslationKey) => string): ColumnDef[] {
       format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome),
     },
     {
-      key: "pe10", label: "P/L10", group: "resultado",
+      key: "pe10", label: t("fundamentals.col.pe10"), group: "resultado",
       format: (row) => ratio(row.pe10),
     },
     {
-      key: "pe5", label: "P/L5", group: "resultado",
+      key: "pe5", label: t("fundamentals.col.pe5"), group: "resultado",
       format: (row) => ratio(row.pe5),
     },
     // Caixa
@@ -155,11 +155,11 @@ function getTranslatedColumns(t: (key: TranslationKey) => string): ColumnDef[] {
       format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.fcfAdjusted : row.fcf),
     },
     {
-      key: "pfcl10", label: "P/FCL10", group: "caixa",
+      key: "pfcl10", label: t("fundamentals.col.pfcf10"), group: "caixa",
       format: (row) => ratio(row.pfcl10),
     },
     {
-      key: "pfcl5", label: "P/FCL5", group: "caixa",
+      key: "pfcl5", label: t("fundamentals.col.pfcf5"), group: "caixa",
       format: (row) => ratio(row.pfcl5),
     },
     {
