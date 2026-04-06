@@ -70,7 +70,7 @@ def fetch_balance_sheets(ticker: str) -> list[dict]:
 
 def fetch_historical_prices(ticker: str) -> list[dict]:
     """Fetch historical daily prices for a US ticker."""
-    data = _get("/stable/historical-price-eod-full", params={"symbol": ticker})
+    data = _get("/stable/historical-price-eod/full", params={"symbol": ticker})
     if not isinstance(data, list) or not data:
         raise FMPError(f"No historical price data for ticker {ticker}")
     return data

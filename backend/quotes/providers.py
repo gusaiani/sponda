@@ -44,18 +44,18 @@ def _normalize_fmp_historical_prices(fmp_prices: list[dict]) -> list[dict]:
     """Normalize FMP historical prices to BRAPI format.
 
     BRAPI: {"date": <unix_timestamp>, "adjustedClose": float}
-    FMP:   {"date": "2025-01-02", "adjClose": float}
+    FMP:   {"date": "2025-01-02", "close": float}
     """
     normalized = []
     for point in fmp_prices:
         date_string = point.get("date")
-        adj_close = point.get("adjClose")
-        if date_string is None or adj_close is None:
+        close = point.get("close")
+        if date_string is None or close is None:
             continue
         unix_timestamp = int(datetime.strptime(date_string, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
         normalized.append({
             "date": unix_timestamp,
-            "adjustedClose": adj_close,
+            "adjustedClose": close,
         })
     return normalized
 

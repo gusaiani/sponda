@@ -127,9 +127,9 @@ MOCK_BALANCE_SHEETS = [
 ]
 
 MOCK_HISTORICAL_PRICES = [
-    {"date": "2025-01-02", "adjClose": 178.5, "close": 178.5, "volume": 50000000},
-    {"date": "2024-12-31", "adjClose": 175.0, "close": 175.0, "volume": 45000000},
-    {"date": "2024-11-29", "adjClose": 170.0, "close": 170.0, "volume": 48000000},
+    {"date": "2025-01-02", "close": 178.5, "volume": 50000000},
+    {"date": "2024-12-31", "close": 175.0, "volume": 45000000},
+    {"date": "2024-11-29", "close": 170.0, "volume": 48000000},
 ]
 
 MOCK_DIVIDENDS = [
@@ -216,7 +216,7 @@ class TestFetchHistoricalPrices:
         mock_get.return_value = MOCK_HISTORICAL_PRICES
         result = fetch_historical_prices("AAPL")
         assert len(result) == 3
-        assert result[0]["adjClose"] == 178.5
+        assert result[0]["close"] == 178.5
 
     @patch("quotes.fmp._get")
     def test_raises_on_empty_results(self, mock_get):

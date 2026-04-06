@@ -193,6 +193,10 @@ export interface TranslationDictionary {
   "fundamentals.col.operating_cf": string;
   "fundamentals.col.market_cap": string;
   "fundamentals.col.dividends": string;
+  "fundamentals.col.pe10": string;
+  "fundamentals.col.pe5": string;
+  "fundamentals.col.pfcf10": string;
+  "fundamentals.col.pfcf5": string;
 
   /* ── Charts ── */
   "charts.no_data": string;
