@@ -66,17 +66,35 @@ Dual-panel chart showing historical adjusted prices alongside year-end P/L (Pric
 
 ### Caching (Redis)
 
+Three-layer caching strategy eliminates redundant external API calls:
+
+**Layer 1 · Provider cache** (in `providers.py`): raw external API responses (BRAPI/FMP) are cached at the routing layer, so multiple views that need the same data (e.g. `fetch_quote`, `fetch_historical_prices`) share a single external call.
+
+| Provider call | TTL |
+|---|---|
+| `fetch_quote` | 15 min |
+| `fetch_historical_prices` | 1 hour |
+| `fetch_dividends` | 1 hour |
+
+**Layer 2 · View cache**: computed results for each API endpoint.
+
 | Endpoint | TTL | What it avoids |
 |---|---|---|
 | Ticker list (27K rows) | 1 hour | Full table scan on every page load |
 | Search results | 2 min | Trigram query + sorting per keystroke |
-| PE10 metrics | 5 min | 6+ DB queries + external API call + inflation adjustment |
-| Fundamentals | 10 min | All balance sheets, earnings, cash flows + IPCA table + external API |
+| PE10 metrics | 4 hours | 6+ DB queries + external API call + inflation adjustment |
+| Fundamentals | 6 hours | All balance sheets, earnings, cash flows + IPCA table + external API |
+| Multiples history | 6 hours | 2 sequential external API calls (was 8s uncached) |
+
+**Layer 3 · Cache warming**: `python manage.py warm_cache` pre-populates all three endpoints for the top 50 most-queried tickers. Run every 4 hours via cron so popular tickers are always served from cache.
 
 ### Frontend
 
 - **Search debounce** at 300ms to reduce API calls during typing
 - **Dynamic imports** via `next/dynamic` for CompanyMetricsCard, MultiplesChart (Recharts), CompareTab, FundamentalsTab, and CompanyAnalysis. Recharts (~100KB) only loads when the Charts tab is opened.
+- **Prefetch on hover**: hovering over Fundamentos or Graficos tabs triggers `queryClient.prefetchQuery()`, so data is ready before the user clicks
+- **Self-hosted Satoshi font**: eliminates the 1.15s Fontshare external request
+- **30-minute staleTime** on React Query hooks; SSR revalidation at 1 hour
 - **Lazy-loaded images** on all company logos; footer logo served via Next.js `<Image>` with WebP optimization
 - **useMemo** on frequently recomputed derived state (excludeSet, sectorPeerLinks)
 

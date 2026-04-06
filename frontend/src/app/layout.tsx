@@ -44,10 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400&display=swap"
           rel="stylesheet"
         />
-        <link
-          href="https://api.fontshare.com/v2/css?f[]=satoshi@500&display=swap"
-          rel="stylesheet"
-        />
+        <link rel="preload" href="/fonts/Satoshi-Medium.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

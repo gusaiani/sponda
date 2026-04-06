@@ -18,7 +18,7 @@ interface MultiplesHistoryResult {
   };
 }
 
-async function fetchMultiplesHistory(
+export async function fetchMultiplesHistory(
   ticker: string,
 ): Promise<MultiplesHistoryResult> {
   const response = await fetch(`/api/quote/${ticker}/multiples-history/`);
@@ -46,6 +46,6 @@ export function useMultiplesHistory(
     queryFn: () => fetchMultiplesHistory(ticker!),
     enabled: !!ticker && enabled,
     retry: false,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
   });
 }

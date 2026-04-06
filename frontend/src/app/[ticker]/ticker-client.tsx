@@ -54,11 +54,14 @@ import { ShareButtons } from "../../components/ShareButtons";
 import { usePE10, fetchQuote, type QuoteResult } from "../../hooks/usePE10";
 import { useTickerDetail } from "../../hooks/useTickerDetail";
 import { usePeers } from "../../hooks/usePeers";
-import { useMultiplesHistory } from "../../hooks/useMultiplesHistory";
+import { useMultiplesHistory, fetchMultiplesHistory } from "../../hooks/useMultiplesHistory";
 import { deriveForYears } from "../../hooks/deriveForYears";
+import { fetchFundamentals } from "../../hooks/useFundamentals";
 import { useSavedLists } from "../../hooks/useSavedLists";
 import { logoUrl } from "../../utils/format";
 import { useTranslation } from "../../i18n";
+
+const STALE_TIME = 30 * 60 * 1000;
 
 const DEFAULT_YEARS = 10;
 
@@ -120,7 +123,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       queryClient.prefetchQuery({
         queryKey: ["pe10", peer],
         queryFn: () => fetchQuote(peer),
-        staleTime: 5 * 60 * 1000,
+        staleTime: 30 * 60 * 1000,
       });
     }
   }, [upperTicker, peers, fullData, queryClient]);
@@ -142,6 +145,23 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
   function switchTab(tab: TabKey) {
     router.push(buildTabPath(upperTicker, tab));
+  }
+
+  function prefetchTabData(tab: TabKey) {
+    if (tab === "charts") {
+      queryClient.prefetchQuery({
+        queryKey: ["multiples-history", upperTicker],
+        queryFn: () => fetchMultiplesHistory(upperTicker),
+        staleTime: STALE_TIME,
+      });
+    }
+    if (tab === "fundamentals") {
+      queryClient.prefetchQuery({
+        queryKey: ["fundamentals", upperTicker],
+        queryFn: () => fetchFundamentals(upperTicker),
+        staleTime: STALE_TIME,
+      });
+    }
   }
 
 
@@ -180,6 +200,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
             <button
               className={`tab-pill ${activeTab === "fundamentals" ? "tab-pill-active" : ""}`}
               onClick={() => switchTab("fundamentals")}
+              onMouseEnter={() => prefetchTabData("fundamentals")}
             >
               {t("tabs.fundamentals")}
             </button>
@@ -192,6 +213,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
             <button
               className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
               onClick={() => switchTab("charts")}
+              onMouseEnter={() => prefetchTabData("charts")}
             >
               {t("tabs.charts")}
             </button>
