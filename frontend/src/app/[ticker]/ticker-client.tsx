@@ -52,17 +52,17 @@ const CompanyAnalysis = dynamic(
 import { FavoriteButton } from "../../components/FavoriteButton";
 import { ShareButtons } from "../../components/ShareButtons";
 import { usePE10, fetchQuote, type QuoteResult } from "../../hooks/usePE10";
-import { useTickers } from "../../hooks/useTickers";
+import { useTickerDetail } from "../../hooks/useTickerDetail";
+import { usePeers } from "../../hooks/usePeers";
 import { useMultiplesHistory } from "../../hooks/useMultiplesHistory";
 import { deriveForYears } from "../../hooks/deriveForYears";
 import { useSavedLists } from "../../hooks/useSavedLists";
 import { logoUrl } from "../../utils/format";
-import { getSectorPeers } from "../../utils/subsector";
 import { useTranslation } from "../../i18n";
 
 const DEFAULT_YEARS = 10;
 
-import { resolveTab, buildTabPath, TAB_LABELS, type TabKey } from "../../utils/tabs";
+import { resolveTab, buildTabPath, type TabKey } from "../../utils/tabs";
 
 interface TickerPageClientProps {
   initialData?: QuoteResult | null;
@@ -83,9 +83,9 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const activeTab = resolveTab(pathname);
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
-  const { data: allTickers } = useTickers();
+  const { data: currentTicker } = useTickerDetail(upperTicker);
+  const { data: peers = [] } = usePeers(upperTicker);
   const { lists } = useSavedLists();
-  const currentTicker = allTickers?.find((t) => t.symbol === upperTicker);
 
   // Check for listId in URL search params (when opening a saved list)
   useEffect(() => {
@@ -106,36 +106,24 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     seededForTicker.current = upperTicker;
   }, [lists, upperTicker]);
 
-  // Seed compare list with same-sector companies and prefetch their data
+  // Seed compare list with same-sector peers and prefetch their data
   useEffect(() => {
     if (seededForTicker.current === upperTicker) return;
-    if (!allTickers?.length) return;
+    if (!peers.length) return;
     if (!fullData) return;
 
-    const current = allTickers.find((ticker) => ticker.symbol === upperTicker);
-    if (!current?.sector) {
-      seededForTicker.current = upperTicker;
-      return;
-    }
-
-    const sectorPeers = getSectorPeers(
-      upperTicker,
-      current.name,
-      current.sector,
-      allTickers,
-    );
-
-    setCompareTickers(sectorPeers);
+    const peerSymbols = peers.map((peer) => peer.symbol);
+    setCompareTickers(peerSymbols);
     seededForTicker.current = upperTicker;
 
-    for (const peer of sectorPeers) {
+    for (const peer of peerSymbols) {
       queryClient.prefetchQuery({
         queryKey: ["pe10", peer],
         queryFn: () => fetchQuote(peer),
         staleTime: 5 * 60 * 1000,
       });
     }
-  }, [upperTicker, allTickers, fullData, queryClient]);
+  }, [upperTicker, peers, fullData, queryClient]);
 
   // Lazy: only fetch when charts tab is active
   const {
@@ -151,17 +139,6 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     () => fullData ? deriveForYears(fullData, effectiveYears) : null,
     [fullData, effectiveYears],
   );
-
-  const sectorPeerLinks = useMemo(() => {
-    if (!allTickers?.length || !fullData) return [];
-    const current = allTickers.find((ticker) => ticker.symbol === upperTicker);
-    if (!current?.sector) return [];
-    const peers = getSectorPeers(upperTicker, current.name, current.sector, allTickers, 8);
-    return peers.map((symbol) => {
-      const tickerData = allTickers.find((ticker) => ticker.symbol === symbol);
-      return { symbol, name: tickerData?.name || "" };
-    });
-  }, [upperTicker, allTickers, fullData]);
 
   function switchTab(tab: TabKey) {
     router.push(buildTabPath(upperTicker, tab));
@@ -294,12 +271,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Sector peers */}
-      {sectorPeerLinks.length > 0 && (
+      {peers.length > 0 && (
         <div className="pe10-card">
           <nav className="card-section" aria-label={t("sector.same_sector")}>
             <div className="card-section-heading">{t("sector.same_sector")}</div>
             <div className="sector-peers-list">
-              {sectorPeerLinks.map((peer) => (
+              {peers.slice(0, 8).map((peer) => (
                 <Link
                   key={peer.symbol}
                   href={`/${peer.symbol}`}

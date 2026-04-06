@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import type { TickerItem } from "./useTickers";
+
+export interface TickerItem {
+  symbol: string;
+  name: string;
+  sector: string;
+  type: string;
+  logo: string;
+}
 
 const DEBOUNCE_MS = 300;
 

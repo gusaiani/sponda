@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useSavedLists, SavedListEntry } from "../../hooks/useSavedLists";
 import { useAuth } from "../../hooks/useAuth";
-import { useTickers, TickerItem } from "../../hooks/useTickers";
 import { useDragGhost } from "../../hooks/useDragGhost";
 import { SavedListCard } from "../../components/SavedLists";
 import { useTranslation } from "../../i18n";
@@ -13,18 +12,11 @@ export default function AllListsPage() {
   const { t } = useTranslation();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { lists, isLoading, reorderLists } = useSavedLists();
-  const { data: allTickers = [] } = useTickers();
   const [localOrder, setLocalOrder] = useState<SavedListEntry[] | null>(null);
   const dragIndexRef = useRef<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
   const { startGhost, stopGhost } = useDragGhost();
-
-  const tickerMap = useMemo(() => {
-    const map = new Map<string, TickerItem>();
-    for (const ticker of allTickers) map.set(ticker.symbol, ticker);
-    return map;
-  }, [allTickers]);
 
   if (authLoading || isLoading) {
     return (
@@ -141,7 +133,7 @@ export default function AllListsPage() {
                     <circle cx="8" cy="10" r="1.2" />
                   </svg>
                 </span>
-                <SavedListCard list={list} tickerMap={tickerMap} />
+                <SavedListCard list={list} />
               </div>
             );
           })}

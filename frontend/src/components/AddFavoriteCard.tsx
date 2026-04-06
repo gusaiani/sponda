@@ -2,8 +2,8 @@
 
 import { useState, useRef, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
-import Fuse from "fuse.js";
-import { useTickers, type TickerItem } from "../hooks/useTickers";
+import { useTickerSearch } from "../hooks/useTickerSearch";
+import type { TickerItem } from "../hooks/useTickerSearch";
 import { useFavorites } from "../hooks/useFavorites";
 import { useTranslation } from "../i18n";
 import { logoUrl } from "../utils/format";
@@ -32,31 +32,14 @@ export function AddFavoriteCard({ onSelectTicker }: AddFavoriteCardProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: allTickers = [] } = useTickers();
+  const { results: searchResults } = useTickerSearch(input);
   const { favoriteTickers } = useFavorites();
   const excludeSet = useMemo(() => new Set(favoriteTickers), [favoriteTickers]);
 
-  const tickers = useMemo(
-    () => allTickers.filter((t) => !excludeSet.has(t.symbol)),
-    [allTickers, excludeSet],
+  const results = useMemo(
+    () => searchResults.filter((t) => !excludeSet.has(t.symbol)).slice(0, 6),
+    [searchResults, excludeSet],
   );
-
-  const fuse = useMemo(
-    () =>
-      new Fuse(tickers, {
-        keys: [
-          { name: "symbol", weight: 2 },
-          { name: "name", weight: 1 },
-        ],
-        threshold: 0.35,
-      }),
-    [tickers],
-  );
-
-  const results = useMemo(() => {
-    if (!input.trim()) return [];
-    return fuse.search(input, { limit: 6 }).map((r) => r.item);
-  }, [fuse, input]);
 
   useEffect(() => {
     setSelectedIndex(-1);
