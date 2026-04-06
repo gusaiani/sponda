@@ -160,6 +160,7 @@ jobs:
             python manage.py import_analyses /opt/sponda/backend/analyses.json
 
             # Install systemd services and timers
+            cp /opt/sponda/systemd/sponda.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-frontend.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.timer /etc/systemd/system/

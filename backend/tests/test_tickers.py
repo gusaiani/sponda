@@ -209,3 +209,47 @@ class TestTickerListEndpoint:
         assert "PETR4" in symbols
         assert "KNRI11" not in symbols
         assert "BOVA11" not in symbols
+
+
+class TestTickerDetailEndpoint:
+    def test_returns_single_ticker(self, api_client, sample_tickers):
+        response = api_client.get("/api/tickers/PETR4/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["symbol"] == "PETR4"
+        assert data["name"] == "Petroleo Brasileiro"
+        assert data["sector"] == "Energy Minerals"
+
+    def test_returns_expected_fields(self, api_client, sample_tickers):
+        response = api_client.get("/api/tickers/PETR4/")
+        data = response.json()
+        assert "symbol" in data
+        assert "name" in data
+        assert "sector" in data
+        assert "type" in data
+        assert "logo" in data
+
+    def test_case_insensitive_lookup(self, api_client, sample_tickers):
+        response = api_client.get("/api/tickers/petr4/")
+        assert response.status_code == 200
+        assert response.json()["symbol"] == "PETR4"
+
+    def test_returns_404_for_unknown_ticker(self, api_client, sample_tickers):
+        response = api_client.get("/api/tickers/ZZZZ3/")
+        assert response.status_code == 404
+
+    def test_has_cache_header(self, api_client, sample_tickers):
+        response = api_client.get("/api/tickers/PETR4/")
+        assert "max-age=3600" in response["Cache-Control"]
+
+    def test_uses_display_name_when_available(self, api_client, db):
+        Ticker.objects.create(
+            symbol="WEGE3", name="WEG S.A.", display_name="WEG", sector="Tech", type="stock",
+        )
+        response = api_client.get("/api/tickers/WEGE3/")
+        assert response.json()["name"] == "WEG"
+
+    def test_excludes_non_stock_types(self, api_client, db):
+        Ticker.objects.create(symbol="KNRI11", name="Kinea Renda", type="fund")
+        response = api_client.get("/api/tickers/KNRI11/")
+        assert response.status_code == 404

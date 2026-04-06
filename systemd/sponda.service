@@ -1,0 +1,13 @@
+[Unit]
+Description=Sponda Gunicorn
+After=network.target postgresql.service
+
+[Service]
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+ExecStart=/opt/sponda/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8710 --workers 2
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
