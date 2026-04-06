@@ -6,7 +6,7 @@ import { useSavedLists } from "../hooks/useSavedLists";
 import { useAuth } from "../hooks/useAuth";
 import { useFavorites } from "../hooks/useFavorites";
 import { useDragGhost } from "../hooks/useDragGhost";
-import { useTranslation } from "../i18n";
+import { useTranslation, type TranslationKey } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br, logoUrl } from "../utils/format";
@@ -29,26 +29,26 @@ interface SortState {
   dir: SortDir;
 }
 
-export function getColumns(years: number): ColumnDef[] {
+export function getColumns(years: number, t: (key: TranslationKey) => string): ColumnDef[] {
   const n = years;
   return [
     // Endividamento
-    { key: "debtToEquity", label: "Dív/PL", group: "endividamento", format: (d) => d.debtToEquity !== null ? br(d.debtToEquity, 2) : null, value: (d) => d.debtToEquity },
-    { key: "debtExLeaseToEquity", label: "Dív-Arr/PL", group: "endividamento", format: (d) => d.debtExLeaseToEquity !== null ? br(d.debtExLeaseToEquity, 2) : null, value: (d) => d.debtExLeaseToEquity },
-    { key: "liabilitiesToEquity", label: "Pass/PL", group: "endividamento", format: (d) => d.liabilitiesToEquity !== null ? br(d.liabilitiesToEquity, 2) : null, value: (d) => d.liabilitiesToEquity },
-    { key: "debtToAvgEarnings", label: `Dív/Lucro${n}`, group: "endividamento", format: (d) => d.debtToAvgEarnings !== null ? br(d.debtToAvgEarnings, 1) : null, value: (d) => d.debtToAvgEarnings },
-    { key: "debtToAvgFCF", label: `Dív/FCL${n}`, group: "endividamento", format: (d) => d.debtToAvgFCF !== null ? br(d.debtToAvgFCF, 1) : null, value: (d) => d.debtToAvgFCF },
-    { key: "currentRatio", label: "Liq. Corr.", group: "endividamento", format: (d) => d.currentRatio !== null ? br(d.currentRatio, 2) : null, value: (d) => d.currentRatio },
+    { key: "debtToEquity", label: t("compare.col_debt_to_equity"), group: "endividamento", format: (d) => d.debtToEquity !== null ? br(d.debtToEquity, 2) : null, value: (d) => d.debtToEquity },
+    { key: "debtExLeaseToEquity", label: t("compare.col_debt_ex_lease_to_equity"), group: "endividamento", format: (d) => d.debtExLeaseToEquity !== null ? br(d.debtExLeaseToEquity, 2) : null, value: (d) => d.debtExLeaseToEquity },
+    { key: "liabilitiesToEquity", label: t("compare.col_liabilities_to_equity"), group: "endividamento", format: (d) => d.liabilitiesToEquity !== null ? br(d.liabilitiesToEquity, 2) : null, value: (d) => d.liabilitiesToEquity },
+    { key: "debtToAvgEarnings", label: `${t("compare.col_debt_to_earnings")}${n}`, group: "endividamento", format: (d) => d.debtToAvgEarnings !== null ? br(d.debtToAvgEarnings, 1) : null, value: (d) => d.debtToAvgEarnings },
+    { key: "debtToAvgFCF", label: `${t("compare.col_debt_to_fcf")}${n}`, group: "endividamento", format: (d) => d.debtToAvgFCF !== null ? br(d.debtToAvgFCF, 1) : null, value: (d) => d.debtToAvgFCF },
+    { key: "currentRatio", label: t("compare.col_current_ratio"), group: "endividamento", format: (d) => d.currentRatio !== null ? br(d.currentRatio, 2) : null, value: (d) => d.currentRatio },
     // Rentabilidade
-    { key: "roe", label: `ROE${n}`, group: "rentabilidade", format: (d) => d.roe !== null ? `${br(d.roe, 1)}%` : null, value: (d) => d.roe },
-    { key: "priceToBook", label: "P/VPA", group: "rentabilidade", format: (d) => d.priceToBook !== null ? br(d.priceToBook, 2) : null, value: (d) => d.priceToBook },
+    { key: "roe", label: `${t("compare.col_roe")}${n}`, group: "rentabilidade", format: (d) => d.roe !== null ? `${br(d.roe, 1)}%` : null, value: (d) => d.roe },
+    { key: "priceToBook", label: t("compare.col_price_to_book"), group: "rentabilidade", format: (d) => d.priceToBook !== null ? br(d.priceToBook, 2) : null, value: (d) => d.priceToBook },
     // Valuation
-    { key: "pe10", label: `P/L${n}`, group: "valuation", format: (d) => d.pe10 !== null ? br(d.pe10, 1) : null, value: (d) => d.pe10 },
-    { key: "pfcf10", label: `P/FCL${n}`, group: "valuation", format: (d) => d.pfcf10 !== null ? br(d.pfcf10, 1) : null, value: (d) => d.pfcf10 },
-    { key: "peg", label: `PEG${n}`, group: "valuation", format: (d) => d.peg !== null ? br(d.peg, 2) : null, value: (d) => d.peg },
-    { key: "pfcfPeg", label: `PFCLG${n}`, group: "valuation", format: (d) => d.pfcfPeg !== null ? br(d.pfcfPeg, 2) : null, value: (d) => d.pfcfPeg },
-    { key: "earningsCAGR", label: `CAGR L${n}`, group: "valuation", format: (d) => d.earningsCAGR !== null ? `${br(d.earningsCAGR, 1)}%` : null, value: (d) => d.earningsCAGR },
-    { key: "fcfCAGR", label: `CAGR FCL${n}`, group: "valuation", format: (d) => d.fcfCAGR !== null ? `${br(d.fcfCAGR, 1)}%` : null, value: (d) => d.fcfCAGR },
+    { key: "pe10", label: `${t("compare.col_pe")}${n}`, group: "valuation", format: (d) => d.pe10 !== null ? br(d.pe10, 1) : null, value: (d) => d.pe10 },
+    { key: "pfcf10", label: `${t("compare.col_pfcf")}${n}`, group: "valuation", format: (d) => d.pfcf10 !== null ? br(d.pfcf10, 1) : null, value: (d) => d.pfcf10 },
+    { key: "peg", label: `${t("compare.col_peg")}${n}`, group: "valuation", format: (d) => d.peg !== null ? br(d.peg, 2) : null, value: (d) => d.peg },
+    { key: "pfcfPeg", label: `${t("compare.col_pfcf_peg")}${n}`, group: "valuation", format: (d) => d.pfcfPeg !== null ? br(d.pfcfPeg, 2) : null, value: (d) => d.pfcfPeg },
+    { key: "earningsCAGR", label: `${t("compare.col_cagr_earnings")}${n}`, group: "valuation", format: (d) => d.earningsCAGR !== null ? `${br(d.earningsCAGR, 1)}%` : null, value: (d) => d.earningsCAGR },
+    { key: "fcfCAGR", label: `${t("compare.col_cagr_fcf")}${n}`, group: "valuation", format: (d) => d.fcfCAGR !== null ? `${br(d.fcfCAGR, 1)}%` : null, value: (d) => d.fcfCAGR },
   ];
 }
 
@@ -87,7 +87,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const { t, pluralize, locale } = useTranslation();
   const allTickers = [currentTicker, ...extraTickers];
   const entries = useCompareData(allTickers, years);
-  const columns = getColumns(years);
+  const columns = getColumns(years, t);
   const dragIndexRef = useRef<number | null>(null);
   const { startGhost, stopGhost } = useDragGhost();
   const [sort, setSort] = useState<SortState | null>(null);
