@@ -628,6 +628,18 @@ class CompanyAnalysisView(APIView):
 
 LOGO_CACHE_MAX_AGE = 30 * 24 * 3600  # 30 days
 
+
+def detect_image_content_type(data: bytes) -> str:
+    """Detect image content type from file magic bytes."""
+    if data[:4] == b"\x89PNG":
+        return "image/png"
+    if data[:2] == b"\xff\xd8":
+        return "image/jpeg"
+    if b"<svg" in data[:256]:
+        return "image/svg+xml"
+    return "image/png"
+
+
 class LogoProxyView(APIView):
     """Proxy and cache company logos on our server."""
 
@@ -643,7 +655,9 @@ class LogoProxyView(APIView):
         cached_path = cache_dir / f"{symbol}.png"
 
         if cached_path.exists():
-            response = FileResponse(open(cached_path, "rb"), content_type="image/png")
+            image_data = cached_path.read_bytes()
+            content_type = detect_image_content_type(image_data)
+            response = HttpResponse(image_data, content_type=content_type)
             response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
             return response
 
@@ -666,7 +680,8 @@ class LogoProxyView(APIView):
         cache_dir.mkdir(parents=True, exist_ok=True)
         cached_path.write_bytes(image_data)
 
-        response = HttpResponse(image_data, content_type="image/png")
+        content_type = detect_image_content_type(image_data)
+        response = HttpResponse(image_data, content_type=content_type)
         response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
         return response
 
