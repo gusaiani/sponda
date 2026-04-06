@@ -174,6 +174,27 @@ class TickerListView(APIView):
         return response
 
 
+class TickerDetailView(APIView):
+    def get(self, request, symbol):
+        cache_key = f"ticker_detail_{symbol.upper()}"
+        result = cache.get(cache_key)
+        if result is None:
+            try:
+                ticker = Ticker.objects.filter(
+                    symbol__iexact=symbol, type="stock"
+                ).values("symbol", "name", "display_name", "sector", "type", "logo").first()
+            except Ticker.DoesNotExist:
+                ticker = None
+            if ticker is None:
+                return Response({"detail": "Not found"}, status=404)
+            ticker["name"] = ticker.pop("display_name") or ticker["name"]
+            result = ticker
+            cache.set(cache_key, result, TICKER_LIST_CACHE_TIMEOUT)
+        response = Response(result)
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
 class TickerSearchView(APIView):
     """Fast server-side ticker search. Returns up to 8 matches.
 

@@ -10,11 +10,10 @@ interface TickerInfo {
 async function fetchTickerInfo(ticker: string): Promise<TickerInfo | null> {
   const djangoUrl = process.env.DJANGO_API_URL || "http://localhost:8710";
   try {
-    const response = await fetch(`${djangoUrl}/api/tickers/`, { next: { revalidate: 3600 } });
+    const response = await fetch(`${djangoUrl}/api/tickers/${ticker}/`, { next: { revalidate: 3600 } });
     if (!response.ok) return null;
-    const tickers = await response.json();
-    const found = tickers.find((t: { symbol: string }) => t.symbol === ticker);
-    return found ? { name: found.name, sector: found.sector } : null;
+    const found = await response.json();
+    return { name: found.name, sector: found.sector };
   } catch {
     return null;
   }
