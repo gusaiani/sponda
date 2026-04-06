@@ -136,7 +136,7 @@ jobs:
           host: 159.203.108.19
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          command_timeout: 10m
+          command_timeout: 15m
           script: |
             set -e
             cd /opt/sponda
