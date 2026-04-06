@@ -933,10 +933,10 @@ class AdminDashboardView(APIView):
         annotations = {}
         for period_name, cutoff in boundaries.items():
             annotations[f"page_views_{period_name}"] = Count(
-                "pageview", filter=Q(pageview__timestamp__gte=cutoff)
+                "pageview", filter=Q(pageview__timestamp__gte=cutoff), distinct=True
             )
             annotations[f"lookups_{period_name}"] = Count(
-                "lookuplog", filter=Q(lookuplog__timestamp__gte=cutoff)
+                "lookuplog", filter=Q(lookuplog__timestamp__gte=cutoff), distinct=True
             )
         annotations["favorites_count"] = Count("favorites", distinct=True)
         annotations["saved_lists_count"] = Count("saved_lists", distinct=True)

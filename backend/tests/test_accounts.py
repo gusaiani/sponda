@@ -5,6 +5,7 @@ from django.test import Client, RequestFactory
 from django.utils import timezone
 
 from accounts.models import EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
+from quotes.models import LookupLog
 
 User = get_user_model()
 
@@ -958,6 +959,27 @@ class TestAdminDashboard:
         assert test_user["page_views"]["day"] >= 1
         assert "lookups" in test_user
         assert "favorites_count" in test_user
+
+    def test_user_view_counts_not_inflated_by_cross_product(self, superuser_client, user):
+        """Multiple annotations must use distinct=True to avoid cartesian product.
+
+        Without distinct=True, a user with 2 page views and 3 lookups would
+        show 6 page views (2 × 3) instead of the correct 2.
+        """
+        PageView.objects.create(path="/PETR4", ip_hash="a", user=user)
+        PageView.objects.create(path="/VALE3", ip_hash="a", user=user)
+        LookupLog.objects.create(user=user, ticker="PETR4")
+        LookupLog.objects.create(user=user, ticker="VALE3")
+        LookupLog.objects.create(user=user, ticker="WEGE3")
+
+        response = superuser_client.get("/api/auth/admin/dashboard/")
+        test_user = next(
+            entry for entry in response.json()["users"]
+            if entry["email"] == "test@example.com"
+        )
+        # Without distinct=True these would be 6 and 6 (cross product)
+        assert test_user["page_views"]["day"] == 2
+        assert test_user["lookups"]["day"] == 3
 
     def test_me_returns_is_superuser_true_for_admin(self, superuser_client):
         response = superuser_client.get("/api/auth/me/")
