@@ -1,13 +1,8 @@
-import { headers } from "next/headers";
 import "./globals.css";
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const headersList = await headers();
-  const locale = headersList.get("x-locale") || "en";
-  const htmlLang = locale === "pt" ? "pt-BR" : "en";
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang={htmlLang}>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/svg+xml" href={process.env.NODE_ENV === "development" ? "/favicon-dev.svg" : "/favicon.svg"} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
