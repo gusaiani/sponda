@@ -981,6 +981,31 @@ class TestAdminDashboard:
         assert test_user["page_views"]["day"] == 2
         assert test_user["lookups"]["day"] == 3
 
+    def test_dashboard_uses_bounded_query_count(self, superuser_client, user):
+        """The dashboard must not scale queries with the number of periods.
+
+        Before optimization: 25+ queries (separate COUNT per period per metric).
+        After optimization: should be under 15 total queries.
+        """
+        from django.test.utils import CaptureQueriesContext
+        from django.db import connection
+
+        PageView.objects.create(path="/", ip_hash="aaa", user=user)
+        PageView.objects.create(path="/PETR4", ip_hash="bbb")
+        LookupLog.objects.create(user=user, ticker="PETR4")
+
+        with CaptureQueriesContext(connection) as context:
+            response = superuser_client.get("/api/auth/admin/dashboard/")
+
+        assert response.status_code == 200
+        query_count = len(context)
+        # Allow some overhead for auth/session, but the core dashboard
+        # queries must be consolidated. 15 is generous; before fix it was 25+.
+        assert query_count <= 15, (
+            f"Dashboard used {query_count} queries, expected <= 15. "
+            f"Queries: {[q['sql'][:80] for q in context]}"
+        )
+
     def test_me_returns_is_superuser_true_for_admin(self, superuser_client):
         response = superuser_client.get("/api/auth/me/")
         assert response.json()["is_superuser"] is True
