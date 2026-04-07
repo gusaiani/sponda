@@ -1,14 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { getListCardColumns } from "./ListCard";
+import { pt } from "../i18n/locales/pt";
+import type { TranslationKey } from "../i18n";
+
+const t = (key: TranslationKey) => pt[key];
 
 describe("getListCardColumns", () => {
   it("returns exactly 6 columns", () => {
-    const columns = getListCardColumns(10);
+    const columns = getListCardColumns(10, t);
     expect(columns).toHaveLength(6);
   });
 
   it("includes the year number in labels that depend on it", () => {
-    const columns = getListCardColumns(7);
+    const columns = getListCardColumns(7, t);
     const labels = columns.map((column) => column.label);
 
     expect(labels).toContain("P/L7");
@@ -21,7 +25,7 @@ describe("getListCardColumns", () => {
   });
 
   it("returns the correct column keys", () => {
-    const columns = getListCardColumns(5);
+    const columns = getListCardColumns(5, t);
     const keys = columns.map((column) => column.key);
 
     expect(keys).toEqual([
@@ -35,7 +39,7 @@ describe("getListCardColumns", () => {
   });
 
   it("formats values correctly using Brazilian locale", () => {
-    const columns = getListCardColumns(10);
+    const columns = getListCardColumns(10, t);
     const mockData = {
       pe10: 12.5,
       pfcf10: 8.3,
@@ -65,7 +69,7 @@ describe("getListCardColumns", () => {
   });
 
   it("returns null for null values", () => {
-    const columns = getListCardColumns(10);
+    const columns = getListCardColumns(10, t);
     const mockData = {
       pe10: null,
       pfcf10: null,
@@ -81,7 +85,7 @@ describe("getListCardColumns", () => {
   });
 
   it("extracts numeric values for sorting", () => {
-    const columns = getListCardColumns(10);
+    const columns = getListCardColumns(10, t);
     const mockData = {
       pe10: 12.5,
       pfcf10: 8.3,
@@ -99,7 +103,7 @@ describe("getListCardColumns", () => {
   });
 
   it("returns null values for sorting when data is null", () => {
-    const columns = getListCardColumns(10);
+    const columns = getListCardColumns(10, t);
     const mockData = {
       pe10: null,
       pfcf10: null,
@@ -112,5 +116,16 @@ describe("getListCardColumns", () => {
     for (const column of columns) {
       expect(column.value(mockData)).toBeNull();
     }
+  });
+
+  it("uses English labels when given English translations", async () => {
+    const { en } = await import("../i18n/locales/en");
+    const tEn = (key: TranslationKey) => en[key];
+    const columns = getListCardColumns(10, tEn);
+    const labels = columns.map((c) => c.label);
+
+    expect(labels).toContain("P/E10");
+    expect(labels).toContain("P/FCF10");
+    expect(labels).toContain("D/E");
   });
 });

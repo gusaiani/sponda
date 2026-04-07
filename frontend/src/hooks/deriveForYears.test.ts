@@ -281,7 +281,7 @@ describe("deriveForYears", () => {
       const derived = deriveForYears(full, 5);
 
       expect(derived.peg).toBeNull();
-      expect(derived.pegError).toContain("negativo");
+      expect(derived.pegError).toBe("negative_growth");
     });
   });
 

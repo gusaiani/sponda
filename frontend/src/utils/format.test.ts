@@ -1,25 +1,36 @@
 import { describe, it, expect } from "vitest";
-import { ptLabel, br, formatLargeNumber, formatQuarterLabel } from "./format";
+import { localizeLabel, ptLabel, br, formatLargeNumber, formatQuarterLabel } from "./format";
 
-describe("ptLabel", () => {
+describe("localizeLabel", () => {
+  it("converts PE10 to P/L10 in Portuguese", () => {
+    expect(localizeLabel("PE10", "pt")).toBe("P/L10");
+  });
+
+  it("converts PFCF10 to P/FCL10 in Portuguese", () => {
+    expect(localizeLabel("PFCF10", "pt")).toBe("P/FCL10");
+  });
+
+  it("keeps PE10 as PE10 in English", () => {
+    expect(localizeLabel("PE10", "en")).toBe("PE10");
+  });
+
+  it("keeps PFCF10 as PFCF10 in English", () => {
+    expect(localizeLabel("PFCF10", "en")).toBe("PFCF10");
+  });
+
+  it("leaves other strings unchanged in both locales", () => {
+    expect(localizeLabel("CAGR", "pt")).toBe("CAGR");
+    expect(localizeLabel("CAGR", "en")).toBe("CAGR");
+  });
+});
+
+describe("ptLabel (deprecated)", () => {
   it("converts PE10 to P/L10", () => {
     expect(ptLabel("PE10")).toBe("P/L10");
   });
 
-  it("converts PE5 to P/L5", () => {
-    expect(ptLabel("PE5")).toBe("P/L5");
-  });
-
-  it("converts PFCF10 to P/FCL10", () => {
-    expect(ptLabel("PFCF10")).toBe("P/FCL10");
-  });
-
   it("converts PFCF7 to P/FCL7", () => {
     expect(ptLabel("PFCF7")).toBe("P/FCL7");
-  });
-
-  it("leaves other strings unchanged", () => {
-    expect(ptLabel("CAGR")).toBe("CAGR");
   });
 });
 

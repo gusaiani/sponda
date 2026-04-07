@@ -10,9 +10,20 @@ export function logoUrl(symbol: string): string {
   return `/api/logos/${symbol}.png`;
 }
 
-/** Map backend labels (PE10, PFCF7…) to Portuguese equivalents */
+/** Map backend labels (PE10, PFCF7…) to locale-appropriate equivalents.
+ * Portuguese: PE10 → P/L10, PFCF10 → P/FCL10
+ * English: keeps the original (PE10, PFCF10)
+ */
+export function localizeLabel(label: string, locale: string): string {
+  if (locale === "pt") {
+    return label.replace(/^PE/, "P/L").replace(/^PFCF/, "P/FCL");
+  }
+  return label;
+}
+
+/** @deprecated Use localizeLabel(label, locale) instead */
 export function ptLabel(label: string): string {
-  return label.replace(/^PE/, "P/L").replace(/^PFCF/, "P/FCL");
+  return localizeLabel(label, "pt");
 }
 
 /** Format number with Brazilian notation: period for thousands, comma for decimals */

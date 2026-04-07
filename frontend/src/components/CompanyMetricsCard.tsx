@@ -99,7 +99,25 @@ type ModalKey =
   | "pfcl10" | "pfclg" | "cagrFCF"
   | null;
 
-import { ptLabel, br, formatLargeNumber, currencySymbol, formatQuarterLabel } from "../utils/format";
+import { localizeLabel, br, formatLargeNumber, currencySymbol, formatQuarterLabel } from "../utils/format";
+
+/* ── Error code → i18n key mapping ── */
+
+const ERROR_KEYS: Record<string, TranslationKey> = {
+  no_earnings_data: "metrics.error.no_earnings_data",
+  no_cashflow_data: "metrics.error.no_cashflow_data",
+  pe_unavailable: "metrics.error.pe_unavailable",
+  pe_negative: "metrics.error.pe_negative",
+  pfcf_unavailable: "metrics.error.pfcf_unavailable",
+  pfcf_negative: "metrics.error.pfcf_negative",
+  negative_growth: "metrics.error.negative_growth",
+};
+
+function translateError(error: string | null, t: (key: TranslationKey) => string): string | null {
+  if (!error) return null;
+  const key = ERROR_KEYS[error];
+  return key ? t(key) : error;
+}
 
 /* ── Inline ? button ── */
 
@@ -331,10 +349,10 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
 }
 
 function PL10Info({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
   const formatAmount = makeFormatAmount(data.ticker);
-  const label = ptLabel(data.pe10Label);
+  const label = localizeLabel(data.pe10Label, locale);
   const hasCalc = data.pe10CalculationDetails.length > 0;
   const total = hasCalc
     ? data.pe10CalculationDetails.reduce((s, y) => s + y.adjustedNetIncome, 0)
@@ -430,10 +448,10 @@ function PL10Info({ data }: { data: QuoteData }) {
 }
 
 function PFCL10Info({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
   const formatAmount = makeFormatAmount(data.ticker);
-  const label = ptLabel(data.pfcf10Label);
+  const label = localizeLabel(data.pfcf10Label, locale);
   const hasCalc = data.pfcf10CalculationDetails.length > 0;
   const total = hasCalc
     ? data.pfcf10CalculationDetails.reduce((s, y) => s + y.adjustedFCF, 0)
@@ -443,7 +461,7 @@ function PFCL10Info({ data }: { data: QuoteData }) {
     <>
       <div className="modal-explainer">
         <p>{t("modal.pfcl10_explain", { label })}</p>
-        <p>{t("modal.pfcl10_compare", { pfclLabel: label, peLabel: ptLabel(data.pe10Label) })}</p>
+        <p>{t("modal.pfcl10_compare", { pfclLabel: label, peLabel: localizeLabel(data.pe10Label, locale) })}</p>
       </div>
 
       {hasCalc && (
@@ -535,8 +553,8 @@ function PFCL10Info({ data }: { data: QuoteData }) {
 function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fcf" }) {
   const { t, locale } = useTranslation();
   const isEarnings = variant === "earnings";
-  const label = isEarnings ? "PEG" : "PFCLG";
-  const baseLabel = isEarnings ? ptLabel(data.pe10Label) : ptLabel(data.pfcf10Label);
+  const label = isEarnings ? "PEG" : t("metrics.pfcfg_label");
+  const baseLabel = isEarnings ? localizeLabel(data.pe10Label, locale) : localizeLabel(data.pfcf10Label, locale);
   const baseValue = isEarnings ? data.pe10 : data.pfcf10;
   const cagr = isEarnings ? data.earningsCAGR : data.fcfCAGR;
   const peg = isEarnings ? data.peg : data.pfcfPeg;
@@ -648,16 +666,17 @@ function ModalContent({ modalKey, data }: { modalKey: ModalKey; data: QuoteData 
   }
 }
 
-const MODAL_TITLES: Record<string, (data: QuoteData, t: (key: TranslationKey, params?: Record<string, string | number>) => string) => string> = {
+type TFn = (key: TranslationKey, params?: Record<string, string | number>) => string;
+const MODAL_TITLES: Record<string, (data: QuoteData, t: TFn, locale: string) => string> = {
   debtToEquity: (_d, t) => t("modal.title.debt_equity"),
   debtExLease: (_d, t) => t("modal.title.debt_ex_lease"),
   liabToEquity: (_d, t) => t("modal.title.liab_equity"),
   debtToEarnings: (_d, t) => t("modal.title.debt_earnings"),
   debtToFCF: (_d, t) => t("modal.title.debt_fcf"),
-  pl10: (d) => ptLabel(d.pe10Label),
+  pl10: (d, _t, locale) => localizeLabel(d.pe10Label, locale),
   peg: (_d, t) => t("modal.title.peg"),
   cagrEarnings: (_d, t) => t("modal.title.cagr_earnings"),
-  pfcl10: (d) => ptLabel(d.pfcf10Label),
+  pfcl10: (d, _t, locale) => localizeLabel(d.pfcf10Label, locale),
   pfclg: (_d, t) => t("modal.title.pfclg"),
   cagrFCF: (_d, t) => t("modal.title.cagr_fcf"),
 };
@@ -665,12 +684,12 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: (key: TranslationKey, pa
 /* ── Main Card ── */
 
 export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector }: CompanyMetricsCardProps) {
-  const { t, pluralize } = useTranslation();
+  const { t, pluralize, locale } = useTranslation();
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const formatAmount = makeFormatAmount(data.ticker);
 
-  const pl10Label = ptLabel(data.pe10Label);
-  const pfcl10Label = ptLabel(data.pfcf10Label);
+  const pl10Label = localizeLabel(data.pe10Label, locale);
+  const pfcl10Label = localizeLabel(data.pfcf10Label, locale);
   const open = (key: ModalKey) => setActiveModal(key);
   const isFinancial = sector ? FINANCIAL_SECTORS.has(sector) : false;
   const moreInfo = t("metrics.more_info");
@@ -755,7 +774,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               {data.pe10 !== null ? (
                 <div className="pe10-value">{br(data.pe10, 1)}</div>
               ) : (
-                <div className="pe10-error">{data.pe10Error}</div>
+                <div className="pe10-error">{translateError(data.pe10Error, t)}</div>
               )}
             </div>
           </div>
@@ -765,7 +784,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               {data.peg !== null ? (
                 <div className="pe10-value">{br(data.peg, 2)}</div>
               ) : (
-                <div className="pe10-error">{data.pegError || "N/A"}</div>
+                <div className="pe10-error">{translateError(data.pegError, t) || "N/A"}</div>
               )}
             </div>
           </div>
@@ -785,17 +804,17 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               {data.pfcf10 !== null ? (
                 <div className="pe10-value">{br(data.pfcf10, 1)}</div>
               ) : (
-                <div className="pe10-error">{data.pfcf10Error}</div>
+                <div className="pe10-error">{translateError(data.pfcf10Error, t)}</div>
               )}
             </div>
           </div>
           <div className="metric-block">
             <div className="metric-value-container">
-              <div className="pe10-label">PFCLG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
+              <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
               {data.pfcfPeg !== null ? (
                 <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
               ) : (
-                <div className="pe10-error">{data.pfcfPegError || "N/A"}</div>
+                <div className="pe10-error">{translateError(data.pfcfPegError, t) || "N/A"}</div>
               )}
             </div>
           </div>
@@ -866,7 +885,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
       {activeModal && (
         <Modal
-          title={`${MODAL_TITLES[activeModal]?.(data, t) ?? ""} — ${data.name}`}
+          title={`${MODAL_TITLES[activeModal]?.(data, t, locale) ?? ""} — ${data.name}`}
           onClose={() => setActiveModal(null)}
         >
           <ModalContent modalKey={activeModal} data={data} />
