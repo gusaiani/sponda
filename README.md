@@ -98,6 +98,18 @@ Three-layer caching strategy eliminates redundant external API calls:
 - **Lazy-loaded images** on all company logos; footer logo served via Next.js `<Image>` with WebP optimization
 - **useMemo** on frequently recomputed derived state (excludeSet, sectorPeerLinks)
 
+### International SEO
+
+Locale-prefixed URLs serve region-specific metadata to search engines:
+
+- `/pt/PETR4/fundamentos` · Portuguese metadata, `<html lang="pt-BR">`, OG locale `pt_BR`
+- `/en/PETR4/fundamentals` · English metadata, `<html lang="en">`, OG locale `en_US`
+- Bare URLs (`/PETR4`) 301-redirect to the locale-prefixed version based on `Accept-Language`
+- Every page includes `<link rel="alternate" hreflang>` cross-links between locales
+- Tab URL paths are localized: fundamentos/fundamentals, comparar/compare, graficos/charts
+- Auto-generated sitemap with both locale variants for every ticker and tab
+- `x-default` hreflang points to English
+
 ### Query optimization
 
 - **N+1 fix** in AdminDashboard: replaced per-user loops with `annotate(Count(...))` (1,200+ queries down to 1)

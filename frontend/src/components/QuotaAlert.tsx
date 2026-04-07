@@ -12,7 +12,7 @@ export function QuotaAlert() {
     <div className="quota-alert">
       <p className="quota-alert-text">
         {t("quota.limit_reached")} {data.limit} {locale === "pt" ? "consultas diárias" : "daily queries"}.{" "}
-        <a href="/signup" className="quota-alert-link">
+        <a href={`/${locale}/signup`} className="quota-alert-link">
           {t("quota.create_account")}
         </a>{" "}
         {t("quota.to_continue")}

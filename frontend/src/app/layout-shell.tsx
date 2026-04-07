@@ -11,20 +11,27 @@ import { usePageTracking } from "../hooks/usePageTracking";
 import { POEMA_RETURN, IBOVESPA_RETURN, POEMA_PERIOD } from "../utils/branding";
 import { useTranslation } from "../i18n";
 
-const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"];
+const AUTH_SUFFIXES = ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"];
+
+/** Strip the locale prefix from a pathname for matching purposes. */
+function stripLocale(pathname: string): string {
+  const match = pathname.match(/^\/(pt|en)(\/.*)?$/);
+  return match ? (match[2] || "/") : pathname;
+}
 
 export function LayoutShell({ children }: { children: React.ReactNode }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   usePageTracking();
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const isOnAuthPage = AUTH_PAGES.some((path) => pathname.startsWith(path));
+  const bare = stripLocale(pathname);
+  const isOnAuthPage = AUTH_SUFFIXES.some((suffix) => bare.startsWith(suffix));
 
   function handleSearch(newTicker: string) {
     queryClient.invalidateQueries({ queryKey: ["pe10", newTicker] });
     queryClient.invalidateQueries({ queryKey: ["multiples-history", newTicker] });
-    router.push(`/${newTicker}`);
+    router.push(`/${locale}/${newTicker}`);
   }
 
   return (
@@ -32,7 +39,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       {!isOnAuthPage && (
         <header className="app-header">
           <div className="app-header-top">
-            <Link href="/" className="app-header-brand">
+            <Link href={`/${locale}`} className="app-header-brand">
               <span className="app-header-logo">SPONDA</span>
               <span className="app-header-tagline">{t("header.tagline")}</span>
             </Link>

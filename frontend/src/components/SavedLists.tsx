@@ -8,7 +8,7 @@ const MAX_LOGOS = 5;
 const MAX_DISPLAYED_ON_HOME = 3;
 
 export function SavedLists() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { lists, isLoading } = useSavedLists();
 
   if (isLoading || lists.length === 0) return null;
@@ -26,7 +26,7 @@ export function SavedLists() {
       </div>
       {hasMoreLists && (
         <p className="saved-lists-see-all">
-          <Link href="/listas" className="saved-lists-see-all-link">
+          <Link href={`/${locale}/listas`} className="saved-lists-see-all-link">
             {t("lists.see_all")}
           </Link>
         </p>
@@ -40,9 +40,9 @@ interface SavedListCardProps {
 }
 
 export function SavedListCard({ list }: SavedListCardProps) {
-  const { t, pluralize } = useTranslation();
+  const { t, locale, pluralize } = useTranslation();
   const firstTicker = list.tickers[0];
-  const compareUrl = `/${firstTicker}/comparar?listId=${list.id}`;
+  const compareUrl = `/${locale}/${firstTicker}/comparar?listId=${list.id}`;
   const displayedTickers = list.tickers.slice(0, MAX_LOGOS);
   const remainingCount = list.tickers.length - MAX_LOGOS;
 

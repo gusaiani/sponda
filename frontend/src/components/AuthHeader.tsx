@@ -10,7 +10,7 @@ export function AuthHeader() {
   const { isAuthenticated, isSuperuser, isLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   const isOnAuthPage = AUTH_PAGES.some((path) => pathname.startsWith(path));
 
@@ -29,24 +29,24 @@ export function AuthHeader() {
       {isAuthenticated ? (
         <>
           {isSuperuser && (
-            <Link href="/admin-dashboard" className="auth-header-link auth-header-admin">
+            <Link href={`/${locale}/admin-dashboard`} className="auth-header-link auth-header-admin">
               Admin
             </Link>
           )}
-          <Link href="/account" className="auth-header-link">
+          <Link href={`/${locale}/account`} className="auth-header-link">
             {t("auth.my_account")}
           </Link>
         </>
       ) : isOnAuthPage ? (
         <button
           className="auth-header-link auth-header-close"
-          onClick={() => router.push("/")}
+          onClick={() => router.push(`/${locale}`)}
           aria-label={t("common.close")}
         >
           ✕
         </button>
       ) : (
-        <Link href="/login" className="auth-header-link auth-header-signup">
+        <Link href={`/${locale}/login`} className="auth-header-link auth-header-signup">
           {t("auth.login")}
         </Link>
       )}

@@ -19,21 +19,21 @@ describe("AuthModal", () => {
 
     const buttons = toggle!.querySelectorAll("button");
     expect(buttons).toHaveLength(2);
-    expect(buttons[0].textContent).toBe("Entrar");
-    expect(buttons[1].textContent).toBe("Criar conta");
+    expect(buttons[0].textContent).toBe("Log in");
+    expect(buttons[1].textContent).toBe("Sign up");
   });
 
-  it("starts in login mode with Entrar button active", () => {
+  it("starts in login mode with login button active", () => {
     render(<AuthModal {...defaultProps} />);
 
     const toggle = document.querySelector(".auth-mode-toggle");
     const loginButton = toggle!.querySelector(".auth-mode-active");
     expect(loginButton).not.toBeNull();
-    expect(loginButton!.textContent).toBe("Entrar");
+    expect(loginButton!.textContent).toBe("Log in");
   });
 
   it("renders the contextual message when provided", () => {
-    const message = "Para salvar a organização dos seus cards, entre ou crie uma conta gratuita.";
+    const message = "To save your card layout, log in or create a free account.";
 
     render(<AuthModal {...defaultProps} message={message} />);
 
@@ -53,19 +53,19 @@ describe("AuthModal", () => {
     render(<AuthModal {...defaultProps} />);
 
     expect(screen.getByLabelText("Email")).toBeTruthy();
-    expect(screen.getByLabelText("Senha")).toBeTruthy();
+    expect(screen.getByLabelText("Password")).toBeTruthy();
   });
 
   it("renders Google sign-in button", () => {
     render(<AuthModal {...defaultProps} />);
 
-    expect(screen.getByText("Continuar com Google")).toBeTruthy();
+    expect(screen.getByText("Continue with Google")).toBeTruthy();
   });
 
   it("renders the close button", () => {
     render(<AuthModal {...defaultProps} />);
 
-    const closeButton = screen.getByLabelText("Fechar");
+    const closeButton = screen.getByLabelText("Close");
     expect(closeButton).toBeTruthy();
   });
 });
