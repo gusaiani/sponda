@@ -112,20 +112,20 @@ def _nextjs(live_server, _build_frontend):
         stderr=subprocess.PIPE,
     )
 
-    # Wait for Next.js to be ready
+    # Wait for Next.js to be ready — use a simple TCP connect check
+    import socket
     for attempt in range(60):
         try:
-            req = urllib.request.Request(
-                f"http://localhost:{NEXTJS_PORT}/pt/",
-                method="HEAD",
-            )
-            urllib.request.urlopen(req, timeout=5)
+            sock = socket.create_connection(("localhost", NEXTJS_PORT), timeout=2)
+            sock.close()
             break
         except Exception:
             time.sleep(1)
     else:
         process.kill()
         pytest.skip("Next.js server failed to start")
+    # Give Next.js a moment to finish startup after the port is open
+    time.sleep(2)
 
     yield f"http://localhost:{NEXTJS_PORT}"
 
