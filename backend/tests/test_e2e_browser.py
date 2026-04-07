@@ -112,10 +112,14 @@ def _nextjs(live_server, _build_frontend):
         stderr=subprocess.PIPE,
     )
 
-    # Wait for Next.js to be ready (use /pt/ to avoid redirect loop on /)
-    for attempt in range(30):
+    # Wait for Next.js to be ready
+    for attempt in range(60):
         try:
-            urllib.request.urlopen(f"http://localhost:{NEXTJS_PORT}/pt/")
+            req = urllib.request.Request(
+                f"http://localhost:{NEXTJS_PORT}/pt/",
+                method="HEAD",
+            )
+            urllib.request.urlopen(req, timeout=5)
             break
         except Exception:
             time.sleep(1)
