@@ -972,19 +972,42 @@ class AdminDashboardView(APIView):
         return user_list
 
     def _get_page_view_stats(self, boundaries):
-        """Total page views and unique visitors per period."""
-        stats = {}
+        """Total page views and unique visitors per period.
+
+        Uses a single aggregate query instead of separate COUNT calls per
+        period, reducing ~18 queries to 1.
+        """
+        aggregations = {}
         for period_name, cutoff in boundaries.items():
-            period_views = PageView.objects.filter(timestamp__gte=cutoff)
+            period_filter = Q(timestamp__gte=cutoff)
+            aggregations[f"{period_name}_total"] = Count(
+                "id", filter=period_filter
+            )
+            aggregations[f"{period_name}_unique"] = Count(
+                "ip_hash", filter=period_filter, distinct=True
+            )
+            aggregations[f"{period_name}_authenticated"] = Count(
+                "id", filter=period_filter & ~Q(user=None)
+            )
+            aggregations[f"{period_name}_anonymous"] = Count(
+                "id", filter=period_filter & Q(user=None)
+            )
+        aggregations["all_time_total"] = Count("id")
+        aggregations["all_time_unique"] = Count("ip_hash", distinct=True)
+
+        result = PageView.objects.aggregate(**aggregations)
+
+        stats = {}
+        for period_name in boundaries:
             stats[period_name] = {
-                "total_views": period_views.count(),
-                "unique_visitors": period_views.values("ip_hash").distinct().count(),
-                "authenticated_views": period_views.exclude(user=None).count(),
-                "anonymous_views": period_views.filter(user=None).count(),
+                "total_views": result[f"{period_name}_total"],
+                "unique_visitors": result[f"{period_name}_unique"],
+                "authenticated_views": result[f"{period_name}_authenticated"],
+                "anonymous_views": result[f"{period_name}_anonymous"],
             }
         stats["all_time"] = {
-            "total_views": PageView.objects.count(),
-            "unique_visitors": PageView.objects.values("ip_hash").distinct().count(),
+            "total_views": result["all_time_total"],
+            "unique_visitors": result["all_time_unique"],
         }
         return stats
 
@@ -1011,9 +1034,14 @@ class AdminDashboardView(APIView):
         return stats
 
     def _get_signup_stats(self, boundaries):
-        """New user signups per period."""
-        stats = {}
+        """New user signups per period.
+
+        Uses a single aggregate query instead of separate COUNT calls per
+        period, reducing 5 queries to 1.
+        """
+        aggregations = {"total": Count("id")}
         for period_name, cutoff in boundaries.items():
-            stats[period_name] = User.objects.filter(date_joined__gte=cutoff).count()
-        stats["total"] = User.objects.count()
-        return stats
+            aggregations[period_name] = Count(
+                "id", filter=Q(date_joined__gte=cutoff)
+            )
+        return User.objects.aggregate(**aggregations)
