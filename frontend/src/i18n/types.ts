@@ -254,6 +254,14 @@ export interface TranslationDictionary {
   "metrics.cagr_fcf": string;
   "metrics.real": string;
   "metrics.lynch": string;
+  "metrics.pfcfg_label": string;
+  "metrics.error.no_earnings_data": string;
+  "metrics.error.no_cashflow_data": string;
+  "metrics.error.pe_unavailable": string;
+  "metrics.error.pe_negative": string;
+  "metrics.error.pfcf_unavailable": string;
+  "metrics.error.pfcf_negative": string;
+  "metrics.error.negative_growth": string;
 
   /* ── Metrics Modal Explainers ── */
   "modal.balance_date": string;

@@ -86,7 +86,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
       pe10 = Math.round((full.marketCap / avgAdjustedNetIncome) * 100) / 100;
     }
   } else {
-    pe10Error = "Sem dados de lucro disponíveis";
+    pe10Error = "no_earnings_data";
   }
 
   // PFCF
@@ -101,7 +101,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
       pfcf10 = Math.round((full.marketCap / avgAdjustedFCF) * 100) / 100;
     }
   } else {
-    pfcf10Error = "Sem dados de fluxo de caixa disponíveis";
+    pfcf10Error = "no_cashflow_data";
   }
 
   // Debt coverage
@@ -122,13 +122,13 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   let peg: number | null = null;
   let pegError: string | null = null;
   if (pe10 === null) {
-    pegError = `P/L${earningsYears} indisponível`;
+    pegError = "pe_unavailable";
   } else if (pe10 < 0) {
-    pegError = "P/L negativo";
+    pegError = "pe_negative";
   } else if (earningsCagr.cagr === null) {
     pegError = earningsCagr.error;
   } else if (earningsCagr.cagr <= 0) {
-    pegError = "crescimento negativo";
+    pegError = "negative_growth";
   } else {
     peg = Math.round((pe10 / earningsCagr.cagr) * 100) / 100;
   }
@@ -141,13 +141,13 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   let pfcfPeg: number | null = null;
   let pfcfPegError: string | null = null;
   if (pfcf10 === null) {
-    pfcfPegError = `P/FCL${fcfYears} indisponível`;
+    pfcfPegError = "pfcf_unavailable";
   } else if (pfcf10 < 0) {
-    pfcfPegError = "P/FCL negativo";
+    pfcfPegError = "pfcf_negative";
   } else if (fcfCagr.cagr === null) {
     pfcfPegError = fcfCagr.error;
   } else if (fcfCagr.cagr <= 0) {
-    pfcfPegError = "crescimento negativo";
+    pfcfPegError = "negative_growth";
   } else {
     pfcfPeg = Math.round((pfcf10 / fcfCagr.cagr) * 100) / 100;
   }

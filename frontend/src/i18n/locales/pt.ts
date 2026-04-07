@@ -254,6 +254,14 @@ export const pt: TranslationDictionary = {
   "metrics.cagr_fcf": "CAGR FCL",
   "metrics.real": "real",
   "metrics.lynch": "Lynch",
+  "metrics.pfcfg_label": "PFCLG",
+  "metrics.error.no_earnings_data": "Sem dados de lucro dispon\u00edveis",
+  "metrics.error.no_cashflow_data": "Sem dados de fluxo de caixa dispon\u00edveis",
+  "metrics.error.pe_unavailable": "P/L indispon\u00edvel",
+  "metrics.error.pe_negative": "P/L negativo",
+  "metrics.error.pfcf_unavailable": "P/FCL indispon\u00edvel",
+  "metrics.error.pfcf_negative": "P/FCL negativo",
+  "metrics.error.negative_growth": "crescimento negativo",
 
   /* ── Metrics Modal Explainers ── */
   "modal.balance_date": "Data do balan\u00e7o",

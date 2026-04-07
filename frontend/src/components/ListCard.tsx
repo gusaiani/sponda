@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCompareData } from "../hooks/useCompareData";
-import { useTranslation } from "../i18n";
+import { useTranslation, type TranslationKey } from "../i18n";
 import { br } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/list-card.css";
@@ -18,15 +18,15 @@ interface ListCardColumnDef {
 
 const MAX_VISIBLE_TICKERS = 5;
 
-export function getListCardColumns(years: number): ListCardColumnDef[] {
+export function getListCardColumns(years: number, t: (key: TranslationKey) => string): ListCardColumnDef[] {
   const n = years;
   return [
-    { key: "pe10", label: `P/L${n}`, format: (quoteResult) => quoteResult.pe10 !== null ? br(quoteResult.pe10, 1) : null, value: (quoteResult) => quoteResult.pe10 },
-    { key: "pfcf10", label: `P/FCL${n}`, format: (quoteResult) => quoteResult.pfcf10 !== null ? br(quoteResult.pfcf10, 1) : null, value: (quoteResult) => quoteResult.pfcf10 },
-    { key: "peg", label: `PEG${n}`, format: (quoteResult) => quoteResult.peg !== null ? br(quoteResult.peg, 2) : null, value: (quoteResult) => quoteResult.peg },
-    { key: "earningsCAGR", label: `CAGR L${n}`, format: (quoteResult) => quoteResult.earningsCAGR !== null ? `${br(quoteResult.earningsCAGR, 1)}%` : null, value: (quoteResult) => quoteResult.earningsCAGR },
-    { key: "debtToEquity", label: "Dív/PL", format: (quoteResult) => quoteResult.debtToEquity !== null ? br(quoteResult.debtToEquity, 2) : null, value: (quoteResult) => quoteResult.debtToEquity },
-    { key: "roe", label: `ROE${n}`, format: (quoteResult) => quoteResult.roe !== null ? `${br(quoteResult.roe, 1)}%` : null, value: (quoteResult) => quoteResult.roe },
+    { key: "pe10", label: `${t("compare.col_pe")}${n}`, format: (quoteResult) => quoteResult.pe10 !== null ? br(quoteResult.pe10, 1) : null, value: (quoteResult) => quoteResult.pe10 },
+    { key: "pfcf10", label: `${t("compare.col_pfcf")}${n}`, format: (quoteResult) => quoteResult.pfcf10 !== null ? br(quoteResult.pfcf10, 1) : null, value: (quoteResult) => quoteResult.pfcf10 },
+    { key: "peg", label: `${t("compare.col_peg")}${n}`, format: (quoteResult) => quoteResult.peg !== null ? br(quoteResult.peg, 2) : null, value: (quoteResult) => quoteResult.peg },
+    { key: "earningsCAGR", label: `${t("compare.col_cagr_earnings")}${n}`, format: (quoteResult) => quoteResult.earningsCAGR !== null ? `${br(quoteResult.earningsCAGR, 1)}%` : null, value: (quoteResult) => quoteResult.earningsCAGR },
+    { key: "debtToEquity", label: t("compare.col_debt_to_equity"), format: (quoteResult) => quoteResult.debtToEquity !== null ? br(quoteResult.debtToEquity, 2) : null, value: (quoteResult) => quoteResult.debtToEquity },
+    { key: "roe", label: `${t("compare.col_roe")}${n}`, format: (quoteResult) => quoteResult.roe !== null ? `${br(quoteResult.roe, 1)}%` : null, value: (quoteResult) => quoteResult.roe },
   ];
 }
 
@@ -42,7 +42,7 @@ interface ListCardProps {
 export function ListCard({ listId, name, tickers, years }: ListCardProps) {
   const { t } = useTranslation();
   const entries = useCompareData(tickers, years);
-  const columns = getListCardColumns(years);
+  const columns = getListCardColumns(years, t);
   const visibleEntries = entries.slice(0, MAX_VISIBLE_TICKERS);
   const hiddenCount = tickers.length - MAX_VISIBLE_TICKERS;
   const compareUrl = `/${tickers[0]}/comparar?listId=${listId}`;
