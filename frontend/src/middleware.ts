@@ -67,10 +67,12 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // Pass through with x-locale header
-    const response = NextResponse.next();
-    response.headers.set("x-locale", locale);
-    return response;
+    // Pass through with x-locale request header (readable by server components via headers())
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-locale", locale);
+    return NextResponse.next({
+      request: { headers: requestHeaders },
+    });
   }
 
   // 3. Bare URL → redirect to locale-prefixed version
