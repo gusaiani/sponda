@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslation } from "./useTranslation";
+import { translateTabSlug } from "../utils/tabs";
 import type { Locale } from "./types";
 
 const LANGUAGE_OPTIONS: { locale: Locale; flag: string; label: string }[] = [
@@ -11,6 +13,8 @@ const LANGUAGE_OPTIONS: { locale: Locale; flag: string; label: string }[] = [
 
 export function LanguageToggle() {
   const { locale, setLocale } = useTranslation();
+  const router = useRouter();
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -19,6 +23,19 @@ export function LanguageToggle() {
   function handleSelect(selected: Locale) {
     setLocale(selected);
     setIsOpen(false);
+
+    // Navigate to the equivalent URL in the new locale
+    const segments = pathname.split("/").filter(Boolean);
+    if (segments.length > 0 && (segments[0] === "pt" || segments[0] === "en")) {
+      segments[0] = selected;
+      // Translate tab slug if present (3rd segment: /{locale}/{ticker}/{tab})
+      if (segments.length === 3) {
+        segments[2] = translateTabSlug(segments[2], selected);
+      }
+    } else {
+      segments.unshift(selected);
+    }
+    router.push("/" + segments.join("/"));
   }
 
   useEffect(() => {
