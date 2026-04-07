@@ -1,18 +1,22 @@
 export type TabKey = "metrics" | "charts" | "fundamentals" | "compare";
 
-export const TAB_PATHS: Record<string, TabKey> = {
+/** Locale-indexed tab URL slugs (no leading slash). */
+const TAB_SLUGS: Record<string, Record<TabKey, string>> = {
+  pt: { metrics: "", charts: "graficos", fundamentals: "fundamentos", compare: "comparar" },
+  en: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare" },
+};
+
+/** Reverse mapping: slug → TabKey (accepts both PT and EN slugs). */
+const SLUG_TO_TAB: Record<string, TabKey> = {
   graficos: "charts",
+  charts: "charts",
   fundamentos: "fundamentals",
+  fundamentals: "fundamentals",
   comparar: "compare",
+  compare: "compare",
 };
 
-export const TAB_TO_SUFFIX: Record<TabKey, string> = {
-  metrics: "",
-  charts: "/graficos",
-  fundamentals: "/fundamentos",
-  compare: "/comparar",
-};
-
+/** Legacy Portuguese labels (used by some tests). */
 export const TAB_LABELS: Record<TabKey, string> = {
   metrics: "Indicadores",
   fundamentals: "Fundamentos",
@@ -20,12 +24,30 @@ export const TAB_LABELS: Record<TabKey, string> = {
   charts: "Gráficos",
 };
 
-export function resolveTab(pathname: string): TabKey {
-  const lastSegment = pathname.split("/").filter(Boolean).pop() ?? "";
-  if (TAB_PATHS[lastSegment]) return TAB_PATHS[lastSegment];
-  return "metrics";
+/** Return the URL slug for a tab in a given locale (e.g. "graficos" for pt/charts). */
+export function tabSlugForLocale(locale: string, tab: TabKey): string {
+  const slugs = TAB_SLUGS[locale] ?? TAB_SLUGS.en;
+  return slugs[tab];
 }
 
-export function buildTabPath(ticker: string, tab: TabKey): string {
-  return `/${ticker}${TAB_TO_SUFFIX[tab]}`;
+/** Resolve a pathname to a TabKey. Handles both locale-prefixed and bare paths. */
+export function resolveTab(pathname: string): TabKey {
+  const segments = pathname.split("/").filter(Boolean);
+  // Last non-empty segment is the potential tab slug
+  const lastSegment = segments[segments.length - 1] ?? "";
+  return SLUG_TO_TAB[lastSegment] ?? "metrics";
+}
+
+/** Build a locale-prefixed tab path: /en/PETR4/fundamentals */
+export function buildTabPath(locale: string, ticker: string, tab: TabKey): string {
+  const slug = tabSlugForLocale(locale, tab);
+  return slug ? `/${locale}/${ticker}/${slug}` : `/${locale}/${ticker}`;
+}
+
+/** Translate a tab slug from one locale to another.
+ * e.g. translateTabSlug("fundamentos", "en") → "fundamentals" */
+export function translateTabSlug(slug: string, targetLocale: string): string {
+  const tab = SLUG_TO_TAB[slug];
+  if (!tab) return slug;
+  return tabSlugForLocale(targetLocale, tab) || slug;
 }

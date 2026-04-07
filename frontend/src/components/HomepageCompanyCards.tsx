@@ -60,7 +60,7 @@ function Indicator({ label, value, suffix = "" }: IndicatorProps) {
 }
 
 export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isLoading: boolean }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   if (isLoading || !data) {
     return (
@@ -95,7 +95,7 @@ export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isL
   }
 
   return (
-    <Link href={`/${data.ticker}`} className="hcc-card">
+    <Link href={`/${locale}/${data.ticker}`} className="hcc-card">
       <div className="hcc-card-header">
         <img
           className="hcc-logo"

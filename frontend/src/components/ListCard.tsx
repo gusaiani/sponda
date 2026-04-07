@@ -40,12 +40,12 @@ interface ListCardProps {
 }
 
 export function ListCard({ listId, name, tickers, years }: ListCardProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const entries = useCompareData(tickers, years);
   const columns = getListCardColumns(years, t);
   const visibleEntries = entries.slice(0, MAX_VISIBLE_TICKERS);
   const hiddenCount = tickers.length - MAX_VISIBLE_TICKERS;
-  const compareUrl = `/${tickers[0]}/comparar?listId=${listId}`;
+  const compareUrl = `/${locale}/${tickers[0]}/comparar?listId=${listId}`;
   const isLoading = entries.length > 0 && entries.every((entry) => entry.isLoading);
 
   return (

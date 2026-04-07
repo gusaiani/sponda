@@ -11,50 +11,29 @@ interface LanguageContextValue {
 }
 
 export const LanguageContext = createContext<LanguageContextValue>({
-  locale: "pt",
+  locale: "en",
   setLocale: () => {},
 });
 
-function detectBrowserLocale(): Locale {
-  if (typeof navigator === "undefined") return "pt";
-
-  const languages = navigator.languages ?? [navigator.language];
-  for (const language of languages) {
-    const lower = language.toLowerCase();
-    if (lower.startsWith("pt")) return "pt";
-    if (lower.startsWith("en")) return "en";
-  }
-
-  return "en";
+interface LanguageProviderProps {
+  children: ReactNode;
+  initialLocale: Locale;
 }
 
-function getInitialLocale(): Locale {
-  if (typeof window === "undefined") return "pt";
+export function LanguageProvider({ children, initialLocale }: LanguageProviderProps) {
+  const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "pt" || stored === "en") return stored;
-
-  return detectBrowserLocale();
-}
-
-const SSR_DEFAULT: Locale = "pt";
-
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  // Always start with "pt" to match the server render and avoid hydration mismatches.
-  // The real locale is resolved in a useEffect after mount.
-  const [locale, setLocaleState] = useState<Locale>(SSR_DEFAULT);
+  // Keep state in sync if initialLocale changes (e.g. navigation)
+  useEffect(() => {
+    if (initialLocale !== locale) {
+      setLocaleState(initialLocale);
+    }
+  }, [initialLocale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
     localStorage.setItem(STORAGE_KEY, newLocale);
-  }, []);
-
-  // After hydration, resolve the real locale from localStorage or browser detection
-  useEffect(() => {
-    const resolved = getInitialLocale();
-    if (resolved !== SSR_DEFAULT) {
-      setLocaleState(resolved);
-    }
+    // Navigation is handled by the LanguageToggle component
   }, []);
 
   // Sync html lang attribute

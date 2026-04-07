@@ -11,7 +11,7 @@ import "../styles/popular.css";
 const MAX_DISPLAYED = 40;
 
 export function PopularCompanies() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { favoriteTickers } = useFavorites();
   const region = useRegion();
@@ -34,7 +34,7 @@ export function PopularCompanies() {
       {symbols.map((symbol) => (
         <Link
           key={symbol}
-          href={`/${symbol}`}
+          href={`/${locale}/${symbol}`}
           className="popular-item"
         >
           <img

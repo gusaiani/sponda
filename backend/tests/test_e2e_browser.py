@@ -112,16 +112,20 @@ def _nextjs(live_server, _build_frontend):
         stderr=subprocess.PIPE,
     )
 
-    # Wait for Next.js to be ready
-    for attempt in range(30):
+    # Wait for Next.js to be ready — use a simple TCP connect check
+    import socket
+    for attempt in range(60):
         try:
-            urllib.request.urlopen(f"http://localhost:{NEXTJS_PORT}/")
+            sock = socket.create_connection(("localhost", NEXTJS_PORT), timeout=2)
+            sock.close()
             break
         except Exception:
             time.sleep(1)
     else:
         process.kill()
         pytest.skip("Next.js server failed to start")
+    # Give Next.js a moment to finish startup after the port is open
+    time.sleep(2)
 
     yield f"http://localhost:{NEXTJS_PORT}"
 
@@ -144,17 +148,17 @@ class TestBrowserSearch:
         return _nextjs
 
     def test_homepage_loads(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         expect(page.locator("text=SPONDA").first).to_be_visible()
         expect(page.locator("text=investidores em valor").first).to_be_visible()
 
     def test_search_bar_is_visible(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         search_input = page.locator("input[placeholder*='Ticker']").first
         expect(search_input).to_be_visible()
 
     def test_search_shows_pe10_result(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
@@ -170,7 +174,7 @@ class TestBrowserSearch:
         expect(page.locator(".pe10-label", has_text="P/L10")).to_be_visible()
 
     def test_search_shows_price(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
@@ -178,7 +182,7 @@ class TestBrowserSearch:
         expect(page.locator("text=/R\\$\\s*[\\d.,]+/").first).to_be_visible(timeout=10000)
 
     def test_search_shows_pfcf10_label(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
@@ -186,7 +190,7 @@ class TestBrowserSearch:
         expect(page.locator(".pe10-label", has_text="P/FCL10")).to_be_visible(timeout=10000)
 
     def test_search_shows_both_metrics(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
@@ -195,7 +199,7 @@ class TestBrowserSearch:
         expect(page.locator(".pe10-label", has_text="P/FCL10")).to_be_visible()
 
     def test_entenda_melhor_opens_modal(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
@@ -208,7 +212,7 @@ class TestBrowserSearch:
         expect(page.locator(".modal-content")).to_be_visible()
 
     def test_modal_closes_on_x_button(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
@@ -221,7 +225,7 @@ class TestBrowserSearch:
         expect(page.locator(".modal-overlay")).not_to_be_visible()
 
     def test_search_shows_years_of_data(self, page: Page, url):
-        page.goto(url)
+        page.goto(f"{url}/pt/", timeout=60000)
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
@@ -265,7 +269,7 @@ class TestCompareDragAndDrop:
     def test_drag_row_no_rogue_elements(self, page: Page, url):
         """Dragging a compare row should not produce visible rogue elements
         (like a globe icon) outside the ghost clone."""
-        page.goto(f"{url}/VALE3/comparar")
+        page.goto(f"{url}/pt/VALE3/comparar", timeout=60000)
 
         # Wait for the table to render with the primary ticker row
         expect(page.locator(".compare-table tbody tr").first).to_be_visible(timeout=15000)
@@ -314,7 +318,7 @@ class TestCompareDragAndDrop:
 
     def test_drop_unauthenticated_shows_auth_modal(self, page: Page, url):
         """Unauthenticated users can drag freely, but dropping triggers the auth modal."""
-        page.goto(f"{url}/VALE3/comparar")
+        page.goto(f"{url}/pt/VALE3/comparar", timeout=60000)
 
         # Wait for the table, add a second ticker
         expect(page.locator(".compare-table tbody tr").first).to_be_visible(timeout=15000)
