@@ -358,8 +358,15 @@
   padding: 0;
 }
 
-.homepage-grid-share-handle--copied {
-  opacity: 1;
+.homepage-grid-share-wrapper {
+  position: relative;
+}
+
+.homepage-grid-share-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
 }
 
 .homepage-grid-drag-icon {
@@ -378,6 +385,7 @@
 
 .homepage-grid-item:hover .homepage-grid-share-handle {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .homepage-grid-item:hover .homepage-grid-drag-handle:hover {

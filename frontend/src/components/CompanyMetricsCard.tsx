@@ -851,12 +851,12 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     if (element) {
       setTimeout(() => element.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
     }
-    const timer = setTimeout(() => setHighlightedMetric(null), 4000);
-    return () => clearTimeout(timer);
   }, []);
 
-  const metricBlockClassName = (metricId: string) =>
-    `metric-block${highlightedMetric === metricId ? " metric-block-highlighted" : ""}`;
+  const metricBlockProps = (metricId: string) => ({
+    className: `metric-block${highlightedMetric === metricId ? " metric-block-highlighted" : ""}`,
+    onMouseLeave: highlightedMetric === metricId ? () => setHighlightedMetric(null) : undefined,
+  });
 
   return (
     <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
@@ -874,7 +874,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
         {/* All 5 leverage indicators in one row */}
         <div className="metrics-row leverage-row-5col">
-          <div id={METRIC_IDS.debtToEquity} className={metricBlockClassName(METRIC_IDS.debtToEquity)}>
+          <div id={METRIC_IDS.debtToEquity} {...metricBlockProps(METRIC_IDS.debtToEquity)}>
             <ShareButton metricId={METRIC_IDS.debtToEquity} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} /></div>
@@ -886,7 +886,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             </div>
           </div>
           {data.debtExLeaseToEquity !== null && (
-            <div id={METRIC_IDS.debtExLease} className={metricBlockClassName(METRIC_IDS.debtExLease)}>
+            <div id={METRIC_IDS.debtExLease} {...metricBlockProps(METRIC_IDS.debtExLease)}>
               <ShareButton metricId={METRIC_IDS.debtExLease} />
               <div className="metric-value-container">
                 <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /></div>
@@ -894,7 +894,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               </div>
             </div>
           )}
-          <div id={METRIC_IDS.liabToEquity} className={metricBlockClassName(METRIC_IDS.liabToEquity)}>
+          <div id={METRIC_IDS.liabToEquity} {...metricBlockProps(METRIC_IDS.liabToEquity)}>
             <ShareButton metricId={METRIC_IDS.liabToEquity} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} /></div>
@@ -905,7 +905,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div id={METRIC_IDS.debtToEarnings} className={metricBlockClassName(METRIC_IDS.debtToEarnings)}>
+          <div id={METRIC_IDS.debtToEarnings} {...metricBlockProps(METRIC_IDS.debtToEarnings)}>
             <ShareButton metricId={METRIC_IDS.debtToEarnings} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
@@ -916,7 +916,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div id={METRIC_IDS.debtToFCF} className={metricBlockClassName(METRIC_IDS.debtToFCF)}>
+          <div id={METRIC_IDS.debtToFCF} {...metricBlockProps(METRIC_IDS.debtToFCF)}>
             <ShareButton metricId={METRIC_IDS.debtToFCF} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
@@ -937,7 +937,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
         {/* All 6 valuation indicators in one row */}
         <div className="metrics-row valuation-row-6col">
-          <div id={METRIC_IDS.pe10} className={metricBlockClassName(METRIC_IDS.pe10)}>
+          <div id={METRIC_IDS.pe10} {...metricBlockProps(METRIC_IDS.pe10)}>
             <ShareButton metricId={METRIC_IDS.pe10} />
             <div className="metric-value-container">
               <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} /></div>
@@ -948,7 +948,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div id={METRIC_IDS.peg} className={metricBlockClassName(METRIC_IDS.peg)}>
+          <div id={METRIC_IDS.peg} {...metricBlockProps(METRIC_IDS.peg)}>
             <ShareButton metricId={METRIC_IDS.peg} />
             <div className="metric-value-container">
               <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} /></div>
@@ -959,7 +959,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div id={METRIC_IDS.cagrEarnings} className={metricBlockClassName(METRIC_IDS.cagrEarnings)}>
+          <div id={METRIC_IDS.cagrEarnings} {...metricBlockProps(METRIC_IDS.cagrEarnings)}>
             <ShareButton metricId={METRIC_IDS.cagrEarnings} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.cagr_earnings")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrEarnings")} /></div>
@@ -970,7 +970,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div id={METRIC_IDS.pfcf10} className={metricBlockClassName(METRIC_IDS.pfcf10)}>
+          <div id={METRIC_IDS.pfcf10} {...metricBlockProps(METRIC_IDS.pfcf10)}>
             <ShareButton metricId={METRIC_IDS.pfcf10} />
             <div className="metric-value-container">
               <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} /></div>
@@ -981,7 +981,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div id={METRIC_IDS.pfcfg} className={metricBlockClassName(METRIC_IDS.pfcfg)}>
+          <div id={METRIC_IDS.pfcfg} {...metricBlockProps(METRIC_IDS.pfcfg)}>
             <ShareButton metricId={METRIC_IDS.pfcfg} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
@@ -992,7 +992,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div id={METRIC_IDS.cagrFCF} className={metricBlockClassName(METRIC_IDS.cagrFCF)}>
+          <div id={METRIC_IDS.cagrFCF} {...metricBlockProps(METRIC_IDS.cagrFCF)}>
             <ShareButton metricId={METRIC_IDS.cagrFCF} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.cagr_fcf")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrFCF")} /></div>
