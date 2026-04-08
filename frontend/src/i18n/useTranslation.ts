@@ -8,9 +8,10 @@ import { es } from "./locales/es";
 import { zh } from "./locales/zh";
 import { fr } from "./locales/fr";
 import { de } from "./locales/de";
+import { it } from "./locales/it";
 import type { Locale, TranslationKey, TranslationDictionary } from "./types";
 
-const DICTIONARIES: Record<Locale, TranslationDictionary> = { pt, en, es, zh, fr, de };
+const DICTIONARIES: Record<Locale, TranslationDictionary> = { pt, en, es, zh, fr, de, it };
 
 /**
  * Returns:

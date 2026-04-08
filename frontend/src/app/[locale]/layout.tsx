@@ -12,7 +12,7 @@ const META: Record<string, { title: string; description: string }> = {
   pt: {
     title: "Sponda · Para investidores em valor",
     description:
-      "Indicadores fundamentalistas de empresas brasileiras para investidores em valor. P/L ajustado pela inflação (Shiller PE), P/FCL, PEG, CAGR, alavancagem e mais.",
+      "Indicadores fundamentalistas para investidores em valor. P/L ajustado pela inflação (Shiller PE), P/FCL, PEG, CAGR, alavancagem e mais.",
   },
   en: {
     title: "Sponda · For value investors",
@@ -22,22 +22,27 @@ const META: Record<string, { title: string; description: string }> = {
   es: {
     title: "Sponda · Para inversores en valor",
     description:
-      "Indicadores fundamentales de acciones brasileñas para inversores en valor. P/E ajustado por inflación (Shiller PE), P/FCF, PEG, CAGR, apalancamiento y más.",
+      "Indicadores fundamentales para inversores en valor. P/E ajustado por inflación (Shiller PE), P/FCF, PEG, CAGR, apalancamiento y más.",
   },
   zh: {
     title: "Sponda · 价值投资者工具",
     description:
-      "巴西股票基本面指标。通胀调整市盈率 (Shiller PE)、P/FCF、PEG、CAGR、杠杆率等。",
+      "价值投资者基本面指标。通胀调整市盈率 (Shiller PE)、P/FCF、PEG、CAGR、杠杆率等。",
   },
   fr: {
     title: "Sponda · Pour investisseurs value",
     description:
-      "Indicateurs fondamentaux d'actions brésiliennes pour investisseurs value. P/E ajusté de l'inflation (Shiller PE), P/FCF, PEG, CAGR, endettement et plus.",
+      "Indicateurs fondamentaux pour investisseurs value. P/E ajusté de l'inflation (Shiller PE), P/FCF, PEG, CAGR, endettement et plus.",
   },
   de: {
     title: "Sponda · Für Value-Investoren",
     description:
-      "Fundamentalkennzahlen brasilianischer Aktien für Value-Investoren. Inflationsbereinigtes KGV (Shiller PE), P/FCF, PEG, CAGR, Verschuldung und mehr.",
+      "Fundamentalkennzahlen für Value-Investoren. Inflationsbereinigtes KGV (Shiller PE), P/FCF, PEG, CAGR, Verschuldung und mehr.",
+  },
+  it: {
+    title: "Sponda · Per investitori di valore",
+    description:
+      "Indicatori fondamentali per investitori di valore. P/E corretto per l'inflazione (Shiller PE), P/FCF, PEG, CAGR, leva finanziaria e altro.",
   },
 };
 
@@ -54,12 +59,13 @@ export async function generateMetadata({ params }: LocaleLayoutProps): Promise<M
   const ogLocale = LOCALE_TO_OG_LOCALE[locale];
 
   const KEYWORDS: Record<string, string> = {
-    pt: "ações brasileiras, indicadores fundamentalistas, P/L Shiller, PE10, CAPE, preço/lucro, investimento em valor, B3, bolsa de valores, análise fundamentalista",
+    pt: "análise fundamentalista, indicadores fundamentalistas, P/L Shiller, PE10, CAPE, preço/lucro, investimento em valor, mercado de ações, ações globais",
     en: "stock analysis, fundamental indicators, Shiller PE, PE10, CAPE, price/earnings, value investing, stock market, fundamental analysis",
-    es: "análisis fundamental, acciones brasileñas, Shiller PE, PE10, CAPE, precio/beneficio, inversión en valor, B3, bolsa de valores",
-    zh: "基本面分析, 巴西股票, Shiller PE, PE10, CAPE, 市盈率, 价值投资, B3, 股票市场",
-    fr: "analyse fondamentale, actions brésiliennes, Shiller PE, PE10, CAPE, prix/bénéfice, investissement valeur, B3, bourse",
-    de: "Fundamentalanalyse, brasilianische Aktien, Shiller PE, PE10, CAPE, KGV, Value-Investing, B3, Börse",
+    es: "análisis fundamental, indicadores fundamentales, Shiller PE, PE10, CAPE, precio/beneficio, inversión en valor, mercado de valores, acciones globales",
+    zh: "基本面分析, 股票分析, Shiller PE, PE10, CAPE, 市盈率, 价值投资, 全球股票, 股票市场",
+    fr: "analyse fondamentale, indicateurs fondamentaux, Shiller PE, PE10, CAPE, prix/bénéfice, investissement valeur, marché boursier, actions mondiales",
+    de: "Fundamentalanalyse, Fundamentalkennzahlen, Shiller PE, PE10, CAPE, KGV, Value-Investing, Aktienmarkt, globale Aktien",
+    it: "analisi fondamentale, indicatori fondamentali, Shiller PE, PE10, CAPE, P/E, investimento di valore, mercato azionario, azioni globali",
   };
 
   // Build hreflang alternates for all supported locales
@@ -123,7 +129,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
             description: META[locale].description,
             applicationCategory: "FinanceApplication",
             operatingSystem: "Web",
-            offers: { "@type": "Offer", price: "0", priceCurrency: "BRL" },
+            offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
             creator: {
               "@type": "Organization",
               name: "Poema Parceria de Investimentos",

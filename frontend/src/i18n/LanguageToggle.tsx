@@ -13,6 +13,7 @@ const LANGUAGE_OPTIONS: { locale: Locale; flag: string; label: string }[] = [
   { locale: "zh", flag: "🇨🇳", label: "ZH" },
   { locale: "fr", flag: "🇫🇷", label: "FR" },
   { locale: "de", flag: "🇩🇪", label: "DE" },
+  { locale: "it", flag: "🇮🇹", label: "IT" },
 ];
 
 export function LanguageToggle() {
@@ -30,7 +31,7 @@ export function LanguageToggle() {
 
     // Navigate to the equivalent URL in the new locale
     const segments = pathname.split("/").filter(Boolean);
-    const LOCALES = new Set(["pt", "en", "es", "zh", "fr", "de"]);
+    const LOCALES = new Set(["pt", "en", "es", "zh", "fr", "de", "it"]);
     if (segments.length > 0 && LOCALES.has(segments[0])) {
       segments[0] = selected;
       // Translate tab slug if present (3rd segment: /{locale}/{ticker}/{tab})

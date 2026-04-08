@@ -33,12 +33,14 @@ export function LanguageProvider({ children, initialLocale }: LanguageProviderPr
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
     localStorage.setItem(STORAGE_KEY, newLocale);
+    // Set cookie so middleware can read the preference on subsequent visits
+    document.cookie = `${STORAGE_KEY}=${newLocale};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
     // Navigation is handled by the LanguageToggle component
   }, []);
 
   // Sync html lang attribute
   useEffect(() => {
-    const HTML_LANG: Record<string, string> = { pt: "pt-BR", en: "en", es: "es", zh: "zh-CN", fr: "fr", de: "de" };
+    const HTML_LANG: Record<string, string> = { pt: "pt-BR", en: "en", es: "es", zh: "zh-CN", fr: "fr", de: "de", it: "it" };
     document.documentElement.lang = HTML_LANG[locale] || "en";
   }, [locale]);
 

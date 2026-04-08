@@ -24,6 +24,10 @@ const SLUG_TO_CANONICAL: Record<string, string> = {
   diagramme: "charts",
   fundamentaldaten: "fundamentals",
   vergleich: "compare",
+  /* Italian */
+  grafici: "charts",
+  fondamentali: "fundamentals",
+  confronta: "compare",
 };
 
 /** Locale → { canonical → localized slug } */
@@ -34,6 +38,7 @@ const CANONICAL_TO_LOCALE_SLUG: Record<string, Record<string, string>> = {
   zh: { charts: "charts", fundamentals: "fundamentals", compare: "compare" },
   fr: { charts: "graphiques", fundamentals: "fondamentaux", compare: "comparer" },
   de: { charts: "diagramme", fundamentals: "fundamentaldaten", compare: "vergleich" },
+  it: { charts: "grafici", fundamentals: "fondamentali", compare: "confronta" },
 };
 
 function correctSlugForLocale(locale: string, slug: string): string | null {
@@ -82,7 +87,11 @@ export function middleware(request: NextRequest) {
   }
 
   // 3. Bare URL → redirect to locale-prefixed version
-  const locale = detectLocaleFromHeader(request.headers.get("accept-language"));
+  // Priority: saved cookie preference > Accept-Language header > default
+  const cookieLocale = request.cookies.get("sponda-lang")?.value;
+  const locale = (cookieLocale && isSupportedLocale(cookieLocale))
+    ? cookieLocale
+    : detectLocaleFromHeader(request.headers.get("accept-language"));
 
   // Translate tab slugs when redirecting to a different locale
   let newPathname = pathname;
