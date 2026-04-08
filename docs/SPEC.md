@@ -1,8 +1,8 @@
-# Sponda — PE10 Valuation App for Brazilian Stocks
+# Sponda — PE10 Valuation App for Global Stocks
 
 ## What
 
-Sponda calculates PE10 (Shiller P/E) for Brazilian stocks using BRAPI data. Users enter a ticker and see the inflation-adjusted price-to-earnings ratio over a 10-year rolling window.
+Sponda calculates PE10 (Shiller P/E) for global stocks. Users enter a ticker and see the inflation-adjusted price-to-earnings ratio over a 10-year rolling window.
 
 ## Why
 

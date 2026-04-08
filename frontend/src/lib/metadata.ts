@@ -74,13 +74,13 @@ function buildDescription(locale: SupportedLocale, ticker: string, companyName: 
 
 /** Locale-specific keywords. */
 const KEYWORDS: Record<string, string[]> = {
-  pt: ["PE10", "PFCF10", "PEG", "CAGR", "análise fundamentalista", "ações brasileiras", "B3"],
+  pt: ["PE10", "PFCF10", "PEG", "CAGR", "análise fundamentalista", "investimento em valor", "mercado de ações"],
   en: ["PE10", "PFCF10", "PEG", "CAGR", "fundamental analysis", "stock market", "value investing"],
-  es: ["PE10", "PFCF10", "PEG", "CAGR", "análisis fundamental", "acciones brasileñas", "inversión en valor"],
-  zh: ["PE10", "PFCF10", "PEG", "CAGR", "基本面分析", "巴西股票", "价值投资"],
-  fr: ["PE10", "PFCF10", "PEG", "CAGR", "analyse fondamentale", "actions brésiliennes", "investissement valeur"],
-  de: ["PE10", "PFCF10", "PEG", "CAGR", "Fundamentalanalyse", "brasilianische Aktien", "Value-Investing"],
-  it: ["PE10", "PFCF10", "PEG", "CAGR", "analisi fondamentale", "azioni brasiliane", "investimento di valore"],
+  es: ["PE10", "PFCF10", "PEG", "CAGR", "análisis fundamental", "inversión en valor", "mercado de valores"],
+  zh: ["PE10", "PFCF10", "PEG", "CAGR", "基本面分析", "价值投资", "股票市场"],
+  fr: ["PE10", "PFCF10", "PEG", "CAGR", "analyse fondamentale", "investissement valeur", "marché boursier"],
+  de: ["PE10", "PFCF10", "PEG", "CAGR", "Fundamentalanalyse", "Value-Investing", "Aktienmarkt"],
+  it: ["PE10", "PFCF10", "PEG", "CAGR", "analisi fondamentale", "investimento di valore", "mercato azionario"],
 };
 
 export async function generateTickerMetadata(

@@ -1,8 +1,8 @@
 # Sponda
 
-> Fundamental analysis indicators for Brazilian stocks, adjusted for inflation.
+> Fundamental analysis indicators for global stocks, adjusted for inflation.
 
-Sponda is a free platform for value investors analyzing companies listed on B3 (Brazilian stock exchange). It calculates valuation and quality metrics using inflation-adjusted (IPCA) historical data.
+Sponda is a free platform for value investors analyzing publicly traded companies worldwide. It calculates valuation and quality metrics using inflation-adjusted historical data.
 
 ## Available Indicators
 
@@ -16,7 +16,7 @@ Sponda is a free platform for value investors analyzing companies listed on B3 (
 ## URL Structure
 
 - `https://sponda.capital/` — Homepage with search and popular companies.
-- `https://sponda.capital/{TICKER}` — Company indicators (e.g., `/PETR4`, `/VALE3`, `/ITUB4`).
+- `https://sponda.capital/{TICKER}` — Company indicators (e.g., `/PETR4`, `/VALE3`, `/AAPL`).
 - `https://sponda.capital/{TICKER}/fundamentos` — Annual financial data.
 - `https://sponda.capital/{TICKER}/graficos` — Historical multiples charts.
 - `https://sponda.capital/{TICKER}/comparar` — Comparison with sector peers.
@@ -24,9 +24,9 @@ Sponda is a free platform for value investors analyzing companies listed on B3 (
 
 ## Data
 
-- Covers all stocks on B3 (excluding BDRs and fractional shares).
-- Quarterly earnings, revenue, and cash flow data from 2010+.
-- IPCA inflation index from IBGE for historical adjustment.
+- Covers stocks from multiple global exchanges.
+- Quarterly earnings, revenue, and cash flow data.
+- Inflation indices for historical adjustment.
 - Quotes and market cap updated daily.
 
 ## About

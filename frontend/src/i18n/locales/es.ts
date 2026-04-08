@@ -123,7 +123,7 @@ export const es: TranslationDictionary = {
   "share.copied": "\u00a1Copiado!",
   "share.copy_link": "Copiar enlace",
   "share.text_with_ticker": "{name} \u00b7 indicadores de valor en Sponda",
-  "share.text_without_ticker": "Sponda \u00b7 indicadores de empresas brasile\u00f1as para inversores de valor",
+  "share.text_without_ticker": "Sponda \u00b7 indicadores fundamentales para inversores de valor",
 
   /* ── Favorites ── */
   "favorites.title": "Favoritas",

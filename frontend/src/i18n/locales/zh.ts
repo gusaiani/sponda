@@ -123,7 +123,7 @@ export const zh: TranslationDictionary = {
   "share.copied": "已复制！",
   "share.copy_link": "复制链接",
   "share.text_with_ticker": "{name} \u00b7 Sponda 价值指标",
-  "share.text_without_ticker": "Sponda \u00b7 面向价值投资者的巴西股票指标",
+  "share.text_without_ticker": "Sponda \u00b7 面向价值投资者的基本面指标",
 
   /* ── Favorites ── */
   "favorites.title": "收藏夹",
