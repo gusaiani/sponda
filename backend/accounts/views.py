@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
-from django.db.models import Count, Max, Q
+from django.db.models import Count, IntegerField, Max, OuterRef, Q, Subquery
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
@@ -927,19 +927,37 @@ class AdminDashboardView(APIView):
     def _get_user_stats(self, boundaries):
         """List all users with email, last login, and visit counts per period.
 
-        Uses annotate() to compute all counts in a single query instead of
-        N+1 queries per user per period.
+        Uses Subquery to avoid the 4-way LEFT JOIN that creates a cartesian
+        product explosion (PageView x LookupLog x Favorites x SavedLists).
+        Each count is an independent correlated subquery, which PostgreSQL
+        executes efficiently via index scans.
         """
         annotations = {}
         for period_name, cutoff in boundaries.items():
-            annotations[f"page_views_{period_name}"] = Count(
-                "pageview", filter=Q(pageview__timestamp__gte=cutoff), distinct=True
+            annotations[f"page_views_{period_name}"] = Subquery(
+                PageView.objects.filter(
+                    user=OuterRef("pk"), timestamp__gte=cutoff
+                ).values("user").annotate(count=Count("id")).values("count"),
+                output_field=IntegerField(),
             )
-            annotations[f"lookups_{period_name}"] = Count(
-                "lookuplog", filter=Q(lookuplog__timestamp__gte=cutoff), distinct=True
+            annotations[f"lookups_{period_name}"] = Subquery(
+                LookupLog.objects.filter(
+                    user=OuterRef("pk"), timestamp__gte=cutoff
+                ).values("user").annotate(count=Count("id")).values("count"),
+                output_field=IntegerField(),
             )
-        annotations["favorites_count"] = Count("favorites", distinct=True)
-        annotations["saved_lists_count"] = Count("saved_lists", distinct=True)
+        annotations["favorites_count"] = Subquery(
+            FavoriteCompany.objects.filter(
+                user=OuterRef("pk")
+            ).values("user").annotate(count=Count("id")).values("count"),
+            output_field=IntegerField(),
+        )
+        annotations["saved_lists_count"] = Subquery(
+            SavedList.objects.filter(
+                user=OuterRef("pk")
+            ).values("user").annotate(count=Count("id")).values("count"),
+            output_field=IntegerField(),
+        )
 
         users = (
             User.objects.all()
@@ -950,11 +968,11 @@ class AdminDashboardView(APIView):
         user_list = []
         for user in users:
             visit_counts = {
-                period_name: getattr(user, f"page_views_{period_name}")
+                period_name: getattr(user, f"page_views_{period_name}") or 0
                 for period_name in boundaries
             }
             lookup_counts = {
-                period_name: getattr(user, f"lookups_{period_name}")
+                period_name: getattr(user, f"lookups_{period_name}") or 0
                 for period_name in boundaries
             }
             user_list.append({
@@ -965,8 +983,8 @@ class AdminDashboardView(APIView):
                 "is_superuser": user.is_superuser,
                 "page_views": visit_counts,
                 "lookups": lookup_counts,
-                "favorites_count": user.favorites_count,
-                "saved_lists_count": user.saved_lists_count,
+                "favorites_count": user.favorites_count or 0,
+                "saved_lists_count": user.saved_lists_count or 0,
             })
 
         return user_list
