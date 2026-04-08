@@ -1,8 +1,8 @@
 """Pre-warm the disk-based logo cache for popular tickers.
 
-Fetches logos from BRAPI for each popular ticker and saves them to
-LOGO_CACHE_DIR. Skips tickers that are already cached and rejects
-BRAPI placeholder logos. Run on deploy or on a schedule.
+Fetches logos from the ticker's DB URL or BRAPI for each popular ticker
+and saves them to LOGO_CACHE_DIR. Skips tickers that are already cached
+and rejects BRAPI placeholder logos. Run on deploy or on a schedule.
 """
 import logging
 from pathlib import Path
@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from quotes.models import Ticker
 from quotes.views import is_brapi_placeholder, BRAPI_LOGO_URL_TEMPLATE
 
 logger = logging.getLogger(__name__)
@@ -101,18 +102,38 @@ class Command(BaseCommand):
                     total_skipped += 1
                     continue
 
-                brapi_url = BRAPI_LOGO_URL_TEMPLATE.format(symbol=symbol)
-                try:
-                    logo_request = Request(brapi_url, headers={"User-Agent": "Sponda/1.0"})
-                    with urlopen(logo_request, timeout=10) as response:
-                        image_data = response.read()
-                except Exception:
-                    logger.warning("Failed to fetch logo for %s", symbol)
-                    total_failed += 1
-                    continue
+                image_data = None
 
-                if is_brapi_placeholder(image_data):
-                    logger.warning("BRAPI returned placeholder for %s, skipping", symbol)
+                # Try the ticker's own logo URL from DB first (covers FMP, etc.)
+                try:
+                    ticker = Ticker.objects.get(symbol=symbol)
+                    if ticker.logo:
+                        logo_request = Request(ticker.logo, headers={"User-Agent": "Sponda/1.0"})
+                        with urlopen(logo_request, timeout=10) as response:
+                            image_data = response.read()
+                except (Ticker.DoesNotExist, Exception):
+                    pass
+
+                # Reject BRAPI placeholders from DB URL
+                if image_data and is_brapi_placeholder(image_data):
+                    image_data = None
+
+                # Fallback to BRAPI direct URL
+                if not image_data:
+                    brapi_url = BRAPI_LOGO_URL_TEMPLATE.format(symbol=symbol)
+                    try:
+                        logo_request = Request(brapi_url, headers={"User-Agent": "Sponda/1.0"})
+                        with urlopen(logo_request, timeout=10) as response:
+                            image_data = response.read()
+                    except Exception:
+                        pass
+
+                # Reject BRAPI placeholders from fallback
+                if image_data and is_brapi_placeholder(image_data):
+                    image_data = None
+
+                if not image_data:
+                    logger.warning("Failed to fetch logo for %s", symbol)
                     total_failed += 1
                     continue
 
