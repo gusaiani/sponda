@@ -52,9 +52,6 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
     <div className={`list-card ${isLoading ? "list-card-loading" : ""}`}>
       <div className="list-card-header">
         <span className="list-card-name" title={name}>{name}</span>
-        <Link href={compareUrl} className="list-card-link">
-          {t("lists.view_full")}
-        </Link>
       </div>
 
       <table className="list-card-table">
@@ -99,6 +96,12 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
       {hiddenCount > 0 && (
         <p className="list-card-more">{t("lists.more", { count: hiddenCount })}</p>
       )}
+
+      <div className="list-card-footer">
+        <Link href={compareUrl} className="list-card-link">
+          {t("lists.view_full")}
+        </Link>
+      </div>
     </div>
   );
 }
