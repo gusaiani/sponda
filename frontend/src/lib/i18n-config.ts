@@ -1,7 +1,7 @@
 /** Locale configuration — shared by middleware, server components, and client code.
  * No React dependencies so it can be imported anywhere. */
 
-export const SUPPORTED_LOCALES = ["pt", "en", "es", "zh", "fr", "de"] as const;
+export const SUPPORTED_LOCALES = ["pt", "en", "es", "zh", "fr", "de", "it"] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 
 export const DEFAULT_LOCALE: SupportedLocale = "en";
@@ -13,6 +13,7 @@ export const LOCALE_TO_HTML_LANG: Record<SupportedLocale, string> = {
   zh: "zh-CN",
   fr: "fr",
   de: "de",
+  it: "it",
 };
 
 export const LOCALE_TO_OG_LOCALE: Record<SupportedLocale, string> = {
@@ -22,6 +23,7 @@ export const LOCALE_TO_OG_LOCALE: Record<SupportedLocale, string> = {
   zh: "zh_CN",
   fr: "fr_FR",
   de: "de_DE",
+  it: "it_IT",
 };
 
 export function isSupportedLocale(value: string): value is SupportedLocale {
@@ -35,6 +37,7 @@ const LANG_PREFIX_TO_LOCALE: [string, SupportedLocale][] = [
   ["zh", "zh"],
   ["fr", "fr"],
   ["de", "de"],
+  ["it", "it"],
 ];
 
 /** Detect locale from Accept-Language header. */

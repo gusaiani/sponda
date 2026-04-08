@@ -25,7 +25,8 @@ async function fetchTickerInfo(ticker: string): Promise<TickerInfo | null> {
 const SLUG_TO_TAB: Record<string, TabKey> = {
   graficos: "charts", charts: "charts", graphiques: "charts", diagramme: "charts",
   fundamentos: "fundamentals", fundamentals: "fundamentals", fondamentaux: "fundamentals", fundamentaldaten: "fundamentals",
-  comparar: "compare", compare: "compare", comparer: "compare", vergleich: "compare",
+  comparar: "compare", compare: "compare", comparer: "compare", vergleich: "compare", confronta: "compare",
+  grafici: "charts", fondamentali: "fundamentals",
 };
 
 /** Localized tab display names for breadcrumbs. */
@@ -36,6 +37,7 @@ const TAB_DISPLAY: Record<string, Record<string, string>> = {
   zh: { charts: "图表", fundamentals: "基本面", compare: "对比" },
   fr: { graphiques: "Graphiques", fondamentaux: "Fondamentaux", comparer: "Comparer" },
   de: { diagramme: "Diagramme", fundamentaldaten: "Fundamentaldaten", vergleich: "Vergleich" },
+  it: { grafici: "Grafici", fondamentali: "Fondamentali", confronta: "Confronta" },
 };
 
 /** Locale-specific title suffix. */
@@ -46,6 +48,7 @@ const TITLE_SUFFIX: Record<string, string> = {
   zh: "基本面指标",
   fr: "Indicateurs Fondamentaux",
   de: "Fundamentalkennzahlen",
+  it: "Indicatori Fondamentali",
 };
 
 /** Locale-specific description templates. */
@@ -64,6 +67,8 @@ function buildDescription(locale: SupportedLocale, ticker: string, companyName: 
       return `Indicateurs fondamentaux de ${name} (${ticker}) : P/E ajusté de l'inflation (PE10), P/FCF10, PEG, CAGR et endettement. Données actualisées.`;
     case "de":
       return `Fundamentalkennzahlen für ${name} (${ticker}): inflationsbereinigtes KGV (PE10), P/FCF10, PEG, CAGR und Verschuldung. Aktuelle Daten.`;
+    case "it":
+      return `Indicatori fondamentali di ${name} (${ticker}): P/E corretto per l'inflazione (PE10), P/FCF10, PEG, CAGR e leva finanziaria. Dati aggiornati.`;
   }
 }
 
@@ -75,6 +80,7 @@ const KEYWORDS: Record<string, string[]> = {
   zh: ["PE10", "PFCF10", "PEG", "CAGR", "基本面分析", "巴西股票", "价值投资"],
   fr: ["PE10", "PFCF10", "PEG", "CAGR", "analyse fondamentale", "actions brésiliennes", "investissement valeur"],
   de: ["PE10", "PFCF10", "PEG", "CAGR", "Fundamentalanalyse", "brasilianische Aktien", "Value-Investing"],
+  it: ["PE10", "PFCF10", "PEG", "CAGR", "analisi fondamentale", "azioni brasiliane", "investimento di valore"],
 };
 
 export async function generateTickerMetadata(

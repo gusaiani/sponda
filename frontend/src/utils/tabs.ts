@@ -8,6 +8,7 @@ const TAB_SLUGS: Record<string, Record<TabKey, string>> = {
   zh: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare" },
   fr: { metrics: "", charts: "graphiques", fundamentals: "fondamentaux", compare: "comparer" },
   de: { metrics: "", charts: "diagramme", fundamentals: "fundamentaldaten", compare: "vergleich" },
+  it: { metrics: "", charts: "grafici", fundamentals: "fondamentali", compare: "confronta" },
 };
 
 /** Reverse mapping: slug → TabKey (accepts all locale slugs). */
@@ -24,6 +25,9 @@ const SLUG_TO_TAB: Record<string, TabKey> = {
   compare: "compare",
   comparer: "compare",
   vergleich: "compare",
+  grafici: "charts",
+  fondamentali: "fundamentals",
+  confronta: "compare",
 };
 
 /** Legacy Portuguese labels (used by some tests). */
