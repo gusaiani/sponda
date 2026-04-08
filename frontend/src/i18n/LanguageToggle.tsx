@@ -9,6 +9,10 @@ import type { Locale } from "./types";
 const LANGUAGE_OPTIONS: { locale: Locale; flag: string; label: string }[] = [
   { locale: "pt", flag: "🇧🇷", label: "PT" },
   { locale: "en", flag: "🇺🇸", label: "EN" },
+  { locale: "es", flag: "🇪🇸", label: "ES" },
+  { locale: "zh", flag: "🇨🇳", label: "ZH" },
+  { locale: "fr", flag: "🇫🇷", label: "FR" },
+  { locale: "de", flag: "🇩🇪", label: "DE" },
 ];
 
 export function LanguageToggle() {
@@ -26,7 +30,8 @@ export function LanguageToggle() {
 
     // Navigate to the equivalent URL in the new locale
     const segments = pathname.split("/").filter(Boolean);
-    if (segments.length > 0 && (segments[0] === "pt" || segments[0] === "en")) {
+    const LOCALES = new Set(["pt", "en", "es", "zh", "fr", "de"]);
+    if (segments.length > 0 && LOCALES.has(segments[0])) {
       segments[0] = selected;
       // Translate tab slug if present (3rd segment: /{locale}/{ticker}/{tab})
       if (segments.length === 3) {
@@ -53,7 +58,7 @@ export function LanguageToggle() {
       <button
         className="language-dropdown-trigger"
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={locale === "pt" ? "Switch to English" : "Mudar para Português"}
+        aria-label="Change language"
         aria-expanded={isOpen}
       >
         <span className="language-dropdown-flag">{currentOption.flag}</span>

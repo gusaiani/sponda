@@ -4,16 +4,26 @@ export type TabKey = "metrics" | "charts" | "fundamentals" | "compare";
 const TAB_SLUGS: Record<string, Record<TabKey, string>> = {
   pt: { metrics: "", charts: "graficos", fundamentals: "fundamentos", compare: "comparar" },
   en: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare" },
+  es: { metrics: "", charts: "graficos", fundamentals: "fundamentos", compare: "comparar" },
+  zh: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare" },
+  fr: { metrics: "", charts: "graphiques", fundamentals: "fondamentaux", compare: "comparer" },
+  de: { metrics: "", charts: "diagramme", fundamentals: "fundamentaldaten", compare: "vergleich" },
 };
 
-/** Reverse mapping: slug → TabKey (accepts both PT and EN slugs). */
+/** Reverse mapping: slug → TabKey (accepts all locale slugs). */
 const SLUG_TO_TAB: Record<string, TabKey> = {
   graficos: "charts",
   charts: "charts",
+  graphiques: "charts",
+  diagramme: "charts",
   fundamentos: "fundamentals",
   fundamentals: "fundamentals",
+  fondamentaux: "fundamentals",
+  fundamentaldaten: "fundamentals",
   comparar: "compare",
   compare: "compare",
+  comparer: "compare",
+  vergleich: "compare",
 };
 
 /** Legacy Portuguese labels (used by some tests). */

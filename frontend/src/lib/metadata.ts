@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type SupportedLocale } from "./i18n-config";
+import { SUPPORTED_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type SupportedLocale } from "./i18n-config";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 
 const BASE_URL = "https://sponda.capital";
@@ -23,15 +23,58 @@ async function fetchTickerInfo(ticker: string): Promise<TickerInfo | null> {
 
 /** Map a tab slug to its TabKey. */
 const SLUG_TO_TAB: Record<string, TabKey> = {
-  graficos: "charts", charts: "charts",
-  fundamentos: "fundamentals", fundamentals: "fundamentals",
-  comparar: "compare", compare: "compare",
+  graficos: "charts", charts: "charts", graphiques: "charts", diagramme: "charts",
+  fundamentos: "fundamentals", fundamentals: "fundamentals", fondamentaux: "fundamentals", fundamentaldaten: "fundamentals",
+  comparar: "compare", compare: "compare", comparer: "compare", vergleich: "compare",
 };
 
 /** Localized tab display names for breadcrumbs. */
 const TAB_DISPLAY: Record<string, Record<string, string>> = {
   pt: { graficos: "Gráficos", fundamentos: "Fundamentos", comparar: "Comparar" },
   en: { charts: "Charts", fundamentals: "Fundamentals", compare: "Compare" },
+  es: { graficos: "Gráficos", fundamentos: "Fundamentos", comparar: "Comparar" },
+  zh: { charts: "图表", fundamentals: "基本面", compare: "对比" },
+  fr: { graphiques: "Graphiques", fondamentaux: "Fondamentaux", comparer: "Comparer" },
+  de: { diagramme: "Diagramme", fundamentaldaten: "Fundamentaldaten", vergleich: "Vergleich" },
+};
+
+/** Locale-specific title suffix. */
+const TITLE_SUFFIX: Record<string, string> = {
+  pt: "Indicadores Fundamentalistas",
+  en: "Fundamental Indicators",
+  es: "Indicadores Fundamentales",
+  zh: "基本面指标",
+  fr: "Indicateurs Fondamentaux",
+  de: "Fundamentalkennzahlen",
+};
+
+/** Locale-specific description templates. */
+function buildDescription(locale: SupportedLocale, ticker: string, companyName: string): string {
+  const name = companyName || ticker;
+  switch (locale) {
+    case "pt":
+      return `Indicadores fundamentalistas de ${name} (${ticker}): P/L ajustado pela inflação (PE10), P/FCL10, PEG, CAGR e alavancagem. Dados atualizados.`;
+    case "en":
+      return `Fundamental indicators for ${name} (${ticker}): inflation-adjusted P/E (PE10), P/FCF10, PEG, CAGR and leverage. Updated data.`;
+    case "es":
+      return `Indicadores fundamentales de ${name} (${ticker}): P/E ajustado por inflación (PE10), P/FCF10, PEG, CAGR y apalancamiento. Datos actualizados.`;
+    case "zh":
+      return `${name} (${ticker}) 基本面指标：通胀调整市盈率 (PE10)、P/FCF10、PEG、CAGR 及杠杆率。数据持续更新。`;
+    case "fr":
+      return `Indicateurs fondamentaux de ${name} (${ticker}) : P/E ajusté de l'inflation (PE10), P/FCF10, PEG, CAGR et endettement. Données actualisées.`;
+    case "de":
+      return `Fundamentalkennzahlen für ${name} (${ticker}): inflationsbereinigtes KGV (PE10), P/FCF10, PEG, CAGR und Verschuldung. Aktuelle Daten.`;
+  }
+}
+
+/** Locale-specific keywords. */
+const KEYWORDS: Record<string, string[]> = {
+  pt: ["PE10", "PFCF10", "PEG", "CAGR", "análise fundamentalista", "ações brasileiras", "B3"],
+  en: ["PE10", "PFCF10", "PEG", "CAGR", "fundamental analysis", "stock market", "value investing"],
+  es: ["PE10", "PFCF10", "PEG", "CAGR", "análisis fundamental", "acciones brasileñas", "inversión en valor"],
+  zh: ["PE10", "PFCF10", "PEG", "CAGR", "基本面分析", "巴西股票", "价值投资"],
+  fr: ["PE10", "PFCF10", "PEG", "CAGR", "analyse fondamentale", "actions brésiliennes", "investissement valeur"],
+  de: ["PE10", "PFCF10", "PEG", "CAGR", "Fundamentalanalyse", "brasilianische Aktien", "Value-Investing"],
 };
 
 export async function generateTickerMetadata(
@@ -47,33 +90,28 @@ export async function generateTickerMetadata(
   const localePath = tabSlug ? `${locale}/${ticker}/${tabSlug}` : `${locale}/${ticker}`;
   const url = `${BASE_URL}/${localePath}`;
 
-  // Build alternate locale path
-  const altLocale: SupportedLocale = locale === "pt" ? "en" : "pt";
-  let altTabSlug: string | undefined;
-  if (tabSlug) {
-    const tabKey = SLUG_TO_TAB[tabSlug];
-    altTabSlug = tabKey ? tabSlugForLocale(altLocale, tabKey) : tabSlug;
+  // Build alternates for all supported locales
+  const alternateLanguages: Record<string, string> = {};
+  for (const altLocale of SUPPORTED_LOCALES) {
+    let altTabSlug: string | undefined;
+    if (tabSlug) {
+      const tabKey = SLUG_TO_TAB[tabSlug];
+      altTabSlug = tabKey ? tabSlugForLocale(altLocale, tabKey) : tabSlug;
+    }
+    const altPath = altTabSlug
+      ? `${BASE_URL}/${altLocale}/${ticker}/${altTabSlug}`
+      : `${BASE_URL}/${altLocale}/${ticker}`;
+    const langKey = LOCALE_TO_HTML_LANG[altLocale].replace("-", "_") === "pt_BR" ? "pt-BR" : altLocale;
+    alternateLanguages[langKey] = altPath;
   }
-  const altPath = altTabSlug
-    ? `${altLocale}/${ticker}/${altTabSlug}`
-    : `${altLocale}/${ticker}`;
+  alternateLanguages["x-default"] = alternateLanguages["en"];
 
   // Locale-specific title and description
-  const title = locale === "pt"
-    ? (companyName
-      ? `${companyName} (${ticker}) · Indicadores Fundamentalistas · Sponda`
-      : `${ticker} · Indicadores Fundamentalistas · Sponda`)
-    : (companyName
-      ? `${companyName} (${ticker}) · Fundamental Indicators · Sponda`
-      : `${ticker} · Fundamental Indicators · Sponda`);
-
-  const description = locale === "pt"
-    ? (companyName
-      ? `Indicadores fundamentalistas de ${companyName} (${ticker}): P/L ajustado pela inflação (PE10), P/FCL10, PEG, CAGR e alavancagem. Dados atualizados.`
-      : `Indicadores fundamentalistas de ${ticker}: P/L ajustado pela inflação, P/FCL, PEG, CAGR e alavancagem.`)
-    : (companyName
-      ? `Fundamental indicators for ${companyName} (${ticker}): inflation-adjusted P/E (PE10), P/FCF10, PEG, CAGR and leverage. Updated data.`
-      : `Fundamental indicators for ${ticker}: inflation-adjusted P/E, P/FCF, PEG, CAGR and leverage.`);
+  const suffix = TITLE_SUFFIX[locale];
+  const title = companyName
+    ? `${companyName} (${ticker}) · ${suffix} · Sponda`
+    : `${ticker} · ${suffix} · Sponda`;
+  const description = buildDescription(locale, ticker, companyName);
 
   const ogLocale = LOCALE_TO_OG_LOCALE[locale];
   const htmlLang = LOCALE_TO_HTML_LANG[locale];
@@ -88,11 +126,7 @@ export async function generateTickerMetadata(
     description,
     alternates: {
       canonical: url,
-      languages: {
-        "pt-BR": `${BASE_URL}/${locale === "pt" ? localePath : altPath.replace(/^en/, "pt")}`,
-        en: `${BASE_URL}/${locale === "en" ? localePath : altPath.replace(/^pt/, "en")}`,
-        "x-default": `${BASE_URL}/en/${ticker}${altTabSlug && locale === "pt" ? `/${altTabSlug}` : (tabSlug && locale === "en" ? `/${tabSlug}` : "")}`,
-      },
+      languages: alternateLanguages,
     },
     openGraph: {
       title,
@@ -113,14 +147,10 @@ export async function generateTickerMetadata(
         {
           "@context": "https://schema.org",
           "@type": "Dataset",
-          name: locale === "pt"
-            ? `Indicadores Fundamentalistas de ${companyName || ticker} (${ticker})`
-            : `Fundamental Indicators for ${companyName || ticker} (${ticker})`,
+          name: `${suffix} ${locale === "zh" ? "：" : locale === "de" ? " für " : locale === "fr" ? " de " : " · "}${companyName || ticker} (${ticker})`,
           description,
           url,
-          keywords: locale === "pt"
-            ? [ticker, companyName || ticker, "PE10", "PFCF10", "PEG", "CAGR", "análise fundamentalista", "ações brasileiras", "B3"]
-            : [ticker, companyName || ticker, "PE10", "PFCF10", "PEG", "CAGR", "fundamental analysis", "stock market", "value investing"],
+          keywords: [ticker, companyName || ticker, ...(KEYWORDS[locale] || KEYWORDS.en)],
           creator: { "@type": "Organization", name: "Sponda", url: BASE_URL },
           inLanguage: htmlLang,
           ...(sector ? { about: { "@type": "Thing", name: sector } } : {}),
