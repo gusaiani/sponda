@@ -6,6 +6,8 @@ from unittest.mock import patch, MagicMock
 import pytest
 from django.core.management import call_command
 
+from quotes.models import Ticker
+
 LOGO_CACHE_DIR = Path("/tmp/test_logo_cache_warmup")
 
 
@@ -112,3 +114,19 @@ class TestWarmLogoCache:
         assert (LOGO_CACHE_DIR / "AAPL.png").exists()
         assert (LOGO_CACHE_DIR / "ASML.png").exists()
         assert (LOGO_CACHE_DIR / "TSM.png").exists()
+
+    @patch("quotes.management.commands.warm_logo_cache.urlopen")
+    def test_tries_db_logo_url_before_brapi(self, mock_urlopen, db):
+        """Should try the ticker's FMP URL from DB before falling back to BRAPI."""
+        Ticker.objects.create(
+            symbol="AAPL", name="Apple", type="stock",
+            logo="https://financialmodelingprep.com/image-stock/AAPL.png",
+        )
+        mock_urlopen.side_effect = _mock_urlopen_factory({"AAPL"})
+
+        call_command("warm_logo_cache", "--region", "us", "--limit", "1")
+
+        assert (LOGO_CACHE_DIR / "AAPL.png").exists()
+        # Should have tried the FMP URL first
+        first_call_url = mock_urlopen.call_args_list[0][0][0].full_url
+        assert "financialmodelingprep.com" in first_call_url
