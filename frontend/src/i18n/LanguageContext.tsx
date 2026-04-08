@@ -38,8 +38,8 @@ export function LanguageProvider({ children, initialLocale }: LanguageProviderPr
 
   // Sync html lang attribute
   useEffect(() => {
-    const htmlLang = locale === "pt" ? "pt-BR" : "en";
-    document.documentElement.lang = htmlLang;
+    const HTML_LANG: Record<string, string> = { pt: "pt-BR", en: "en", es: "es", zh: "zh-CN", fr: "fr", de: "de" };
+    document.documentElement.lang = HTML_LANG[locale] || "en";
   }, [locale]);
 
   return (

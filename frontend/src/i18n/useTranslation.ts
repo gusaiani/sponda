@@ -4,9 +4,13 @@ import { useContext, useCallback } from "react";
 import { LanguageContext } from "./LanguageContext";
 import { pt } from "./locales/pt";
 import { en } from "./locales/en";
+import { es } from "./locales/es";
+import { zh } from "./locales/zh";
+import { fr } from "./locales/fr";
+import { de } from "./locales/de";
 import type { Locale, TranslationKey, TranslationDictionary } from "./types";
 
-const DICTIONARIES: Record<Locale, TranslationDictionary> = { pt, en };
+const DICTIONARIES: Record<Locale, TranslationDictionary> = { pt, en, es, zh, fr, de };
 
 /**
  * Returns:

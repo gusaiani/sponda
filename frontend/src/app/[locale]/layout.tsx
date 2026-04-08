@@ -3,7 +3,7 @@ import Script from "next/script";
 import { notFound } from "next/navigation";
 import { Providers } from "../providers";
 import { LayoutShell } from "../layout-shell";
-import { isSupportedLocale, LOCALE_TO_HTML_LANG, LOCALE_TO_OG_LOCALE } from "../../lib/i18n-config";
+import { SUPPORTED_LOCALES, isSupportedLocale, LOCALE_TO_HTML_LANG, LOCALE_TO_OG_LOCALE } from "../../lib/i18n-config";
 import type { Locale } from "../../i18n/types";
 
 const BASE_URL = "https://sponda.capital";
@@ -19,6 +19,26 @@ const META: Record<string, { title: string; description: string }> = {
     description:
       "Fundamental indicators for value investors. Inflation-adjusted P/E (Shiller PE), P/FCF, PEG, CAGR, leverage ratios and more.",
   },
+  es: {
+    title: "Sponda · Para inversores en valor",
+    description:
+      "Indicadores fundamentales de acciones brasileñas para inversores en valor. P/E ajustado por inflación (Shiller PE), P/FCF, PEG, CAGR, apalancamiento y más.",
+  },
+  zh: {
+    title: "Sponda · 价值投资者工具",
+    description:
+      "巴西股票基本面指标。通胀调整市盈率 (Shiller PE)、P/FCF、PEG、CAGR、杠杆率等。",
+  },
+  fr: {
+    title: "Sponda · Pour investisseurs value",
+    description:
+      "Indicateurs fondamentaux d'actions brésiliennes pour investisseurs value. P/E ajusté de l'inflation (Shiller PE), P/FCF, PEG, CAGR, endettement et plus.",
+  },
+  de: {
+    title: "Sponda · Für Value-Investoren",
+    description:
+      "Fundamentalkennzahlen brasilianischer Aktien für Value-Investoren. Inflationsbereinigtes KGV (Shiller PE), P/FCF, PEG, CAGR, Verschuldung und mehr.",
+  },
 };
 
 interface LocaleLayoutProps {
@@ -32,25 +52,34 @@ export async function generateMetadata({ params }: LocaleLayoutProps): Promise<M
 
   const { title, description } = META[locale];
   const ogLocale = LOCALE_TO_OG_LOCALE[locale];
-  const alternateLocale = locale === "pt" ? "en" : "pt";
+
+  const KEYWORDS: Record<string, string> = {
+    pt: "ações brasileiras, indicadores fundamentalistas, P/L Shiller, PE10, CAPE, preço/lucro, investimento em valor, B3, bolsa de valores, análise fundamentalista",
+    en: "stock analysis, fundamental indicators, Shiller PE, PE10, CAPE, price/earnings, value investing, stock market, fundamental analysis",
+    es: "análisis fundamental, acciones brasileñas, Shiller PE, PE10, CAPE, precio/beneficio, inversión en valor, B3, bolsa de valores",
+    zh: "基本面分析, 巴西股票, Shiller PE, PE10, CAPE, 市盈率, 价值投资, B3, 股票市场",
+    fr: "analyse fondamentale, actions brésiliennes, Shiller PE, PE10, CAPE, prix/bénéfice, investissement valeur, B3, bourse",
+    de: "Fundamentalanalyse, brasilianische Aktien, Shiller PE, PE10, CAPE, KGV, Value-Investing, B3, Börse",
+  };
+
+  // Build hreflang alternates for all supported locales
+  const alternateLanguages: Record<string, string> = {};
+  for (const loc of SUPPORTED_LOCALES) {
+    const key = loc === "pt" ? "pt-BR" : loc;
+    alternateLanguages[key] = `/${loc}`;
+  }
+  alternateLanguages["x-default"] = "/en";
 
   return {
     title,
     description,
-    keywords:
-      locale === "pt"
-        ? "ações brasileiras, indicadores fundamentalistas, P/L Shiller, PE10, CAPE, preço/lucro, investimento em valor, B3, bolsa de valores, análise fundamentalista"
-        : "stock analysis, fundamental indicators, Shiller PE, PE10, CAPE, price/earnings, value investing, stock market, fundamental analysis",
+    keywords: KEYWORDS[locale] || KEYWORDS.en,
     authors: [{ name: "Poema Parceria de Investimentos", url: "https://poe.ma" }],
     robots: "index, follow",
     metadataBase: new URL(BASE_URL),
     alternates: {
       canonical: `/${locale}`,
-      languages: {
-        "pt-BR": "/pt",
-        en: "/en",
-        "x-default": "/en",
-      },
+      languages: alternateLanguages,
     },
     openGraph: {
       type: "website",

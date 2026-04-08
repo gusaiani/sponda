@@ -3,25 +3,45 @@ import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale, detectLocaleFromH
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
 
-/** Tab slug mappings for cross-locale redirects. */
-const PT_TO_EN_SLUG: Record<string, string> = {
+/**
+ * Canonical (English) tab slug for every known locale-specific slug.
+ * Used to detect cross-locale tab slugs and redirect to the correct one.
+ */
+const SLUG_TO_CANONICAL: Record<string, string> = {
+  /* English (canonical) */
+  charts: "charts",
+  fundamentals: "fundamentals",
+  compare: "compare",
+  /* Portuguese / Spanish (shared slugs) */
+  graficos: "charts",
   fundamentos: "fundamentals",
   comparar: "compare",
-  graficos: "charts",
+  /* French */
+  graphiques: "charts",
+  fondamentaux: "fundamentals",
+  comparer: "compare",
+  /* German */
+  diagramme: "charts",
+  fundamentaldaten: "fundamentals",
+  vergleich: "compare",
 };
-const EN_TO_PT_SLUG: Record<string, string> = {
-  fundamentals: "fundamentos",
-  compare: "comparar",
-  charts: "graficos",
+
+/** Locale → { canonical → localized slug } */
+const CANONICAL_TO_LOCALE_SLUG: Record<string, Record<string, string>> = {
+  pt: { charts: "graficos", fundamentals: "fundamentos", compare: "comparar" },
+  en: { charts: "charts", fundamentals: "fundamentals", compare: "compare" },
+  es: { charts: "graficos", fundamentals: "fundamentos", compare: "comparar" },
+  zh: { charts: "charts", fundamentals: "fundamentals", compare: "compare" },
+  fr: { charts: "graphiques", fundamentals: "fondamentaux", compare: "comparer" },
+  de: { charts: "diagramme", fundamentals: "fundamentaldaten", compare: "vergleich" },
 };
-const ALL_TAB_SLUGS = new Set([...Object.keys(PT_TO_EN_SLUG), ...Object.keys(EN_TO_PT_SLUG)]);
 
-function isPortugueseTabSlug(slug: string): boolean {
-  return slug in PT_TO_EN_SLUG;
-}
-
-function isEnglishTabSlug(slug: string): boolean {
-  return slug in EN_TO_PT_SLUG;
+function correctSlugForLocale(locale: string, slug: string): string | null {
+  const canonical = SLUG_TO_CANONICAL[slug];
+  if (!canonical) return null;
+  const expected = CANONICAL_TO_LOCALE_SLUG[locale]?.[canonical];
+  if (!expected || expected === slug) return null;
+  return expected;
 }
 
 export function middleware(request: NextRequest) {
@@ -49,21 +69,11 @@ export function middleware(request: NextRequest) {
     // Pattern: /{locale}/{ticker}/{tabSlug}
     if (segments.length === 3) {
       const tabSlug = segments[2];
-      if (ALL_TAB_SLUGS.has(tabSlug)) {
-        if (locale === "en" && isPortugueseTabSlug(tabSlug)) {
-          // /en/PETR4/fundamentos → /en/PETR4/fundamentals
-          const correctSlug = PT_TO_EN_SLUG[tabSlug];
-          const url = request.nextUrl.clone();
-          url.pathname = `/${locale}/${segments[1]}/${correctSlug}`;
-          return NextResponse.redirect(url, 301);
-        }
-        if (locale === "pt" && isEnglishTabSlug(tabSlug)) {
-          // /pt/PETR4/fundamentals → /pt/PETR4/fundamentos
-          const correctSlug = EN_TO_PT_SLUG[tabSlug];
-          const url = request.nextUrl.clone();
-          url.pathname = `/${locale}/${segments[1]}/${correctSlug}`;
-          return NextResponse.redirect(url, 301);
-        }
+      const corrected = correctSlugForLocale(locale, tabSlug);
+      if (corrected) {
+        const url = request.nextUrl.clone();
+        url.pathname = `/${locale}/${segments[1]}/${corrected}`;
+        return NextResponse.redirect(url, 301);
       }
     }
 
@@ -78,11 +88,9 @@ export function middleware(request: NextRequest) {
   let newPathname = pathname;
   if (segments.length >= 2) {
     const lastSegment = segments[segments.length - 1];
-    if (locale === "en" && isPortugueseTabSlug(lastSegment)) {
-      segments[segments.length - 1] = PT_TO_EN_SLUG[lastSegment];
-      newPathname = "/" + segments.join("/");
-    } else if (locale === "pt" && isEnglishTabSlug(lastSegment)) {
-      segments[segments.length - 1] = EN_TO_PT_SLUG[lastSegment];
+    const corrected = correctSlugForLocale(locale, lastSegment);
+    if (corrected) {
+      segments[segments.length - 1] = corrected;
       newPathname = "/" + segments.join("/");
     }
   }

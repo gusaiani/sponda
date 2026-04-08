@@ -1,4 +1,4 @@
-export type Locale = "pt" | "en";
+export type Locale = "pt" | "en" | "es" | "zh" | "fr" | "de";
 
 export interface TranslationDictionary {
   /* ── Common ── */
