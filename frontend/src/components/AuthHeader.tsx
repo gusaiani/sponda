@@ -2,6 +2,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 import { useTranslation, LanguageToggle } from "../i18n";
+import { ShareDropdown } from "./ShareDropdown";
 import "../styles/auth-header.css";
 
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
@@ -17,6 +18,7 @@ export function AuthHeader() {
   if (isLoading) {
     return (
       <div className="auth-header auth-header--loading">
+        <ShareDropdown />
         <LanguageToggle />
         <span className="auth-header-link auth-header-signup">&nbsp;</span>
       </div>
@@ -25,6 +27,7 @@ export function AuthHeader() {
 
   return (
     <div className="auth-header">
+      <ShareDropdown />
       <LanguageToggle />
       {isAuthenticated ? (
         <>
