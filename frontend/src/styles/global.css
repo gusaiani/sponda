@@ -24,6 +24,8 @@
 .app-header {
   @apply flex flex-col gap-2 px-4 py-2.5;
   background: #ffffff;
+  position: relative;
+  z-index: 100;
 }
 
 @media (min-width: 640px) {

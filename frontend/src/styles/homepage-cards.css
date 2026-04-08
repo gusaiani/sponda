@@ -306,7 +306,7 @@
   cursor: pointer;
 }
 
-.homepage-grid-item--no-drag .homepage-grid-drag-handle {
+.homepage-grid-item--no-drag .homepage-grid-card-actions {
   display: none;
 }
 
@@ -320,12 +320,18 @@
   }
 }
 
-/* Drag handle overlay */
-.homepage-grid-drag-handle {
+/* Card actions overlay (share + drag handle) */
+.homepage-grid-card-actions {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.homepage-grid-drag-handle {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -337,16 +343,48 @@
   pointer-events: none;
 }
 
+.homepage-grid-share-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  padding: 0;
+}
+
+.homepage-grid-share-handle--copied {
+  opacity: 1;
+}
+
 .homepage-grid-drag-icon {
+  color: var(--color-muted);
+}
+
+.homepage-grid-share-icon {
   color: var(--color-muted);
 }
 
 .homepage-grid-item:hover .homepage-grid-drag-handle {
   opacity: 1;
+  pointer-events: auto;
   background: rgba(0, 0, 0, 0.04);
 }
 
+.homepage-grid-item:hover .homepage-grid-share-handle {
+  opacity: 1;
+}
+
 .homepage-grid-item:hover .homepage-grid-drag-handle:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.homepage-grid-share-handle:hover {
   background: rgba(0, 0, 0, 0.08);
 }
 
@@ -356,7 +394,7 @@
   transform: scale(0.97);
 }
 
-.homepage-grid-item--dragging .homepage-grid-drag-handle {
+.homepage-grid-item--dragging .homepage-grid-card-actions {
   display: none;
 }
 

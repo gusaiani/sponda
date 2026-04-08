@@ -255,6 +255,10 @@ export interface TranslationDictionary {
   "metrics.real": string;
   "metrics.lynch": string;
   "metrics.pfcfg_label": string;
+  "metrics.share": string;
+  "metrics.copy_link": string;
+  "metrics.link_copied": string;
+  "metrics.share_indicator": string;
   "metrics.error.no_earnings_data": string;
   "metrics.error.no_cashflow_data": string;
   "metrics.error.pe_unavailable": string;

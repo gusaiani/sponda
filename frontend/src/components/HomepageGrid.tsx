@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, DragEvent } from "react";
+import { useState, useRef, useCallback, MouseEvent as ReactMouseEvent, DragEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useFavorites } from "../hooks/useFavorites";
@@ -39,6 +39,29 @@ export function getGridItemClassNames(
     .join(" ");
 }
 
+function ShareCardIcon() {
+  return (
+    <svg
+      className="homepage-grid-share-icon"
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
+
 function DragHandleIcon() {
   return (
     <svg
@@ -68,6 +91,39 @@ async function fetchHomepageLayout(): Promise<LayoutItem[] | null> {
   return data.layout;
 }
 
+function useShareCard() {
+  const { t, locale } = useTranslation();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const share = useCallback((event: ReactMouseEvent, itemType: string, itemId: string, lists: { id: number; name: string; tickers: string[] }[]) => {
+    event.stopPropagation();
+    event.preventDefault();
+
+    let path: string;
+    if (itemType === "ticker") {
+      path = `/${locale}/${itemId}`;
+    } else {
+      const list = lists.find((l) => String(l.id) === itemId);
+      path = list ? `/${locale}/${list.tickers[0]}/comparar?listId=${list.id}` : `/${locale}`;
+    }
+
+    const url = `https://sponda.capital${path}`;
+    const text = itemType === "ticker"
+      ? t("share.text_with_ticker", { name: itemId })
+      : t("share.text_without_ticker");
+
+    if (navigator.share) {
+      navigator.share({ title: text, url }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(url);
+      setCopiedId(`${itemType}:${itemId}`);
+      setTimeout(() => setCopiedId(null), 1500);
+    }
+  }, [locale, t]);
+
+  return { share, copiedId };
+}
+
 export function HomepageGrid() {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
@@ -83,6 +139,7 @@ export function HomepageGrid() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragCounter = useRef<Map<number, number>>(new Map());
   const { startGhost, stopGhost } = useDragGhost();
+  const { share: shareCard, copiedId } = useShareCard();
 
   const { data: savedLayout } = useQuery({
     queryKey: ["homepage-layout"],
@@ -275,8 +332,23 @@ export function HomepageGrid() {
               onDragLeave={(event) => handleDragLeave(event, index)}
               onDrop={(event) => handleDrop(event, index)}
             >
-              <span className="homepage-grid-drag-handle">
-                <DragHandleIcon />
+              <span className="homepage-grid-card-actions">
+                <button
+                  className={`homepage-grid-share-handle${copiedId === `${item.type}:${item.id}` ? " homepage-grid-share-handle--copied" : ""}`}
+                  onClick={(event) => shareCard(event, item.type, item.id, lists)}
+                  aria-label={t("share.label")}
+                >
+                  {copiedId === `${item.type}:${item.id}` ? (
+                    <svg className="homepage-grid-share-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5" aria-hidden="true">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <ShareCardIcon />
+                  )}
+                </button>
+                <span className="homepage-grid-drag-handle">
+                  <DragHandleIcon />
+                </span>
               </span>
               {item.type === "ticker" ? (
                 <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} />

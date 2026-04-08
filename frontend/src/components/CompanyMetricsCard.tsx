@@ -1,8 +1,103 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import "../styles/card.css";
 import { useTranslation, type TranslationKey } from "../i18n";
 import { isBrazilianTicker } from "../utils/ticker";
+
+/* ── Metric IDs for sharing ── */
+
+const METRIC_IDS = {
+  debtToEquity: "gross-debt-eq",
+  debtExLease: "debt-ex-lease-eq",
+  liabToEquity: "liab-eq",
+  debtToEarnings: "gross-debt-earnings",
+  debtToFCF: "gross-debt-fcf",
+  pe10: "pe10",
+  peg: "peg",
+  cagrEarnings: "cagr-earnings",
+  pfcf10: "pfcf10",
+  pfcfg: "pfcfg",
+  cagrFCF: "cagr-fcf",
+} as const;
+
+/* ── Share button + popover ── */
+
+function ShareButton({ metricId }: { metricId: string }) {
+  const { t } = useTranslation();
+  const [isOpen, setIsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const shareUrl = typeof window !== "undefined"
+    ? `${window.location.origin}${window.location.pathname}#${metricId}`
+    : "";
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setCopied(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* fallback: select the input */
+    }
+  }, [shareUrl]);
+
+  return (
+    <>
+      <button
+        className="share-btn"
+        type="button"
+        aria-label={t("metrics.share_indicator")}
+        onClick={(event) => {
+          event.stopPropagation();
+          setIsOpen(!isOpen);
+          setCopied(false);
+        }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="18" cy="5" r="3" />
+          <circle cx="6" cy="12" r="3" />
+          <circle cx="18" cy="19" r="3" />
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="share-popover" ref={popoverRef} onClick={(event) => event.stopPropagation()}>
+          <div className="share-popover-title">{t("metrics.share_indicator")}</div>
+          <div className="share-popover-link-row">
+            <input
+              className="share-popover-input"
+              type="text"
+              value={shareUrl}
+              readOnly
+              onFocus={(event) => event.target.select()}
+            />
+            <button
+              className={`share-popover-copy-btn${copied ? " copied" : ""}`}
+              type="button"
+              onClick={handleCopy}
+            >
+              {copied ? t("metrics.link_copied") : t("metrics.copy_link")}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 interface QuarterlyEarningsDetail {
   end_date: string;
@@ -686,6 +781,7 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: TFn, locale: string) => 
 export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector }: CompanyMetricsCardProps) {
   const { t, pluralize, locale } = useTranslation();
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
+  const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
   const formatAmount = makeFormatAmount(data.ticker);
 
   const pl10Label = localizeLabel(data.pe10Label, locale);
@@ -693,6 +789,24 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const open = (key: ModalKey) => setActiveModal(key);
   const isFinancial = sector ? FINANCIAL_SECTORS.has(sector) : false;
   const moreInfo = t("metrics.more_info");
+
+  /* Highlight metric from URL hash */
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const allMetricIds = Object.values(METRIC_IDS) as string[];
+    if (!allMetricIds.includes(hash)) return;
+    setHighlightedMetric(hash);
+    const element = document.getElementById(hash);
+    if (element) {
+      setTimeout(() => element.scrollIntoView({ behavior: "smooth", block: "center" }), 300);
+    }
+    const timer = setTimeout(() => setHighlightedMetric(null), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const metricBlockClassName = (metricId: string) =>
+    `metric-block${highlightedMetric === metricId ? " metric-block-highlighted" : ""}`;
 
   return (
     <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
@@ -710,7 +824,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
         {/* All 5 leverage indicators in one row */}
         <div className="metrics-row leverage-row-5col">
-          <div className="metric-block">
+          <div id={METRIC_IDS.debtToEquity} className={metricBlockClassName(METRIC_IDS.debtToEquity)}>
+            <ShareButton metricId={METRIC_IDS.debtToEquity} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} /></div>
               {data.debtToEquity !== null ? (
@@ -721,14 +836,16 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             </div>
           </div>
           {data.debtExLeaseToEquity !== null && (
-            <div className="metric-block">
+            <div id={METRIC_IDS.debtExLease} className={metricBlockClassName(METRIC_IDS.debtExLease)}>
+              <ShareButton metricId={METRIC_IDS.debtExLease} />
               <div className="metric-value-container">
                 <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /></div>
                 <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
               </div>
             </div>
           )}
-          <div className="metric-block">
+          <div id={METRIC_IDS.liabToEquity} className={metricBlockClassName(METRIC_IDS.liabToEquity)}>
+            <ShareButton metricId={METRIC_IDS.liabToEquity} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} /></div>
               {data.liabilitiesToEquity !== null ? (
@@ -738,7 +855,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div className="metric-block">
+          <div id={METRIC_IDS.debtToEarnings} className={metricBlockClassName(METRIC_IDS.debtToEarnings)}>
+            <ShareButton metricId={METRIC_IDS.debtToEarnings} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
               {data.debtToAvgEarnings !== null ? (
@@ -748,7 +866,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div className="metric-block">
+          <div id={METRIC_IDS.debtToFCF} className={metricBlockClassName(METRIC_IDS.debtToFCF)}>
+            <ShareButton metricId={METRIC_IDS.debtToFCF} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
               {data.debtToAvgFCF !== null ? (
@@ -768,7 +887,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
         {/* All 6 valuation indicators in one row */}
         <div className="metrics-row valuation-row-6col">
-          <div className="metric-block">
+          <div id={METRIC_IDS.pe10} className={metricBlockClassName(METRIC_IDS.pe10)}>
+            <ShareButton metricId={METRIC_IDS.pe10} />
             <div className="metric-value-container">
               <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} /></div>
               {data.pe10 !== null ? (
@@ -778,7 +898,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div className="metric-block">
+          <div id={METRIC_IDS.peg} className={metricBlockClassName(METRIC_IDS.peg)}>
+            <ShareButton metricId={METRIC_IDS.peg} />
             <div className="metric-value-container">
               <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} /></div>
               {data.peg !== null ? (
@@ -788,7 +909,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div className="metric-block">
+          <div id={METRIC_IDS.cagrEarnings} className={metricBlockClassName(METRIC_IDS.cagrEarnings)}>
+            <ShareButton metricId={METRIC_IDS.cagrEarnings} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.cagr_earnings")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrEarnings")} /></div>
               {data.earningsCAGR !== null ? (
@@ -798,7 +920,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div className="metric-block">
+          <div id={METRIC_IDS.pfcf10} className={metricBlockClassName(METRIC_IDS.pfcf10)}>
+            <ShareButton metricId={METRIC_IDS.pfcf10} />
             <div className="metric-value-container">
               <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} /></div>
               {data.pfcf10 !== null ? (
@@ -808,7 +931,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div className="metric-block">
+          <div id={METRIC_IDS.pfcfg} className={metricBlockClassName(METRIC_IDS.pfcfg)}>
+            <ShareButton metricId={METRIC_IDS.pfcfg} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
               {data.pfcfPeg !== null ? (
@@ -818,7 +942,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
           </div>
-          <div className="metric-block">
+          <div id={METRIC_IDS.cagrFCF} className={metricBlockClassName(METRIC_IDS.cagrFCF)}>
+            <ShareButton metricId={METRIC_IDS.cagrFCF} />
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.cagr_fcf")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrFCF")} /></div>
               {data.fcfCAGR !== null ? (
