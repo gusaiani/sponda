@@ -4,6 +4,7 @@ import "../styles/card.css";
 import "../styles/share-dropdown.css";
 import { useTranslation, type TranslationKey } from "../i18n";
 import { isBrazilianTicker } from "../utils/ticker";
+import { getSubsector } from "../utils/subsector";
 
 /* ── Metric IDs for sharing ── */
 
@@ -235,7 +236,14 @@ interface CompanyMetricsCardProps {
   sector?: string;
 }
 
-const FINANCIAL_SECTORS = new Set(["Finance", "Financial Services"]);
+const FINANCIAL_SUBSECTORS = new Set(["Bancos", "Seguros", "Infraestrutura de Mercado"]);
+
+function isFinancialInstitution(name: string, sector: string): boolean {
+  if (sector === "Financial Services") return true;
+  if (sector !== "Finance") return false;
+  const subsector = getSubsector(name, sector);
+  return FINANCIAL_SUBSECTORS.has(subsector) || subsector === "Finance";
+}
 
 type ModalKey =
   | "debtToEquity" | "debtExLease" | "liabToEquity"
@@ -837,7 +845,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const pl10Label = localizeLabel(data.pe10Label, locale);
   const pfcl10Label = localizeLabel(data.pfcf10Label, locale);
   const open = (key: ModalKey) => setActiveModal(key);
-  const isFinancial = sector ? FINANCIAL_SECTORS.has(sector) : false;
+  const isFinancial = sector ? isFinancialInstitution(data.name, sector) : false;
   const moreInfo = t("metrics.more_info");
 
   /* Highlight metric from URL hash */
