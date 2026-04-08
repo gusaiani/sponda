@@ -1,8 +1,6 @@
 # Sponda
 
-Financial indicators and analytics for Brazilian public companies. Live at [sponda.capital](https://sponda.capital).
-
-Uses [BRAPI](https://brapi.dev) for financial data and IPCA inflation index.
+Financial indicators and analytics for global public companies. Live at [sponda.capital](https://sponda.capital).
 
 ![Sponda homepage](docs/screenshot.png)
 
