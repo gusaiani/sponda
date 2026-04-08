@@ -755,6 +755,7 @@ class CompanyAnalysisView(APIView):
 
 
 LOGO_CACHE_MAX_AGE = 30 * 24 * 3600  # 30 days
+BRAPI_LOGO_URL_TEMPLATE = "https://icons.brapi.dev/icons/{symbol}.svg"
 
 
 def detect_image_content_type(data: bytes) -> str:
@@ -766,6 +767,37 @@ def detect_image_content_type(data: bytes) -> str:
     if b"<svg" in data[:256]:
         return "image/svg+xml"
     return "image/png"
+
+
+def is_brapi_placeholder(image_data: bytes) -> bool:
+    """Detect whether an SVG is the BRAPI branding placeholder, not a real logo."""
+    if b"<svg" not in image_data[:256]:
+        return False
+    return b"brapi.dev" in image_data or b"<title>brapi</title>" in image_data
+
+
+def generate_fallback_svg(symbol: str) -> bytes:
+    """Generate a simple colored-circle SVG with the ticker's first letter."""
+    letter = symbol[0] if symbol else "?"
+    # Deterministic color from symbol hash
+    color_hash = hashlib.md5(symbol.encode()).hexdigest()[:6]
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56">'
+        f'<circle cx="28" cy="28" r="28" fill="#{color_hash}"/>'
+        f'<text x="28" y="29" text-anchor="middle" dominant-baseline="central" '
+        f'font-family="Arial,sans-serif" font-size="24" font-weight="bold" fill="#fff">'
+        f"{letter}</text></svg>"
+    ).encode()
+
+
+def _fetch_logo(url: str) -> bytes | None:
+    """Fetch logo data from a URL. Returns None on failure."""
+    try:
+        logo_request = Request(url, headers={"User-Agent": "Sponda/1.0"})
+        with urlopen(logo_request, timeout=10) as logo_response:
+            return logo_response.read()
+    except Exception:
+        return None
 
 
 class LogoProxyView(APIView):
@@ -782,35 +814,53 @@ class LogoProxyView(APIView):
         cache_dir = Path(settings.LOGO_CACHE_DIR)
         cached_path = cache_dir / f"{symbol}.png"
 
+        # Serve from cache (but purge BRAPI placeholders)
         if cached_path.exists():
             image_data = cached_path.read_bytes()
+            if is_brapi_placeholder(image_data):
+                cached_path.unlink()
+            else:
+                content_type = detect_image_content_type(image_data)
+                response = HttpResponse(image_data, content_type=content_type)
+                response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
+                return response
+
+        # Try the ticker's own logo URL from DB
+        image_data = None
+        try:
+            ticker = Ticker.objects.get(symbol=symbol)
+            if ticker.logo:
+                image_data = _fetch_logo(ticker.logo)
+        except Ticker.DoesNotExist:
+            pass
+
+        # Reject BRAPI placeholders
+        if image_data and is_brapi_placeholder(image_data):
+            image_data = None
+
+        # Fallback: try BRAPI directly (covers tickers not in DB)
+        if not image_data:
+            brapi_url = BRAPI_LOGO_URL_TEMPLATE.format(symbol=symbol)
+            image_data = _fetch_logo(brapi_url)
+
+        # Reject BRAPI placeholders from fallback too
+        if image_data and is_brapi_placeholder(image_data):
+            image_data = None
+
+        # Cache and serve real logos
+        if image_data:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cached_path.write_bytes(image_data)
             content_type = detect_image_content_type(image_data)
             response = HttpResponse(image_data, content_type=content_type)
             response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
             return response
 
-        try:
-            ticker = Ticker.objects.get(symbol=symbol)
-        except Ticker.DoesNotExist:
-            return HttpResponse(status=404)
-
-        if not ticker.logo:
-            return HttpResponse(status=404)
-
-        try:
-            logo_request = Request(ticker.logo, headers={"User-Agent": "Sponda/1.0"})
-            with urlopen(logo_request, timeout=10) as logo_response:
-                image_data = logo_response.read()
-        except Exception:
-            logger.warning("Failed to download logo for %s from %s", symbol, ticker.logo)
-            return HttpResponse(status=404)
-
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cached_path.write_bytes(image_data)
-
-        content_type = detect_image_content_type(image_data)
-        response = HttpResponse(image_data, content_type=content_type)
-        response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
+        # All sources failed: serve generated fallback (not cached)
+        logger.warning("No logo available for %s, serving fallback", symbol)
+        fallback_data = generate_fallback_svg(symbol)
+        response = HttpResponse(fallback_data, content_type="image/svg+xml")
+        response["Cache-Control"] = "public, max-age=3600"
         return response
 
 
