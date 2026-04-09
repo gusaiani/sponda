@@ -40,40 +40,62 @@
   line-height: 1.5;
 }
 
-/* Years slider */
+/* Years slider — inline in tab bar */
 .years-slider {
-  @apply mt-5 pt-4 mx-auto;
-  max-width: 448px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .years-slider-track {
-  @apply flex items-center gap-3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .years-slider-bound {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-xs;
+  font-size: 11px;
   color: var(--color-muted);
-  min-width: 24px;
+  min-width: 16px;
   text-align: center;
 }
 
+.years-slider-label {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 300;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .years-slider-input {
-  @apply flex-1 h-1 cursor-pointer appearance-none rounded-full;
+  width: 270px;
+  height: 4px;
+  cursor: pointer;
+  appearance: none;
+  border-radius: 2px;
   background: var(--color-border);
 }
 
 .years-slider-input::-webkit-slider-thumb {
-  @apply appearance-none w-4 h-4 rounded-full;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   background: var(--color-accent);
   border: 2px solid white;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .years-slider-input::-moz-range-thumb {
-  @apply w-4 h-4 rounded-full border-none;
-  background: var(--color-accent);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   border: 2px solid white;
+  background: var(--color-accent);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
@@ -81,14 +103,22 @@
   outline: none;
 }
 
-.years-slider-caption {
+.years-slider-pill {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-xs leading-relaxed text-center mt-3;
-  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--color-accent);
+  border-radius: 999px;
+  padding: 4px 12px;
+  white-space: nowrap;
+  min-width: 72px;
+  text-align: center;
 }
 
-.years-slider-caption strong {
-  color: var(--color-ink);
+/* Hide old caption — replaced by pill */
+.years-slider-caption {
+  display: none;
 }
 
 .pe10-value-container {

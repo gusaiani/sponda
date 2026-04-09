@@ -1014,28 +1014,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
         </div>
 
-        {/* Years slider */}
-        {maxYears > 1 && (
-          <div className="years-slider" data-years={years}>
-            <div className="years-slider-track">
-              <span className="years-slider-bound">1</span>
-              <input
-                id="years-range"
-                type="range"
-                min={1}
-                max={maxYears}
-                step={1}
-                value={years}
-                onChange={(e) => onYearsChange(Number(e.target.value))}
-                className="years-slider-input"
-              />
-              <span className="years-slider-bound">{maxYears}</span>
-            </div>
-            <p className="years-slider-caption">
-              {t("metrics.slider_caption")} <strong>{years} {pluralize(years, "common.year_singular", "common.year_plural")}</strong> {t("metrics.slider_drag_hint")}
-            </p>
-          </div>
-        )}
       </div>
 
       {(data.pe10AnnualData || data.pfcf10AnnualData) && (

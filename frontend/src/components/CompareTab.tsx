@@ -252,26 +252,6 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
         </table>
       </div>
 
-      {/* Years slider — below table */}
-      <div className="compare-slider-wrapper">
-        <div className="years-slider">
-          <div className="years-slider-track">
-            <span className="years-slider-bound">1</span>
-            <input
-              type="range"
-              className="years-slider-input"
-              min={1}
-              max={maxYears}
-              value={years}
-              onChange={(e) => onYearsChange(Number(e.target.value))}
-            />
-            <span className="years-slider-bound">{maxYears}</span>
-          </div>
-          <p className="years-slider-caption">
-            {t("compare.analyzing_last")} <strong>{years} {pluralize(years, "common.year_singular", "common.year_plural")}</strong>
-          </p>
-        </div>
-      </div>
 
       {/* Floating action buttons — always visible */}
       {!showSaveForm && !showDeleteConfirm && !showRenameForm && (
