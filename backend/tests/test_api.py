@@ -7,7 +7,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
-from quotes.models import BalanceSheet, IPCAIndex, LookupLog, QuarterlyEarnings, Ticker
+from quotes.models import IPCAIndex, LookupLog, Ticker
 from quotes.views import _clean_company_name, format_display_name
 
 
@@ -802,10 +802,6 @@ class TestTickerRateLimit:
         ).values("ticker").distinct().count()
         assert distinct == 3
 
-    def test_limit_is_200_distinct_tickers(self, db):
-        """Verify the limit constant is 200."""
-        from quotes.views import PE10View
-        assert PE10View.DAILY_DISTINCT_TICKER_LIMIT == 200
 
 
 class TestSitemap:

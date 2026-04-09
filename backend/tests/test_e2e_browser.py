@@ -9,7 +9,6 @@ import os
 import signal
 import subprocess
 import time
-import urllib.request
 from datetime import date
 from decimal import Decimal
 

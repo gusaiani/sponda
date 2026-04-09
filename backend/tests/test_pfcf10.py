@@ -2,7 +2,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 
 from quotes.models import QuarterlyCashFlow
 from quotes.pfcf10 import calculate_pfcf10, get_annual_fcf

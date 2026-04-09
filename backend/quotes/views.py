@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import F
-from django.http import FileResponse, HttpResponse
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
@@ -549,33 +549,6 @@ class PE10View(APIView):
         cache.set(cache_key, result, PE10_CACHE_TTL)
         return Response(result)
 
-    DAILY_DISTINCT_TICKER_LIMIT = 200
-
-    def _check_rate_limit(self, request):
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-        if request.user.is_authenticated:
-            distinct_tickers = LookupLog.objects.filter(
-                user=request.user, timestamp__gte=today_start
-            ).values("ticker").distinct().count()
-        else:
-            if not request.session.session_key:
-                request.session.create()
-            session_key = request.session.session_key
-            distinct_tickers = LookupLog.objects.filter(
-                session_key=session_key, timestamp__gte=today_start
-            ).values("ticker").distinct().count()
-
-        if distinct_tickers >= self.DAILY_DISTINCT_TICKER_LIMIT:
-            return Response(
-                {
-                    "error": "Limite diário de consultas atingido. Tente novamente amanhã.",
-                    "limit": self.DAILY_DISTINCT_TICKER_LIMIT,
-                    "used": distinct_tickers,
-                },
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-        return None
 
     def _log_lookup(self, request, ticker):
         if request.user.is_authenticated:
