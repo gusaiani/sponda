@@ -4,7 +4,6 @@ import tempfile
 
 import pytest
 from django.test import Client
-from django.utils import timezone
 
 from quotes.models import CompanyAnalysis
 

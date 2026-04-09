@@ -1,6 +1,5 @@
 """Tests for the provider routing layer."""
-import re
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

@@ -2,7 +2,6 @@
 import calendar
 from datetime import datetime, timezone
 
-import pytest
 
 from quotes.multiples_history import _rolling_avg, compute_multiples_history
 
@@ -138,7 +137,7 @@ class TestComputeMultiplesHistory:
         pl_2025 = next(p for p in result["multiples"]["pl"] if p["year"] == 2025)
         if pl_2025["value"] is not None:
             shares = 585_000_000_000.0 / 45.0
-            market_cap_at_year = 50.0 * shares
+            50.0 * shares
             # Just verify it's using the Dec price (higher value → higher multiple)
             assert pl_2025["value"] > 0
 

@@ -2,9 +2,8 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 
-from quotes.models import IPCAIndex, QuarterlyEarnings
+from quotes.models import QuarterlyEarnings
 from quotes.inflation import get_inflation_adjustment_factors
 from quotes.pe10 import calculate_pe10, get_annual_earnings
 

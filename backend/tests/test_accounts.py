@@ -1,7 +1,7 @@
 """Tests for accounts: auth, favorites, saved lists, feedback, admin dashboard."""
 import pytest
 from django.contrib.auth import get_user_model
-from django.test import Client, RequestFactory
+from django.test import Client
 from django.utils import timezone
 
 from accounts.models import EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
