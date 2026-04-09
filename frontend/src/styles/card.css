@@ -176,7 +176,8 @@
 }
 
 .metric-block-highlighted {
-  border-color: var(--color-accent);
+  background: #dde3f0;
+  box-shadow: 0 0 0 2px var(--color-accent);
   animation: metric-highlight-pulse 1.5s ease-in-out 2;
 }
 

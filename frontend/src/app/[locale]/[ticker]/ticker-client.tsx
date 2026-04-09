@@ -60,6 +60,47 @@ import { fetchFundamentals } from "../../../hooks/useFundamentals";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
+import "../../../styles/slider-variants.css";
+
+const TOTAL_SLIDER_VARIANTS = 10;
+
+function useSliderSwitcher() {
+  const [variant, setVariant] = useState(1);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("sponda-slider");
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (parsed >= 1 && parsed <= TOTAL_SLIDER_VARIANTS) setVariant(parsed);
+    }
+  }, []);
+
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      // Skip if user is typing in an input/textarea
+      const tag = (event.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (event.key === "]") {
+        setVariant((previous) => {
+          const next = previous >= TOTAL_SLIDER_VARIANTS ? 1 : previous + 1;
+          localStorage.setItem("sponda-slider", String(next));
+          return next;
+        });
+      }
+      if (event.key === "[") {
+        setVariant((previous) => {
+          const next = previous <= 1 ? TOTAL_SLIDER_VARIANTS : previous - 1;
+          localStorage.setItem("sponda-slider", String(next));
+          return next;
+        });
+      }
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, []);
+
+  return variant;
+}
 
 const STALE_TIME = 30 * 60 * 1000;
 
@@ -78,12 +119,19 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
-  const [years, setYears] = useState(DEFAULT_YEARS);
+  const [years, setYears] = useState(() => {
+    if (typeof window === "undefined") return DEFAULT_YEARS;
+    const param = new URLSearchParams(window.location.search).get("years");
+    if (!param) return DEFAULT_YEARS;
+    const parsed = parseInt(param, 10);
+    return parsed >= 1 && parsed <= 20 ? parsed : DEFAULT_YEARS;
+  });
   const [compareTickers, setCompareTickers] = useState<string[]>([]);
   const [activeListId, setActiveListId] = useState<number | null>(null);
   const seededForTicker = useRef<string | null>(null);
 
   const activeTab = resolveTab(pathname);
+  const sliderVariant = useSliderSwitcher();
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: currentTicker } = useTickerDetail(upperTicker);
@@ -166,7 +214,8 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
 
   return (
-    <div>
+    <div data-slider={sliderVariant}>
+      {sliderVariant !== 1 && <div className="slider-badge">Slider {sliderVariant} / {TOTAL_SLIDER_VARIANTS}</div>}
 
       {/* Company header */}
       {fullData && !isLoading && !error && (
