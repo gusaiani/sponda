@@ -103,13 +103,26 @@
   outline: none;
 }
 
-.years-slider-pill {
+.years-slider-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.years-slider-current {
+  position: absolute;
+  top: -22px;
+  transform: translateX(-50%);
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 12px;
-  font-weight: 600;
-  color: #ffffff;
-  background: var(--color-accent);
-  border-radius: 999px;
+  font-weight: 500;
+  color: var(--color-ink);
+  pointer-events: none;
+}
+
+/* Unused — kept for compat */
+.years-slider-pill {
+  display: none;
   padding: 4px 12px;
   white-space: nowrap;
   min-width: 72px;
