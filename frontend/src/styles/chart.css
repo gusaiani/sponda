@@ -2,20 +2,31 @@
 
 /* Tab pills — desktop only */
 .tabs-desktop {
-  max-width: 768px;
-  margin-left: auto;
-  margin-right: auto;
   display: none;
-  justify-content: center;
   gap: 6px;
   margin-bottom: 0;
-  padding: 0 16px;
+  flex-shrink: 0;
 }
 
 @media (min-width: 550px) {
   .tabs-desktop {
     display: flex;
   }
+}
+
+/* Tab bar: tabs left, slider right — breaks out of app-main */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding-left: 24px;
+  padding-right: 24px;
 }
 
 .tab-pill {

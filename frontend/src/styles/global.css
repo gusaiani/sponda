@@ -140,7 +140,7 @@
 
 /* Company header (above tabs) */
 .company-header {
-  @apply flex items-center justify-between mb-6;
+  @apply flex items-center justify-between mb-10;
   width: 100vw;
   position: relative;
   left: 50%;

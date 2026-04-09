@@ -60,47 +60,7 @@ import { fetchFundamentals } from "../../../hooks/useFundamentals";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
-import "../../../styles/slider-variants.css";
-
-const TOTAL_SLIDER_VARIANTS = 10;
-
-function useSliderSwitcher() {
-  const [variant, setVariant] = useState(1);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("sponda-slider");
-    if (saved) {
-      const parsed = parseInt(saved, 10);
-      if (parsed >= 1 && parsed <= TOTAL_SLIDER_VARIANTS) setVariant(parsed);
-    }
-  }, []);
-
-  useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
-      // Skip if user is typing in an input/textarea
-      const tag = (event.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (event.key === "]") {
-        setVariant((previous) => {
-          const next = previous >= TOTAL_SLIDER_VARIANTS ? 1 : previous + 1;
-          localStorage.setItem("sponda-slider", String(next));
-          return next;
-        });
-      }
-      if (event.key === "[") {
-        setVariant((previous) => {
-          const next = previous <= 1 ? TOTAL_SLIDER_VARIANTS : previous - 1;
-          localStorage.setItem("sponda-slider", String(next));
-          return next;
-        });
-      }
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, []);
-
-  return variant;
-}
+import { YearsSlider } from "../../../components/YearsSlider";
 
 const STALE_TIME = 30 * 60 * 1000;
 
@@ -131,7 +91,6 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const seededForTicker = useRef<string | null>(null);
 
   const activeTab = resolveTab(pathname);
-  const sliderVariant = useSliderSwitcher();
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: currentTicker } = useTickerDetail(upperTicker);
@@ -214,8 +173,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
 
   return (
-    <div data-slider={sliderVariant}>
-      {sliderVariant !== 1 && <div className="slider-badge">Slider {sliderVariant} / {TOTAL_SLIDER_VARIANTS}</div>}
+    <div>
 
       {/* Company header */}
       {fullData && !isLoading && !error && (
@@ -236,36 +194,41 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
         </div>
       )}
 
-      {/* Tabs — pills on desktop, dropdown on mobile */}
+      {/* Tab bar: tabs flush left, slider flush right */}
       {!isLoading && !error && (
         <>
-          <div className="tabs-wrapper tabs-desktop">
-            <button
-              className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
-              onClick={() => switchTab("metrics")}
-            >
-              {t("tabs.metrics")}
-            </button>
-            <button
-              className={`tab-pill ${activeTab === "fundamentals" ? "tab-pill-active" : ""}`}
-              onClick={() => switchTab("fundamentals")}
-              onMouseEnter={() => prefetchTabData("fundamentals")}
-            >
-              {t("tabs.fundamentals")}
-            </button>
-            <button
-              className={`tab-pill ${activeTab === "compare" ? "tab-pill-active" : ""}`}
-              onClick={() => switchTab("compare")}
-            >
-              {t("tabs.compare")}
-            </button>
-            <button
-              className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
-              onClick={() => switchTab("charts")}
-              onMouseEnter={() => prefetchTabData("charts")}
-            >
-              {t("tabs.charts")}
-            </button>
+          <div className="tab-bar">
+            <div className="tabs-desktop">
+              <button
+                className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
+                onClick={() => switchTab("metrics")}
+              >
+                {t("tabs.metrics")}
+              </button>
+              <button
+                className={`tab-pill ${activeTab === "fundamentals" ? "tab-pill-active" : ""}`}
+                onClick={() => switchTab("fundamentals")}
+                onMouseEnter={() => prefetchTabData("fundamentals")}
+              >
+                {t("tabs.fundamentals")}
+              </button>
+              <button
+                className={`tab-pill ${activeTab === "compare" ? "tab-pill-active" : ""}`}
+                onClick={() => switchTab("compare")}
+              >
+                {t("tabs.compare")}
+              </button>
+              <button
+                className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
+                onClick={() => switchTab("charts")}
+                onMouseEnter={() => prefetchTabData("charts")}
+              >
+                {t("tabs.charts")}
+              </button>
+            </div>
+            {(activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && (
+              <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
+            )}
           </div>
           <div className="tabs-mobile">
             <select
@@ -278,6 +241,9 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               <option value="compare">{t("tabs.compare")}</option>
               <option value="charts">{t("tabs.charts")}</option>
             </select>
+            {(activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && (
+              <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
+            )}
           </div>
         </>
       )}
