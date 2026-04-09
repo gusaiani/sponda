@@ -27,11 +27,11 @@
 
 .card-section-heading {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-sm font-normal mb-1;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
   letter-spacing: 0;
-  color: var(--color-muted);
-  border-bottom: 1px solid var(--color-accent);
-  padding-bottom: 5.6px;
+  color: var(--color-ink);
 }
 
 .card-financial-note {
@@ -96,12 +96,17 @@
 }
 
 .metrics-row {
-  @apply flex flex-wrap gap-6 pt-6 pb-4;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 12px;
+  padding-bottom: 16px;
 }
 
-.metrics-row > .metric-block {
-  flex: 1 1 180px;
-  min-width: 180px;
+@media (max-width: 639px) {
+  .metrics-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 .metric-value-container {
@@ -110,14 +115,15 @@
 
 .metric-block {
   @apply flex flex-col items-center relative;
-  border: 1px solid transparent;
+  background: #f5f7fb;
+  border: none;
   border-radius: 8px;
-  padding: 20px 12px 16px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  padding: 16px 8px 20px;
+  transition: background 0.2s;
 }
 
 .metric-block:hover {
-  border-color: var(--color-border);
+  background: #eaeff8;
 }
 
 .metric-block .share-btn {
@@ -254,8 +260,8 @@
 .pe10-label {
   font-family: 'Inter', system-ui, sans-serif;
   @apply font-normal uppercase;
-  font-size: 14px;
-  margin-bottom: 14px;
+  font-size: 11px;
+  margin-bottom: 8px;
   letter-spacing: 0;
   color: var(--color-muted);
   white-space: nowrap;
@@ -270,7 +276,8 @@
 
 .pe10-value {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-4xl font-light;
+  font-size: 26px;
+  font-weight: 300;
   color: var(--color-ink);
 }
 

@@ -60,47 +60,6 @@ import { fetchFundamentals } from "../../../hooks/useFundamentals";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
-import "../../../styles/layout-variants.css";
-
-const TOTAL_LAYOUTS = 10;
-
-function useLayoutSwitcher() {
-  const [layout, setLayout] = useState(1);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("sponda-layout");
-    if (saved) {
-      const parsed = parseInt(saved, 10);
-      if (parsed >= 1 && parsed <= TOTAL_LAYOUTS) setLayout(parsed);
-    }
-  }, []);
-
-  useEffect(() => {
-    function handleKey(event: KeyboardEvent) {
-      if (!event.metaKey && !event.ctrlKey) return;
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        setLayout((previous) => {
-          const next = previous >= TOTAL_LAYOUTS ? 1 : previous + 1;
-          localStorage.setItem("sponda-layout", String(next));
-          return next;
-        });
-      }
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        setLayout((previous) => {
-          const next = previous <= 1 ? TOTAL_LAYOUTS : previous - 1;
-          localStorage.setItem("sponda-layout", String(next));
-          return next;
-        });
-      }
-    }
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, []);
-
-  return layout;
-}
 
 const STALE_TIME = 30 * 60 * 1000;
 
@@ -125,7 +84,6 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const seededForTicker = useRef<string | null>(null);
 
   const activeTab = resolveTab(pathname);
-  const currentLayout = useLayoutSwitcher();
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: currentTicker } = useTickerDetail(upperTicker);
@@ -208,8 +166,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
 
   return (
-    <div data-layout={currentLayout}>
-      {currentLayout !== 1 && <div className="layout-badge">Layout {currentLayout} / {TOTAL_LAYOUTS}</div>}
+    <div>
 
       {/* Company header */}
       {fullData && !isLoading && !error && (
