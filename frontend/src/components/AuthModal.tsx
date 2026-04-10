@@ -170,13 +170,13 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
 }
 
 function GoogleSignInButton() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
 
   function handleGoogleAuth() {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     if (!clientId) return;
 
-    const redirectUri = `${window.location.origin}/google/callback`;
+    const redirectUri = `${window.location.origin}/${locale}/google/callback`;
     const scope = "openid email profile";
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
 
