@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useVisits } from "../hooks/useVisits";
@@ -23,15 +23,37 @@ const RECURRENCE_OPTIONS = [
 export function VisitedButton({ ticker }: VisitedButtonProps) {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
-  const { isVisitedToday, markVisited } = useVisits();
+  const { visits, isVisitedToday, markVisited } = useVisits();
   const queryClient = useQueryClient();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [note, setNote] = useState("");
   const [nextRevisit, setNextRevisit] = useState("");
   const [recurrenceDays, setRecurrenceDays] = useState("");
+  const expandRef = useRef<HTMLDivElement>(null);
 
   const visited = isAuthenticated && isVisitedToday(ticker);
+  const visitCount = visits.filter((visit) => visit.ticker === ticker.toUpperCase()).length;
+  const showProminent = !visited && (!isAuthenticated || visitCount < 3);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!expanded) return;
+    function handleClickOutside(event: MouseEvent) {
+      if (expandRef.current && !expandRef.current.contains(event.target as Node)) {
+        setExpanded(false);
+      }
+    }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setExpanded(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [expanded]);
 
   function handleClick() {
     if (!isAuthenticated) {
@@ -66,9 +88,36 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
     });
   }
 
+  if (showProminent) {
+    return (
+      <>
+        <button
+          className="visited-button-prominent"
+          onClick={handleClick}
+          aria-label={t("visits.mark_visited")}
+          title={t("visits.mark_visited")}
+          type="button"
+        >
+          <svg className="visited-button-prominent-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span className="visited-button-prominent-label">{t("visits.mark_visited")}</span>
+        </button>
+
+        {showAuthModal && (
+          <AuthModal
+            onSuccess={handleAuthSuccess}
+            onClose={() => setShowAuthModal(false)}
+            message={t("visits.must_login")}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
-      <div className="visited-button-wrapper">
+      <div className="visited-button-wrapper" ref={expandRef}>
         <button
           className={`visited-button ${visited ? "visited-button-active" : ""}`}
           onClick={handleClick}

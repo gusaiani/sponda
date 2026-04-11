@@ -193,8 +193,10 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
             )}
             <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker}</span></h2>
           </div>
-          <FavoriteButton ticker={upperTicker} />
-          <VisitedButton ticker={upperTicker} />
+          <div className="company-header-actions">
+            <VisitedButton ticker={upperTicker} />
+            <FavoriteButton ticker={upperTicker} />
+          </div>
         </div>
       )}
 
