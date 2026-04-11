@@ -37,7 +37,18 @@ export interface FundamentalsYear {
   ipcaFactor: number;
 }
 
-export async function fetchFundamentals(ticker: string): Promise<FundamentalsYear[]> {
+export interface QuarterlyBalanceRatio {
+  date: string;
+  debtToEquity: number | null;
+  liabilitiesToEquity: number | null;
+}
+
+export interface FundamentalsResponse {
+  years: FundamentalsYear[];
+  quarterlyRatios: QuarterlyBalanceRatio[];
+}
+
+export async function fetchFundamentals(ticker: string): Promise<FundamentalsResponse> {
   const response = await fetch(`/api/quote/${ticker}/fundamentals/`, {
     credentials: "include",
   });

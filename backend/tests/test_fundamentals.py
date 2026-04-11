@@ -4,7 +4,11 @@ from decimal import Decimal
 
 import pytest
 
-from quotes.fundamentals import aggregate_proventos_by_year, compute_fundamentals
+from quotes.fundamentals import (
+    aggregate_proventos_by_year,
+    compute_fundamentals,
+    compute_quarterly_balance_ratios,
+)
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
@@ -354,3 +358,52 @@ class TestAggregateProventosByYear:
         )
         # 2022: 2.00 × 1B = 2B (before both splits: 6B / 6 = 1B)
         assert result[2022] == pytest.approx(2_000_000_000, rel=1e-6)
+
+
+class TestComputeQuarterlyBalanceRatios:
+    def test_returns_all_quarters_sorted_ascending(self, multi_year_balance_sheets):
+        result = compute_quarterly_balance_ratios("WEGE3")
+        dates = [r["date"] for r in result]
+        assert dates == sorted(dates)
+        # 8 quarters total (4 per year × 2 years)
+        assert len(result) == 8
+
+    def test_computes_debt_to_equity_ratio(self, multi_year_balance_sheets):
+        result = compute_quarterly_balance_ratios("WEGE3")
+        # 2024 Q4: debt_ex_lease = 10B - 1B = 9B, equity = 15B → 0.6
+        q4_2024 = [r for r in result if r["date"] == "2024-12-31"][0]
+        assert q4_2024["debtToEquity"] == 0.6
+
+    def test_computes_liabilities_to_equity_ratio(self, multi_year_balance_sheets):
+        result = compute_quarterly_balance_ratios("WEGE3")
+        # 2024 Q4: liabilities = 20B, equity = 15B → 1.33
+        q4_2024 = [r for r in result if r["date"] == "2024-12-31"][0]
+        assert q4_2024["liabilitiesToEquity"] == 1.33
+
+    def test_handles_null_equity(self, db):
+        BalanceSheet.objects.create(
+            ticker="NULL3", end_date=date(2024, 12, 31),
+            total_debt=10_000, total_lease=1_000,
+            total_liabilities=20_000, stockholders_equity=None,
+        )
+        result = compute_quarterly_balance_ratios("NULL3")
+        assert result[0]["debtToEquity"] is None
+        assert result[0]["liabilitiesToEquity"] is None
+
+    def test_handles_zero_equity(self, db):
+        BalanceSheet.objects.create(
+            ticker="ZERO3", end_date=date(2024, 12, 31),
+            total_debt=10_000, total_lease=1_000,
+            total_liabilities=20_000, stockholders_equity=0,
+        )
+        result = compute_quarterly_balance_ratios("ZERO3")
+        assert result[0]["debtToEquity"] is None
+        assert result[0]["liabilitiesToEquity"] is None
+
+    def test_empty_ticker_returns_empty_list(self, db):
+        result = compute_quarterly_balance_ratios("NONE3")
+        assert result == []
+
+    def test_ticker_case_insensitive(self, multi_year_balance_sheets):
+        result = compute_quarterly_balance_ratios("wege3")
+        assert len(result) == 8

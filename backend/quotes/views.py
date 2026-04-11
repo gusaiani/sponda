@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 from .fmp import FMPError, fetch_profile
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
-from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
+from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
 from .leverage import calculate_leverage
 from .models import BalanceSheet, CompanyAnalysis, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
@@ -691,9 +691,14 @@ class FundamentalsView(APIView):
             historical_prices=historical_prices,
             proventos_by_year=proventos_by_year,
         )
+        quarterly_ratios = compute_quarterly_balance_ratios(ticker)
 
-        cache.set(cache_key, fundamentals, FUNDAMENTALS_CACHE_TTL)
-        response = Response(fundamentals)
+        result = {
+            "years": fundamentals,
+            "quarterlyRatios": quarterly_ratios,
+        }
+        cache.set(cache_key, result, FUNDAMENTALS_CACHE_TTL)
+        response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
         return response
 

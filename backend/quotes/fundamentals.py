@@ -163,6 +163,35 @@ def aggregate_proventos_by_year(
     return totals
 
 
+def compute_quarterly_balance_ratios(ticker: str) -> list[dict]:
+    """Return quarterly debt/equity and liabilities/equity ratios.
+
+    Each entry contains the balance sheet date and computed ratios,
+    sorted chronologically (ascending).
+    """
+    sheets = BalanceSheet.objects.filter(ticker=ticker.upper()).order_by("end_date")
+    results = []
+    for sheet in sheets:
+        total_debt = sheet.total_debt
+        total_lease = sheet.total_lease
+        equity = sheet.stockholders_equity
+        total_liabilities = sheet.total_liabilities
+
+        debt_ex_lease = None
+        if total_debt is not None:
+            debt_ex_lease = total_debt - (total_lease or 0)
+
+        debt_to_equity = _safe_ratio(debt_ex_lease, equity)
+        liabilities_to_equity = _safe_ratio(total_liabilities, equity)
+
+        results.append({
+            "date": sheet.end_date.isoformat(),
+            "debtToEquity": debt_to_equity,
+            "liabilitiesToEquity": liabilities_to_equity,
+        })
+    return results
+
+
 def compute_fundamentals(
     ticker: str,
     market_cap: float | None,
