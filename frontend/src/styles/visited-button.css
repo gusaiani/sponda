@@ -25,6 +25,33 @@
   transform: scale(1.2);
 }
 
+/* Prominent variant */
+.visited-button-prominent {
+  @apply flex items-center gap-2 border-none cursor-pointer font-semibold text-sm rounded-lg px-4 py-2 transition-all;
+  background-color: #16a34a;
+  color: #ffffff;
+}
+
+.visited-button-prominent:hover {
+  background-color: #15803d;
+  transform: scale(1.04);
+}
+
+.visited-button-prominent-icon {
+  @apply leading-none;
+  flex-shrink: 0;
+}
+
+.visited-button-prominent-label {
+  @apply whitespace-nowrap;
+}
+
+@media (max-width: 550px) {
+  .visited-button-prominent-label {
+    display: none;
+  }
+}
+
 /* Expandable detail area */
 .visited-expand {
   position: absolute;

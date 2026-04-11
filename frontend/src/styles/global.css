@@ -143,6 +143,11 @@
   }
 }
 
+.company-header-actions {
+  @apply flex items-center gap-2;
+  flex-shrink: 0;
+}
+
 .company-header-left {
   @apply flex items-center;
   min-width: 0;
