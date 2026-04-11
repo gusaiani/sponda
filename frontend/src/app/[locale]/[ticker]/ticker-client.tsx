@@ -93,6 +93,8 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const seededForTicker = useRef<string | null>(null);
 
   const activeTab = resolveTab(pathname);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [sliderFixedTop, setSliderFixedTop] = useState<number | null>(null);
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: currentTicker } = useTickerDetail(upperTicker);
@@ -153,6 +155,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     [fullData, effectiveYears],
   );
 
+  useEffect(() => {
+    if (!tabBarRef.current) return;
+    const rect = tabBarRef.current.getBoundingClientRect();
+    setSliderFixedTop(rect.top);
+  }, [isLoading, error]);
+
   function switchTab(tab: TabKey) {
     router.push(buildTabPath(locale, upperTicker, tab));
   }
@@ -202,10 +210,10 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
       {!isLoading && !error && <RevisitBanner ticker={upperTicker} />}
 
-      {/* Tab bar: tabs flush left, slider flush right */}
+      {/* Tab bar: tabs flush left */}
       {!isLoading && !error && (
         <>
-          <div className="tab-bar">
+          <div className="tab-bar" ref={tabBarRef}>
             <div className="tabs-desktop">
               <button
                 className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
@@ -234,9 +242,6 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
                 {t("tabs.charts")}
               </button>
             </div>
-            {(activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && (
-              <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
-            )}
           </div>
           <div className="tabs-mobile">
             <select
@@ -249,11 +254,15 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               <option value="compare">{t("tabs.compare")}</option>
               <option value="charts">{t("tabs.charts")}</option>
             </select>
-            {(activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && (
-              <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
-            )}
           </div>
         </>
+      )}
+
+      {/* Fixed slider */}
+      {!isLoading && !error && (activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && sliderFixedTop !== null && (
+        <div className="years-slider-fixed" style={{ top: sliderFixedTop }}>
+          <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
+        </div>
       )}
 
       {/* Metrics tab */}

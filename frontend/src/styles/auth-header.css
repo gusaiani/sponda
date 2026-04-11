@@ -20,7 +20,7 @@
 
 .auth-header-link:hover {
   color: var(--color-accent);
-  background: #f5f7fa;
+  background: #e9ebee;
 }
 
 .auth-header-signup {
@@ -60,7 +60,7 @@
 
 .language-dropdown-trigger:hover {
   color: var(--color-accent);
-  background: #f5f7fa;
+  background: #e9ebee;
 }
 
 .language-dropdown-flag {
