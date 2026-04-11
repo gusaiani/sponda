@@ -169,6 +169,73 @@
   background: #eaeff8;
 }
 
+/* Graph mode: side-by-side layout */
+.metric-block--graph {
+  @apply flex-row items-stretch;
+  padding: 12px 12px 0 12px;
+  min-height: 100px;
+}
+
+.metric-block--graph .metric-value-container {
+  @apply text-left flex flex-col justify-center;
+  flex-shrink: 0;
+  padding-right: 12px;
+  border-right: 1px solid var(--color-border);
+  margin-right: 12px;
+}
+
+.metric-block--graph .mini-chart {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Graph toggle button */
+.graph-toggle {
+  @apply absolute flex items-center justify-center cursor-pointer;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: var(--color-muted);
+  padding: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.graph-toggle:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.graph-toggle--active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* Mini chart tooltip */
+.mini-chart-tooltip {
+  @apply flex items-center gap-1;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 10px;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.mini-chart-tooltip-year {
+  color: var(--color-muted);
+}
+
+.mini-chart-tooltip-value {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
 .metric-block .share-btn {
   visibility: hidden;
   transition: visibility 0.15s;
@@ -190,6 +257,7 @@
   background: #ffffff;
   color: var(--color-muted);
   transition: color 0.15s, border-color 0.15s, background 0.15s;
+  z-index: 10;
   padding: 0;
 }
 
@@ -209,6 +277,7 @@
   position: absolute;
   top: 38px;
   right: 6px;
+  z-index: 20;
 }
 
 /* Highlighted metric (from shared link) */
