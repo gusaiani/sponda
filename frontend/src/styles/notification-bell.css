@@ -17,7 +17,7 @@
 
 .notification-bell-trigger:hover {
   color: var(--color-accent);
-  background: #f5f7fa;
+  background: #e9ebee;
 }
 
 .notification-bell-badge {
@@ -64,7 +64,7 @@
 }
 
 .notification-bell-item:hover {
-  background: #f5f7fa;
+  background: #e9ebee;
 }
 
 .notification-bell-ticker {

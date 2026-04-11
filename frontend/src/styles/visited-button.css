@@ -71,7 +71,7 @@
   @apply grid gap-1 mb-3;
   grid-template-columns: auto 1fr;
   font-family: 'Inter', system-ui, sans-serif;
-  background: #f5f7fa;
+  background: #e9ebee;
   border-radius: 6px;
   padding: 8px 10px;
 }

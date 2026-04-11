@@ -911,11 +911,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const { t, pluralize, locale } = useTranslation();
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
-  const [showGraphs, setShowGraphs] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const stored = localStorage.getItem("sponda:showGraphs");
-    return stored === null ? true : stored === "true";
-  });
+  const showGraphs = true;
   const formatAmount = makeFormatAmount(data.ticker);
 
   const pl10Label = localizeLabel(data.pe10Label, locale);
@@ -924,13 +920,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const isFinancial = sector ? isFinancialInstitution(data.name, sector) : false;
   const moreInfo = t("metrics.more_info");
 
-  function toggleGraphs() {
-    setShowGraphs((prev) => {
-      const next = !prev;
-      localStorage.setItem("sponda:showGraphs", String(next));
-      return next;
-    });
-  }
 
   /* Build chart data arrays from calculation details & fundamentals */
   const chartData = useMemo(() => {
@@ -1063,17 +1052,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
   return (
     <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
-      <button
-        className={`graph-toggle${showGraphs ? " graph-toggle--active" : ""}`}
-        onClick={toggleGraphs}
-        aria-label={showGraphs ? "Hide graphs" : "Show graphs"}
-        type="button"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-        </svg>
-      </button>
-
       {/* ── Key stats ── */}
       <div className="metrics-row">
         <div id={METRIC_IDS.currentPrice} {...metricBlockProps(METRIC_IDS.currentPrice)}>
