@@ -81,6 +81,17 @@ def fetch_historical_prices(ticker: str) -> list[dict]:
     return data
 
 
+def fetch_profile(ticker: str) -> dict | None:
+    """Fetch company profile (sector, industry) for a US ticker.
+
+    Returns the profile dict, or None if no data is available.
+    """
+    data = _get("/stable/profile", params={"symbol": ticker})
+    if not isinstance(data, list) or not data:
+        return None
+    return data[0]
+
+
 def fetch_dividends(ticker: str) -> list[dict]:
     """Fetch dividend history for a US ticker."""
     data = _get("/stable/dividends-company", params={"symbol": ticker})

@@ -17,7 +17,8 @@ from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
-from .providers import ProviderError, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .fmp import FMPError, fetch_profile
+from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals
 from .leverage import calculate_leverage
 from .models import BalanceSheet, CompanyAnalysis, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
@@ -257,6 +258,16 @@ class TickerPeersView(APIView):
         current_name = current["display_name"] or current["name"]
         current_sector = current["sector"]
         current_base = ticker_base(current["symbol"])
+
+        # Lazy-fetch sector for US tickers that don't have one yet
+        if not current_sector and not is_brazilian_ticker(symbol_upper):
+            try:
+                profile = fetch_profile(symbol_upper)
+                if profile and profile.get("sector"):
+                    current_sector = profile["sector"]
+                    Ticker.objects.filter(symbol=symbol_upper).update(sector=current_sector)
+            except FMPError:
+                pass
 
         if not current_sector:
             result = []
