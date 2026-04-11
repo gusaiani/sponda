@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeShillerPERatios } from "./FundamentalsTab";
+import { computeShillerPERatios, augmentWithPERatios } from "./FundamentalsTab";
 import { br } from "../utils/format";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
 
@@ -238,6 +238,33 @@ describe("computeShillerPERatios", () => {
     // avg earnings = 0, should be null (division by zero)
     expect(result.get(2024)!.pe5).toBeNull();
     expect(result.get(2024)!.pfcl5).toBeNull();
+  });
+});
+
+describe("augmentWithPERatios", () => {
+  it("always returns data sorted by year descending (latest first)", () => {
+    // Simulate ascending data (oldest first) — as might come from a stale cache
+    const ascendingData = [
+      makeYear(2020, { marketCap: 100, netIncomeAdjusted: 50 }),
+      makeYear(2021, { marketCap: 200, netIncomeAdjusted: 60 }),
+      makeYear(2022, { marketCap: 300, netIncomeAdjusted: 70 }),
+      makeYear(2023, { marketCap: 400, netIncomeAdjusted: 80 }),
+      makeYear(2024, { marketCap: 500, netIncomeAdjusted: 90 }),
+    ];
+    const result = augmentWithPERatios(ascendingData);
+    const years = result.map((row) => row.year);
+    expect(years).toEqual([2024, 2023, 2022, 2021, 2020]);
+  });
+
+  it("preserves descending order when data is already sorted correctly", () => {
+    const descendingData = [
+      makeYear(2024, { marketCap: 500 }),
+      makeYear(2023, { marketCap: 400 }),
+      makeYear(2022, { marketCap: 300 }),
+    ];
+    const result = augmentWithPERatios(descendingData);
+    const years = result.map((row) => row.year);
+    expect(years).toEqual([2024, 2023, 2022]);
   });
 });
 

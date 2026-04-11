@@ -68,14 +68,16 @@ export function computeShillerPERatios(
   return result;
 }
 
-function augmentWithPERatios(
+export function augmentWithPERatios(
   data: FundamentalsYear[],
 ): AugmentedFundamentalsYear[] {
   const peRatios = computeShillerPERatios(data);
-  return data.map((row) => {
-    const ratios = peRatios.get(row.year) ?? { pe10: null, pe5: null, pfcl10: null, pfcl5: null };
-    return { ...row, ...ratios };
-  });
+  return [...data]
+    .sort((a, b) => b.year - a.year)
+    .map((row) => {
+      const ratios = peRatios.get(row.year) ?? { pe10: null, pe5: null, pfcl10: null, pfcl5: null };
+      return { ...row, ...ratios };
+    });
 }
 
 /* ── Column definitions ── */
