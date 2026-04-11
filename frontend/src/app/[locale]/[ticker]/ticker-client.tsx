@@ -56,7 +56,7 @@ import { useTickerDetail } from "../../../hooks/useTickerDetail";
 import { usePeers } from "../../../hooks/usePeers";
 import { useMultiplesHistory, fetchMultiplesHistory } from "../../../hooks/useMultiplesHistory";
 import { deriveForYears } from "../../../hooks/deriveForYears";
-import { fetchFundamentals } from "../../../hooks/useFundamentals";
+import { fetchFundamentals, useFundamentals } from "../../../hooks/useFundamentals";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
@@ -95,6 +95,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: currentTicker } = useTickerDetail(upperTicker);
   const { data: peers = [] } = usePeers(upperTicker);
+  const { data: fundamentalsData } = useFundamentals(upperTicker, true);
   const { lists } = useSavedLists();
 
   // Check for listId in URL search params (when opening a saved list)
@@ -140,7 +141,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     data: historyData,
     isLoading: historyLoading,
     error: historyError,
-  } = useMultiplesHistory(upperTicker, activeTab === "charts");
+  } = useMultiplesHistory(upperTicker, true);
 
   const maxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
   const effectiveYears = Math.min(years, maxYears);
@@ -259,6 +260,8 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               maxYears={maxYears}
               onYearsChange={setYears}
               sector={currentTicker?.sector}
+              fundamentals={fundamentalsData}
+              priceHistory={historyData?.prices}
             />
           )}
           {error && !isLoading && (

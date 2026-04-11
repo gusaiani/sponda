@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import "../styles/card.css";
 import "../styles/share-dropdown.css";
+import { MiniChart } from "./MiniChart";
 import { useTranslation, type TranslationKey } from "../i18n";
 import { isBrazilianTicker } from "../utils/ticker";
 import { getSubsector } from "../utils/subsector";
@@ -238,6 +239,8 @@ interface CompanyMetricsCardProps {
   maxYears: number;
   onYearsChange: (years: number) => void;
   sector?: string;
+  fundamentals?: import("../hooks/useFundamentals").FundamentalsYear[];
+  priceHistory?: { date: string; adjustedClose: number }[];
 }
 
 const FINANCIAL_SUBSECTORS = new Set(["Bancos", "Seguros", "Infraestrutura de Mercado"]);
@@ -840,10 +843,14 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: TFn, locale: string) => 
 
 /* ── Main Card ── */
 
-export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector }: CompanyMetricsCardProps) {
+export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector, fundamentals, priceHistory }: CompanyMetricsCardProps) {
   const { t, pluralize, locale } = useTranslation();
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
+  const [showGraphs, setShowGraphs] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("sponda:showGraphs") === "true";
+  });
   const formatAmount = makeFormatAmount(data.ticker);
 
   const pl10Label = localizeLabel(data.pe10Label, locale);
@@ -851,6 +858,74 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const open = (key: ModalKey) => setActiveModal(key);
   const isFinancial = sector ? isFinancialInstitution(data.name, sector) : false;
   const moreInfo = t("metrics.more_info");
+
+  function toggleGraphs() {
+    setShowGraphs((prev) => {
+      const next = !prev;
+      localStorage.setItem("sponda:showGraphs", String(next));
+      return next;
+    });
+  }
+
+  /* Build chart data arrays from calculation details & fundamentals */
+  const chartData = useMemo(() => {
+    const earningsSeries = [...data.pe10CalculationDetails]
+      .reverse()
+      .map((y) => ({ year: y.year, value: y.adjustedNetIncome }));
+
+    const fcfSeries = [...data.pfcf10CalculationDetails]
+      .reverse()
+      .map((y) => ({ year: y.year, value: y.adjustedFCF }));
+
+    const sortedFundamentals = (fundamentals ?? [])
+      .sort((a, b) => a.year - b.year)
+      .slice(-years);
+
+    const debtEquitySeries = sortedFundamentals
+      .filter((f) => f.debtToEquity !== null)
+      .map((f) => ({ year: f.year, value: f.debtToEquity! }));
+
+    const liabEquitySeries = sortedFundamentals
+      .filter((f) => f.liabilitiesToEquity !== null)
+      .map((f) => ({ year: f.year, value: f.liabilitiesToEquity! }));
+
+    const marketCapSeries = sortedFundamentals
+      .filter((f) => f.marketCap !== null)
+      .map((f) => ({ year: f.year, value: f.marketCap! }));
+
+    // Derive year-end prices from price history
+    const priceSeries: { year: number; value: number }[] = [];
+    if (priceHistory?.length) {
+      const byYear = new Map<number, number>();
+      for (const point of priceHistory) {
+        const year = parseInt(point.date.slice(0, 4), 10);
+        byYear.set(year, point.adjustedClose);
+      }
+      const currentYear = new Date().getFullYear();
+      const startYear = currentYear - years;
+      for (const [year, price] of [...byYear.entries()].sort((a, b) => a[0] - b[0])) {
+        if (year > startYear) {
+          priceSeries.push({ year, value: price });
+        }
+      }
+    }
+
+    return {
+      [METRIC_IDS.currentPrice]: priceSeries,
+      [METRIC_IDS.marketCap]: marketCapSeries,
+      [METRIC_IDS.pe10]: earningsSeries,
+      [METRIC_IDS.peg]: earningsSeries,
+      [METRIC_IDS.cagrEarnings]: earningsSeries,
+      [METRIC_IDS.pfcf10]: fcfSeries,
+      [METRIC_IDS.pfcfg]: fcfSeries,
+      [METRIC_IDS.cagrFCF]: fcfSeries,
+      [METRIC_IDS.debtToEquity]: debtEquitySeries,
+      [METRIC_IDS.debtExLease]: debtEquitySeries,
+      [METRIC_IDS.liabToEquity]: liabEquitySeries,
+      [METRIC_IDS.debtToEarnings]: earningsSeries,
+      [METRIC_IDS.debtToFCF]: fcfSeries,
+    } as Record<string, { year: number; value: number }[]>;
+  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, fundamentals, priceHistory, years]);
 
   /* Highlight metric from URL hash */
   useEffect(() => {
@@ -866,12 +941,30 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   }, []);
 
   const metricBlockProps = (metricId: string) => ({
-    className: `metric-block${highlightedMetric === metricId ? " metric-block-highlighted" : ""}`,
+    className: `metric-block${showGraphs && chartData[metricId]?.length >= 2 ? " metric-block--graph" : ""}${highlightedMetric === metricId ? " metric-block-highlighted" : ""}`,
     onMouseLeave: highlightedMetric === metricId ? () => setHighlightedMetric(null) : undefined,
   });
 
+  const renderChart = (metricId: string) => {
+    if (!showGraphs) return null;
+    const series = chartData[metricId];
+    if (!series || series.length < 2) return null;
+    return <MiniChart data={series} />;
+  };
+
   return (
     <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
+      <button
+        className={`graph-toggle${showGraphs ? " graph-toggle--active" : ""}`}
+        onClick={toggleGraphs}
+        aria-label={showGraphs ? "Hide graphs" : "Show graphs"}
+        type="button"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+      </button>
+
       {/* ── Key stats ── */}
       <div className="metrics-row">
         <div id={METRIC_IDS.currentPrice} {...metricBlockProps(METRIC_IDS.currentPrice)}>
@@ -882,6 +975,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               {currencySymbol(data.ticker)} {br(data.currentPrice, 2)}
             </div>
           </div>
+          {renderChart(METRIC_IDS.currentPrice)}
         </div>
         <div id={METRIC_IDS.marketCap} {...metricBlockProps(METRIC_IDS.marketCap)}>
           <ShareButton metricId={METRIC_IDS.marketCap} years={years} />
@@ -891,6 +985,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               {data.marketCap !== null ? formatAmount(data.marketCap) : "N/A"}
             </div>
           </div>
+          {renderChart(METRIC_IDS.marketCap)}
         </div>
         <div id={METRIC_IDS.yearsOfData} {...metricBlockProps(METRIC_IDS.yearsOfData)}>
           <ShareButton metricId={METRIC_IDS.yearsOfData} years={years} />
@@ -929,6 +1024,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">{data.leverageError || "N/A"}</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.debtToEquity)}
           </div>
           {data.debtExLeaseToEquity !== null && (
             <div id={METRIC_IDS.debtExLease} {...metricBlockProps(METRIC_IDS.debtExLease)}>
@@ -937,6 +1033,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /></div>
                 <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
               </div>
+              {renderChart(METRIC_IDS.debtExLease)}
             </div>
           )}
           <div id={METRIC_IDS.liabToEquity} {...metricBlockProps(METRIC_IDS.liabToEquity)}>
@@ -949,6 +1046,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">{data.leverageError || "N/A"}</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.liabToEquity)}
           </div>
           <div id={METRIC_IDS.debtToEarnings} {...metricBlockProps(METRIC_IDS.debtToEarnings)}>
             <ShareButton metricId={METRIC_IDS.debtToEarnings} years={years} />
@@ -960,6 +1058,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">N/A</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.debtToEarnings)}
           </div>
           <div id={METRIC_IDS.debtToFCF} {...metricBlockProps(METRIC_IDS.debtToFCF)}>
             <ShareButton metricId={METRIC_IDS.debtToFCF} years={years} />
@@ -971,6 +1070,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">N/A</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.debtToFCF)}
           </div>
         </div>
       </div>
@@ -992,6 +1092,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">{translateError(data.pe10Error, t)}</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.pe10)}
           </div>
           <div id={METRIC_IDS.peg} {...metricBlockProps(METRIC_IDS.peg)}>
             <ShareButton metricId={METRIC_IDS.peg} years={years} />
@@ -1003,6 +1104,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">{translateError(data.pegError, t) || "N/A"}</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.peg)}
           </div>
           <div id={METRIC_IDS.cagrEarnings} {...metricBlockProps(METRIC_IDS.cagrEarnings)}>
             <ShareButton metricId={METRIC_IDS.cagrEarnings} years={years} />
@@ -1014,6 +1116,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">N/A</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.cagrEarnings)}
           </div>
           <div id={METRIC_IDS.pfcf10} {...metricBlockProps(METRIC_IDS.pfcf10)}>
             <ShareButton metricId={METRIC_IDS.pfcf10} years={years} />
@@ -1025,6 +1128,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">{translateError(data.pfcf10Error, t)}</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.pfcf10)}
           </div>
           <div id={METRIC_IDS.pfcfg} {...metricBlockProps(METRIC_IDS.pfcfg)}>
             <ShareButton metricId={METRIC_IDS.pfcfg} years={years} />
@@ -1036,6 +1140,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">{translateError(data.pfcfPegError, t) || "N/A"}</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.pfcfg)}
           </div>
           <div id={METRIC_IDS.cagrFCF} {...metricBlockProps(METRIC_IDS.cagrFCF)}>
             <ShareButton metricId={METRIC_IDS.cagrFCF} years={years} />
@@ -1047,6 +1152,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
                 <div className="pe10-error">N/A</div>
               )}
             </div>
+            {renderChart(METRIC_IDS.cagrFCF)}
           </div>
         </div>
 
