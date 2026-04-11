@@ -492,7 +492,11 @@ class TestFundamentalsEndpoint:
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/fundamentals/")
         assert response.status_code == 200
-        data = response.json()
+        result = response.json()
+        assert isinstance(result, dict)
+        assert "years" in result
+        assert "quarterlyRatios" in result
+        data = result["years"]
         assert isinstance(data, list)
         assert len(data) > 0
         # Years sorted descending
@@ -509,7 +513,7 @@ class TestFundamentalsEndpoint:
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/fundamentals/")
-        data = response.json()
+        data = response.json()["years"]
         year_2025 = next(row for row in data if row["year"] == 2025)
         assert year_2025["totalDebt"] == 300_000_000_000
         assert year_2025["totalLiabilities"] == 500_000_000_000
@@ -525,7 +529,7 @@ class TestFundamentalsEndpoint:
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/fundamentals/")
-        data = response.json()
+        data = response.json()["years"]
         year_2024 = next(row for row in data if row["year"] == 2024)
         assert year_2024["netIncome"] is not None
         assert year_2024["fcf"] is not None
@@ -568,7 +572,9 @@ class TestFundamentalsEndpoint:
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/fundamentals/")
         assert response.status_code == 200
-        assert response.json() == []
+        result = response.json()
+        assert result["years"] == []
+        assert result["quarterlyRatios"] == []
 
     @patch("quotes.views.fetch_quote")
     @patch("quotes.views.sync_balance_sheets")
@@ -581,7 +587,7 @@ class TestFundamentalsEndpoint:
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/petr4/fundamentals/")
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["years"]
         assert len(data) > 0
 
     @patch("quotes.views.fetch_quote")
