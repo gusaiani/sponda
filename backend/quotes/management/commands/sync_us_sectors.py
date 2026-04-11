@@ -11,7 +11,7 @@ from django.db.models.functions import Coalesce
 from quotes.fmp import FMPError, fetch_profile
 from quotes.models import Ticker
 
-DEFAULT_BATCH_SIZE = 500
+DEFAULT_BATCH_SIZE = 5000
 
 
 class Command(BaseCommand):
