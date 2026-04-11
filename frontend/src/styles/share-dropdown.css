@@ -13,18 +13,18 @@
   font-size: 13px;
   font-weight: 500;
   color: var(--color-muted);
-  background: #ffffff;
-  border: 1px solid var(--color-border);
+  background: transparent;
+  border: none;
   border-radius: 6px;
   padding: 7px 12px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
 .share-dropdown-trigger:hover {
   color: var(--color-accent);
-  border-color: var(--color-accent);
+  background: #f5f7fa;
 }
 
 .share-dropdown-label {
