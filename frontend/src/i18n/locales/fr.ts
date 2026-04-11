@@ -11,6 +11,7 @@ export const fr: TranslationDictionary = {
   "common.back": "Retour",
   "common.year_singular": "an",
   "common.year_plural": "ans",
+  "common.year_abbrev": "a",
   "common.month_singular": "mois",
   "common.month_plural": "mois",
   "common.day_singular": "jour",

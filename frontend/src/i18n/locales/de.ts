@@ -11,6 +11,7 @@ export const de: TranslationDictionary = {
   "common.back": "Zurück",
   "common.year_singular": "Jahr",
   "common.year_plural": "Jahre",
+  "common.year_abbrev": "J",
   "common.month_singular": "Monat",
   "common.month_plural": "Monate",
   "common.day_singular": "Tag",

@@ -11,6 +11,7 @@ export interface TranslationDictionary {
   "common.back": string;
   "common.year_singular": string;
   "common.year_plural": string;
+  "common.year_abbrev": string;
   "common.month_singular": string;
   "common.month_plural": string;
   "common.day_singular": string;

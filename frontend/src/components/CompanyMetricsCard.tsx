@@ -14,6 +14,9 @@ const METRIC_IDS = {
   liabToEquity: "liab-eq",
   debtToEarnings: "gross-debt-earnings",
   debtToFCF: "gross-debt-fcf",
+  currentPrice: "current-price",
+  marketCap: "market-cap",
+  yearsOfData: "years-of-data",
   pe10: "pe10",
   peg: "peg",
   cagrEarnings: "cagr-earnings",
@@ -869,6 +872,39 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
   return (
     <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
+      {/* ── Key stats ── */}
+      <div className="metrics-row">
+        <div id={METRIC_IDS.currentPrice} {...metricBlockProps(METRIC_IDS.currentPrice)}>
+          <ShareButton metricId={METRIC_IDS.currentPrice} years={years} />
+          <div className="metric-value-container">
+            <div className="pe10-label">{t("metrics.current_price")}</div>
+            <div className="pe10-value">
+              {currencySymbol(data.ticker)} {br(data.currentPrice, 2)}
+            </div>
+          </div>
+        </div>
+        <div id={METRIC_IDS.marketCap} {...metricBlockProps(METRIC_IDS.marketCap)}>
+          <ShareButton metricId={METRIC_IDS.marketCap} years={years} />
+          <div className="metric-value-container">
+            <div className="pe10-label">{t("metrics.market_cap")}</div>
+            <div className="pe10-value">
+              {data.marketCap !== null ? formatAmount(data.marketCap) : "N/A"}
+            </div>
+          </div>
+        </div>
+        <div id={METRIC_IDS.yearsOfData} {...metricBlockProps(METRIC_IDS.yearsOfData)}>
+          <ShareButton metricId={METRIC_IDS.yearsOfData} years={years} />
+          <div className="metric-value-container">
+            <div className="pe10-label">{t("metrics.years_of_data")}</div>
+            <div className="pe10-value">
+              {data.pe10YearsOfData === data.pfcf10YearsOfData
+                ? data.pe10YearsOfData
+                : `${data.pe10YearsOfData} / ${data.pfcf10YearsOfData}`}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Section: Dívida ── */}
       {isFinancial ? (
         <div className="card-section">
@@ -917,7 +953,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           <div id={METRIC_IDS.debtToEarnings} {...metricBlockProps(METRIC_IDS.debtToEarnings)}>
             <ShareButton metricId={METRIC_IDS.debtToEarnings} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
               {data.debtToAvgEarnings !== null ? (
                 <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
               ) : (
@@ -928,7 +964,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           <div id={METRIC_IDS.debtToFCF} {...metricBlockProps(METRIC_IDS.debtToFCF)}>
             <ShareButton metricId={METRIC_IDS.debtToFCF} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}a</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
               {data.debtToAvgFCF !== null ? (
                 <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
               ) : (
@@ -1021,29 +1057,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           {t("metrics.annual_warning")}
         </div>
       )}
-
-      <div className="pe10-details">
-        <div className="pe10-detail-item">
-          <div className="pe10-detail-label">{t("metrics.current_price")}</div>
-          <div className="pe10-detail-value">
-            {currencySymbol(data.ticker)} {br(data.currentPrice, 2)}
-          </div>
-        </div>
-        <div className="pe10-detail-item">
-          <div className="pe10-detail-label">{t("metrics.market_cap")}</div>
-          <div className="pe10-detail-value">
-            {data.marketCap !== null ? formatAmount(data.marketCap) : "N/A"}
-          </div>
-        </div>
-        <div className="pe10-detail-item">
-          <div className="pe10-detail-label">{t("metrics.years_of_data")}</div>
-          <div className="pe10-detail-value">
-            {data.pe10YearsOfData === data.pfcf10YearsOfData
-              ? data.pe10YearsOfData
-              : `${data.pe10YearsOfData} / ${data.pfcf10YearsOfData}`}
-          </div>
-        </div>
-      </div>
 
       {activeModal && (
         <Modal
