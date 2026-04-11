@@ -243,6 +243,33 @@ class TestTickerPeersEndpoint:
         assert response.status_code == 200
         assert response.json() == []
 
+    @patch("quotes.views.fetch_profile")
+    def test_lazy_fetches_sector_for_us_ticker(self, mock_fetch_profile, api_client, db):
+        """US tickers without sector should fetch it from FMP profile on demand."""
+        Ticker.objects.create(symbol="TEAM", name="Atlassian", sector="", type="stock")
+        Ticker.objects.create(symbol="CRM", name="Salesforce", sector="Technology", type="stock")
+        Ticker.objects.create(symbol="NOW", name="ServiceNow", sector="Technology", type="stock")
+        Ticker.objects.create(symbol="SNOW", name="Snowflake", sector="Technology", type="stock")
+
+        mock_fetch_profile.return_value = {"sector": "Technology", "industry": "Software"}
+
+        response = api_client.get("/api/tickers/TEAM/peers/")
+        assert response.status_code == 200
+        symbols = [p["symbol"] for p in response.json()]
+        assert "CRM" in symbols
+
+        # Sector should be saved to DB
+        team = Ticker.objects.get(symbol="TEAM")
+        assert team.sector == "Technology"
+
+    @patch("quotes.views.fetch_profile")
+    def test_lazy_fetch_does_not_apply_to_brazilian_tickers(self, mock_fetch_profile, api_client, db):
+        """Brazilian tickers should not trigger FMP profile fetch."""
+        Ticker.objects.create(symbol="TEST3", name="Test Co", sector="", type="stock")
+        response = api_client.get("/api/tickers/TEST3/peers/")
+        assert response.status_code == 200
+        mock_fetch_profile.assert_not_called()
+
     def test_deduplicates_on_pn_variants(self, api_client, db):
         Ticker.objects.create(symbol="PETR4", name="Petrobras", sector="Energy Minerals", type="stock")
         Ticker.objects.create(symbol="CSAN3", name="Cosan", sector="Energy Minerals", type="stock")
