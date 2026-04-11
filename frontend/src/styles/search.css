@@ -30,9 +30,9 @@
 
 .search-button {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply absolute right-1 top-1/2 -translate-y-1/2
+  @apply absolute right-0 top-0 bottom-0
     flex items-center justify-center
-    w-9 h-9 rounded-full
+    w-18 rounded-full
     transition-colors;
   background: #1b347e;
   color: #ffffff;
