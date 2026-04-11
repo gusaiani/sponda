@@ -77,9 +77,14 @@ class Migration(migrations.Migration):
                 "ordering": ["next_revisit"],
             },
         ),
-        migrations.RenameModel(
-            old_name="SavedComparison",
-            new_name="SavedList",
+        migrations.SeparateDatabaseAndState(
+            state_operations=[
+                migrations.RenameModel(
+                    old_name="SavedComparison",
+                    new_name="SavedList",
+                ),
+            ],
+            database_operations=[],  # Table keeps the same name via db_table
         ),
         migrations.AddIndex(
             model_name="companyvisit",
