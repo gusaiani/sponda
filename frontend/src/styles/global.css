@@ -22,7 +22,7 @@
 }
 
 .app-header {
-  @apply flex flex-col gap-2 px-4 py-2.5;
+  @apply flex items-center gap-4 px-4 py-2.5;
   background: #ffffff;
   position: relative;
   z-index: 100;
@@ -32,15 +32,6 @@
   .app-header {
     @apply px-6 py-3;
   }
-}
-
-.app-header-top {
-  @apply flex items-center justify-between gap-4;
-}
-
-.app-header-search-row {
-  @apply block;
-  margin-top: 10px;
 }
 
 .app-header-brand {
@@ -69,10 +60,6 @@
   color: var(--color-accent);
 }
 
-/* Search bar inside header — match .popular-grid alignment (max-w-3xl mx-auto) */
-.app-header-search-row .search-container {
-  @apply max-w-3xl mx-auto mb-0;
-}
 
 .app-main {
   @apply max-w-[880px] mx-auto px-4;

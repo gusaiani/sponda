@@ -1,11 +1,9 @@
 @reference "tailwindcss";
 
-.search-container {
-  @apply max-w-3xl mx-auto mb-8;
-}
-
 .search-form {
   @apply relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .search-input {

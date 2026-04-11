@@ -72,69 +72,67 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
   }, [selectedIndex]);
 
   return (
-    <div className="search-container">
-      <form className="search-form" role="search" onSubmit={handleSubmit}>
-        <input
-          ref={inputRef}
-          type="search"
-          className="search-input"
-          aria-label={t("search.aria_label")}
-          placeholder={t("search.placeholder")}
-          value={input}
-          onChange={(e) => handleChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => input.trim() && setShowDropdown(true)}
-          onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-          autoFocus={autoFocus}
-        />
-        <button
-          type="submit"
-          className="search-button"
-          disabled={isLoading || !input.trim()}
-        >
-          {isLoading ? (
-            "..."
-          ) : (
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          )}
-        </button>
-
-        {showDropdown && results.length > 0 && (
-          <div className="search-dropdown" ref={dropdownRef}>
-            {results.map((item, i) => (
-              <div
-                key={item.symbol}
-                className={`search-dropdown-item ${i === selectedIndex ? "search-dropdown-item--active" : ""}`}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  select(item);
-                }}
-                onMouseEnter={() => setSelectedIndex(i)}
-              >
-                <img
-                  className="search-dropdown-logo"
-                  src={logoUrl(item.symbol)}
-                  alt=""
-                  loading="lazy"
-                  onError={(e) => {
-                    const image = e.target as HTMLImageElement;
-                    if (image.src !== window.location.origin + "/favicon.svg") {
-                      image.src = "/favicon.svg";
-                    }
-                  }}
-                />
-                <span className="search-dropdown-symbol">{item.symbol}</span>
-                <span className="search-dropdown-name">
-                  {item.name !== item.symbol ? item.name : ""}
-                </span>
-              </div>
-            ))}
-          </div>
+    <form className="search-form" role="search" onSubmit={handleSubmit}>
+      <input
+        ref={inputRef}
+        type="search"
+        className="search-input"
+        aria-label={t("search.aria_label")}
+        placeholder={t("search.placeholder")}
+        value={input}
+        onChange={(e) => handleChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onFocus={() => input.trim() && setShowDropdown(true)}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+        autoFocus={autoFocus}
+      />
+      <button
+        type="submit"
+        className="search-button"
+        disabled={isLoading || !input.trim()}
+      >
+        {isLoading ? (
+          "..."
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
         )}
-      </form>
-    </div>
+      </button>
+
+      {showDropdown && results.length > 0 && (
+        <div className="search-dropdown" ref={dropdownRef}>
+          {results.map((item, i) => (
+            <div
+              key={item.symbol}
+              className={`search-dropdown-item ${i === selectedIndex ? "search-dropdown-item--active" : ""}`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                select(item);
+              }}
+              onMouseEnter={() => setSelectedIndex(i)}
+            >
+              <img
+                className="search-dropdown-logo"
+                src={logoUrl(item.symbol)}
+                alt=""
+                loading="lazy"
+                onError={(e) => {
+                  const image = e.target as HTMLImageElement;
+                  if (image.src !== window.location.origin + "/favicon.svg") {
+                    image.src = "/favicon.svg";
+                  }
+                }}
+              />
+              <span className="search-dropdown-symbol">{item.symbol}</span>
+              <span className="search-dropdown-name">
+                {item.name !== item.symbol ? item.name : ""}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </form>
   );
 }

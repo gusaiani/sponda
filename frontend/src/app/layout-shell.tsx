@@ -38,16 +38,12 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     <div className="app-container">
       {!isOnAuthPage && (
         <header className="app-header">
-          <div className="app-header-top">
-            <Link href={`/${locale}`} className="app-header-brand">
-              <span className="app-header-logo">SPONDA</span>
-              <span className="app-header-tagline">{t("header.tagline")}</span>
-            </Link>
-            <AuthHeader />
-          </div>
-          <div className="app-header-search-row">
-            <SearchBar onSearch={handleSearch} isLoading={false} />
-          </div>
+          <Link href={`/${locale}`} className="app-header-brand">
+            <span className="app-header-logo">SPONDA</span>
+            <span className="app-header-tagline">{t("header.tagline")}</span>
+          </Link>
+          <SearchBar onSearch={handleSearch} isLoading={false} />
+          <AuthHeader />
         </header>
       )}
       {isOnAuthPage && <AuthHeader />}
