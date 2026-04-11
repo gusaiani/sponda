@@ -201,7 +201,8 @@ interface Props {
 }
 
 export function FundamentalsTab({ ticker }: Props) {
-  const { data: rawData, isLoading, error } = useFundamentals(ticker, true);
+  const { data: response, isLoading, error } = useFundamentals(ticker, true);
+  const rawData = response?.years;
   const { t } = useTranslation();
   const [valueMode, setValueMode] = useState<ValueMode>("nominal");
   const columns = useMemo(() => getTranslatedColumns(t), [t]);

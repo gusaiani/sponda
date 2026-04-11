@@ -267,7 +267,8 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               maxYears={maxYears}
               onYearsChange={setYears}
               sector={currentTicker?.sector}
-              fundamentals={fundamentalsData}
+              fundamentals={fundamentalsData?.years}
+              quarterlyRatios={fundamentalsData?.quarterlyRatios}
               priceHistory={historyData?.prices}
             />
           )}

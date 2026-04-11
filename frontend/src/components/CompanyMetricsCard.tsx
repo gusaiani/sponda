@@ -7,6 +7,69 @@ import { useTranslation, type TranslationKey } from "../i18n";
 import { isBrazilianTicker } from "../utils/ticker";
 import { getSubsector } from "../utils/subsector";
 
+/* ── Exported helpers (tested in CompanyMetricsCard.test.ts) ── */
+
+export function buildMarketCapSeries(
+  priceHistory: { date: string; adjustedClose: number }[],
+  marketCap: number | null,
+  currentPrice: number,
+  years: number,
+): DataPoint[] {
+  if (!priceHistory.length || !marketCap || !currentPrice) return [];
+  const sharesOutstanding = marketCap / currentPrice;
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - years;
+  const filtered = priceHistory.filter(
+    (p) => parseInt(p.date.slice(0, 4), 10) > startYear,
+  );
+  if (!filtered.length) return [];
+  const step = Math.max(1, Math.floor(filtered.length / 150));
+  const series: DataPoint[] = [];
+  for (let i = 0; i < filtered.length; i += step) {
+    const point = filtered[i];
+    series.push({
+      label: point.date,
+      value: point.adjustedClose * sharesOutstanding,
+      yearTick: point.date.slice(2, 4),
+    });
+  }
+  const last = filtered[filtered.length - 1];
+  if (series[series.length - 1]?.label !== last.date) {
+    series.push({
+      label: last.date,
+      value: last.adjustedClose * sharesOutstanding,
+      yearTick: last.date.slice(2, 4),
+    });
+  }
+  return series;
+}
+
+export function buildQuarterlyRatioSeries(
+  quarterlyRatios: { date: string; debtToEquity: number | null; liabilitiesToEquity: number | null }[],
+  field: "debtToEquity" | "liabilitiesToEquity",
+  years: number,
+): DataPoint[] {
+  if (!quarterlyRatios.length) return [];
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - years;
+  const filtered = quarterlyRatios.filter(
+    (r) => parseInt(r.date.slice(0, 4), 10) > startYear && r[field] !== null,
+  );
+  return filtered.map((r) => ({
+    label: r.date,
+    value: r[field]!,
+    yearTick: r.date.slice(2, 4),
+  }));
+}
+
+export function formatYearsOfData(
+  pe10Years: number,
+  pfcf10Years: number,
+): string {
+  if (pe10Years === pfcf10Years) return String(pe10Years);
+  return `L: ${pe10Years} · FCL: ${pfcf10Years}`;
+}
+
 /* ── Metric IDs for sharing ── */
 
 const METRIC_IDS = {
@@ -240,6 +303,7 @@ interface CompanyMetricsCardProps {
   onYearsChange: (years: number) => void;
   sector?: string;
   fundamentals?: import("../hooks/useFundamentals").FundamentalsYear[];
+  quarterlyRatios?: import("../hooks/useFundamentals").QuarterlyBalanceRatio[];
   priceHistory?: { date: string; adjustedClose: number }[];
 }
 
@@ -843,7 +907,7 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: TFn, locale: string) => 
 
 /* ── Main Card ── */
 
-export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector, fundamentals, priceHistory }: CompanyMetricsCardProps) {
+export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector, fundamentals, quarterlyRatios, priceHistory }: CompanyMetricsCardProps) {
   const { t, pluralize, locale } = useTranslation();
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
@@ -904,17 +968,24 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       .sort((a, b) => a.year - b.year)
       .slice(-years);
 
-    const debtEquitySeries: DataPoint[] = sortedFundamentals
-      .filter((f) => f.debtToEquity !== null)
-      .map((f) => ({ label: String(f.year), value: f.debtToEquity! }));
+    const debtEquitySeries: DataPoint[] = buildQuarterlyRatioSeries(
+      quarterlyRatios ?? [],
+      "debtToEquity",
+      years,
+    );
 
-    const liabEquitySeries: DataPoint[] = sortedFundamentals
-      .filter((f) => f.liabilitiesToEquity !== null)
-      .map((f) => ({ label: String(f.year), value: f.liabilitiesToEquity! }));
+    const liabEquitySeries: DataPoint[] = buildQuarterlyRatioSeries(
+      quarterlyRatios ?? [],
+      "liabilitiesToEquity",
+      years,
+    );
 
-    const marketCapSeries: DataPoint[] = sortedFundamentals
-      .filter((f) => f.marketCap !== null)
-      .map((f) => ({ label: String(f.year), value: f.marketCap! }));
+    const marketCapSeries: DataPoint[] = buildMarketCapSeries(
+      priceHistory ?? [],
+      data.marketCap,
+      data.currentPrice,
+      years,
+    );
 
     // Weekly prices from daily price history
     const priceSeries: DataPoint[] = [];
@@ -963,7 +1034,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       [METRIC_IDS.debtToEarnings]: earningsSeries,
       [METRIC_IDS.debtToFCF]: fcfSeries,
     } as Record<string, DataPoint[]>;
-  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, fundamentals, priceHistory, years]);
+  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, data.marketCap, data.currentPrice, fundamentals, quarterlyRatios, priceHistory, years]);
 
   /* Highlight metric from URL hash */
   useEffect(() => {
@@ -1030,9 +1101,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           <div className="metric-value-container">
             <div className="pe10-label">{t("metrics.years_of_data")}</div>
             <div className="pe10-value">
-              {data.pe10YearsOfData === data.pfcf10YearsOfData
-                ? data.pe10YearsOfData
-                : `${data.pe10YearsOfData} / ${data.pfcf10YearsOfData}`}
+              {formatYearsOfData(data.pe10YearsOfData, data.pfcf10YearsOfData)}
             </div>
           </div>
         </div>
