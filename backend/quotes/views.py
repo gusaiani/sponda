@@ -27,9 +27,9 @@ from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
 
-PE10_CACHE_TTL = 4 * 60 * 60  # 4 hours
-FUNDAMENTALS_CACHE_TTL = 6 * 60 * 60  # 6 hours
-MULTIPLES_HISTORY_CACHE_TTL = 6 * 60 * 60  # 6 hours
+PE10_CACHE_TTL = 24 * 60 * 60  # 24 hours
+FUNDAMENTALS_CACHE_TTL = 24 * 60 * 60  # 24 hours
+MULTIPLES_HISTORY_CACHE_TTL = 24 * 60 * 60  # 24 hours
 
 
 def _clean_company_name(name: str) -> str:
