@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import "../styles/card.css";
 import "../styles/share-dropdown.css";
-import { MiniChart } from "./MiniChart";
+import { MiniChart, type DataPoint } from "./MiniChart";
 import { useTranslation, type TranslationKey } from "../i18n";
 import { isBrazilianTicker } from "../utils/ticker";
 import { getSubsector } from "../utils/subsector";
@@ -870,43 +870,80 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
   /* Build chart data arrays from calculation details & fundamentals */
   const chartData = useMemo(() => {
-    const earningsSeries = [...data.pe10CalculationDetails]
+    // Quarterly earnings (sorted chronologically)
+    const earningsSeries: DataPoint[] = [...data.pe10CalculationDetails]
       .reverse()
-      .map((y) => ({ year: y.year, value: y.adjustedNetIncome }));
+      .flatMap((y) =>
+        y.quarterlyDetail.length > 0
+          ? y.quarterlyDetail
+              .sort((a, b) => a.end_date.localeCompare(b.end_date))
+              .map((q) => ({
+                label: q.end_date.slice(0, 7),
+                value: q.net_income,
+                yearTick: String(y.year).slice(2),
+              }))
+          : [{ label: String(y.year), value: y.adjustedNetIncome }]
+      );
 
-    const fcfSeries = [...data.pfcf10CalculationDetails]
+    // Quarterly FCF (sorted chronologically)
+    const fcfSeries: DataPoint[] = [...data.pfcf10CalculationDetails]
       .reverse()
-      .map((y) => ({ year: y.year, value: y.adjustedFCF }));
+      .flatMap((y) =>
+        y.quarterlyDetail.length > 0
+          ? y.quarterlyDetail
+              .sort((a, b) => a.end_date.localeCompare(b.end_date))
+              .map((q) => ({
+                label: q.end_date.slice(0, 7),
+                value: q.fcf,
+                yearTick: String(y.year).slice(2),
+              }))
+          : [{ label: String(y.year), value: y.adjustedFCF }]
+      );
 
     const sortedFundamentals = (fundamentals ?? [])
       .sort((a, b) => a.year - b.year)
       .slice(-years);
 
-    const debtEquitySeries = sortedFundamentals
+    const debtEquitySeries: DataPoint[] = sortedFundamentals
       .filter((f) => f.debtToEquity !== null)
-      .map((f) => ({ year: f.year, value: f.debtToEquity! }));
+      .map((f) => ({ label: String(f.year), value: f.debtToEquity! }));
 
-    const liabEquitySeries = sortedFundamentals
+    const liabEquitySeries: DataPoint[] = sortedFundamentals
       .filter((f) => f.liabilitiesToEquity !== null)
-      .map((f) => ({ year: f.year, value: f.liabilitiesToEquity! }));
+      .map((f) => ({ label: String(f.year), value: f.liabilitiesToEquity! }));
 
-    const marketCapSeries = sortedFundamentals
+    const marketCapSeries: DataPoint[] = sortedFundamentals
       .filter((f) => f.marketCap !== null)
-      .map((f) => ({ year: f.year, value: f.marketCap! }));
+      .map((f) => ({ label: String(f.year), value: f.marketCap! }));
 
-    // Derive year-end prices from price history
-    const priceSeries: { year: number; value: number }[] = [];
+    // Weekly prices from daily price history
+    const priceSeries: DataPoint[] = [];
     if (priceHistory?.length) {
-      const byYear = new Map<number, number>();
-      for (const point of priceHistory) {
-        const year = parseInt(point.date.slice(0, 4), 10);
-        byYear.set(year, point.adjustedClose);
-      }
       const currentYear = new Date().getFullYear();
       const startYear = currentYear - years;
-      for (const [year, price] of [...byYear.entries()].sort((a, b) => a[0] - b[0])) {
-        if (year > startYear) {
-          priceSeries.push({ year, value: price });
+      const filtered = priceHistory.filter(
+        (p) => parseInt(p.date.slice(0, 4), 10) > startYear
+      );
+      // Sample to weekly (~1 per 5 trading days)
+      const step = Math.max(1, Math.floor(filtered.length / 150));
+      for (let i = 0; i < filtered.length; i += step) {
+        const point = filtered[i];
+        const yearStr = point.date.slice(2, 4);
+        priceSeries.push({
+          label: point.date,
+          value: point.adjustedClose,
+          yearTick: yearStr,
+        });
+      }
+      // Always include the last point
+      if (filtered.length > 0) {
+        const last = filtered[filtered.length - 1];
+        if (priceSeries[priceSeries.length - 1]?.label !== last.date) {
+          priceSeries.push({
+            label: last.date,
+            value: last.adjustedClose,
+            yearTick: last.date.slice(2, 4),
+          });
         }
       }
     }
@@ -925,7 +962,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       [METRIC_IDS.liabToEquity]: liabEquitySeries,
       [METRIC_IDS.debtToEarnings]: earningsSeries,
       [METRIC_IDS.debtToFCF]: fcfSeries,
-    } as Record<string, { year: number; value: number }[]>;
+    } as Record<string, DataPoint[]>;
   }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, fundamentals, priceHistory, years]);
 
   /* Highlight metric from URL hash */

@@ -1,7 +1,13 @@
 import { ResponsiveContainer, LineChart, Line, XAxis, Tooltip } from "recharts";
 
+interface DataPoint {
+  label: string;
+  value: number;
+  yearTick?: string;
+}
+
 interface MiniChartProps {
-  data: { year: number; value: number }[];
+  data: DataPoint[];
   color?: string;
   height?: number;
   formatValue?: (value: number) => string;
@@ -16,18 +22,20 @@ function defaultFormat(value: number): string {
 
 function MiniTooltipContent({ active, payload, formatValue }: {
   active?: boolean;
-  payload?: { value: number; payload: { year: number } }[];
+  payload?: { value: number; payload: DataPoint }[];
   formatValue: (value: number) => string;
 }) {
   if (!active || !payload?.length) return null;
   const point = payload[0];
   return (
     <div className="mini-chart-tooltip">
-      <span className="mini-chart-tooltip-year">{point.payload.year}</span>
+      <span className="mini-chart-tooltip-year">{point.payload.label}</span>
       <span className="mini-chart-tooltip-value">{formatValue(point.value)}</span>
     </div>
   );
 }
+
+export type { DataPoint };
 
 export function MiniChart({
   data,
@@ -37,19 +45,51 @@ export function MiniChart({
 }: MiniChartProps) {
   if (data.length < 2) return null;
 
-  const tickInterval = data.length > 6 ? 1 : 0;
+  // Add numeric index for x-axis positioning
+  const indexed = data.map((d, i) => ({ ...d, idx: i }));
+
+  // Build year boundary ticks from yearTick field
+  const hasYearTicks = data[0]?.yearTick !== undefined;
+  let ticks: number[] = [];
+
+  if (hasYearTicks) {
+    let lastTick = "";
+    for (let i = 0; i < data.length; i++) {
+      const tick = data[i].yearTick ?? "";
+      if (tick !== lastTick) {
+        ticks.push(i);
+        lastTick = tick;
+      }
+    }
+    // Thin out if too many
+    if (ticks.length > 8) {
+      const step = Math.ceil(ticks.length / 6);
+      ticks = ticks.filter((_, i) => i % step === 0);
+    }
+  }
+
+  const simpleMode = !hasYearTicks;
+  const tickInterval = simpleMode && data.length > 6 ? 1 : 0;
 
   return (
     <div className="mini-chart">
       <ResponsiveContainer width="100%" height={height ?? "100%"}>
-        <LineChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+        <LineChart data={indexed} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
           <XAxis
-            dataKey="year"
+            dataKey="idx"
+            type="number"
+            domain={[0, data.length - 1]}
             tickLine={false}
             axisLine={false}
             tick={{ fontSize: 9, fill: "#5570a0" }}
-            interval={tickInterval}
-            tickFormatter={(year: number) => String(year).slice(2)}
+            ticks={hasYearTicks ? ticks : undefined}
+            interval={simpleMode ? tickInterval : undefined}
+            tickFormatter={(idx: number) => {
+              const point = data[idx];
+              if (!point) return "";
+              if (hasYearTicks) return point.yearTick ?? "";
+              return String(point.label).slice(2);
+            }}
           />
           <Tooltip
             content={<MiniTooltipContent formatValue={formatValue} />}
