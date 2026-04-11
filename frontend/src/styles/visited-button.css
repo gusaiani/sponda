@@ -66,6 +66,29 @@
   min-width: 280px;
 }
 
+/* Existing schedule summary */
+.visited-existing-schedule {
+  @apply grid gap-1 mb-3;
+  grid-template-columns: auto 1fr;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f5f7fa;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.visited-existing-label {
+  font-size: 11px;
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+.visited-existing-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  text-align: right;
+}
+
 .visited-note-input {
   font-family: 'Inter', system-ui, sans-serif;
   @apply w-full text-sm rounded-md;

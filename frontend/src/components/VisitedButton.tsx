@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
-import { useVisits } from "../hooks/useVisits";
+import { useVisits, useRevisitSchedules } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import "../styles/visited-button.css";
@@ -24,6 +24,7 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { visits, isVisitedToday, markVisited } = useVisits();
+  const { getScheduleForTicker } = useRevisitSchedules();
   const queryClient = useQueryClient();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -132,6 +133,25 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
 
         {expanded && isAuthenticated && (
           <div className="visited-expand">
+            {(() => {
+              const existingSchedule = getScheduleForTicker(ticker);
+              if (!existingSchedule) return null;
+              const recurrenceLabel = RECURRENCE_OPTIONS.find(
+                (option) => option.value === String(existingSchedule.recurrence_days),
+              );
+              return (
+                <div className="visited-existing-schedule">
+                  <div className="visited-existing-label">{t("visits.next_revisit")}</div>
+                  <div className="visited-existing-value">{existingSchedule.next_revisit}</div>
+                  {recurrenceLabel && existingSchedule.recurrence_days && (
+                    <>
+                      <div className="visited-existing-label">{t("visits.recurrence")}</div>
+                      <div className="visited-existing-value">{t(recurrenceLabel.labelKey)}</div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <textarea
               className="visited-note-input"
               placeholder={t("visits.add_note")}
