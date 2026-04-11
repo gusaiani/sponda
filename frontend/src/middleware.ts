@@ -52,7 +52,12 @@ function correctSlugForLocale(locale: string, slug: string): string | null {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Proxy API, OG images, sitemap, and admin to Django
+  // 1. Google OAuth callback — locale-free, served by Next.js (not Django)
+  if (pathname.startsWith("/google/callback")) {
+    return NextResponse.next();
+  }
+
+  // 2. Proxy API, OG images, sitemap, and admin to Django
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/og/") ||
@@ -64,7 +69,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(target, { request: { headers } });
   }
 
-  // 2. Already locale-prefixed: validate and handle cross-locale tab slugs
+  // 3. Already locale-prefixed: validate and handle cross-locale tab slugs
   const segments = pathname.split("/").filter(Boolean);
   const firstSegment = segments[0];
 
@@ -86,7 +91,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Bare URL → redirect to locale-prefixed version
+  // 4. Bare URL → redirect to locale-prefixed version
   // Priority: saved cookie preference > Accept-Language header > default
   const cookieLocale = request.cookies.get("sponda-lang")?.value;
   const locale = (cookieLocale && isSupportedLocale(cookieLocale))
