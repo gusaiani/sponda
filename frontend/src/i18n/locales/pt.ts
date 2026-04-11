@@ -11,6 +11,7 @@ export const pt: TranslationDictionary = {
   "common.back": "Voltar",
   "common.year_singular": "ano",
   "common.year_plural": "anos",
+  "common.year_abbrev": "a",
   "common.month_singular": "m\u00eas",
   "common.month_plural": "meses",
   "common.day_singular": "dia",

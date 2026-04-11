@@ -11,6 +11,7 @@ export const it: TranslationDictionary = {
   "common.back": "Indietro",
   "common.year_singular": "anno",
   "common.year_plural": "anni",
+  "common.year_abbrev": "a",
   "common.month_singular": "mese",
   "common.month_plural": "mesi",
   "common.day_singular": "giorno",

@@ -11,6 +11,7 @@ export const zh: TranslationDictionary = {
   "common.back": "返回",
   "common.year_singular": "年",
   "common.year_plural": "年",
+  "common.year_abbrev": "年",
   "common.month_singular": "个月",
   "common.month_plural": "个月",
   "common.day_singular": "天",
