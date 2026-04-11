@@ -848,8 +848,9 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
   const [showGraphs, setShowGraphs] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem("sponda:showGraphs") === "true";
+    if (typeof window === "undefined") return true;
+    const stored = localStorage.getItem("sponda:showGraphs");
+    return stored === null ? true : stored === "true";
   });
   const formatAmount = makeFormatAmount(data.ticker);
 
