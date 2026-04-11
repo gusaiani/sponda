@@ -50,6 +50,8 @@ const CompanyAnalysis = dynamic(
   { ssr: false }
 );
 import { FavoriteButton } from "../../../components/FavoriteButton";
+import { VisitedButton } from "../../../components/VisitedButton";
+import { RevisitBanner } from "../../../components/RevisitBanner";
 import { ShareButtons } from "../../../components/ShareButtons";
 import { usePE10, fetchQuote, type QuoteResult } from "../../../hooks/usePE10";
 import { useTickerDetail } from "../../../hooks/useTickerDetail";
@@ -192,8 +194,11 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
             <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker}</span></h2>
           </div>
           <FavoriteButton ticker={upperTicker} />
+          <VisitedButton ticker={upperTicker} />
         </div>
       )}
+
+      {!isLoading && !error && <RevisitBanner ticker={upperTicker} />}
 
       {/* Tab bar: tabs flush left, slider flush right */}
       {!isLoading && !error && (

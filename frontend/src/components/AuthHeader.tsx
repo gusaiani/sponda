@@ -3,6 +3,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
 import { useTranslation, LanguageToggle } from "../i18n";
 import { ShareDropdown } from "./ShareDropdown";
+import { NotificationBell } from "./NotificationBell";
 import "../styles/auth-header.css";
 
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
@@ -28,6 +29,7 @@ export function AuthHeader() {
   return (
     <div className="auth-header">
       <ShareDropdown />
+      <NotificationBell />
       <LanguageToggle />
       {isAuthenticated ? (
         <>

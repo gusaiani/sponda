@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import FavoriteCompany, SavedList
+from .models import CompanyVisit, FavoriteCompany, RevisitSchedule, SavedList
 
 User = get_user_model()
 
@@ -64,6 +64,30 @@ class SavedListSerializer(serializers.ModelSerializer):
         model = SavedList
         fields = ("id", "name", "tickers", "years", "display_order", "share_token", "created_at", "updated_at")
         read_only_fields = ("id", "share_token", "created_at", "updated_at")
+
+
+class CompanyVisitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyVisit
+        fields = ("id", "ticker", "visited_at", "note", "created_at")
+        read_only_fields = ("id", "created_at")
+
+
+class RevisitScheduleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RevisitSchedule
+        fields = ("id", "ticker", "next_revisit", "recurrence_days", "share_token", "notified_at", "created_at", "updated_at")
+        read_only_fields = ("id", "share_token", "notified_at", "created_at", "updated_at")
+
+
+class MarkVisitedSerializer(serializers.Serializer):
+    ticker = serializers.CharField(max_length=10)
+    note = serializers.CharField(required=False, default="", allow_blank=True)
+    next_revisit = serializers.DateField(required=False)
+    recurrence_days = serializers.ChoiceField(
+        choices=[30, 90, 182, 365],
+        required=False,
+    )
 
 
 class FeedbackSerializer(serializers.Serializer):

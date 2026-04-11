@@ -13,14 +13,19 @@ from rest_framework.views import APIView
 from quotes.models import LookupLog
 
 from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
-from .models import EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
+from datetime import date, timedelta
+
+from .models import CompanyVisit, EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, RevisitSchedule, SavedList, UserOperation
 from .serializers import (
     ChangePasswordSerializer,
+    CompanyVisitSerializer,
     FavoriteCompanySerializer,
     FeedbackSerializer,
     ForgotPasswordSerializer,
     LoginSerializer,
+    MarkVisitedSerializer,
     ResetPasswordSerializer,
+    RevisitScheduleSerializer,
     SavedListSerializer,
     SignupSerializer,
 )
@@ -610,6 +615,172 @@ class FavoriteDetailView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         UserOperation.record(request.user, "unfavorite")
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ── Company Visits ──
+
+
+class MarkVisitedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
+        serializer = MarkVisitedSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        ticker = serializer.validated_data["ticker"].upper()
+        note = serializer.validated_data.get("note", "")
+        today = date.today()
+
+        visit, _ = CompanyVisit.objects.get_or_create(
+            user=request.user,
+            ticker=ticker,
+            visited_at=today,
+            defaults={"note": note},
+        )
+        if note and not visit.note:
+            visit.note = note
+            visit.save(update_fields=["note"])
+
+        result = {"visit": CompanyVisitSerializer(visit).data, "schedule": None}
+
+        next_revisit = serializer.validated_data.get("next_revisit")
+        recurrence_days = serializer.validated_data.get("recurrence_days")
+
+        if next_revisit:
+            schedule, _ = RevisitSchedule.objects.update_or_create(
+                user=request.user,
+                ticker=ticker,
+                defaults={
+                    "next_revisit": next_revisit,
+                    "recurrence_days": recurrence_days,
+                    "share_token": RevisitSchedule.generate_share_token(),
+                },
+            )
+            result["schedule"] = RevisitScheduleSerializer(schedule).data
+        else:
+            # If a recurring schedule exists, bump it forward
+            try:
+                schedule = RevisitSchedule.objects.get(user=request.user, ticker=ticker)
+                if schedule.recurrence_days:
+                    schedule.next_revisit = today + timedelta(days=schedule.recurrence_days)
+                    schedule.notified_at = None
+                    schedule.save(update_fields=["next_revisit", "notified_at"])
+                result["schedule"] = RevisitScheduleSerializer(schedule).data
+            except RevisitSchedule.DoesNotExist:
+                pass
+
+        UserOperation.record(request.user, "mark_visited")
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+class VisitListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        visits = CompanyVisit.objects.filter(user=request.user)
+        ticker = request.query_params.get("ticker")
+        if ticker:
+            visits = visits.filter(ticker=ticker.upper())
+        serializer = CompanyVisitSerializer(visits, many=True)
+        return Response(serializer.data)
+
+
+class VisitDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        try:
+            visit = CompanyVisit.objects.get(pk=pk, user=request.user)
+        except CompanyVisit.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        note = request.data.get("note")
+        if note is not None:
+            visit.note = note
+            visit.save(update_fields=["note"])
+        return Response(CompanyVisitSerializer(visit).data)
+
+    def delete(self, request, pk):
+        deleted, _ = CompanyVisit.objects.filter(pk=pk, user=request.user).delete()
+        if not deleted:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RevisitScheduleListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        schedules = RevisitSchedule.objects.filter(user=request.user)
+        if request.query_params.get("status") == "due":
+            schedules = schedules.filter(next_revisit__lte=date.today())
+        serializer = RevisitScheduleSerializer(schedules, many=True)
+        return Response(serializer.data)
+
+
+class RevisitScheduleDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        try:
+            schedule = RevisitSchedule.objects.get(pk=pk, user=request.user)
+        except RevisitSchedule.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        next_revisit = request.data.get("next_revisit")
+        recurrence_days = request.data.get("recurrence_days")
+
+        if next_revisit is not None:
+            schedule.next_revisit = next_revisit
+        if recurrence_days is not None:
+            schedule.recurrence_days = recurrence_days
+        schedule.save()
+        return Response(RevisitScheduleSerializer(schedule).data)
+
+    def delete(self, request, pk):
+        deleted, _ = RevisitSchedule.objects.filter(pk=pk, user=request.user).delete()
+        if not deleted:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SharedVisitsView(APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, token):
+        try:
+            schedule = RevisitSchedule.objects.select_related("user").get(share_token=token)
+        except RevisitSchedule.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        visits = CompanyVisit.objects.filter(user=schedule.user, ticker=schedule.ticker)
+        return Response({
+            "ticker": schedule.ticker,
+            "next_revisit": schedule.next_revisit,
+            "recurrence_days": schedule.recurrence_days,
+            "shared_by": schedule.user.email,
+            "visits": CompanyVisitSerializer(visits, many=True).data,
+        })
+
+
+class PendingRemindersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        due_schedules = RevisitSchedule.objects.filter(
+            user=request.user,
+            next_revisit__lte=date.today(),
+        )
+        serializer = RevisitScheduleSerializer(due_schedules, many=True)
+        return Response({
+            "count": due_schedules.count(),
+            "schedules": serializer.data,
+        })
 
 
 # ── Saved Lists ──

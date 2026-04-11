@@ -1,0 +1,169 @@
+@reference "tailwindcss";
+
+.visits-page {
+  @apply max-w-3xl mx-auto;
+}
+
+.visits-page-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-semibold mb-6;
+  color: var(--color-ink);
+}
+
+.visits-page-loading,
+.visits-page-text {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm;
+  color: var(--color-muted);
+}
+
+.visits-section {
+  @apply mb-8;
+}
+
+.visits-section-header {
+  @apply flex items-center justify-between mb-3;
+}
+
+.visits-section-heading {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm font-semibold uppercase;
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+}
+
+.visits-empty {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm italic;
+  color: var(--color-muted);
+  padding: 16px 0;
+}
+
+.visits-grid {
+  @apply grid gap-2;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+/* Schedule card */
+.visit-card {
+  @apply flex items-center gap-3 rounded-lg no-underline;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f5f7fb;
+  padding: 12px 16px;
+  transition: background 0.15s;
+}
+
+.visit-card:hover {
+  background: #eaeff8;
+}
+
+.visit-card-logo {
+  @apply w-6 h-6 rounded-full object-cover flex-shrink-0;
+}
+
+.visit-card-info {
+  @apply flex flex-col flex-1 min-w-0;
+}
+
+.visit-card-ticker {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.visit-card-date {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.visit-card-badge {
+  @apply text-xs font-medium whitespace-nowrap rounded-full;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 2px 8px;
+}
+
+.visit-card-badge-overdue {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.visit-card-recurrence {
+  @apply text-xs;
+  color: var(--color-muted);
+}
+
+/* Visit history row */
+.visit-row {
+  @apply flex items-center gap-3 no-underline;
+  font-family: 'Inter', system-ui, sans-serif;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.visit-row:last-child {
+  border-bottom: none;
+}
+
+.visit-row:hover .visit-row-ticker {
+  color: var(--color-accent);
+}
+
+.visit-row-logo {
+  @apply w-5 h-5 rounded-full object-cover flex-shrink-0;
+}
+
+.visit-row-ticker {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  min-width: 60px;
+  transition: color 0.15s;
+}
+
+.visit-row-date {
+  font-size: 12px;
+  color: var(--color-muted);
+  min-width: 80px;
+}
+
+.visit-row-note {
+  @apply truncate;
+  font-size: 12px;
+  color: var(--color-muted);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Group by company */
+.visits-company-group {
+  @apply mb-4;
+}
+
+.visits-company-heading {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm font-semibold mb-1;
+  color: var(--color-ink);
+}
+
+/* Group toggle button */
+.visits-group-toggle {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs cursor-pointer whitespace-nowrap;
+  color: var(--color-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.visits-group-toggle:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.visits-group-toggle-active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}

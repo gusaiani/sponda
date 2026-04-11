@@ -406,4 +406,32 @@ export const pt: TranslationDictionary = {
 
   /* ── Language Toggle ── */
   "language.toggle_label": "Idioma",
+
+  /* ── Visits ── */
+  "visits.mark_visited": "Marcar como visitada",
+  "visits.visited_today": "Visitada hoje",
+  "visits.add_note": "Adicionar nota...",
+  "visits.schedule_revisit": "Agendar revisita",
+  "visits.next_revisit": "Pr\u00f3xima revisita",
+  "visits.recurrence": "Repetir",
+  "visits.recurrence_none": "N\u00e3o repetir",
+  "visits.recurrence_30d": "A cada 30 dias",
+  "visits.recurrence_90d": "A cada 90 dias",
+  "visits.recurrence_6mo": "A cada 6 meses",
+  "visits.recurrence_1yr": "A cada ano",
+  "visits.save": "Salvar",
+  "visits.upcoming": "Pr\u00f3ximas revisitas",
+  "visits.history": "Hist\u00f3rico de visitas",
+  "visits.group_by_company": "Agrupar por empresa",
+  "visits.no_visits": "Nenhuma visita ainda",
+  "visits.no_upcoming": "Nenhuma revisita agendada",
+  "visits.due_today": "Vence hoje",
+  "visits.overdue": "Atrasada",
+  "visits.days_overdue": "{count} dias de atraso",
+  "visits.page_title": "Visitas",
+  "visits.must_login": "Fa\u00e7a login para acompanhar suas visitas.",
+  "visits.banner_due": "Voc\u00ea agendou uma revisita para esta empresa hoje",
+  "visits.banner_overdue": "Sua revisita para esta empresa estava agendada para {date}",
+  "notifications.title": "Notifica\u00e7\u00f5es",
+  "notifications.no_pending": "Nenhum lembrete pendente",
 };
