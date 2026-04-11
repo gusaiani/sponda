@@ -69,8 +69,13 @@ def fetch_balance_sheets(ticker: str) -> list[dict]:
 
 
 def fetch_historical_prices(ticker: str) -> list[dict]:
-    """Fetch historical daily prices for a US ticker."""
-    data = _get("/stable/historical-price-eod/full", params={"symbol": ticker})
+    """Fetch historical daily prices for a US ticker.
+
+    Requests data from 2000-01-01 onward so that historical market cap
+    can be estimated for all years with fundamental data available.
+    Without the 'from' parameter, FMP returns only the last ~5 years.
+    """
+    data = _get("/stable/historical-price-eod/full", params={"symbol": ticker, "from": "2000-01-01"})
     if not isinstance(data, list) or not data:
         raise FMPError(f"No historical price data for ticker {ticker}")
     return data

@@ -219,6 +219,15 @@ class TestFetchHistoricalPrices:
         assert result[0]["close"] == 178.5
 
     @patch("quotes.fmp._get")
+    def test_requests_full_history_from_2000(self, mock_get):
+        mock_get.return_value = MOCK_HISTORICAL_PRICES
+        fetch_historical_prices("AAPL")
+        mock_get.assert_called_once_with(
+            "/stable/historical-price-eod/full",
+            params={"symbol": "AAPL", "from": "2000-01-01"},
+        )
+
+    @patch("quotes.fmp._get")
     def test_raises_on_empty_results(self, mock_get):
         mock_get.return_value = []
         with pytest.raises(FMPError, match="No historical"):

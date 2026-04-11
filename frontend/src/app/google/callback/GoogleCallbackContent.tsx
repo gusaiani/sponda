@@ -1,24 +1,24 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useTranslation } from "../../../../i18n";
+import { isSupportedLocale, DEFAULT_LOCALE } from "../../../lib/i18n-config";
 
-function GoogleCallbackContent() {
+export function GoogleCallbackContent() {
   const searchParams = useSearchParams();
-  const { locale } = useTranslation();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const code = searchParams.get("code");
 
     if (!code) {
-      setError("Código de autorização não recebido do Google.");
+      setError("No authorization code received from Google.");
       return;
     }
 
-    const redirectUri = `${window.location.origin}/${locale}/google/callback`;
+    const stateLocale = searchParams.get("state") || "";
+    const locale = isSupportedLocale(stateLocale) ? stateLocale : DEFAULT_LOCALE;
+    const redirectUri = `${window.location.origin}/google/callback`;
 
     fetch("/api/auth/google/", {
       method: "POST",
@@ -29,7 +29,7 @@ function GoogleCallbackContent() {
       .then((response) => {
         if (!response.ok) {
           return response.json().then((data) => {
-            throw new Error(data.error || "Erro na autenticação com Google");
+            throw new Error(data.error || "Google authentication failed");
           });
         }
         return response.json();
@@ -46,13 +46,11 @@ function GoogleCallbackContent() {
     return (
       <div className="auth-container">
         <div className="auth-card">
-          <Link href={`/${locale}`} className="auth-logo-link">
-            <span className="auth-logo">SPONDA</span>
-          </Link>
-          <h1 className="auth-title">Erro</h1>
+          <span className="auth-logo">SPONDA</span>
+          <h1 className="auth-title">Error</h1>
           <p className="auth-error">{error}</p>
           <p className="auth-link">
-            <Link href={`/${locale}/login`}>Tentar novamente</Link>
+            <a href="/en/login">Try again</a>
           </p>
         </div>
       </div>
@@ -62,16 +60,8 @@ function GoogleCallbackContent() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <p className="auth-success-text">Autenticando com Google…</p>
+        <p className="auth-success-text">Authenticating with Google...</p>
       </div>
     </div>
-  );
-}
-
-export default function GoogleCallbackPage() {
-  return (
-    <Suspense fallback={<div className="auth-container"><div className="auth-card"><p className="auth-success-text">Carregando…</p></div></div>}>
-      <GoogleCallbackContent />
-    </Suspense>
   );
 }
