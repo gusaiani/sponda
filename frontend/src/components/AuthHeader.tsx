@@ -33,6 +33,9 @@ export function AuthHeader() {
       <LanguageToggle />
       {isAuthenticated ? (
         <>
+          <Link href={`/${locale}/visitas`} className="auth-header-link">
+            {t("visits.page_title")}
+          </Link>
           {isSuperuser && (
             <Link href={`/${locale}/admin-dashboard`} className="auth-header-link auth-header-admin">
               Admin

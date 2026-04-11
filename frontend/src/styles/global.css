@@ -37,6 +37,7 @@
 .app-header-brand {
   @apply flex flex-col no-underline;
   flex-shrink: 0;
+  margin-right: 40px;
 }
 
 .app-header-logo {
