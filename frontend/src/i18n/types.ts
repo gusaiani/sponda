@@ -406,6 +406,34 @@ export interface TranslationDictionary {
 
   /* ── Language Toggle ── */
   "language.toggle_label": string;
+
+  /* ── Visits ── */
+  "visits.mark_visited": string;
+  "visits.visited_today": string;
+  "visits.add_note": string;
+  "visits.schedule_revisit": string;
+  "visits.next_revisit": string;
+  "visits.recurrence": string;
+  "visits.recurrence_none": string;
+  "visits.recurrence_30d": string;
+  "visits.recurrence_90d": string;
+  "visits.recurrence_6mo": string;
+  "visits.recurrence_1yr": string;
+  "visits.save": string;
+  "visits.upcoming": string;
+  "visits.history": string;
+  "visits.group_by_company": string;
+  "visits.no_visits": string;
+  "visits.no_upcoming": string;
+  "visits.due_today": string;
+  "visits.overdue": string;
+  "visits.days_overdue": string;
+  "visits.page_title": string;
+  "visits.must_login": string;
+  "visits.banner_due": string;
+  "visits.banner_overdue": string;
+  "notifications.title": string;
+  "notifications.no_pending": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

@@ -406,4 +406,32 @@ export const en: TranslationDictionary = {
 
   /* ── Language Toggle ── */
   "language.toggle_label": "Language",
+
+  /* ── Visits ── */
+  "visits.mark_visited": "Mark as visited",
+  "visits.visited_today": "Visited today",
+  "visits.add_note": "Add a note...",
+  "visits.schedule_revisit": "Schedule revisit",
+  "visits.next_revisit": "Next revisit",
+  "visits.recurrence": "Repeat",
+  "visits.recurrence_none": "Don't repeat",
+  "visits.recurrence_30d": "Every 30 days",
+  "visits.recurrence_90d": "Every 90 days",
+  "visits.recurrence_6mo": "Every 6 months",
+  "visits.recurrence_1yr": "Every year",
+  "visits.save": "Save",
+  "visits.upcoming": "Upcoming revisits",
+  "visits.history": "Visit history",
+  "visits.group_by_company": "Group by company",
+  "visits.no_visits": "No visits yet",
+  "visits.no_upcoming": "No upcoming revisits",
+  "visits.due_today": "Due today",
+  "visits.overdue": "Overdue",
+  "visits.days_overdue": "{count} days overdue",
+  "visits.page_title": "Visits",
+  "visits.must_login": "Log in to track your company visits.",
+  "visits.banner_due": "You scheduled a revisit for this company today",
+  "visits.banner_overdue": "Your scheduled revisit for this company was due on {date}",
+  "notifications.title": "Notifications",
+  "notifications.no_pending": "No pending reminders",
 };

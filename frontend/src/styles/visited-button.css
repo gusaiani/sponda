@@ -1,0 +1,99 @@
+@reference "tailwindcss";
+
+.visited-button-wrapper {
+  position: relative;
+}
+
+.visited-button {
+  @apply bg-transparent border-none cursor-pointer leading-none p-1 transition-all;
+  color: var(--color-muted);
+  position: relative;
+  top: 2px;
+}
+
+.visited-button:hover {
+  color: var(--color-accent);
+  transform: scale(1.2);
+}
+
+.visited-button-active {
+  color: #16a34a;
+}
+
+.visited-button-active:hover {
+  color: #15803d;
+  transform: scale(1.2);
+}
+
+/* Expandable detail area */
+.visited-expand {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  min-width: 280px;
+}
+
+.visited-note-input {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply w-full text-sm rounded-md;
+  border: 1px solid var(--color-border);
+  padding: 8px;
+  color: var(--color-ink);
+  resize: vertical;
+}
+
+.visited-note-input::placeholder {
+  color: var(--color-muted);
+}
+
+.visited-note-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.visited-schedule-row {
+  @apply flex gap-3 mt-3;
+}
+
+.visited-schedule-label {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply flex flex-col gap-1 text-xs;
+  color: var(--color-muted);
+  flex: 1;
+}
+
+.visited-date-input,
+.visited-recurrence-select {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm rounded-md;
+  border: 1px solid var(--color-border);
+  padding: 6px 8px;
+  color: var(--color-ink);
+  background: #ffffff;
+}
+
+.visited-date-input:focus,
+.visited-recurrence-select:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.visited-save-button {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply w-full text-sm font-medium rounded-md cursor-pointer mt-3;
+  background: var(--color-accent);
+  color: #ffffff;
+  border: none;
+  padding: 8px;
+  transition: background 0.15s;
+}
+
+.visited-save-button:hover {
+  background: #1b347e;
+}

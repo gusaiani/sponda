@@ -1,5 +1,6 @@
 import hashlib
 import secrets
+from datetime import date
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -154,6 +155,55 @@ class SavedList(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.user.email})"
+
+    @classmethod
+    def generate_share_token(cls):
+        return secrets.token_urlsafe(24)
+
+
+class CompanyVisit(models.Model):
+    """Records each company visit by an analyst. One entry per user+ticker+date."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="visits")
+    ticker = models.CharField(max_length=10)
+    visited_at = models.DateField(default=date.today)
+    note = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "ticker", "visited_at")
+        ordering = ["-visited_at"]
+        indexes = [models.Index(fields=["user", "-visited_at"])]
+
+    def __str__(self):
+        return f"{self.user.email} visited {self.ticker} on {self.visited_at}"
+
+
+class RevisitSchedule(models.Model):
+    """Tracks the next revisit date and optional recurrence for a user+ticker pair."""
+
+    RECURRENCE_CHOICES = [
+        (30, "Every 30 days"),
+        (90, "Every 90 days"),
+        (182, "Every 6 months"),
+        (365, "Every year"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="revisit_schedules")
+    ticker = models.CharField(max_length=10)
+    next_revisit = models.DateField()
+    recurrence_days = models.PositiveIntegerField(null=True, blank=True)
+    share_token = models.CharField(max_length=32, unique=True, db_index=True)
+    notified_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "ticker")
+        ordering = ["next_revisit"]
+
+    def __str__(self):
+        return f"{self.user.email} revisit {self.ticker} on {self.next_revisit}"
 
     @classmethod
     def generate_share_token(cls):

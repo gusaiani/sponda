@@ -1,0 +1,34 @@
+@reference "tailwindcss";
+
+.revisit-banner {
+  @apply flex items-center justify-between gap-3 rounded-lg mb-4;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 10px 16px;
+}
+
+.revisit-banner-overdue {
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.revisit-banner-text {
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.revisit-banner-action {
+  @apply whitespace-nowrap cursor-pointer;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.revisit-banner-action:hover {
+  text-decoration: underline;
+}
