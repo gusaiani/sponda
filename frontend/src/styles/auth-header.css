@@ -1,8 +1,14 @@
 @reference "tailwindcss";
 
 .auth-header {
-  @apply flex items-center gap-3;
+  @apply flex items-center gap-1;
   animation: auth-header-fade-in 0.3s ease both;
+}
+
+@media (min-width: 640px) {
+  .auth-header {
+    gap: 12px;
+  }
 }
 
 .auth-header-link {
@@ -14,8 +20,14 @@
   background: transparent;
   border: none;
   border-radius: 6px;
-  padding: 7px 12px;
+  padding: 7px 8px;
   transition: background 0.15s, color 0.15s;
+}
+
+@media (min-width: 640px) {
+  .auth-header-link {
+    padding: 7px 12px;
+  }
 }
 
 .auth-header-link:hover {
@@ -53,9 +65,15 @@
   background: transparent;
   border: none;
   border-radius: 6px;
-  padding: 7px 12px;
+  padding: 7px 8px;
   font-weight: 500;
   transition: background 0.15s, color 0.15s;
+}
+
+@media (min-width: 640px) {
+  .language-dropdown-trigger {
+    padding: 7px 12px;
+  }
 }
 
 .language-dropdown-trigger:hover {
@@ -72,6 +90,13 @@
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.3px;
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .language-dropdown-label {
+    display: inline;
+  }
 }
 
 .language-dropdown-menu {

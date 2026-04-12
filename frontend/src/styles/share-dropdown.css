@@ -16,10 +16,16 @@
   background: transparent;
   border: none;
   border-radius: 6px;
-  padding: 7px 12px;
+  padding: 7px 8px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
+}
+
+@media (min-width: 640px) {
+  .share-dropdown-trigger {
+    padding: 7px 12px;
+  }
 }
 
 .share-dropdown-trigger:hover {
@@ -31,6 +37,13 @@
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.3px;
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .share-dropdown-label {
+    display: inline;
+  }
 }
 
 .share-dropdown-menu {
