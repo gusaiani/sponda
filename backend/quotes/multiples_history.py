@@ -71,6 +71,10 @@ def compute_multiples_history(
         year = dt.year
         year_end_prices[year] = adj_close
 
+    # Normalize to oldest-first; FMP returns newest-first while BRAPI returns
+    # oldest-first, and the frontend plots whatever order it receives.
+    prices.sort(key=lambda p: p["date"])
+
     # Fetch annual earnings and FCF from DB (reuses existing logic)
     earnings_data = get_annual_earnings(ticker, max_years=50)
     fcf_data = get_annual_fcf(ticker, max_years=50)

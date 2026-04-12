@@ -74,6 +74,20 @@ class TestComputeMultiplesHistory:
         assert result["prices"][0]["date"] == "2020-06-30"
         assert result["prices"][0]["adjustedClose"] == 25.0
 
+    def test_prices_are_sorted_ascending_by_date(self, db):
+        """FMP returns prices newest-first; backend must normalize to oldest-first."""
+        ts_2020 = int(datetime(2020, 1, 15, tzinfo=timezone.utc).timestamp())
+        ts_2022 = int(datetime(2022, 6, 30, tzinfo=timezone.utc).timestamp())
+        ts_2024 = int(datetime(2024, 12, 31, tzinfo=timezone.utc).timestamp())
+        prices_desc = [
+            {"date": ts_2024, "adjustedClose": 30.0},
+            {"date": ts_2022, "adjustedClose": 20.0},
+            {"date": ts_2020, "adjustedClose": 10.0},
+        ]
+        result = compute_multiples_history("FAKE3", prices_desc, 1000.0, 10.0)
+        dates = [p["date"] for p in result["prices"]]
+        assert dates == ["2020-01-15", "2022-06-30", "2024-12-31"]
+
     def test_skips_entries_with_missing_fields(self, db):
         prices = [
             {"date": None, "adjustedClose": 10.0},
