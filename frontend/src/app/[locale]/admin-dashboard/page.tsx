@@ -15,6 +15,7 @@ interface UserStats {
   lookups: Record<string, number>;
   favorites_count: number;
   saved_lists_count: number;
+  visits_count: number;
 }
 
 interface PeriodViewStats {
@@ -166,6 +167,9 @@ export default function AdminDashboardPage() {
           ))}
         </tbody>
       </table>
+      <p className="admin-link">
+        <Link href={`/${locale}/admin/most-visited-pages`}>Ver todas as páginas →</Link>
+      </p>
 
       <h2 className="admin-section-title">Tickers mais buscados</h2>
       <div className="admin-tickers-grid">
@@ -213,7 +217,7 @@ export default function AdminDashboardPage() {
             <tr>
               <th>Email</th><th>Cadastro</th><th>Último login</th><th>Contato</th>
               <th>Views 24h</th><th>Views 7d</th><th>Views 30d</th><th>Lookups 7d</th>
-              <th>Fav</th><th>Comp</th>
+              <th>Favoritos</th><th>Listas</th><th>Visitadas</th>
             </tr>
           </thead>
           <tbody>
@@ -232,6 +236,7 @@ export default function AdminDashboardPage() {
                 <td>{user.lookups.week}</td>
                 <td>{user.favorites_count}</td>
                 <td>{user.saved_lists_count}</td>
+                <td>{user.visits_count}</td>
               </tr>
             ))}
           </tbody>

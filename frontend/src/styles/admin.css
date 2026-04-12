@@ -1,7 +1,7 @@
 @reference "tailwindcss";
 
 .admin-container {
-  @apply max-w-5xl mx-auto py-8 px-4;
+  @apply w-full py-8 px-8;
 }
 
 .admin-back-link {
