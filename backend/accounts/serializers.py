@@ -76,8 +76,8 @@ class CompanyVisitSerializer(serializers.ModelSerializer):
 class RevisitScheduleSerializer(serializers.ModelSerializer):
     class Meta:
         model = RevisitSchedule
-        fields = ("id", "ticker", "next_revisit", "recurrence_days", "share_token", "notified_at", "created_at", "updated_at")
-        read_only_fields = ("id", "share_token", "notified_at", "created_at", "updated_at")
+        fields = ("id", "ticker", "next_revisit", "recurrence_days", "share_token", "notified_at", "dismissed_at", "created_at", "updated_at")
+        read_only_fields = ("id", "share_token", "notified_at", "dismissed_at", "created_at", "updated_at")
 
 
 class MarkVisitedSerializer(serializers.Serializer):

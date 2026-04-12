@@ -434,4 +434,11 @@ export const pt: TranslationDictionary = {
   "visits.banner_overdue": "Sua revisita para esta empresa estava agendada para {date}",
   "notifications.title": "Notifica\u00e7\u00f5es",
   "notifications.no_pending": "Nenhum lembrete pendente",
+  "notifications.mark_all_seen": "Marcar todas como vistas",
+  "notifications.mark_seen": "Marcar como vista",
+  "notifications.see_all": "Ver todas ({count})",
+  "notifications.page_title": "Notifica\u00e7\u00f5es",
+  "notifications.previous": "Anterior",
+  "notifications.next": "Pr\u00f3xima",
+  "notifications.page_of": "P\u00e1gina {current} de {total}",
 };

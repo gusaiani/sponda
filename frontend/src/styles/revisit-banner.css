@@ -6,6 +6,17 @@
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   padding: 10px 16px;
+  /* Align flush-left with company header and tabs (breakout containers),
+     and stop well short of the fixed slider on the right. */
+  margin-left: calc(50% - 50vw + 16px);
+  margin-right: 320px;
+  box-sizing: border-box;
+}
+
+@media (min-width: 640px) {
+  .revisit-banner {
+    margin-left: calc(50% - 50vw + 32px);
+  }
 }
 
 .revisit-banner-overdue {

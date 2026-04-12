@@ -195,6 +195,7 @@ class RevisitSchedule(models.Model):
     recurrence_days = models.PositiveIntegerField(null=True, blank=True)
     share_token = models.CharField(max_length=32, unique=True, db_index=True)
     notified_at = models.DateTimeField(null=True, blank=True)
+    dismissed_at = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

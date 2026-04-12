@@ -332,6 +332,110 @@ class TestPendingReminders:
         response = api_client.get("/api/auth/visits/reminders/")
         assert response.status_code == 403
 
+    def test_caps_dropdown_at_10_but_reports_total_count(self, authenticated_client, user):
+        for i in range(15):
+            RevisitSchedule.objects.create(
+                user=user,
+                ticker=f"TCK{i:02d}",
+                next_revisit=date.today(),
+                share_token=RevisitSchedule.generate_share_token(),
+            )
+        response = authenticated_client.get("/api/auth/visits/reminders/")
+        data = response.json()
+        assert data["count"] == 15
+        assert len(data["schedules"]) == 10
+
+    def test_excludes_dismissed_reminders(self, authenticated_client, user):
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="BRAP3",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+            dismissed_at=date.today(),
+        )
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="WEGE3",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        response = authenticated_client.get("/api/auth/visits/reminders/")
+        data = response.json()
+        assert data["count"] == 1
+        assert data["schedules"][0]["ticker"] == "WEGE3"
+
+    def test_dismiss_reminder_endpoint(self, authenticated_client, user):
+        schedule = RevisitSchedule.objects.create(
+            user=user,
+            ticker="BRAP3",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        response = authenticated_client.post(f"/api/auth/visits/reminders/{schedule.id}/dismiss/")
+        assert response.status_code == 200
+        schedule.refresh_from_db()
+        assert schedule.dismissed_at == date.today()
+        # After dismiss, should not appear in pending reminders
+        reminders = authenticated_client.get("/api/auth/visits/reminders/").json()
+        assert reminders["count"] == 0
+
+    def test_dismiss_all_reminders_endpoint(self, authenticated_client, user):
+        RevisitSchedule.objects.create(
+            user=user, ticker="A1", next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        RevisitSchedule.objects.create(
+            user=user, ticker="A2", next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        response = authenticated_client.post("/api/auth/visits/reminders/dismiss-all/")
+        assert response.status_code == 200
+        assert response.json() == {"dismissed": 2}
+        reminders = authenticated_client.get("/api/auth/visits/reminders/").json()
+        assert reminders["count"] == 0
+
+    def test_reminders_list_paginates_at_30(self, authenticated_client, user):
+        for i in range(45):
+            RevisitSchedule.objects.create(
+                user=user,
+                ticker=f"T{i:03d}",
+                next_revisit=date.today(),
+                share_token=RevisitSchedule.generate_share_token(),
+            )
+        page1 = authenticated_client.get("/api/auth/visits/reminders/list/?page=1").json()
+        assert page1["count"] == 45
+        assert page1["page"] == 1
+        assert page1["page_size"] == 30
+        assert len(page1["schedules"]) == 30
+        page2 = authenticated_client.get("/api/auth/visits/reminders/list/?page=2").json()
+        assert len(page2["schedules"]) == 15
+
+    def test_excludes_tickers_visited_today(self, authenticated_client, user):
+        """A due schedule should disappear from reminders once the user visits today."""
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="BRAP3",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="WEGE3",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        # User visits BRAP3 today - it should drop off the pending list
+        CompanyVisit.objects.create(
+            user=user,
+            ticker="BRAP3",
+            visited_at=date.today(),
+        )
+
+        response = authenticated_client.get("/api/auth/visits/reminders/")
+        data = response.json()
+        assert data["count"] == 1
+        assert data["schedules"][0]["ticker"] == "WEGE3"
+
 
 # ── Revisit Reminder Task ──
 
