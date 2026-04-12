@@ -1197,6 +1197,12 @@ class AdminDashboardView(APIView):
             ).values("user").annotate(count=Count("id")).values("count"),
             output_field=IntegerField(),
         )
+        annotations["visits_count"] = Subquery(
+            CompanyVisit.objects.filter(
+                user=OuterRef("pk")
+            ).values("user").annotate(count=Count("ticker", distinct=True)).values("count"),
+            output_field=IntegerField(),
+        )
 
         users = (
             User.objects.all()
@@ -1224,6 +1230,7 @@ class AdminDashboardView(APIView):
                 "lookups": lookup_counts,
                 "favorites_count": user.favorites_count or 0,
                 "saved_lists_count": user.saved_lists_count or 0,
+                "visits_count": user.visits_count or 0,
             })
 
         return user_list
@@ -1269,13 +1276,13 @@ class AdminDashboardView(APIView):
         return stats
 
     def _get_top_pages(self, boundaries):
-        """Most visited pages in the last month."""
+        """Top 10 most visited pages in the last month."""
         month_cutoff = boundaries["month"]
         return list(
             PageView.objects.filter(timestamp__gte=month_cutoff)
             .values("path")
             .annotate(view_count=Count("id"))
-            .order_by("-view_count")[:20]
+            .order_by("-view_count")[:10]
         )
 
     def _get_top_tickers(self, boundaries):
@@ -1302,3 +1309,19 @@ class AdminDashboardView(APIView):
                 "id", filter=Q(date_joined__gte=cutoff)
             )
         return User.objects.aggregate(**aggregations)
+
+
+class AdminTopPagesView(APIView):
+    """Returns the full list of most visited pages in the last 30 days."""
+
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        boundaries = _time_boundaries()
+        pages = list(
+            PageView.objects.filter(timestamp__gte=boundaries["month"])
+            .values("path")
+            .annotate(view_count=Count("id"))
+            .order_by("-view_count")
+        )
+        return Response({"pages": pages})

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     AdminDashboardView,
+    AdminTopPagesView,
     ChangePasswordView,
     DismissAllRemindersView,
     DismissReminderView,
@@ -66,4 +67,5 @@ urlpatterns = [
     path("homepage-layout/", HomepageLayoutView.as_view(), name="homepage-layout"),
     path("feedback/", FeedbackView.as_view(), name="feedback"),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
+    path("admin/top-pages/", AdminTopPagesView.as_view(), name="admin-top-pages"),
 ]
