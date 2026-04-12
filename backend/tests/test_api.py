@@ -643,6 +643,24 @@ class TestMultiplesHistoryEndpoint:
     @patch("quotes.views.sync_balance_sheets")
     @patch("quotes.views.sync_cash_flows")
     @patch("quotes.views.sync_earnings")
+    def test_prices_sorted_ascending_even_when_source_descending(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        api_client, sample_earnings, mock_brapi_quote
+    ):
+        """FMP returns prices newest-first; the API must normalize to oldest-first
+        so the frontend mini charts render the X axis chronologically."""
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.return_value = list(reversed(MOCK_HISTORICAL_PRICES))
+        response = api_client.get("/api/quote/PETR4/multiples-history/")
+        assert response.status_code == 200
+        dates = [p["date"] for p in response.json()["prices"]]
+        assert dates == sorted(dates)
+
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
     def test_ticker_is_uppercased(
         self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
         api_client, sample_earnings, mock_brapi_quote
