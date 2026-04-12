@@ -83,8 +83,12 @@ export default function VisitsPage() {
   }
 
   const today = new Date().toISOString().slice(0, 10);
-  const upcomingSchedules = schedules.filter((schedule) => schedule.next_revisit <= today || schedule.next_revisit > today);
-  const dueSchedules = schedules.filter((schedule) => schedule.next_revisit <= today);
+  const visitedTodayTickers = new Set(
+    visits.filter((visit) => visit.visited_at === today).map((visit) => visit.ticker),
+  );
+  const dueSchedules = schedules.filter(
+    (schedule) => schedule.next_revisit <= today && !visitedTodayTickers.has(schedule.ticker),
+  );
   const futureSchedules = schedules.filter((schedule) => schedule.next_revisit > today);
 
   // Group visits by company
