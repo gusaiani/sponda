@@ -101,9 +101,9 @@ export const pt: TranslationDictionary = {
   "verify.expired_text": "O link pode ter expirado. Solicite um novo na sua conta.",
 
   /* ── Feedback ── */
-  "feedback.trigger": "Feedback",
-  "feedback.title": "Enviar Feedback",
-  "feedback.subtitle": "Sua opini\u00e3o \u00e9 importante para melhorarmos a Sponda.",
+  "feedback.trigger": "O que voc\u00ea acha da Sponda at\u00e9 agora?",
+  "feedback.title": "Ajude-nos a melhorar a Sponda",
+  "feedback.subtitle": "Sou Gustavo Saiani, criador da Sponda. Estou construindo sozinho, com base em meus 18 anos de experi\u00eancia estudando e praticando value investing (veja www.poe.ma). Quero saber o que voc\u00ea precisa, o que gosta ou n\u00e3o gosta, para que eu possa tornar a Sponda melhor para voc\u00ea.",
   "feedback.email_label": "Seu email",
   "feedback.message_label": "Mensagem",
   "feedback.message_placeholder": "O que voc\u00ea gostaria de compartilhar?",
