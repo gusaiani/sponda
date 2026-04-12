@@ -142,6 +142,8 @@ export function useRevisitSchedules() {
 }
 
 export function usePendingReminders() {
+  const queryClient = useQueryClient();
+
   const { data, isLoading } = useQuery({
     queryKey: ["pending-reminders"],
     queryFn: fetchReminders,
@@ -149,9 +151,68 @@ export function usePendingReminders() {
     refetchInterval: 5 * 60 * 1000,
   });
 
+  const dismissReminder = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await fetch(`/api/auth/visits/reminders/${id}/dismiss/`, {
+        method: "POST",
+        headers: csrfHeaders(),
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to dismiss reminder");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pending-reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["reminders-list"] });
+      queryClient.invalidateQueries({ queryKey: ["revisit-schedules"] });
+    },
+  });
+
+  const dismissAllReminders = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/auth/visits/reminders/dismiss-all/", {
+        method: "POST",
+        headers: csrfHeaders(),
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to dismiss reminders");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pending-reminders"] });
+      queryClient.invalidateQueries({ queryKey: ["reminders-list"] });
+      queryClient.invalidateQueries({ queryKey: ["revisit-schedules"] });
+    },
+  });
+
   return {
     count: data?.count ?? 0,
     schedules: data?.schedules ?? [],
     isLoading,
+    dismissReminder,
+    dismissAllReminders,
   };
+}
+
+interface RemindersListResponse {
+  count: number;
+  page: number;
+  page_size: number;
+  schedules: RevisitScheduleEntry[];
+}
+
+async function fetchRemindersList(page: number): Promise<RemindersListResponse> {
+  const response = await fetch(`/api/auth/visits/reminders/list/?page=${page}`, {
+    credentials: "include",
+  });
+  if (!response.ok) return { count: 0, page, page_size: 30, schedules: [] };
+  return response.json();
+}
+
+export function useRemindersList(page: number) {
+  return useQuery({
+    queryKey: ["reminders-list", page],
+    queryFn: () => fetchRemindersList(page),
+    staleTime: 60 * 1000,
+  });
 }

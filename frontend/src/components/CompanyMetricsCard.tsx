@@ -310,10 +310,9 @@ interface CompanyMetricsCardProps {
 const FINANCIAL_SUBSECTORS = new Set(["Bancos", "Seguros", "Infraestrutura de Mercado"]);
 
 function isFinancialInstitution(name: string, sector: string): boolean {
-  if (sector === "Financial Services") return true;
   if (sector !== "Finance") return false;
   const subsector = getSubsector(name, sector);
-  return FINANCIAL_SUBSECTORS.has(subsector) || subsector === "Finance";
+  return FINANCIAL_SUBSECTORS.has(subsector);
 }
 
 type ModalKey =

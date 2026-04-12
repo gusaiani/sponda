@@ -13,9 +13,10 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { getScheduleForTicker } = useRevisitSchedules();
-  const { markVisited } = useVisits();
+  const { markVisited, isVisitedToday } = useVisits(ticker);
 
   if (!isAuthenticated) return null;
+  if (isVisitedToday(ticker)) return null;
 
   const schedule = getScheduleForTicker(ticker);
   if (!schedule) return null;

@@ -7,9 +7,11 @@ import { usePendingReminders } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
 import "../styles/notification-bell.css";
 
+const DROPDOWN_LIMIT = 10;
+
 export function NotificationBell() {
   const { isAuthenticated } = useAuth();
-  const { count, schedules } = usePendingReminders();
+  const { count, schedules, dismissReminder, dismissAllReminders } = usePendingReminders();
   const { t, locale } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -25,6 +27,8 @@ export function NotificationBell() {
   }, [isOpen]);
 
   if (!isAuthenticated || count === 0) return null;
+
+  const hasMore = count > DROPDOWN_LIMIT;
 
   return (
     <div className="notification-bell" ref={menuRef}>
@@ -43,24 +47,56 @@ export function NotificationBell() {
 
       {isOpen && (
         <div className="notification-bell-menu">
-          <div className="notification-bell-header">{t("notifications.title")}</div>
+          <div className="notification-bell-header-row">
+            <span className="notification-bell-header">{t("notifications.title")}</span>
+            <button
+              className="notification-bell-mark-all"
+              type="button"
+              onClick={() => dismissAllReminders.mutate()}
+              disabled={dismissAllReminders.isPending}
+            >
+              {t("notifications.mark_all_seen")}
+            </button>
+          </div>
           {schedules.map((schedule) => {
             const today = new Date().toISOString().slice(0, 10);
             const isOverdue = schedule.next_revisit < today;
             return (
-              <Link
-                key={schedule.id}
-                href={`/${locale}/${schedule.ticker}`}
-                className="notification-bell-item"
-                onClick={() => setIsOpen(false)}
-              >
-                <span className="notification-bell-ticker">{schedule.ticker}</span>
-                <span className={`notification-bell-status ${isOverdue ? "notification-bell-status-overdue" : ""}`}>
-                  {isOverdue ? t("visits.overdue") : t("visits.due_today")}
-                </span>
-              </Link>
+              <div key={schedule.id} className="notification-bell-item">
+                <Link
+                  href={`/${locale}/${schedule.ticker}`}
+                  className="notification-bell-item-link"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span className="notification-bell-ticker">{schedule.ticker}</span>
+                  <span className={`notification-bell-status ${isOverdue ? "notification-bell-status-overdue" : ""}`}>
+                    {isOverdue ? t("visits.overdue") : t("visits.due_today")}
+                  </span>
+                </Link>
+                <button
+                  className="notification-bell-dismiss"
+                  type="button"
+                  aria-label={t("notifications.mark_seen")}
+                  title={t("notifications.mark_seen")}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dismissReminder.mutate(schedule.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
             );
           })}
+          {hasMore && (
+            <Link
+              href={`/${locale}/notificacoes`}
+              className="notification-bell-see-all"
+              onClick={() => setIsOpen(false)}
+            >
+              {t("notifications.see_all", { count })}
+            </Link>
+          )}
         </div>
       )}
     </div>

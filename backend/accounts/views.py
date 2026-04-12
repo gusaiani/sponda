@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
+from django.db import models
 from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -768,19 +769,86 @@ class SharedVisitsView(APIView):
         })
 
 
+REMINDER_DROPDOWN_LIMIT = 10
+REMINDER_PAGE_SIZE = 30
+
+
+def _pending_reminders_queryset(user):
+    """Due revisit schedules not yet acknowledged (visited today or dismissed)."""
+    today = date.today()
+    visited_today = CompanyVisit.objects.filter(
+        user=user,
+        visited_at=today,
+    ).values_list("ticker", flat=True)
+    return (
+        RevisitSchedule.objects.filter(
+            user=user,
+            next_revisit__lte=today,
+        )
+        .exclude(ticker__in=visited_today)
+        .filter(Q(dismissed_at__isnull=True) | Q(dismissed_at__lt=models.F("next_revisit")))
+    )
+
+
 class PendingRemindersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        due_schedules = RevisitSchedule.objects.filter(
-            user=request.user,
-            next_revisit__lte=date.today(),
-        )
-        serializer = RevisitScheduleSerializer(due_schedules, many=True)
+        pending = _pending_reminders_queryset(request.user)
+        total = pending.count()
+        schedules = pending[:REMINDER_DROPDOWN_LIMIT]
+        serializer = RevisitScheduleSerializer(schedules, many=True)
         return Response({
-            "count": due_schedules.count(),
+            "count": total,
             "schedules": serializer.data,
         })
+
+
+class RemindersListView(APIView):
+    """Paginated list of pending reminders for the notifications index page."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            page = max(1, int(request.query_params.get("page", 1)))
+        except ValueError:
+            page = 1
+        pending = _pending_reminders_queryset(request.user)
+        total = pending.count()
+        start = (page - 1) * REMINDER_PAGE_SIZE
+        end = start + REMINDER_PAGE_SIZE
+        schedules = pending[start:end]
+        serializer = RevisitScheduleSerializer(schedules, many=True)
+        return Response({
+            "count": total,
+            "page": page,
+            "page_size": REMINDER_PAGE_SIZE,
+            "schedules": serializer.data,
+        })
+
+
+class DismissReminderView(APIView):
+    """Mark a single revisit reminder as seen without visiting the company."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            schedule = RevisitSchedule.objects.get(pk=pk, user=request.user)
+        except RevisitSchedule.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        schedule.dismissed_at = date.today()
+        schedule.save(update_fields=["dismissed_at"])
+        return Response(RevisitScheduleSerializer(schedule).data)
+
+
+class DismissAllRemindersView(APIView):
+    """Mark all currently-pending revisit reminders as seen."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        pending_ids = list(_pending_reminders_queryset(request.user).values_list("id", flat=True))
+        RevisitSchedule.objects.filter(id__in=pending_ids).update(dismissed_at=date.today())
+        return Response({"dismissed": len(pending_ids)})
 
 
 # ── Saved Lists ──

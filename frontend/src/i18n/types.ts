@@ -434,6 +434,13 @@ export interface TranslationDictionary {
   "visits.banner_overdue": string;
   "notifications.title": string;
   "notifications.no_pending": string;
+  "notifications.mark_all_seen": string;
+  "notifications.mark_seen": string;
+  "notifications.see_all": string;
+  "notifications.page_title": string;
+  "notifications.previous": string;
+  "notifications.next": string;
+  "notifications.page_of": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

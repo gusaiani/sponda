@@ -434,4 +434,11 @@ export const fr: TranslationDictionary = {
   "visits.banner_overdue": "Your scheduled revisit for this company was due on {date}",
   "notifications.title": "Notifications",
   "notifications.no_pending": "No pending reminders",
+  "notifications.mark_all_seen": "Mark all as seen",
+  "notifications.mark_seen": "Mark as seen",
+  "notifications.see_all": "See all ({count})",
+  "notifications.page_title": "Notifications",
+  "notifications.previous": "Previous",
+  "notifications.next": "Next",
+  "notifications.page_of": "Page {current} of {total}",
 };
