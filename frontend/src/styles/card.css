@@ -196,6 +196,7 @@
   @apply text-left flex flex-col justify-center;
   flex-shrink: 0;
   padding-right: 12px;
+  margin: 10px 12px 20px 4px;
   border-right: 1px solid var(--color-border);
   margin-right: 12px;
 }
