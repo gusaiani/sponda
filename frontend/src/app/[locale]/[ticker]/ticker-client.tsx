@@ -93,6 +93,8 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const seededForTicker = useRef<string | null>(null);
 
   const activeTab = resolveTab(pathname);
+  const tabBarRef = useRef<HTMLDivElement>(null);
+  const [sliderFixedTop, setSliderFixedTop] = useState<number | null>(null);
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: currentTicker } = useTickerDetail(upperTicker);
@@ -153,6 +155,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     [fullData, effectiveYears],
   );
 
+  useEffect(() => {
+    if (!tabBarRef.current) return;
+    const rect = tabBarRef.current.getBoundingClientRect();
+    setSliderFixedTop(rect.top);
+  }, [isLoading, error]);
+
   function switchTab(tab: TabKey) {
     router.push(buildTabPath(locale, upperTicker, tab));
   }
@@ -202,10 +210,10 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
       {!isLoading && !error && <RevisitBanner ticker={upperTicker} />}
 
-      {/* Tab bar: tabs left, years slider on the right (desktop) */}
+      {/* Tab bar: tabs left, years slider floats fixed on the right (desktop) */}
       {!isLoading && !error && (
         <>
-          <div className="tab-bar">
+          <div className="tab-bar" ref={tabBarRef}>
             <div className="tabs-desktop">
               <button
                 className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
@@ -234,11 +242,6 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
                 {t("tabs.charts")}
               </button>
             </div>
-            {(activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && (
-              <div className="years-slider-inline years-slider-inline--desktop">
-                <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
-              </div>
-            )}
           </div>
           <div className="tabs-mobile">
             <select
@@ -258,6 +261,13 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
             </div>
           )}
         </>
+      )}
+
+      {/* Fixed slider (desktop) */}
+      {!isLoading && !error && (activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && sliderFixedTop !== null && (
+        <div className="years-slider-fixed" style={{ top: sliderFixedTop }}>
+          <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
+        </div>
       )}
 
       {/* Metrics tab */}

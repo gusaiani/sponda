@@ -40,7 +40,25 @@
   line-height: 1.5;
 }
 
-/* Inline slider container (desktop: right of tabs; mobile: below tabs) */
+/* Fixed slider container (desktop only) */
+.years-slider-fixed {
+  display: none;
+  position: fixed;
+  right: 24px;
+  z-index: 50;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 16px;
+}
+
+@media (min-width: 960px) {
+  .years-slider-fixed {
+    display: block;
+  }
+}
+
+/* Inline slider container (mobile: below tabs-dropdown) */
 .years-slider-inline {
   background: #ffffff;
   border: 1px solid var(--color-border);
@@ -48,21 +66,12 @@
   padding: 8px 16px;
 }
 
-.years-slider-inline--desktop {
-  display: none;
-  flex-shrink: 0;
-}
-
 .years-slider-inline--mobile {
   display: block;
   margin-top: 8px;
 }
 
-/* Show inline-right slider only when viewport is wide enough for tabs + slider side by side */
 @media (min-width: 960px) {
-  .years-slider-inline--desktop {
-    display: block;
-  }
   .years-slider-inline--mobile {
     display: none;
   }
