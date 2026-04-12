@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buildMarketCapSeries, buildQuarterlyRatioSeries, formatYearsOfData } from "./CompanyMetricsCard";
+import {
+  buildMarketCapSeries,
+  buildQuarterlyRatioSeries,
+  buildRollingRatioSeries,
+  formatYearsOfData,
+  rollingAverage,
+} from "./CompanyMetricsCard";
 
 describe("buildMarketCapSeries", () => {
   const priceHistory = [
@@ -123,5 +129,74 @@ describe("formatYearsOfData", () => {
 
   it("handles different order (pfcf10 > pe10)", () => {
     expect(formatYearsOfData(5, 8)).toBe("L: 5 · FCL: 8");
+  });
+});
+
+describe("rollingAverage", () => {
+  it("returns the average of available points in the window", () => {
+    const values = new Map<number, number>([
+      [2020, 100],
+      [2021, 200],
+      [2022, 300],
+    ]);
+    // Window ending at 2022, 10-year window → only 3 samples present → avg 200
+    expect(rollingAverage(values, 2022, 10)).toBe(200);
+  });
+
+  it("returns null when the window has no data", () => {
+    const values = new Map<number, number>([[2000, 100]]);
+    expect(rollingAverage(values, 2022, 10)).toBeNull();
+  });
+
+  it("returns null when the average is non-positive", () => {
+    const values = new Map<number, number>([
+      [2020, -100],
+      [2021, -50],
+    ]);
+    expect(rollingAverage(values, 2022, 10)).toBeNull();
+  });
+
+  it("respects the window size", () => {
+    const values = new Map<number, number>([
+      [2010, 1000],
+      [2021, 100],
+      [2022, 200],
+    ]);
+    // 3-year window ending 2022: only 2021, 2022 → avg 150
+    expect(rollingAverage(values, 2022, 3)).toBe(150);
+  });
+});
+
+describe("buildRollingRatioSeries", () => {
+  const priceHistory = [
+    { date: "2023-06-01", adjustedClose: 10 },
+    { date: "2024-06-01", adjustedClose: 20 },
+  ];
+  const earningsByYear = new Map<number, number>([
+    [2020, 100],
+    [2021, 100],
+    [2022, 100],
+    [2023, 100],
+    [2024, 100],
+  ]);
+
+  it("computes ratio = market_cap_at_date / rolling_avg_denominator", () => {
+    // shares = 1000/10 = 100. 2023 price 10 → cap 1000 → /100 = 10×
+    // 2024 price 20 → cap 2000 → /100 = 20×
+    const result = buildRollingRatioSeries(priceHistory, 1000, 10, earningsByYear, 5);
+    expect(result).toHaveLength(2);
+    expect(result[0].value).toBeCloseTo(10);
+    expect(result[1].value).toBeCloseTo(20);
+  });
+
+  it("returns empty array when no market cap or price", () => {
+    expect(buildRollingRatioSeries(priceHistory, null, 10, earningsByYear, 5)).toEqual([]);
+    expect(buildRollingRatioSeries(priceHistory, 1000, null, earningsByYear, 5)).toEqual([]);
+  });
+
+  it("skips points whose year has no available denominator window", () => {
+    const sparse = new Map<number, number>([[1990, 100]]);
+    const result = buildRollingRatioSeries(priceHistory, 1000, 10, sparse, 5);
+    expect(result).toEqual([]);
   });
 });

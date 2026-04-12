@@ -44,6 +44,69 @@ export function buildMarketCapSeries(
   return series;
 }
 
+/**
+ * Rolling N-year average of a per-year numeric map, ending at `year`.
+ * Returns null when the window has no data or the average is non-positive.
+ */
+export function rollingAverage(
+  valuesByYear: Map<number, number>,
+  year: number,
+  windowYears: number,
+): number | null {
+  const samples: number[] = [];
+  for (let y = year - windowYears + 1; y <= year; y += 1) {
+    const v = valuesByYear.get(y);
+    if (v != null) samples.push(v);
+  }
+  if (!samples.length) return null;
+  const average = samples.reduce((sum, value) => sum + value, 0) / samples.length;
+  return average > 0 ? average : null;
+}
+
+/**
+ * Build a daily ratio series of (market_cap_at_date / rolling_avg_denominator).
+ * The window size equals the visible `years` (driven by the slider), so the
+ * chart always reflects the same window length as the headline P/L{years}.
+ * The denominator updates once per calendar year; price moves daily.
+ */
+export function buildRollingRatioSeries(
+  priceHistory: { date: string; adjustedClose: number }[],
+  marketCap: number | null,
+  currentPrice: number | null,
+  denominatorsByYear: Map<number, number>,
+  years: number,
+): DataPoint[] {
+  if (!priceHistory.length || !marketCap || !currentPrice) return [];
+  const sharesOutstanding = marketCap / currentPrice;
+  const currentYear = new Date().getFullYear();
+  const startYear = currentYear - years;
+  const filtered = priceHistory.filter(
+    (p) => parseInt(p.date.slice(0, 4), 10) > startYear,
+  );
+  if (!filtered.length) return [];
+  const averageCache = new Map<number, number | null>();
+  const step = Math.max(1, Math.floor(filtered.length / 150));
+  const series: DataPoint[] = [];
+  const appendPoint = (point: { date: string; adjustedClose: number }) => {
+    const year = parseInt(point.date.slice(0, 4), 10);
+    if (!averageCache.has(year)) {
+      averageCache.set(year, rollingAverage(denominatorsByYear, year, years));
+    }
+    const average = averageCache.get(year);
+    if (average == null) return;
+    const marketCapAtDate = point.adjustedClose * sharesOutstanding;
+    series.push({
+      label: point.date,
+      value: marketCapAtDate / average,
+      yearTick: point.date.slice(2, 4),
+    });
+  };
+  for (let i = 0; i < filtered.length; i += step) appendPoint(filtered[i]);
+  const last = filtered[filtered.length - 1];
+  if (series[series.length - 1]?.label !== last.date) appendPoint(last);
+  return series;
+}
+
 export function buildQuarterlyRatioSeries(
   quarterlyRatios: { date: string; debtToEquity: number | null; liabilitiesToEquity: number | null }[],
   field: "debtToEquity" | "liabilitiesToEquity",
@@ -88,6 +151,21 @@ const METRIC_IDS = {
   pfcfg: "pfcfg",
   cagrFCF: "cagr-fcf",
 } as const;
+
+function formatMultiple(value: number): string {
+  return `${value.toFixed(1)}×`;
+}
+
+/** Per-metric chart value formatter — multiples show "×", ratios show 2 decimals. */
+const CHART_VALUE_FORMATTERS: Record<string, (value: number) => string> = {
+  [METRIC_IDS.pe10]: formatMultiple,
+  [METRIC_IDS.pfcf10]: formatMultiple,
+  [METRIC_IDS.peg]: (value) => value.toFixed(2),
+  [METRIC_IDS.pfcfg]: (value) => value.toFixed(2),
+  [METRIC_IDS.debtToEquity]: (value) => value.toFixed(2),
+  [METRIC_IDS.debtExLease]: (value) => value.toFixed(2),
+  [METRIC_IDS.liabToEquity]: (value) => value.toFixed(2),
+};
 
 /* ── Share button + dropdown (matches header ShareDropdown) ── */
 
@@ -922,7 +1000,43 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
   /* Build chart data arrays from calculation details & fundamentals */
   const chartData = useMemo(() => {
-    // Quarterly earnings (sorted chronologically)
+    // Annual adjusted earnings/FCF indexed by year (IPCA-adjusted aggregates)
+    const earningsByYear = new Map<number, number>();
+    for (const entry of data.pe10CalculationDetails) {
+      earningsByYear.set(entry.year, entry.adjustedNetIncome);
+    }
+    const fcfByYear = new Map<number, number>();
+    for (const entry of data.pfcf10CalculationDetails) {
+      fcfByYear.set(entry.year, entry.adjustedFCF);
+    }
+
+    // Daily P/L10 = price × shares / rolling-10y-avg(adjusted net income)
+    const pe10Series = buildRollingRatioSeries(
+      priceHistory ?? [],
+      data.marketCap,
+      data.currentPrice,
+      earningsByYear,
+      years,
+    );
+    // Daily P/FCL10 = price × shares / rolling-10y-avg(adjusted FCF)
+    const pfcf10Series = buildRollingRatioSeries(
+      priceHistory ?? [],
+      data.marketCap,
+      data.currentPrice,
+      fcfByYear,
+      years,
+    );
+
+    // PEG and P/FCL/G trend like P/L10 and P/FCL10 scaled by 1/CAGR.
+    // The current CAGR is the best estimate we have for historical growth context.
+    const pegSeries: DataPoint[] = data.earningsCAGR && data.earningsCAGR > 0
+      ? pe10Series.map((p) => ({ ...p, value: p.value / data.earningsCAGR! }))
+      : [];
+    const pfcfgSeries: DataPoint[] = data.fcfCAGR && data.fcfCAGR > 0
+      ? pfcf10Series.map((p) => ({ ...p, value: p.value / data.fcfCAGR! }))
+      : [];
+
+    // Quarterly earnings series (used for CAGR earnings context chart)
     const earningsSeries: DataPoint[] = [...data.pe10CalculationDetails]
       .reverse()
       .flatMap((y) =>
@@ -937,7 +1051,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           : [{ label: String(y.year), value: y.adjustedNetIncome }]
       );
 
-    // Quarterly FCF (sorted chronologically)
+    // Quarterly FCF series (used for CAGR FCF context chart)
     const fcfSeries: DataPoint[] = [...data.pfcf10CalculationDetails]
       .reverse()
       .flatMap((y) =>
@@ -1010,11 +1124,11 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     return {
       [METRIC_IDS.currentPrice]: priceSeries,
       [METRIC_IDS.marketCap]: marketCapSeries,
-      [METRIC_IDS.pe10]: earningsSeries,
-      [METRIC_IDS.peg]: earningsSeries,
+      [METRIC_IDS.pe10]: pe10Series,
+      [METRIC_IDS.peg]: pegSeries,
       [METRIC_IDS.cagrEarnings]: earningsSeries,
-      [METRIC_IDS.pfcf10]: fcfSeries,
-      [METRIC_IDS.pfcfg]: fcfSeries,
+      [METRIC_IDS.pfcf10]: pfcf10Series,
+      [METRIC_IDS.pfcfg]: pfcfgSeries,
       [METRIC_IDS.cagrFCF]: fcfSeries,
       [METRIC_IDS.debtToEquity]: debtEquitySeries,
       [METRIC_IDS.debtExLease]: debtEquitySeries,
@@ -1022,7 +1136,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       [METRIC_IDS.debtToEarnings]: earningsSeries,
       [METRIC_IDS.debtToFCF]: fcfSeries,
     } as Record<string, DataPoint[]>;
-  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, data.marketCap, data.currentPrice, fundamentals, quarterlyRatios, priceHistory, years]);
+  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, data.marketCap, data.currentPrice, data.earningsCAGR, data.fcfCAGR, fundamentals, quarterlyRatios, priceHistory, years]);
 
   /* Highlight metric from URL hash */
   useEffect(() => {
@@ -1046,7 +1160,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     if (!showGraphs) return null;
     const series = chartData[metricId];
     if (!series || series.length < 2) return null;
-    return <MiniChart data={series} />;
+    const formatter = CHART_VALUE_FORMATTERS[metricId];
+    return <MiniChart data={series} formatValue={formatter} />;
   };
 
   return (
