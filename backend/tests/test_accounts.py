@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.utils import timezone
 
-from accounts.models import EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
+from accounts.models import CompanyVisit, EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
 from quotes.models import LookupLog
 
 User = get_user_model()
@@ -943,6 +943,37 @@ class TestAdminDashboard:
         response = superuser_client.get("/api/auth/admin/dashboard/")
         data = response.json()
         assert data["signup_stats"]["total"] >= 2  # superuser + regular user
+
+    def test_dashboard_user_entries_have_visits_count(self, superuser_client, user):
+        CompanyVisit.objects.create(user=user, ticker="PETR4")
+        CompanyVisit.objects.create(user=user, ticker="VALE3")
+
+        response = superuser_client.get("/api/auth/admin/dashboard/")
+        test_user = next(
+            entry for entry in response.json()["users"]
+            if entry["email"] == "test@example.com"
+        )
+        assert test_user["visits_count"] == 2
+
+    def test_dashboard_top_pages_returns_top_ten_only(self, superuser_client):
+        for index in range(15):
+            for _ in range(index + 1):
+                PageView.objects.create(path=f"/page-{index}", ip_hash="a")
+
+        response = superuser_client.get("/api/auth/admin/dashboard/")
+        assert len(response.json()["top_pages"]) == 10
+
+    def test_admin_top_pages_endpoint_returns_all_pages(self, superuser_client):
+        for index in range(25):
+            PageView.objects.create(path=f"/page-{index}", ip_hash="a")
+
+        response = superuser_client.get("/api/auth/admin/top-pages/")
+        assert response.status_code == 200
+        assert len(response.json()["pages"]) >= 25
+
+    def test_admin_top_pages_endpoint_requires_superuser(self, authenticated_client):
+        response = authenticated_client.get("/api/auth/admin/top-pages/")
+        assert response.status_code == 403
 
     def test_dashboard_user_entries_have_visit_counts(self, superuser_client, user):
         PageView.objects.create(
