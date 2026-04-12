@@ -7,6 +7,7 @@ import pytest
 
 from quotes.brapi import (
     BRAPIError,
+    fetch_financial_data,
     fetch_historical_prices,
     fetch_income_statements,
     fetch_quote,
@@ -206,14 +207,16 @@ MOCK_BALANCE_SHEET_WITH_CURRENT_ASSETS_FALLBACK = [
 
 
 class TestSyncBalanceSheets:
+    @patch("quotes.brapi.fetch_financial_data")
     @patch("quotes.brapi.fetch_balance_sheets")
     @patch("quotes.brapi._fetch_annual_lease_data")
     def test_maps_total_current_assets_to_current_assets(
-        self, mock_annual_lease, mock_fetch, db
+        self, mock_annual_lease, mock_fetch, mock_financial_data, db
     ):
         """BRAPI returns totalCurrentAssets instead of currentAssets for some tickers."""
         mock_fetch.return_value = MOCK_BALANCE_SHEET_WITH_TOTAL_CURRENT_ASSETS
         mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {}
         sheets = sync_balance_sheets("PETR4")
         assert len(sheets) == 1
         balance_sheet = BalanceSheet.objects.get(
@@ -221,24 +224,27 @@ class TestSyncBalanceSheets:
         )
         assert balance_sheet.current_assets == 150000000000
 
+    @patch("quotes.brapi.fetch_financial_data")
     @patch("quotes.brapi.fetch_balance_sheets")
     @patch("quotes.brapi._fetch_annual_lease_data")
     def test_falls_back_to_current_assets_field(
-        self, mock_annual_lease, mock_fetch, db
+        self, mock_annual_lease, mock_fetch, mock_financial_data, db
     ):
         """When totalCurrentAssets is absent, currentAssets is used instead."""
         mock_fetch.return_value = MOCK_BALANCE_SHEET_WITH_CURRENT_ASSETS_FALLBACK
         mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {}
         sync_balance_sheets("PETR4")
         balance_sheet = BalanceSheet.objects.get(
             ticker="PETR4", end_date=date(2025, 6, 30)
         )
         assert balance_sheet.current_assets == 120000000000
 
+    @patch("quotes.brapi.fetch_financial_data")
     @patch("quotes.brapi.fetch_balance_sheets")
     @patch("quotes.brapi._fetch_annual_lease_data")
     def test_current_assets_null_when_neither_field_present(
-        self, mock_annual_lease, mock_fetch, db
+        self, mock_annual_lease, mock_fetch, mock_financial_data, db
     ):
         """When neither totalCurrentAssets nor currentAssets is present, current_assets is None."""
         mock_fetch.return_value = [
@@ -252,11 +258,168 @@ class TestSyncBalanceSheets:
             },
         ]
         mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {}
         sync_balance_sheets("PETR4")
         balance_sheet = BalanceSheet.objects.get(
             ticker="PETR4", end_date=date(2025, 3, 31)
         )
         assert balance_sheet.current_assets is None
+
+
+class TestFetchFinancialData:
+    @patch("quotes.brapi._get")
+    def test_returns_financial_data_dict(self, mock_get):
+        mock_get.return_value = {
+            "results": [
+                {"financialData": {"totalDebt": 146216990, "debtToEquity": 0.1665}}
+            ]
+        }
+        result = fetch_financial_data("CGRA3")
+        assert result["totalDebt"] == 146216990
+        mock_get.assert_called_once_with(
+            "/quote/CGRA3", params={"modules": "financialData"}
+        )
+
+    @patch("quotes.brapi._get")
+    def test_returns_empty_dict_when_no_results(self, mock_get):
+        mock_get.return_value = {"results": []}
+        assert fetch_financial_data("FAKE3") == {}
+
+    @patch("quotes.brapi._get")
+    def test_returns_empty_dict_when_module_absent(self, mock_get):
+        mock_get.return_value = {"results": [{}]}
+        assert fetch_financial_data("PETR4") == {}
+
+    @patch("quotes.brapi._get")
+    def test_returns_empty_dict_on_brapi_error(self, mock_get):
+        mock_get.side_effect = BRAPIError("boom")
+        assert fetch_financial_data("PETR4") == {}
+
+
+class TestSyncBalanceSheetsPatchesLatestDebtFromFinancialData:
+    """BRAPI's balanceSheetHistory returns 0 for loansAndFinancing on many
+    mid/small caps and banks, even when the company has real debt.  The
+    financialData module carries a more accurate point-in-time totalDebt.
+    Override the most recent balance sheet so the Leverage card reflects
+    reality instead of a spurious zero.
+    """
+
+    HISTORY = [
+        {
+            "endDate": "2025-09-30",
+            "loansAndFinancing": 0,
+            "longTermLoansAndFinancing": 0,
+            "currentLiabilities": 200_000_000,
+            "nonCurrentLiabilities": 146_216_990,
+            "shareholdersEquity": 878_113_000,
+        },
+        {
+            "endDate": "2025-06-30",
+            "loansAndFinancing": 0,
+            "longTermLoansAndFinancing": 0,
+            "currentLiabilities": 200_000_000,
+            "nonCurrentLiabilities": 140_000_000,
+            "shareholdersEquity": 870_000_000,
+        },
+    ]
+
+    @patch("quotes.brapi.fetch_financial_data")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    @patch("quotes.brapi.fetch_balance_sheets")
+    def test_patches_latest_total_debt_when_financial_data_reports_debt(
+        self, mock_fetch, mock_annual_lease, mock_financial_data, db
+    ):
+        mock_fetch.return_value = self.HISTORY
+        mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {"totalDebt": 146_216_990}
+
+        sync_balance_sheets("CGRA3")
+
+        latest = BalanceSheet.objects.get(ticker="CGRA3", end_date=date(2025, 9, 30))
+        assert latest.total_debt == 146_216_990
+
+    @patch("quotes.brapi.fetch_financial_data")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    @patch("quotes.brapi.fetch_balance_sheets")
+    def test_does_not_patch_historical_balance_sheets(
+        self, mock_fetch, mock_annual_lease, mock_financial_data, db
+    ):
+        mock_fetch.return_value = self.HISTORY
+        mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {"totalDebt": 146_216_990}
+
+        sync_balance_sheets("CGRA3")
+
+        older = BalanceSheet.objects.get(ticker="CGRA3", end_date=date(2025, 6, 30))
+        assert older.total_debt == 0
+
+    @patch("quotes.brapi.fetch_financial_data")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    @patch("quotes.brapi.fetch_balance_sheets")
+    def test_skips_patch_when_financial_data_debt_is_none(
+        self, mock_fetch, mock_annual_lease, mock_financial_data, db
+    ):
+        """Banks (BEES3, PINE3) report totalDebt=None — leave total_debt as None
+        so the card can show "not available" instead of a wrong zero."""
+        mock_fetch.return_value = self.HISTORY
+        mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {"totalDebt": None}
+
+        sync_balance_sheets("CGRA3")
+
+        latest = BalanceSheet.objects.get(ticker="CGRA3", end_date=date(2025, 9, 30))
+        assert latest.total_debt is None
+
+    @patch("quotes.brapi.fetch_financial_data")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    @patch("quotes.brapi.fetch_balance_sheets")
+    def test_keeps_balance_sheet_debt_when_larger_than_financial_data(
+        self, mock_fetch, mock_annual_lease, mock_financial_data, db
+    ):
+        """For companies where balanceSheetHistory already reports real debt
+        (large caps), only override if financialData reports strictly more.
+        Prevents downgrading accurate data."""
+        mock_fetch.return_value = [
+            {
+                "endDate": "2025-09-30",
+                "loansAndFinancing": 3_731_000_000,
+                "longTermLoansAndFinancing": 99_726_000_000,
+                "currentLiabilities": 87_320_000_000,
+                "nonCurrentLiabilities": 199_848_000_000,
+                "shareholdersEquity": 188_000_000_000,
+            },
+        ]
+        mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {"totalDebt": 203_579_000_000}
+
+        sync_balance_sheets("VALE3")
+
+        latest = BalanceSheet.objects.get(ticker="VALE3", end_date=date(2025, 9, 30))
+        assert latest.total_debt == 203_579_000_000
+
+    @patch("quotes.brapi.fetch_financial_data")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    @patch("quotes.brapi.fetch_balance_sheets")
+    def test_keeps_local_calc_when_financial_data_is_smaller(
+        self, mock_fetch, mock_annual_lease, mock_financial_data, db
+    ):
+        mock_fetch.return_value = [
+            {
+                "endDate": "2025-09-30",
+                "loansAndFinancing": 3_731_000_000,
+                "longTermLoansAndFinancing": 99_726_000_000,
+                "currentLiabilities": 87_320_000_000,
+                "nonCurrentLiabilities": 199_848_000_000,
+                "shareholdersEquity": 188_000_000_000,
+            },
+        ]
+        mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {"totalDebt": 50_000_000_000}
+
+        sync_balance_sheets("VALE3")
+
+        latest = BalanceSheet.objects.get(ticker="VALE3", end_date=date(2025, 9, 30))
+        assert latest.total_debt == 103_457_000_000  # sum of the two loan fields
 
 
 class TestSyncIPCA:

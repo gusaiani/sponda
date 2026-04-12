@@ -31,6 +31,8 @@ Point-in-time ratio measuring how much of the company's capital structure is fin
 Dívida Bruta / PL = Total Debt / Stockholders' Equity
 ```
 
+**Debt source (Brazilian tickers):** historical debt per balance sheet comes from BRAPI's `balanceSheetHistory` (`loansAndFinancing + longTermLoansAndFinancing`). For the most recent quarter, we additionally query BRAPI's `financialData.totalDebt` — a broader figure that also includes debentures, financial leases, and other interest-bearing obligations. When `financialData.totalDebt` is larger (or when balance-sheet loans are zero because BRAPI's raw fields are incomplete, as happens on many mid/small caps and banks), we override the latest row's `total_debt` with it. We never downgrade. If `financialData` reports `totalDebt=None` (typical of banks, whose liabilities are deposits rather than loans) the leverage card shows "not available" instead of a misleading zero.
+
 ### Passivo / PL (Liabilities to Equity)
 
 Broader measure that considers all obligations (not just financial debt) relative to equity. Includes suppliers, taxes, provisions, etc.
