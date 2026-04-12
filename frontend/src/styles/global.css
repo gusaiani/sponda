@@ -22,7 +22,7 @@
 }
 
 .app-header {
-  @apply flex items-center gap-4 px-4 py-2.5;
+  @apply flex items-center gap-2 px-3 py-2.5;
   background: #ffffff;
   position: relative;
   z-index: 100;
@@ -30,22 +30,34 @@
 
 @media (min-width: 640px) {
   .app-header {
-    @apply px-6 py-3;
+    @apply gap-4 px-6 py-3;
   }
 }
 
 .app-header-brand {
   @apply flex flex-col no-underline;
   flex-shrink: 0;
-  margin-right: 40px;
+  margin-right: 8px;
+}
+
+@media (min-width: 640px) {
+  .app-header-brand {
+    margin-right: 40px;
+  }
 }
 
 .app-header-logo {
   font-family: "Satoshi", sans-serif;
   font-weight: 500;
-  font-size: 22px;
+  font-size: 20px;
   color: #1b347e;
   line-height: 1;
+}
+
+@media (min-width: 640px) {
+  .app-header-logo {
+    font-size: 22px;
+  }
 }
 
 .app-header-tagline {
@@ -55,6 +67,13 @@
   letter-spacing: 0;
   line-height: 1.4;
   margin-top: 2px;
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .app-header-tagline {
+    display: block;
+  }
 }
 
 .app-header-brand:hover .app-header-logo {
@@ -128,7 +147,7 @@
 
 /* Company header (above tabs) */
 .company-header {
-  @apply flex items-center justify-between mb-10;
+  @apply flex items-center justify-between;
   width: 100vw;
   position: relative;
   left: 50%;
@@ -136,7 +155,8 @@
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
-  padding-bottom: 16px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -144,6 +164,8 @@
   .company-header {
     padding-left: 32px;
     padding-right: 32px;
+    padding-bottom: 16px;
+    margin-bottom: 40px;
   }
 }
 
@@ -155,6 +177,8 @@
 .company-header-left {
   @apply flex items-center;
   min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .company-header-logo {
@@ -164,8 +188,19 @@
 
 .company-header-name {
   font-family: 'Inter', system-ui, sans-serif;
-  @apply text-2xl font-semibold flex-1;
+  font-size: 18px;
+  font-weight: 600;
   color: var(--color-ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .company-header-name {
+    font-size: 24px;
+  }
 }
 
 .company-header-ticker {
