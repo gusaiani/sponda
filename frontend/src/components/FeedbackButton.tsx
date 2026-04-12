@@ -1,10 +1,26 @@
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, ReactNode } from "react";
 import { useTranslation } from "../i18n";
 import "../styles/feedback.css";
 
 const MATH_A = 3;
 const MATH_B = 4;
 const EXPECTED_ANSWER = MATH_A + MATH_B;
+const POE_URL_TEXT = "www.poe.ma";
+const POE_URL_HREF = "https://www.poe.ma";
+
+function linkifyPoe(text: string): ReactNode {
+  const index = text.indexOf(POE_URL_TEXT);
+  if (index === -1) return text;
+  return (
+    <>
+      {text.slice(0, index)}
+      <a href={POE_URL_HREF} target="_blank" rel="noopener noreferrer" className="feedback-link">
+        {POE_URL_TEXT}
+      </a>
+      {text.slice(index + POE_URL_TEXT.length)}
+    </>
+  );
+}
 
 export function FeedbackButton() {
   const { t } = useTranslation();
@@ -93,7 +109,7 @@ export function FeedbackButton() {
               <>
                 <h2 className="feedback-title">{t("feedback.title")}</h2>
                 <p className="feedback-text">
-                  {t("feedback.subtitle")}
+                  {linkifyPoe(t("feedback.subtitle"))}
                 </p>
                 <form className="auth-form" onSubmit={handleSubmit}>
                   <div>

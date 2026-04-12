@@ -101,9 +101,9 @@ export const zh: TranslationDictionary = {
   "verify.expired_text": "链接可能已过期，请在账户设置中重新获取。",
 
   /* ── Feedback ── */
-  "feedback.trigger": "反馈",
-  "feedback.title": "发送反馈",
-  "feedback.subtitle": "您的意见帮助我们改进 Sponda。",
+  "feedback.trigger": "您觉得 Sponda 到目前为止怎么样？",
+  "feedback.title": "帮助我们改进 Sponda",
+  "feedback.subtitle": "我是 Gustavo Saiani，Sponda 的创建者。我独自构建这个项目，基于我 18 年研究和实践价值投资的经验（参见 www.poe.ma）。我想知道您需要什么，喜欢或不喜欢什么，以便我能让 Sponda 对您更好。",
   "feedback.email_label": "您的邮箱",
   "feedback.message_label": "留言",
   "feedback.message_placeholder": "您想分享什么？",
