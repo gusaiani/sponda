@@ -732,15 +732,10 @@ class RevisitScheduleDetailView(APIView):
         except RevisitSchedule.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        next_revisit = request.data.get("next_revisit")
-        recurrence_days = request.data.get("recurrence_days")
-
-        if next_revisit is not None:
-            schedule.next_revisit = next_revisit
-        if recurrence_days is not None:
-            schedule.recurrence_days = recurrence_days
-        schedule.save()
-        return Response(RevisitScheduleSerializer(schedule).data)
+        serializer = RevisitScheduleSerializer(schedule, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
     def delete(self, request, pk):
         deleted, _ = RevisitSchedule.objects.filter(pk=pk, user=request.user).delete()

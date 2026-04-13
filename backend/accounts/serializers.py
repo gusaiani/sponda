@@ -1,10 +1,17 @@
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from .models import CompanyVisit, FavoriteCompany, RevisitSchedule, SavedList
 
 User = get_user_model()
+
+
+def validate_next_revisit_not_past(value):
+    if value and value < timezone.localdate():
+        raise serializers.ValidationError("Next revisit cannot be in the past.")
+    return value
 
 
 class SignupSerializer(serializers.ModelSerializer):
@@ -79,6 +86,9 @@ class RevisitScheduleSerializer(serializers.ModelSerializer):
         fields = ("id", "ticker", "next_revisit", "recurrence_days", "share_token", "notified_at", "dismissed_at", "created_at", "updated_at")
         read_only_fields = ("id", "share_token", "notified_at", "dismissed_at", "created_at", "updated_at")
 
+    def validate_next_revisit(self, value):
+        return validate_next_revisit_not_past(value)
+
 
 class MarkVisitedSerializer(serializers.Serializer):
     ticker = serializers.CharField(max_length=10)
@@ -88,6 +98,9 @@ class MarkVisitedSerializer(serializers.Serializer):
         choices=[30, 90, 182, 365],
         required=False,
     )
+
+    def validate_next_revisit(self, value):
+        return validate_next_revisit_not_past(value)
 
 
 class FeedbackSerializer(serializers.Serializer):
