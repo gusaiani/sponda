@@ -6,6 +6,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
+from django.core.management import call_command
+
 from accounts.models import CompanyVisit, RevisitSchedule
 from accounts.tasks import send_revisit_reminders
 
@@ -517,3 +519,33 @@ class TestRevisitReminderTask:
         result = send_revisit_reminders()
         assert result == 0
         mock_send_mail.assert_not_called()
+
+
+# ── Management Command ──
+
+
+class TestSendRevisitRemindersCommand:
+    @patch("accounts.tasks.send_mail")
+    def test_command_sends_reminders(self, mock_send_mail, user, db):
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="PETR4",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        call_command("send_revisit_reminders")
+        mock_send_mail.assert_called_once()
+        schedule = RevisitSchedule.objects.get(ticker="PETR4")
+        assert schedule.notified_at is not None
+
+    @patch("accounts.tasks.send_mail")
+    def test_command_is_idempotent(self, mock_send_mail, user, db):
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="PETR4",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        call_command("send_revisit_reminders")
+        call_command("send_revisit_reminders")
+        assert mock_send_mail.call_count == 1

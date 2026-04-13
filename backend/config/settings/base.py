@@ -97,9 +97,4 @@ CELERY_BROKER_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
-CELERY_BEAT_SCHEDULE = {
-    "send-revisit-reminders": {
-        "task": "accounts.tasks.send_revisit_reminders",
-        "schedule": 60 * 60,  # Every hour (filtered to send once per due date)
-    },
-}
+# Periodic jobs run via systemd timers, not celery beat. See systemd/sponda-revisit-reminders.{service,timer}.
