@@ -1,0 +1,16 @@
+[Unit]
+Description=Sponda revisit reminder emails
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py send_revisit_reminders
+Restart=on-failure
+RestartSec=120
+StartLimitIntervalSec=600
+StartLimitBurst=3

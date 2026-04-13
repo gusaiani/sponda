@@ -165,8 +165,11 @@ jobs:
             cp /opt/sponda/systemd/sponda-frontend.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.timer /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-revisit-reminders.service /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-revisit-reminders.timer /etc/systemd/system/
             systemctl daemon-reload
             systemctl enable --now sponda-refresh.timer
+            systemctl enable --now sponda-revisit-reminders.timer
 
             # Update Nginx config and reload
             cp /opt/sponda/nginx/gzip.conf /etc/nginx/conf.d/gzip.conf
