@@ -51,6 +51,94 @@
   line-height: 1;
 }
 
+/* Inline links (desktop) — hidden on mobile */
+.auth-header-inline {
+  display: none;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .auth-header-inline {
+    display: flex;
+  }
+}
+
+/* Hamburger (mobile) — hidden on desktop */
+.auth-header-hamburger-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  z-index: 120;
+}
+
+@media (min-width: 640px) {
+  .auth-header-hamburger-wrapper {
+    display: none;
+  }
+}
+
+.auth-header-hamburger {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply flex items-center justify-center cursor-pointer;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 8px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.auth-header-hamburger:hover {
+  color: var(--color-accent);
+  background: #e9ebee;
+}
+
+.auth-header-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px 0;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.auth-header-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 4px;
+}
+
+.auth-header-menu-link {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-muted);
+  text-decoration: none;
+  padding: 10px 16px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.auth-header-menu-link:hover {
+  background: var(--color-bg-subtle, #f5f5f5);
+  color: var(--color-accent);
+}
+
+.auth-header-menu-language {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 4px;
+}
+
 /* ── Language Dropdown ── */
 
 .language-dropdown {
@@ -97,6 +185,12 @@
   .language-dropdown-label {
     display: inline;
   }
+}
+
+/* Inside the mobile menu, show labels regardless of viewport */
+.auth-header-menu-row .language-dropdown-label,
+.auth-header-menu-row .share-dropdown-label {
+  display: inline;
 }
 
 .language-dropdown-menu {
