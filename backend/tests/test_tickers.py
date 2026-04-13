@@ -306,6 +306,94 @@ class TestTickerPeersEndpoint:
         symbols = [p["symbol"] for p in response.json()]
         assert len(symbols) >= 2
 
+    def test_brazilian_source_prefers_brazilian_peers_over_foreign(self, api_client, db):
+        """When source is Brazilian, Brazilian peers in same sector come before foreign peers."""
+        Ticker.objects.create(
+            symbol="VALE3", name="Vale", sector="Non-Energy Minerals", type="stock",
+            market_cap=50_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="AA", name="Alcoa Corporation", sector="Non-Energy Minerals", type="stock",
+            market_cap=10_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="BRAP4", name="Bradespar", sector="Non-Energy Minerals", type="stock",
+            market_cap=5_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="GGBR4", name="Gerdau", sector="Non-Energy Minerals", type="stock",
+            market_cap=8_000_000_000,
+        )
+        response = api_client.get("/api/tickers/VALE3/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        # Brazilian peers (GGBR4, BRAP4) must appear before the foreign peer (AA),
+        # even though AA has a higher market cap than either.
+        assert symbols.index("GGBR4") < symbols.index("AA")
+        assert symbols.index("BRAP4") < symbols.index("AA")
+
+    def test_foreign_source_prefers_foreign_peers_over_brazilian(self, api_client, db):
+        """When source is a US ticker, US peers come before Brazilian peers in the same sector."""
+        Ticker.objects.create(
+            symbol="AAPL", name="Apple", sector="Technology Services", type="stock",
+            market_cap=3_000_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="MSFT", name="Microsoft", sector="Technology Services", type="stock",
+            market_cap=2_800_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="GOOGL", name="Alphabet", sector="Technology Services", type="stock",
+            market_cap=2_000_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="TOTS3", name="Totvs", sector="Technology Services", type="stock",
+            market_cap=5_000_000_000,
+        )
+        response = api_client.get("/api/tickers/AAPL/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        assert symbols.index("MSFT") < symbols.index("TOTS3")
+        assert symbols.index("GOOGL") < symbols.index("TOTS3")
+
+    def test_sorts_same_country_peers_by_market_cap_descending(self, api_client, db):
+        """Within same-country group, higher market cap comes first."""
+        Ticker.objects.create(
+            symbol="PETR4", name="Petrobras", sector="Energy Minerals", type="stock",
+            market_cap=400_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="PRIO3", name="PRIO", sector="Energy Minerals", type="stock",
+            market_cap=40_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="RECV3", name="PetroReconcavo", sector="Energy Minerals", type="stock",
+            market_cap=5_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="RRRP3", name="3R Petroleum", sector="Energy Minerals", type="stock",
+            market_cap=12_000_000_000,
+        )
+        response = api_client.get("/api/tickers/PETR4/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        assert symbols == ["PRIO3", "RRRP3", "RECV3"]
+
+    def test_peers_with_null_market_cap_come_last_within_country_group(self, api_client, db):
+        """Peers missing market_cap should sort after peers with a known market cap in the same country group."""
+        Ticker.objects.create(
+            symbol="PETR4", name="Petrobras", sector="Energy Minerals", type="stock",
+            market_cap=400_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="PRIO3", name="PRIO", sector="Energy Minerals", type="stock",
+            market_cap=40_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="RECV3", name="PetroReconcavo", sector="Energy Minerals", type="stock",
+            market_cap=None,
+        )
+        response = api_client.get("/api/tickers/PETR4/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        assert symbols.index("PRIO3") < symbols.index("RECV3")
+
 
 class TestTickerDetailEndpoint:
     def test_returns_single_ticker(self, api_client, sample_tickers):

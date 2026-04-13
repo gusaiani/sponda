@@ -275,19 +275,33 @@ class TickerPeersView(APIView):
             all_sector_tickers = list(
                 Ticker.objects.filter(type="stock", sector=current_sector)
                 .exclude(symbol__regex=r"^[A-Z]+\d+F$")
-                .values("symbol", "name", "display_name", "sector")
+                .values("symbol", "name", "display_name", "sector", "market_cap")
             )
             for ticker in all_sector_tickers:
                 ticker["name"] = ticker.pop("display_name") or ticker["name"]
 
             current_subsector = get_subsector(current_name, current_sector)
+            source_is_brazilian = is_brazilian_ticker(symbol_upper)
+
+            def peer_sort_key(peer):
+                peer_is_brazilian = is_brazilian_ticker(peer["symbol"])
+                same_country = peer_is_brazilian == source_is_brazilian
+                market_cap = peer.get("market_cap")
+                has_market_cap = market_cap is not None
+                return (
+                    0 if same_country else 1,
+                    0 if has_market_cap else 1,
+                    -(market_cap or 0),
+                )
 
             subsector_matches = [
                 t for t in all_sector_tickers
                 if ticker_base(t["symbol"]) != current_base
                 and get_subsector(t["name"], t["sector"]) == current_subsector
             ]
-            subsector_peers = deduplicate_by_company(subsector_matches)[:self.MAX_PEERS]
+            subsector_peers = sorted(
+                deduplicate_by_company(subsector_matches), key=peer_sort_key,
+            )[:self.MAX_PEERS]
 
             if len(subsector_peers) >= self.MIN_PEERS:
                 result = [{"symbol": p["symbol"], "name": p["name"]} for p in subsector_peers]
@@ -296,7 +310,9 @@ class TickerPeersView(APIView):
                     t for t in all_sector_tickers
                     if ticker_base(t["symbol"]) != current_base
                 ]
-                sector_peers = deduplicate_by_company(sector_matches)[:self.MAX_PEERS]
+                sector_peers = sorted(
+                    deduplicate_by_company(sector_matches), key=peer_sort_key,
+                )[:self.MAX_PEERS]
                 result = [{"symbol": p["symbol"], "name": p["name"]} for p in sector_peers]
 
         cache.set(cache_key, result, self.CACHE_TIMEOUT)
