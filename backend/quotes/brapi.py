@@ -367,23 +367,27 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
 def _patch_latest_total_debt_from_financial_data(
     ticker: str, sheets: list[BalanceSheet]
 ) -> None:
-    """Override the most recent balance sheet's total_debt with BRAPI's
-    financialData.totalDebt when it is larger (or we had no local value).
+    """Fill in the most recent balance sheet's total_debt from BRAPI's
+    financialData.totalDebt only when the balance sheet itself reports
+    no debt.
 
     BRAPI's balanceSheetHistory often reports loansAndFinancing=0 for
     mid/small caps and banks even when the company has real debt; the
     financialData module is derived differently and usually carries the
-    correct current figure.  We only upgrade, never downgrade, so large
-    caps with well-populated balance sheets are unaffected.
+    correct figure in that case.  When the balance sheet already reports
+    real loansAndFinancing, trust it — BRAPI's financialData.totalDebt is
+    sometimes inflated (observed on VALE3: 203.6B vs the correct 103.5B),
+    which would otherwise push our D/E ratio ~2x above the ADR.
     """
     if not sheets:
         return
-    financial_data = fetch_financial_data(ticker)
-    if not financial_data:
+    latest = max(sheets, key=lambda s: s.end_date)
+
+    if latest.total_debt not in (None, 0):
         return
 
-    latest = max(sheets, key=lambda s: s.end_date)
-    reported_debt = financial_data.get("totalDebt")
+    financial_data = fetch_financial_data(ticker)
+    reported_debt = financial_data.get("totalDebt") if financial_data else None
 
     if reported_debt is None:
         if latest.total_debt == 0:
@@ -391,10 +395,8 @@ def _patch_latest_total_debt_from_financial_data(
             latest.save(update_fields=["total_debt"])
         return
 
-    reported_debt = int(reported_debt)
-    if latest.total_debt is None or reported_debt > latest.total_debt:
-        latest.total_debt = reported_debt
-        latest.save(update_fields=["total_debt"])
+    latest.total_debt = int(reported_debt)
+    latest.save(update_fields=["total_debt"])
 
 
 def fetch_ipca_data() -> list[dict]:
