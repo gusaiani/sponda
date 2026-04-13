@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../hooks/useAuth";
@@ -13,51 +14,140 @@ export function AuthHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { t, locale } = useTranslation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const isOnAuthPage = AUTH_PAGES.some((path) => pathname.startsWith(path));
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (isLoading) {
     return (
       <div className="auth-header auth-header--loading">
-        <ShareDropdown />
-        <LanguageToggle />
         <span className="auth-header-link auth-header-signup">&nbsp;</span>
       </div>
     );
   }
 
+  function closeMenu() {
+    setIsMenuOpen(false);
+  }
+
   return (
     <div className="auth-header">
-      <ShareDropdown />
       <NotificationBell />
-      <LanguageToggle />
-      {isAuthenticated ? (
-        <>
-          <Link href={`/${locale}/visitas`} className="auth-header-link">
-            {t("visits.page_title")}
-          </Link>
-          {isSuperuser && (
-            <Link href={`/${locale}/admin-dashboard`} className="auth-header-link auth-header-admin">
-              Admin
+
+      {/* Inline items — visible on desktop, hidden on mobile */}
+      <div className="auth-header-inline">
+        <ShareDropdown />
+        <LanguageToggle />
+        {isAuthenticated && (
+          <>
+            <Link href={`/${locale}/visitas`} className="auth-header-link">
+              {t("visits.page_title")}
             </Link>
-          )}
-          <Link href={`/${locale}/account`} className="auth-header-link">
-            {t("auth.my_account")}
+            {isSuperuser && (
+              <Link href={`/${locale}/admin-dashboard`} className="auth-header-link auth-header-admin">
+                Admin
+              </Link>
+            )}
+            <Link href={`/${locale}/account`} className="auth-header-link">
+              {t("auth.my_account")}
+            </Link>
+          </>
+        )}
+        {!isAuthenticated && (isOnAuthPage ? (
+          <button
+            className="auth-header-link auth-header-close"
+            onClick={() => router.push(`/${locale}`)}
+            aria-label={t("common.close")}
+          >
+            ✕
+          </button>
+        ) : (
+          <Link href={`/${locale}/login`} className="auth-header-link auth-header-signup">
+            {t("auth.login")}
           </Link>
-        </>
-      ) : isOnAuthPage ? (
+        ))}
+      </div>
+
+      {/* Hamburger — visible on mobile, hidden on desktop */}
+      <div className="auth-header-hamburger-wrapper" ref={menuRef}>
         <button
-          className="auth-header-link auth-header-close"
-          onClick={() => router.push(`/${locale}`)}
-          aria-label={t("common.close")}
+          type="button"
+          className="auth-header-hamburger"
+          aria-label={t("header.menu")}
+          aria-expanded={isMenuOpen}
+          onClick={() => setIsMenuOpen((open) => !open)}
         >
-          ✕
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
         </button>
-      ) : (
-        <Link href={`/${locale}/login`} className="auth-header-link auth-header-signup">
-          {t("auth.login")}
-        </Link>
-      )}
+        {isMenuOpen && (
+          <div className="auth-header-menu" role="menu">
+            <div className="auth-header-menu-row auth-header-menu-row--controls">
+              <ShareDropdown />
+              <LanguageToggle />
+            </div>
+            {isAuthenticated && (
+              <>
+                <Link
+                  href={`/${locale}/visitas`}
+                  className="auth-header-menu-link"
+                  onClick={closeMenu}
+                >
+                  {t("visits.page_title")}
+                </Link>
+                {isSuperuser && (
+                  <Link
+                    href={`/${locale}/admin-dashboard`}
+                    className="auth-header-menu-link auth-header-admin"
+                    onClick={closeMenu}
+                  >
+                    Admin
+                  </Link>
+                )}
+                <Link
+                  href={`/${locale}/account`}
+                  className="auth-header-menu-link"
+                  onClick={closeMenu}
+                >
+                  {t("auth.my_account")}
+                </Link>
+              </>
+            )}
+            {!isAuthenticated && !isOnAuthPage && (
+              <Link
+                href={`/${locale}/login`}
+                className="auth-header-menu-link auth-header-signup"
+                onClick={closeMenu}
+              >
+                {t("auth.login")}
+              </Link>
+            )}
+            {!isAuthenticated && isOnAuthPage && (
+              <button
+                className="auth-header-menu-link auth-header-close"
+                onClick={() => { closeMenu(); router.push(`/${locale}`); }}
+                aria-label={t("common.close")}
+              >
+                {t("common.close")}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

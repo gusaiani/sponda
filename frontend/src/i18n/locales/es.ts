@@ -26,6 +26,7 @@ export const es: TranslationDictionary = {
 
   /* ── Header ── */
   "header.tagline": "Para inversores de valor",
+  "header.menu": "Menú",
 
   /* ── Footer ── */
   "footer.tool_by": "Una herramienta de",
