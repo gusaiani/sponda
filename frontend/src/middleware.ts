@@ -111,7 +111,13 @@ export function middleware(request: NextRequest) {
 
   const url = request.nextUrl.clone();
   url.pathname = `/${locale}${newPathname === "/" ? "" : newPathname}`;
-  return NextResponse.redirect(url, 301);
+  // 302 (not 301) because the chosen locale depends on per-request signals
+  // (sponda-lang cookie, Accept-Language). A 301 would be cached by browsers
+  // indefinitely and ignore future cookie/header changes.
+  const response = NextResponse.redirect(url, 302);
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Vary", "Cookie, Accept-Language");
+  return response;
 }
 
 export const config = {
