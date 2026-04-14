@@ -6,6 +6,8 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
+from django.core.management import call_command
+
 from accounts.models import CompanyVisit, RevisitSchedule
 from accounts.tasks import send_revisit_reminders
 
@@ -138,6 +140,26 @@ class TestMarkVisited:
         )
         assert response.status_code == 403
 
+    def test_mark_visited_rejects_past_next_revisit(self, authenticated_client, user):
+        past_date = str(date.today() - timedelta(days=1))
+        response = authenticated_client.post(
+            "/api/auth/visits/mark/",
+            {"ticker": "PETR4", "next_revisit": past_date},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert "next_revisit" in response.json()
+        assert not RevisitSchedule.objects.filter(user=user, ticker="PETR4").exists()
+
+    def test_mark_visited_allows_today_as_next_revisit(self, authenticated_client, user):
+        today = str(date.today())
+        response = authenticated_client.post(
+            "/api/auth/visits/mark/",
+            {"ticker": "PETR4", "next_revisit": today},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+
 
 # ── Visit List ──
 
@@ -259,6 +281,23 @@ class TestRevisitSchedules:
         schedule.refresh_from_db()
         assert str(schedule.next_revisit) == new_date
         assert schedule.recurrence_days == 90
+
+    def test_update_schedule_rejects_past_date(self, authenticated_client, user):
+        schedule = RevisitSchedule.objects.create(
+            user=user,
+            ticker="PETR4",
+            next_revisit=date.today() + timedelta(days=30),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        past_date = str(date.today() - timedelta(days=1))
+        response = authenticated_client.put(
+            f"/api/auth/visits/schedules/{schedule.pk}/",
+            {"next_revisit": past_date},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        schedule.refresh_from_db()
+        assert schedule.next_revisit == date.today() + timedelta(days=30)
 
     def test_delete_schedule(self, authenticated_client, user):
         schedule = RevisitSchedule.objects.create(
@@ -480,3 +519,33 @@ class TestRevisitReminderTask:
         result = send_revisit_reminders()
         assert result == 0
         mock_send_mail.assert_not_called()
+
+
+# ── Management Command ──
+
+
+class TestSendRevisitRemindersCommand:
+    @patch("accounts.tasks.send_mail")
+    def test_command_sends_reminders(self, mock_send_mail, user, db):
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="PETR4",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        call_command("send_revisit_reminders")
+        mock_send_mail.assert_called_once()
+        schedule = RevisitSchedule.objects.get(ticker="PETR4")
+        assert schedule.notified_at is not None
+
+    @patch("accounts.tasks.send_mail")
+    def test_command_is_idempotent(self, mock_send_mail, user, db):
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="PETR4",
+            next_revisit=date.today(),
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        call_command("send_revisit_reminders")
+        call_command("send_revisit_reminders")
+        assert mock_send_mail.call_count == 1

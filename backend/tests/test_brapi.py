@@ -373,12 +373,14 @@ class TestSyncBalanceSheetsPatchesLatestDebtFromFinancialData:
     @patch("quotes.brapi.fetch_financial_data")
     @patch("quotes.brapi._fetch_annual_lease_data")
     @patch("quotes.brapi.fetch_balance_sheets")
-    def test_keeps_balance_sheet_debt_when_larger_than_financial_data(
+    def test_keeps_balance_sheet_debt_when_financial_data_is_larger(
         self, mock_fetch, mock_annual_lease, mock_financial_data, db
     ):
-        """For companies where balanceSheetHistory already reports real debt
-        (large caps), only override if financialData reports strictly more.
-        Prevents downgrading accurate data."""
+        """When balanceSheetHistory already reports real loansAndFinancing,
+        trust it — BRAPI's financialData.totalDebt is sometimes inflated
+        (observed on VALE3: 203.6B vs the correct 103.5B). Overriding with
+        the larger value would produce a D/E ratio that disagrees with the
+        ADR (VALE via FMP) by nearly 2x."""
         mock_fetch.return_value = [
             {
                 "endDate": "2025-09-30",
@@ -395,7 +397,7 @@ class TestSyncBalanceSheetsPatchesLatestDebtFromFinancialData:
         sync_balance_sheets("VALE3")
 
         latest = BalanceSheet.objects.get(ticker="VALE3", end_date=date(2025, 9, 30))
-        assert latest.total_debt == 203_579_000_000
+        assert latest.total_debt == 103_457_000_000
 
     @patch("quotes.brapi.fetch_financial_data")
     @patch("quotes.brapi._fetch_annual_lease_data")

@@ -216,17 +216,19 @@ docker compose up -d
 
 ## Scheduled Tasks
 
-A systemd timer (`sponda-refresh.timer`) runs daily at 06:00 UTC to refresh IPCA and ticker data from BRAPI. It is installed automatically on deploy. To check status:
+Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
 
 ```bash
-systemctl status sponda-refresh.timer    # next run time
-journalctl -u sponda-refresh.service     # last run logs
+systemctl list-timers --all              # all timers, next/last run
+journalctl -u sponda-refresh.service     # last run logs for a unit
 ```
 
-| Command | Purpose | Frequency |
-|---|---|---|
-| `refresh_ipca` | Sync IPCA inflation index | Daily |
-| `refresh_tickers` | Sync B3 ticker list (~2,300 stocks) | Daily |
+| Command | Timer | Purpose | Frequency |
+|---|---|---|---|
+| `refresh_ipca` + `refresh_tickers` | `sponda-refresh.timer` | Sync IPCA inflation index and B3 ticker list (~2,300 stocks) from BRAPI | Daily 06:00 UTC |
+| `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
+
+The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
 ## Rate Limiting
 
