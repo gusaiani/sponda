@@ -257,6 +257,57 @@ class TestLogoProxy:
         cached_path = LOGO_CACHE_DIR / "NOPE3.png"
         assert not cached_path.exists()
 
+    @patch("quotes.views.LOGO_OVERRIDE_URLS", {"TKNO4": "https://example.com/tekno.png"})
+    @patch("quotes.views.urlopen")
+    def test_manual_override_is_used_before_db_logo(self, mock_urlopen, api_client, db):
+        """Manual override takes precedence over the logo URL stored on the Ticker row."""
+        Ticker.objects.create(
+            symbol="TKNO4", name="Tekno", type="stock",
+            logo="https://icons.brapi.dev/icons/BRAPI.svg",
+        )
+        fake_image = b"\x89PNG\r\n\x1a\nfake_tekno"
+        mock_urlopen.return_value = _mock_urlopen(fake_image)
+
+        response = api_client.get("/api/logos/TKNO4.png")
+        assert response.status_code == 200
+        assert response.content == fake_image
+        # Must have fetched the override URL, not the BRAPI placeholder
+        fetched_url = mock_urlopen.call_args[0][0].full_url
+        assert fetched_url == "https://example.com/tekno.png"
+
+    @patch("quotes.views.urlopen")
+    def test_rejects_brapi_placeholder_url_from_db(self, mock_urlopen, api_client, db):
+        """BRAPI's generic placeholder URL stored on the Ticker row must be ignored entirely,
+        skipping the wasted fetch and going straight to the BRAPI symbol fallback."""
+        Ticker.objects.create(
+            symbol="KLBN4", name="Klabin", type="stock",
+            logo="https://icons.brapi.dev/icons/BRAPI.svg",
+        )
+        real_logo = b'<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'
+        mock_urlopen.return_value = _mock_urlopen(real_logo)
+
+        response = api_client.get("/api/logos/KLBN4.png")
+        assert response.status_code == 200
+        # We never fetched the placeholder URL
+        for call in mock_urlopen.call_args_list:
+            assert "BRAPI.svg" not in call[0][0].full_url
+
+    @patch("quotes.views.urlopen")
+    def test_negative_cache_prevents_repeat_fetches(self, mock_urlopen, api_client, db):
+        """When all sources fail for a ticker, subsequent requests must serve the fallback
+        without re-fetching from the network for the duration of the negative-cache TTL."""
+        Ticker.objects.create(symbol="MISSING3", name="Missing", type="stock", logo="")
+        mock_urlopen.side_effect = Exception("Not found")
+
+        # First request exhausts all sources and falls back.
+        api_client.get("/api/logos/MISSING3.png")
+        first_call_count = mock_urlopen.call_count
+        assert first_call_count >= 1
+
+        # Second request within TTL should hit the negative cache — no new fetches.
+        api_client.get("/api/logos/MISSING3.png")
+        assert mock_urlopen.call_count == first_call_count
+
     @patch("quotes.views.urlopen")
     def test_purges_cached_brapi_placeholder(self, mock_urlopen, api_client, db):
         """If a cached file is a BRAPI placeholder, delete it and serve fallback."""
