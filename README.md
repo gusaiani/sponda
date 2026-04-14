@@ -115,6 +115,37 @@ Locale-prefixed URLs serve region-specific metadata to search engines:
 - **N+1 fix** in AdminDashboard: replaced per-user loops with `annotate(Count(...))` (1,200+ queries down to 1)
 - **CompanyAnalysisView**: 3 queries reduced to 1 with `.values()`
 
+## Peer comparison
+
+The Compare tab on each company page lists up to 10 peer tickers ranked by how close they are to the source company. Ranking uses four tiers of signal, applied in order:
+
+1. **Subsector within the same sector** — companies whose business line maps to the same subsector as the source (e.g. VALE3 and GGBR4 both map to *Mineração e Siderurgia*, while KLBN4 maps to *Papel e Celulose*).
+2. **Other subsectors in the same sector** — fills remaining slots when subsector peers aren't enough.
+3. **Adjacent sectors** — only considered when the sector itself has too few candidates (see `ADJACENT_SECTORS` in `backend/quotes/views.py`).
+4. **Country, then market cap** — within a tier, same-country peers come first; within same-country, larger market cap comes first.
+
+Subsector inference is pattern-based: a per-sector list of regexes in `SUBSECTOR_RULES` (Finance, Non-Energy Minerals, Process Industries, Retail Trade, Transportation, Utilities, etc.) matches against the company name. Unmatched companies fall back to a default subsector label per sector. No schema change — the subsector is derived at query time.
+
+**API:** `GET /api/tickers/<symbol>/peers/`
+
+## Logos
+
+Company logos are served through `GET /api/logos/<symbol>.png`. The resolution chain is designed so that missing logos are recoverable without code changes:
+
+1. **Manual overrides** (`backend/quotes/logo_overrides.py::LOGO_OVERRIDE_URLS`) — highest priority. Add `"<SYMBOL>": "https://..."` for any ticker whose auto-fetched logo is wrong or missing.
+2. **Ticker.logo URL** from the database — skipped entirely if the URL is a known provider placeholder (e.g. BRAPI's generic `BRAPI.svg`). Provider placeholders are also stripped at sync time in `brapi.sync_tickers`.
+3. **BRAPI direct URL** — `https://icons.brapi.dev/icons/<SYMBOL>.svg`.
+4. **Generated fallback SVG** — colored circle with the ticker's first letter. Never written to disk.
+
+Real logos are cached to disk at `LOGO_CACHE_DIR` for 30 days. When all sources return placeholders or fail, the symbol is added to a 24-hour negative cache (in Redis) so subsequent requests don't re-hit the network.
+
+**Commands:**
+
+| Command | What it does |
+|---|---|
+| `./manage.py warm_logo_cache [--region ...]` | Pre-warm the disk cache for popular tickers. |
+| `./manage.py audit_logos [--limit N] [--symbols ...]` | List tickers whose logo resolution ends in the generated fallback — use the output to populate `LOGO_OVERRIDE_URLS`. |
+
 ## Stack
 
 - **Backend:** Django 5 + Django REST Framework + PostgreSQL + Redis

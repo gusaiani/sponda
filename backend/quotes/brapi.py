@@ -447,6 +447,7 @@ def fetch_ticker_list() -> list[dict]:
 
 def sync_tickers() -> int:
     """Fetch all tickers from BRAPI and upsert into the Ticker model."""
+    from .logo_overrides import is_placeholder_logo_url
     from .views import format_display_name
 
     stocks = fetch_ticker_list()
@@ -465,13 +466,18 @@ def sync_tickers() -> int:
         if ticker_type and ticker_type != "stock":
             continue
         formal_name = stock.get("name") or ""
+        logo_url = stock.get("logo") or ""
+        # BRAPI returns its generic branding SVG for tickers it has no logo
+        # for. Persisting that URL would just cause repeated rejected fetches.
+        if is_placeholder_logo_url(logo_url):
+            logo_url = ""
         objects.append(Ticker(
             symbol=symbol,
             name=formal_name,
             display_name=format_display_name(formal_name),
             sector=stock.get("sector") or "",
             type=stock.get("type") or "",
-            logo=stock.get("logo") or "",
+            logo=logo_url,
         ))
 
     if objects:

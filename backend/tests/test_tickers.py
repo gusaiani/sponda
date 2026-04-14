@@ -148,6 +148,20 @@ class TestSyncTickers:
         assert not Ticker.objects.filter(symbol="XPBR31").exists()
 
     @patch("quotes.brapi.fetch_ticker_list")
+    def test_strips_brapi_placeholder_logo_url(self, mock_fetch, db):
+        """BRAPI returns its generic placeholder URL (BRAPI.svg) for unknown tickers.
+        We must not persist that URL — it leads to wasted fetches that are always rejected."""
+        mock_fetch.return_value = [
+            {"stock": "KLBN4", "name": "KLABIN", "type": "stock",
+             "logo": "https://icons.brapi.dev/icons/BRAPI.svg"},
+            {"stock": "VALE3", "name": "VALE", "type": "stock",
+             "logo": "https://icons.brapi.dev/icons/VALE3.svg"},
+        ]
+        sync_tickers()
+        assert Ticker.objects.get(symbol="KLBN4").logo == ""
+        assert Ticker.objects.get(symbol="VALE3").logo == "https://icons.brapi.dev/icons/VALE3.svg"
+
+    @patch("quotes.brapi.fetch_ticker_list")
     def test_deletes_tickers_no_longer_in_source(self, mock_fetch, db):
         Ticker.objects.create(symbol="AAPL34", name="Apple BDR", type="bdr")
         Ticker.objects.create(symbol="KNRI11", name="Kinea Renda", type="fund")
@@ -283,7 +297,8 @@ class TestTickerPeersEndpoint:
         response = api_client.get("/api/tickers/PETR4/peers/")
         assert "max-age=3600" in response["Cache-Control"]
 
-    def test_finance_subsector_groups_banks(self, api_client, db):
+    def test_finance_subsector_ranks_banks_before_insurance(self, api_client, db):
+        """Same-subsector peers come first; different-subsector same-sector peers fill the tail."""
         Ticker.objects.create(symbol="ITUB4", name="Itau Unibanco", sector="Finance", type="stock")
         Ticker.objects.create(symbol="BBDC4", name="BCO Bradesco", sector="Finance", type="stock")
         Ticker.objects.create(symbol="BBAS3", name="BCO Brasil", sector="Finance", type="stock")
@@ -294,17 +309,103 @@ class TestTickerPeersEndpoint:
         assert "BBDC4" in symbols
         assert "BBAS3" in symbols
         assert "SANB11" in symbols
-        assert "SULA11" not in symbols
+        # Insurer may fill the tail but must come after all banks
+        if "SULA11" in symbols:
+            assert symbols.index("SULA11") > symbols.index("BBDC4")
+            assert symbols.index("SULA11") > symbols.index("BBAS3")
+            assert symbols.index("SULA11") > symbols.index("SANB11")
 
-    def test_falls_back_to_broad_sector_when_few_subsector_peers(self, api_client, db):
+    def test_fills_with_broader_sector_when_few_subsector_peers(self, api_client, db):
         Ticker.objects.create(symbol="SULA11", name="Sul America Seguros", sector="Finance", type="stock")
         Ticker.objects.create(symbol="ITUB4", name="Itau Unibanco", sector="Finance", type="stock")
         Ticker.objects.create(symbol="BBDC4", name="BCO Bradesco", sector="Finance", type="stock")
         Ticker.objects.create(symbol="BBAS3", name="BCO Brasil", sector="Finance", type="stock")
-        # SULA11's subsector is "Seguros", only 0 peers there → falls back to broader "Finance"
+        # SULA11's subsector is "Seguros", 0 peers there → fills with broader "Finance"
         response = api_client.get("/api/tickers/SULA11/peers/")
         symbols = [p["symbol"] for p in response.json()]
         assert len(symbols) >= 2
+
+    def test_ranks_same_subsector_before_other_subsectors_within_sector(self, api_client, db):
+        """Vale (Mineração) should show Mineração/Siderurgia peers before Papel e Celulose peers,
+        regardless of market cap. Klabin must fall below smaller mining/steel peers."""
+        Ticker.objects.create(
+            symbol="VALE3", name="VALE S.A.", sector="Non-Energy Minerals",
+            type="stock", market_cap=300_000_000_000,
+        )
+        # Klabin is heavier than most miners — without subsector logic, it would
+        # rank above them on market cap alone.
+        Ticker.objects.create(
+            symbol="KLBN4", name="KLABIN S.A.", sector="Non-Energy Minerals",
+            type="stock", market_cap=50_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="ETER3", name="ETERNIT S.A.", sector="Non-Energy Minerals",
+            type="stock", market_cap=45_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="EUCA4", name="EUCATEX S.A. INDUSTRIA E COMERCIO",
+            sector="Non-Energy Minerals", type="stock", market_cap=40_000_000_000,
+        )
+        # Mining/Siderurgia peers have smaller caps but share Vale's subsector.
+        Ticker.objects.create(
+            symbol="CMIN3", name="CSN MINERAÇÃO S.A.", sector="Non-Energy Minerals",
+            type="stock", market_cap=10_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="GGBR4", name="GERDAU S.A.", sector="Non-Energy Minerals",
+            type="stock", market_cap=8_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="CSNA3", name="CIA SIDERURGICA NACIONAL", sector="Non-Energy Minerals",
+            type="stock", market_cap=5_000_000_000,
+        )
+        response = api_client.get("/api/tickers/VALE3/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        # Mineração/Siderurgia peers (CMIN3, GGBR4, CSNA3) must all come before
+        # Papel (KLBN4) and Construção (ETER3, EUCA4).
+        assert symbols.index("CMIN3") < symbols.index("KLBN4")
+        assert symbols.index("GGBR4") < symbols.index("KLBN4")
+        assert symbols.index("CSNA3") < symbols.index("KLBN4")
+        assert symbols.index("CMIN3") < symbols.index("ETER3")
+        assert symbols.index("CMIN3") < symbols.index("EUCA4")
+
+    def test_fills_from_adjacent_sector_when_sector_is_small(self, api_client, db):
+        """If same-sector peer pool is thin, fill with adjacent-sector peers (after in-sector ones)."""
+        # Source sits in a thin sector with only 1 in-sector peer available.
+        Ticker.objects.create(
+            symbol="SOLO3", name="Solo Only Co", sector="Health Services",
+            type="stock", market_cap=5_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="HAPV3", name="Hapvida", sector="Health Services",
+            type="stock", market_cap=40_000_000_000,
+        )
+        # Adjacent sector (Health Technology) should fill remaining slots.
+        Ticker.objects.create(
+            symbol="FLRY3", name="Fleury", sector="Health Technology",
+            type="stock", market_cap=7_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="RDOR3", name="Rede D'Or", sector="Health Technology",
+            type="stock", market_cap=60_000_000_000,
+        )
+        # Unrelated sector must not appear.
+        Ticker.objects.create(
+            symbol="PETR4", name="Petrobras", sector="Energy Minerals",
+            type="stock", market_cap=400_000_000_000,
+        )
+        response = api_client.get("/api/tickers/SOLO3/peers/")
+        symbols = [p["symbol"] for p in response.json()]
+        assert "HAPV3" in symbols
+        # Adjacent-sector peers fill after in-sector
+        assert "FLRY3" in symbols or "RDOR3" in symbols
+        # Same-sector peer always ranks above adjacent-sector peers
+        if "FLRY3" in symbols:
+            assert symbols.index("HAPV3") < symbols.index("FLRY3")
+        if "RDOR3" in symbols:
+            assert symbols.index("HAPV3") < symbols.index("RDOR3")
+        # Unrelated sector stays out
+        assert "PETR4" not in symbols
 
     def test_brazilian_source_prefers_brazilian_peers_over_foreign(self, api_client, db):
         """When source is Brazilian, Brazilian peers in same sector come before foreign peers."""

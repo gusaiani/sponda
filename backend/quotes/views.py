@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 logger = logging.getLogger(__name__)
 
 from .fmp import FMPError, fetch_profile
+from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
 from .leverage import calculate_leverage
@@ -197,24 +198,127 @@ class TickerDetailView(APIView):
         return response
 
 
-FINANCE_SUBSECTOR_RULES = [
-    (re.compile(r"\bBCO\b|BANCO\b|BANESTES|ITAU|BRADESC|BANESE", re.IGNORECASE), "Bancos"),
-    (re.compile(r"SEGUR|SEGURAD|RESSEGURO", re.IGNORECASE), "Seguros"),
-    (re.compile(r"CONSTRU|INCORPOR|EMPREEND.*IMOB|REALTY|ENGENHARIA|TENDA|CURY|CYRELA|DIRECIONAL|EVEN|GAFISA|LAVVI|MITRE|MOURA|PLANO|TECNISA|PDG|ALPHAVILLE", re.IGNORECASE), "Construção e Incorporação"),
-    (re.compile(r"SHOPPING|IGUATEMI|MULTIPLAN|ALLOS", re.IGNORECASE), "Shoppings"),
-    (re.compile(r"LOCAÇÃO|LOCACAO|RENT A CAR|MOVIDA|VAMOS|ARMAC|MILLS", re.IGNORECASE), "Locação"),
-    (re.compile(r"AGRO|AGRICOLA|TERRA SANTA", re.IGNORECASE), "Agronegócio"),
-    (re.compile(r"BOLSA|BALCÃO|B3 S\.A", re.IGNORECASE), "Infraestrutura de Mercado"),
-    (re.compile(r"HOLDING|PARTICIPAC", re.IGNORECASE), "Holdings"),
-]
+# Per-sector subsector rules. Each sector's entry is an ordered list of
+# (regex, subsector-label). First match wins. Companies that don't match any
+# rule fall back to the sector's default subsector defined in SUBSECTOR_DEFAULT.
+#
+# Subsectors let peer ranking prefer companies in the *same* business line
+# before filling with other companies in the same broader sector.
+SUBSECTOR_RULES = {
+    "Finance": [
+        (re.compile(r"\bBCO\b|BANCO\b|BANESTES|ITAU|BRADESC|BANESE", re.IGNORECASE), "Bancos"),
+        (re.compile(r"SEGUR|SEGURAD|RESSEGURO", re.IGNORECASE), "Seguros"),
+        (re.compile(r"CONSTRU|INCORPOR|EMPREEND.*IMOB|REALTY|ENGENHARIA|TENDA|CURY|CYRELA|DIRECIONAL|EVEN|GAFISA|LAVVI|MITRE|MOURA|PLANO|TECNISA|PDG|ALPHAVILLE", re.IGNORECASE), "Construção e Incorporação"),
+        (re.compile(r"SHOPPING|IGUATEMI|MULTIPLAN|ALLOS", re.IGNORECASE), "Shoppings"),
+        (re.compile(r"LOCAÇÃO|LOCACAO|RENT A CAR|MOVIDA|VAMOS|ARMAC|MILLS", re.IGNORECASE), "Locação"),
+        (re.compile(r"AGRO|AGRICOLA|TERRA SANTA", re.IGNORECASE), "Agronegócio"),
+        (re.compile(r"BOLSA|BALCÃO|B3 S\.A", re.IGNORECASE), "Infraestrutura de Mercado"),
+        (re.compile(r"HOLDING|PARTICIPAC", re.IGNORECASE), "Holdings"),
+    ],
+    "Non-Energy Minerals": [
+        (re.compile(r"PAPEL|CELULOSE|KLABIN|SUZANO|IRANI", re.IGNORECASE), "Papel e Celulose"),
+        (re.compile(r"ETERNIT|EUCATEX|CIMENT|CERAMIC|MADEIRA", re.IGNORECASE), "Materiais de Construção"),
+        (re.compile(r"ALUMÍN|ALUMIN|COBRE|NIQUEL|PARANAPANEMA|TEKNO|METAIS NÃO|METAIS NAO", re.IGNORECASE), "Metais Não-Ferrosos"),
+    ],
+    "Process Industries": [
+        (re.compile(r"PAPEL|CELULOSE|EMBALAG|IRANI|KLABIN|SUZANO", re.IGNORECASE), "Papel e Embalagens"),
+        (re.compile(r"AGRÍC|AGRIC|ALIMENT|SEMENTES|SAFRA|MARTINHO|CAMIL|AÇÚCAR|ACUCAR|JALLES|SOJA|BOA SAFRA|SLC", re.IGNORECASE), "Agro e Alimentos"),
+        (re.compile(r"TÊXT|TEXT|TECID|FIAÇÃO|FIACAO|KARSTEN|RENAUX|DOHLER|SANTANENSE|PETTENATI|CEDRO", re.IGNORECASE), "Têxteis"),
+        (re.compile(r"FERTILIZ|HERINGER|NUTRIPLANT|VITTIA", re.IGNORECASE), "Fertilizantes"),
+        (re.compile(r"PETROQU|BRASKEM|UNIPAR|QUÍMIC|QUIMIC|PIGMENT|DEXXOS|TRONOX|CARBOCLORO|UNIÃO PET", re.IGNORECASE), "Químicos"),
+    ],
+    "Consumer Non-Durables": [
+        (re.compile(r"BEBID|CERVEJ|AMBEV|SUCO|VINHO", re.IGNORECASE), "Bebidas"),
+        (re.compile(r"ALIMENT|CARNE|FRIG|LATICIN|LACTE|MARFRIG|JBS|BRF|M.DIAS|MINERVA", re.IGNORECASE), "Alimentos"),
+        (re.compile(r"HIGIENE|COSMÉT|COSMET|PERFUM|NATURA|BOTICÁRIO", re.IGNORECASE), "Higiene e Cosméticos"),
+        (re.compile(r"TABACO|TABAC|FUMO|SOUZA CRUZ", re.IGNORECASE), "Tabaco"),
+        (re.compile(r"VESTU|CALÇADO|CALCADO|ROUPA", re.IGNORECASE), "Vestuário"),
+    ],
+    "Retail Trade": [
+        (re.compile(r"FARMÁCI|FARMACI|DROGA|PAGUE MENOS|RAIA", re.IGNORECASE), "Farmácias"),
+        (re.compile(r"SUPERMERC|VAREJO ALIMENT|CARREFOUR|PÃO DE AÇÚCAR|ASSAÍ|ASSAI|GRUPO MATEUS", re.IGNORECASE), "Supermercados"),
+        (re.compile(r"ELETRO|MAGAZINE|CASAS BAHIA|VIA VAREJO|LOJAS AMERIC|AMERICANAS", re.IGNORECASE), "Eletrodomésticos e Eletrônicos"),
+        (re.compile(r"MATERIAIS DE CONSTRU|CONSTRU E ENGEN|LEROY", re.IGNORECASE), "Materiais de Construção"),
+    ],
+    "Consumer Services": [
+        (re.compile(r"EDUCA|ENSINO|ANIMA|YDUQS|COGNA|CRUZEIRO", re.IGNORECASE), "Educação"),
+        (re.compile(r"SAÚDE|SAUDE|HOSPITAL|CLÍNIC|CLINIC|REDE D", re.IGNORECASE), "Saúde"),
+        (re.compile(r"VIAGEM|HOTEL|TURISMO|CVC|LAZER", re.IGNORECASE), "Viagens e Lazer"),
+        (re.compile(r"RESTAURANT|BK BRASIL|ARCOS", re.IGNORECASE), "Restaurantes"),
+        (re.compile(r"MÍDIA|MIDIA|ENTRETEN|CINEMA", re.IGNORECASE), "Mídia"),
+    ],
+    "Transportation": [
+        (re.compile(r"FERROV|RUMO|VLI", re.IGNORECASE), "Ferrovias"),
+        (re.compile(r"RODOV|ECORODO|CCR|CONCESS", re.IGNORECASE), "Rodovias"),
+        (re.compile(r"AÉREA|AEREA|AZUL|GOL|LATAM", re.IGNORECASE), "Aéreas"),
+        (re.compile(r"PORTO|WILSON SONS|SANTOS BRASIL", re.IGNORECASE), "Portos"),
+        (re.compile(r"LOGÍSTICA|LOGISTICA|ARMAZEN|JSL|SIMPAR|TEGMA", re.IGNORECASE), "Logística"),
+    ],
+    "Utilities": [
+        (re.compile(r"ENERGIA ELÉTRICA|ENERGIA ELETRICA|ELETROBRAS|EQUATORIAL|ENGIE|ENEVA|CEMIG|COPEL|CPFL|TAESA|NEOENERGIA|ENERGISA|ALUPAR", re.IGNORECASE), "Energia Elétrica"),
+        (re.compile(r"SANEAMENTO|ÁGUA|AGUA|SABESP|COPASA|SANEPAR|AEGEA", re.IGNORECASE), "Saneamento"),
+        (re.compile(r"GÁS|GAS |COMGAS|ULTRAPAR", re.IGNORECASE), "Gás"),
+    ],
+    "Producer Manufacturing": [
+        (re.compile(r"AUTOPEÇAS|AUTOPECA|MARCOPOLO|RANDON|IOCHPE|TUPY|MAHLE|FRAS-?LE", re.IGNORECASE), "Autopeças"),
+        (re.compile(r"MÁQUIN|MAQUIN|WEG|EMBRAER", re.IGNORECASE), "Máquinas e Equipamentos"),
+        (re.compile(r"AUTOMÓV|AUTOMOV|VEÍCULO|VEICULO", re.IGNORECASE), "Veículos"),
+    ],
+    "Health Technology": [
+        (re.compile(r"FARMA|PHARMA|BIOMM|HYPERA|BLAU|TEVA", re.IGNORECASE), "Farmacêuticos"),
+        (re.compile(r"DIAGNÓSTIC|DIAGNOSTIC|FLEURY|DASA", re.IGNORECASE), "Diagnósticos"),
+        (re.compile(r"HOSPITAL|REDE D|QUALICORP|HAPVIDA|NOTREDAME|INTERMÉDICA", re.IGNORECASE), "Hospitais e Planos"),
+    ],
+}
+
+
+# Default subsector label when no rule in SUBSECTOR_RULES matches. For sectors
+# without a default, falls back to the sector name itself.
+SUBSECTOR_DEFAULT = {
+    "Finance": "Financeiro",
+    "Non-Energy Minerals": "Mineração e Siderurgia",
+    "Process Industries": "Processos Industriais",
+    "Consumer Non-Durables": "Bens de Consumo",
+    "Retail Trade": "Varejo",
+    "Consumer Services": "Serviços ao Consumidor",
+    "Transportation": "Transporte",
+    "Utilities": "Utilidade Pública",
+    "Producer Manufacturing": "Manufatura",
+    "Health Technology": "Tecnologia em Saúde",
+}
+
+
+# Sectors considered adjacent / contiguous for peer filling when the source
+# sector is too small. Asymmetric by design — each entry lists sectors that
+# would be reasonable stretch-peers if we can't fill slots with same-sector
+# matches alone.
+ADJACENT_SECTORS = {
+    "Non-Energy Minerals": ["Process Industries", "Producer Manufacturing", "Industrial Services"],
+    "Process Industries": ["Non-Energy Minerals", "Consumer Non-Durables", "Producer Manufacturing"],
+    "Energy Minerals": ["Utilities", "Industrial Services"],
+    "Utilities": ["Energy Minerals", "Industrial Services"],
+    "Health Services": ["Health Technology"],
+    "Health Technology": ["Health Services"],
+    "Technology Services": ["Electronic Technology", "Communications"],
+    "Electronic Technology": ["Technology Services", "Producer Manufacturing"],
+    "Communications": ["Technology Services"],
+    "Retail Trade": ["Consumer Services", "Distribution Services", "Consumer Non-Durables", "Consumer Durables"],
+    "Consumer Services": ["Retail Trade", "Consumer Non-Durables"],
+    "Distribution Services": ["Retail Trade", "Transportation"],
+    "Consumer Non-Durables": ["Consumer Durables", "Retail Trade", "Process Industries"],
+    "Consumer Durables": ["Consumer Non-Durables", "Retail Trade", "Producer Manufacturing"],
+    "Transportation": ["Industrial Services", "Distribution Services"],
+    "Industrial Services": ["Producer Manufacturing", "Transportation"],
+    "Producer Manufacturing": ["Industrial Services", "Electronic Technology", "Non-Energy Minerals"],
+    "Commercial Services": ["Industrial Services", "Consumer Services"],
+}
 
 
 def get_subsector(name, sector):
-    if sector == "Finance":
-        for pattern, subsector in FINANCE_SUBSECTOR_RULES:
-            if pattern.search(name):
-                return subsector
-    return sector
+    for pattern, subsector in SUBSECTOR_RULES.get(sector, []):
+        if pattern.search(name):
+            return subsector
+    return SUBSECTOR_DEFAULT.get(sector, sector)
 
 
 def ticker_base(symbol):
@@ -272,16 +376,28 @@ class TickerPeersView(APIView):
         if not current_sector:
             result = []
         else:
-            all_sector_tickers = list(
-                Ticker.objects.filter(type="stock", sector=current_sector)
+            adjacent_sectors = ADJACENT_SECTORS.get(current_sector, [])
+            candidate_sectors = [current_sector, *adjacent_sectors]
+            all_candidate_tickers = list(
+                Ticker.objects.filter(type="stock", sector__in=candidate_sectors)
                 .exclude(symbol__regex=r"^[A-Z]+\d+F$")
                 .values("symbol", "name", "display_name", "sector", "market_cap")
             )
-            for ticker in all_sector_tickers:
+            for ticker in all_candidate_tickers:
                 ticker["name"] = ticker.pop("display_name") or ticker["name"]
 
             current_subsector = get_subsector(current_name, current_sector)
             source_is_brazilian = is_brazilian_ticker(symbol_upper)
+
+            def sector_tier(peer):
+                # 0 = same subsector & same sector (closest peers)
+                # 1 = different subsector but same sector
+                # 2 = adjacent sector (stretch peer)
+                if peer["sector"] != current_sector:
+                    return 2
+                if get_subsector(peer["name"], peer["sector"]) == current_subsector:
+                    return 0
+                return 1
 
             def peer_sort_key(peer):
                 peer_is_brazilian = is_brazilian_ticker(peer["symbol"])
@@ -289,31 +405,20 @@ class TickerPeersView(APIView):
                 market_cap = peer.get("market_cap")
                 has_market_cap = market_cap is not None
                 return (
+                    sector_tier(peer),
                     0 if same_country else 1,
                     0 if has_market_cap else 1,
                     -(market_cap or 0),
                 )
 
-            subsector_matches = [
-                t for t in all_sector_tickers
+            candidates = [
+                t for t in all_candidate_tickers
                 if ticker_base(t["symbol"]) != current_base
-                and get_subsector(t["name"], t["sector"]) == current_subsector
             ]
-            subsector_peers = sorted(
-                deduplicate_by_company(subsector_matches), key=peer_sort_key,
+            peers = sorted(
+                deduplicate_by_company(candidates), key=peer_sort_key,
             )[:self.MAX_PEERS]
-
-            if len(subsector_peers) >= self.MIN_PEERS:
-                result = [{"symbol": p["symbol"], "name": p["name"]} for p in subsector_peers]
-            else:
-                sector_matches = [
-                    t for t in all_sector_tickers
-                    if ticker_base(t["symbol"]) != current_base
-                ]
-                sector_peers = sorted(
-                    deduplicate_by_company(sector_matches), key=peer_sort_key,
-                )[:self.MAX_PEERS]
-                result = [{"symbol": p["symbol"], "name": p["name"]} for p in sector_peers]
+            result = [{"symbol": p["symbol"], "name": p["name"]} for p in peers]
 
         cache.set(cache_key, result, self.CACHE_TIMEOUT)
         response = Response(result)
@@ -760,6 +865,10 @@ class CompanyAnalysisView(APIView):
 
 
 LOGO_CACHE_MAX_AGE = 30 * 24 * 3600  # 30 days
+# After all sources fail for a symbol, remember the miss for this long so we
+# don't re-hit BRAPI / the network on every request. Short enough that a newly
+# published logo still surfaces within a day.
+LOGO_NEGATIVE_CACHE_TTL = 24 * 3600
 BRAPI_LOGO_URL_TEMPLATE = "https://icons.brapi.dev/icons/{symbol}.svg"
 
 
@@ -819,7 +928,7 @@ class LogoProxyView(APIView):
         cache_dir = Path(settings.LOGO_CACHE_DIR)
         cached_path = cache_dir / f"{symbol}.png"
 
-        # Serve from cache (but purge BRAPI placeholders)
+        # Serve from disk cache (but purge BRAPI placeholders that slipped in)
         if cached_path.exists():
             image_data = cached_path.read_bytes()
             if is_brapi_placeholder(image_data):
@@ -830,29 +939,14 @@ class LogoProxyView(APIView):
                 response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
                 return response
 
-        # Try the ticker's own logo URL from DB
-        image_data = None
-        try:
-            ticker = Ticker.objects.get(symbol=symbol)
-            if ticker.logo:
-                image_data = _fetch_logo(ticker.logo)
-        except Ticker.DoesNotExist:
-            pass
+        # Short-circuit: if we recently confirmed no real logo exists, skip all
+        # network work and serve the generated fallback immediately.
+        negative_cache_key = f"logo_miss:{symbol}"
+        if cache.get(negative_cache_key):
+            return self._fallback_response(symbol)
 
-        # Reject BRAPI placeholders
-        if image_data and is_brapi_placeholder(image_data):
-            image_data = None
+        image_data = self._resolve_logo_bytes(symbol)
 
-        # Fallback: try BRAPI directly (covers tickers not in DB)
-        if not image_data:
-            brapi_url = BRAPI_LOGO_URL_TEMPLATE.format(symbol=symbol)
-            image_data = _fetch_logo(brapi_url)
-
-        # Reject BRAPI placeholders from fallback too
-        if image_data and is_brapi_placeholder(image_data):
-            image_data = None
-
-        # Cache and serve real logos
         if image_data:
             cache_dir.mkdir(parents=True, exist_ok=True)
             cached_path.write_bytes(image_data)
@@ -861,8 +955,40 @@ class LogoProxyView(APIView):
             response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
             return response
 
-        # All sources failed: serve generated fallback (not cached)
+        # All sources failed — mark as a miss so we stop re-fetching on every request.
+        cache.set(negative_cache_key, True, LOGO_NEGATIVE_CACHE_TTL)
         logger.warning("No logo available for %s, serving fallback", symbol)
+        return self._fallback_response(symbol)
+
+    def _resolve_logo_bytes(self, symbol: str) -> bytes | None:
+        """Walk the resolution chain and return real logo bytes, or None."""
+        candidate_urls: list[str] = []
+
+        override_url = LOGO_OVERRIDE_URLS.get(symbol)
+        if override_url:
+            candidate_urls.append(override_url)
+
+        try:
+            ticker = Ticker.objects.get(symbol=symbol)
+        except Ticker.DoesNotExist:
+            ticker = None
+
+        if ticker and ticker.logo and not is_placeholder_logo_url(ticker.logo):
+            candidate_urls.append(ticker.logo)
+
+        candidate_urls.append(BRAPI_LOGO_URL_TEMPLATE.format(symbol=symbol))
+
+        seen: set[str] = set()
+        for url in candidate_urls:
+            if url in seen:
+                continue
+            seen.add(url)
+            image_data = _fetch_logo(url)
+            if image_data and not is_brapi_placeholder(image_data):
+                return image_data
+        return None
+
+    def _fallback_response(self, symbol: str) -> HttpResponse:
         fallback_data = generate_fallback_svg(symbol)
         response = HttpResponse(fallback_data, content_type="image/svg+xml")
         response["Cache-Control"] = "public, max-age=3600"
