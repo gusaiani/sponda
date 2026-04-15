@@ -1,0 +1,295 @@
+@font-face {
+  font-family: "Satoshi";
+  src: url("/fonts/Satoshi-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --color-ink: #0c1829;
+  --color-accent: #1e40af;
+  --color-muted: #5570a0;
+  --color-border: #d0daea;
+  --max-width: 640px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  color: var(--color-ink);
+  background: #ffffff;
+  line-height: 1.6;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.wrap {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 24px 20px 64px;
+}
+
+/* Header */
+.site-header {
+  padding-bottom: 24px;
+  margin-bottom: 40px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.site-header-brand {
+  display: inline-block;
+  font-family: "Satoshi", sans-serif;
+  font-weight: 500;
+  font-size: 22px;
+  color: #1b347e;
+  line-height: 1;
+}
+
+.site-header-brand:hover {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.site-header-tagline {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 4px;
+  letter-spacing: 0;
+}
+
+/* Footer */
+.site-footer {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.site-footer a {
+  color: var(--color-muted);
+}
+
+.site-footer a:hover {
+  color: var(--color-accent);
+}
+
+/* Post list (home, /tags/*, /categories/*) */
+.post-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.post-list-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.post-list-item:last-child {
+  border-bottom: 0;
+}
+
+.post-list-date {
+  display: block;
+  font-size: 12px;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+.post-list-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.post-list-title:hover {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+/* Single post */
+.post-date {
+  display: block;
+  font-size: 12px;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.post-title {
+  font-family: "Satoshi", "Inter", system-ui, sans-serif;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.2;
+  margin: 0 0 24px;
+  color: var(--color-ink);
+}
+
+.post-content {
+  font-size: 17px;
+}
+
+.post-content h2 {
+  font-family: "Satoshi", "Inter", system-ui, sans-serif;
+  font-weight: 500;
+  font-size: 22px;
+  margin: 40px 0 12px;
+  color: var(--color-ink);
+}
+
+.post-content h3 {
+  font-weight: 600;
+  font-size: 18px;
+  margin: 28px 0 10px;
+  color: var(--color-ink);
+}
+
+.post-content p {
+  margin: 0 0 18px;
+}
+
+.post-content ul,
+.post-content ol {
+  padding-left: 22px;
+  margin: 0 0 18px;
+}
+
+.post-content li {
+  margin: 4px 0;
+}
+
+.post-content blockquote {
+  margin: 20px 0;
+  padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--color-border);
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.post-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  padding: 2px 5px;
+  background: #f3f6fb;
+  border-radius: 3px;
+}
+
+.post-content pre {
+  background: #f3f6fb;
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.post-content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.post-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+.post-content hr {
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  margin: 32px 0;
+}
+
+/* YouTube embed — Hugo's built-in shortcode ships its own inline
+   aspect-ratio wrapper, so we only style the iframe itself. */
+.post-content iframe {
+  border: 0;
+  border-radius: 6px;
+}
+
+/* Post footer (tags + categories) */
+.post-tax {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.post-tax-row {
+  margin: 4px 0;
+}
+
+.post-tax-label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  margin-right: 6px;
+}
+
+.post-tax a {
+  margin-right: 8px;
+}
+
+/* Terms page (/tags/, /categories/) */
+.term-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.term-list-item a {
+  font-size: 15px;
+}
+
+.term-count {
+  color: var(--color-muted);
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+/* Page heading (for list pages other than home) */
+.page-title {
+  font-family: "Satoshi", "Inter", system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0 0 20px;
+  color: var(--color-ink);
+}
+
+@media (max-width: 480px) {
+  .wrap {
+    padding: 20px 16px 48px;
+  }
+  .post-title {
+    font-size: 26px;
+  }
+  .post-content {
+    font-size: 16px;
+  }
+}
