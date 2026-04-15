@@ -233,3 +233,12 @@ The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retrie
 ## Rate Limiting
 
 Free tier allows 3 lookups per day, tracked by session cookie. After the limit, users are prompted to create an account.
+
+## Favorites
+
+Signed-up users can favorite companies to pin them on the home page grid.
+
+- **Unverified users** are capped at 20 favorites total, and the home page renders only the first 8.
+- **Verified users** (those who confirmed their email) have no cap — they can add unlimited favorites and every favorite shows on the home page grid.
+
+The backend cap lives in `accounts.views.FavoriteListView` (`MAX_FAVORITES = 20`). The home page render logic lives in `getHomepageTickers` in `frontend/src/components/HomepageGrid.tsx`.
