@@ -59,7 +59,7 @@ function Indicator({ label, value, suffix = "" }: IndicatorProps) {
   );
 }
 
-export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isLoading: boolean }) {
+export function CompanyCard({ data, isLoading, years }: { data: QuoteResult | null; isLoading: boolean; years: number }) {
   const { t, locale } = useTranslation();
 
   if (isLoading || !data) {
@@ -132,13 +132,13 @@ export function CompanyCard({ data, isLoading }: { data: QuoteResult | null; isL
         <Indicator label={t("fundamentals.col.debt_equity")} value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
         <Indicator label={t("homepage.debt_fcf")} value={data.debtToAvgFCF !== null ? br(data.debtToAvgFCF, 1) : null} />
         {/* Valuation & growth */}
-        <Indicator label={t("homepage.pe10")} value={data.pe10 !== null ? br(data.pe10, 1) : null} />
-        <Indicator label={t("homepage.pfcf10")} value={data.pfcf10 !== null ? br(data.pfcf10, 1) : null} />
-        <Indicator label="PEG" value={data.peg !== null ? br(data.peg, 2) : null} />
-        <Indicator label="PFCLG" value={data.pfcfPeg !== null ? br(data.pfcfPeg, 2) : null} />
-        <Indicator label={t("homepage.cagr_earnings_short")} value={data.earningsCAGR !== null ? br(data.earningsCAGR, 1) : null} suffix="%" />
-        <Indicator label={t("homepage.cagr_fcf_short")} value={data.fcfCAGR !== null ? br(data.fcfCAGR, 1) : null} suffix="%" />
-        <Indicator label="ROE" value={data.roe !== null ? br(data.roe, 1) : null} suffix="%" />
+        <Indicator label={`${t("compare.col_pe")}${years}`} value={data.pe10 !== null ? br(data.pe10, 1) : null} />
+        <Indicator label={`${t("compare.col_pfcf")}${years}`} value={data.pfcf10 !== null ? br(data.pfcf10, 1) : null} />
+        <Indicator label={`${t("compare.col_peg")}${years}`} value={data.peg !== null ? br(data.peg, 2) : null} />
+        <Indicator label={`${t("compare.col_pfcf_peg")}${years}`} value={data.pfcfPeg !== null ? br(data.pfcfPeg, 2) : null} />
+        <Indicator label={`${t("compare.col_cagr_earnings")}${years}`} value={data.earningsCAGR !== null ? br(data.earningsCAGR, 1) : null} suffix="%" />
+        <Indicator label={`${t("compare.col_cagr_fcf")}${years}`} value={data.fcfCAGR !== null ? br(data.fcfCAGR, 1) : null} suffix="%" />
+        <Indicator label={`${t("compare.col_roe")}${years}`} value={data.roe !== null ? br(data.roe, 1) : null} suffix="%" />
         <Indicator label={t("homepage.price_to_book")} value={data.priceToBook !== null ? br(data.priceToBook, 2) : null} />
       </div>
     </Link>
@@ -157,7 +157,8 @@ export function HomepageCompanyCards() {
     maxCards: HOMEPAGE_MAX_CARDS,
   });
 
-  const entries = useCompareData(tickers, 10);
+  const HOMEPAGE_DEFAULT_YEARS = 10;
+  const entries = useCompareData(tickers, HOMEPAGE_DEFAULT_YEARS);
 
   return (
     <section className="hcc-section">
@@ -167,6 +168,7 @@ export function HomepageCompanyCards() {
             key={entry.ticker}
             data={entry.data}
             isLoading={entry.isLoading}
+            years={HOMEPAGE_DEFAULT_YEARS}
           />
         ))}
       </div>

@@ -121,5 +121,14 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|images|fonts|favicon|.*\\..*).*)"],
+  // Ordering matters: the explicit `/api/`, `/og/`, and `/admin/` matchers
+  // must come before the catch-all, because the catch-all excludes any path
+  // containing a dot — which would otherwise skip logo requests like
+  // `/api/logos/PETR4.png`.
+  matcher: [
+    "/api/:path*",
+    "/og/:path*",
+    "/admin/:path*",
+    "/((?!_next|images|fonts|favicon|.*\\..*).*)",
+  ],
 };

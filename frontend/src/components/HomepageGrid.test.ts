@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getGridItemClassNames, getHomepageTickers } from "./HomepageGrid";
+import { getGridItemClassNames, getHomepageTickers, computeHomepageMaxYears } from "./HomepageGrid";
 
 describe("getGridItemClassNames", () => {
   it("always includes the base class", () => {
@@ -113,5 +113,50 @@ describe("getHomepageTickers", () => {
       showPlaceholder: true,
     });
     expect(result).toHaveLength(7);
+  });
+});
+
+describe("computeHomepageMaxYears", () => {
+  const DEFAULT = 10;
+
+  it("returns the max maxYearsAvailable across loaded companies", () => {
+    const result = computeHomepageMaxYears(
+      [
+        { maxYearsAvailable: 8 },
+        { maxYearsAvailable: 16 },
+        { maxYearsAvailable: 12 },
+      ],
+      DEFAULT,
+    );
+    expect(result).toBe(16);
+  });
+
+  it("ignores nulls from companies still loading", () => {
+    const result = computeHomepageMaxYears(
+      [{ maxYearsAvailable: null }, { maxYearsAvailable: 15 }],
+      DEFAULT,
+    );
+    expect(result).toBe(15);
+  });
+
+  it("falls back to the default when no data has loaded", () => {
+    const result = computeHomepageMaxYears([], DEFAULT);
+    expect(result).toBe(DEFAULT);
+  });
+
+  it("falls back to the default when every entry is still loading", () => {
+    const result = computeHomepageMaxYears(
+      [{ maxYearsAvailable: null }, { maxYearsAvailable: null }],
+      DEFAULT,
+    );
+    expect(result).toBe(DEFAULT);
+  });
+
+  it("returns the single company value when only one company is loaded", () => {
+    const result = computeHomepageMaxYears(
+      [{ maxYearsAvailable: 5 }],
+      DEFAULT,
+    );
+    expect(result).toBe(5);
   });
 });

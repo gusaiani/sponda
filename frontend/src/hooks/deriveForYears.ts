@@ -67,21 +67,24 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   const maxEarnings = full.pe10CalculationDetails.length;
   const maxFCF = full.pfcf10CalculationDetails.length;
 
-  // Slice to requested years (details are sorted most-recent-first)
-  const earningsSlice = full.pe10CalculationDetails.slice(0, Math.min(years, maxEarnings));
-  const fcfSlice = full.pfcf10CalculationDetails.slice(0, Math.min(years, maxFCF));
+  // Strict semantics: if the company does not have at least `years` of data,
+  // mark that side as insufficient so year-dependent metrics render as N/A
+  // instead of silently being computed from a shorter window.
+  const hasEnoughEarnings = maxEarnings >= years;
+  const hasEnoughFCF = maxFCF >= years;
 
-  const earningsYears = earningsSlice.length;
-  const fcfYears = fcfSlice.length;
+  // Slice to requested years (details are sorted most-recent-first)
+  const earningsSlice = hasEnoughEarnings ? full.pe10CalculationDetails.slice(0, years) : [];
+  const fcfSlice = hasEnoughFCF ? full.pfcf10CalculationDetails.slice(0, years) : [];
 
   // PE
   let pe10: number | null = null;
   let avgAdjustedNetIncome: number | null = null;
   let pe10Error: string | null = null;
 
-  if (earningsYears > 0) {
+  if (hasEnoughEarnings) {
     const total = earningsSlice.reduce((s, y) => s + y.adjustedNetIncome, 0);
-    avgAdjustedNetIncome = total / earningsYears;
+    avgAdjustedNetIncome = total / years;
     if (avgAdjustedNetIncome !== 0 && full.marketCap) {
       pe10 = Math.round((full.marketCap / avgAdjustedNetIncome) * 100) / 100;
     }
@@ -94,9 +97,9 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   let avgAdjustedFCF: number | null = null;
   let pfcf10Error: string | null = null;
 
-  if (fcfYears > 0) {
+  if (hasEnoughFCF) {
     const total = fcfSlice.reduce((s, y) => s + y.adjustedFCF, 0);
-    avgAdjustedFCF = total / fcfYears;
+    avgAdjustedFCF = total / years;
     if (avgAdjustedFCF !== 0 && full.marketCap) {
       pfcf10 = Math.round((full.marketCap / avgAdjustedFCF) * 100) / 100;
     }
@@ -169,15 +172,15 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     // PE
     pe10,
     avgAdjustedNetIncome,
-    pe10YearsOfData: earningsYears,
-    pe10Label: `PE${earningsYears}`,
+    pe10YearsOfData: earningsSlice.length,
+    pe10Label: `PE${years}`,
     pe10Error,
     pe10CalculationDetails: earningsSlice,
     // PFCF
     pfcf10,
     avgAdjustedFCF,
-    pfcf10YearsOfData: fcfYears,
-    pfcf10Label: `PFCF${fcfYears}`,
+    pfcf10YearsOfData: fcfSlice.length,
+    pfcf10Label: `PFCF${years}`,
     pfcf10Error,
     pfcf10CalculationDetails: fcfSlice,
     // Debt coverage

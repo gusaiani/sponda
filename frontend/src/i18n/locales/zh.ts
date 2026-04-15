@@ -376,6 +376,8 @@ export const zh: TranslationDictionary = {
   "homepage.cagr_earnings_short": "CAGR E",
   "homepage.cagr_fcf_short": "CAGR FCF",
   "homepage.price_to_book": "P/B",
+  "homepage.your_favorites": "\u6211\u7684\u6536\u85cf",
+  "homepage.favorites_empty_cta": "\u6536\u85cf\u516c\u53f8\u5e76\u521b\u5efa\u5217\u8868\u4ee5\u5728\u6b64\u5904\u67e5\u770b",
 
   /* ── Saved Lists ── */
   "lists.your_lists": "我的列表",
