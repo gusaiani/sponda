@@ -263,13 +263,14 @@ Tags and categories auto-generate index pages at `/tags/*` and `/categories/*`. 
 
 ### One-time server setup
 
-Before the first push that touches `blog/`, the droplet needs:
+Before `blog.sponda.capital` is reachable, the droplet needs:
 
 1. DNS: `A` record `blog.sponda.capital → 159.203.108.19`.
-2. `apt install hugo` on the server (Ubuntu 24.04 repo is recent enough; confirm with `hugo version`).
-3. `certbot --nginx -d blog.sponda.capital` (after DNS propagates).
-4. `ln -sf /etc/nginx/sites-available/blog.sponda.capital.conf /etc/nginx/sites-enabled/`.
-5. `nginx -t && systemctl reload nginx`.
+2. `certbot --nginx -d blog.sponda.capital` (after DNS propagates).
+3. `ln -sf /etc/nginx/sites-available/blog.sponda.capital.conf /etc/nginx/sites-enabled/`.
+4. `nginx -t && systemctl reload nginx`.
+
+Hugo itself is auto-installed by the deploy workflow if missing — no manual `apt install` needed.
 
 Every subsequent `git push` to `main` rebuilds and publishes automatically.
 
