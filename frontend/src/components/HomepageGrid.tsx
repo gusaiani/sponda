@@ -40,6 +40,33 @@ export function getGridItemClassNames(
     .join(" ");
 }
 
+const UNVERIFIED_HOMEPAGE_TICKER_LIMIT = 8;
+const DEFAULT_TICKER_COUNT_WITH_PLACEHOLDER = 7;
+const DEFAULT_TICKER_COUNT = 8;
+
+export function getHomepageTickers({
+  isAuthenticated,
+  isVerified,
+  favoriteTickers,
+  defaultTickers,
+  showPlaceholder,
+}: {
+  isAuthenticated: boolean;
+  isVerified: boolean;
+  favoriteTickers: string[];
+  defaultTickers: string[];
+  showPlaceholder: boolean;
+}): string[] {
+  if (isAuthenticated && favoriteTickers.length > 0) {
+    if (isVerified) return favoriteTickers;
+    return favoriteTickers.slice(0, UNVERIFIED_HOMEPAGE_TICKER_LIMIT);
+  }
+  const defaultLimit = showPlaceholder
+    ? DEFAULT_TICKER_COUNT_WITH_PLACEHOLDER
+    : DEFAULT_TICKER_COUNT;
+  return defaultTickers.slice(0, defaultLimit);
+}
+
 function ShareCardIcon() {
   return (
     <svg
@@ -222,7 +249,8 @@ function CardShareDropdown({ itemType, itemId, lists }: { itemType: string; item
 
 export function HomepageGrid() {
   const { t } = useTranslation();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const isVerified = user?.email_verified ?? false;
   const { favoriteTickers, isFavorite, toggleFavorite } = useFavorites();
   const { lists } = useSavedLists();
   const region = useRegion();
@@ -261,9 +289,13 @@ export function HomepageGrid() {
 
   const defaultTickers = getDefaultTickers(region);
   const showPlaceholder = shouldShowAddFavoriteCard(isAuthenticated, favoriteTickers.length);
-  const tickers = isAuthenticated && favoriteTickers.length > 0
-    ? favoriteTickers.slice(0, 8)
-    : defaultTickers.slice(0, showPlaceholder ? 7 : 8);
+  const tickers = getHomepageTickers({
+    isAuthenticated,
+    isVerified,
+    favoriteTickers,
+    defaultTickers,
+    showPlaceholder,
+  });
 
   const layout = useMemo(() => {
     if (savedLayout) {

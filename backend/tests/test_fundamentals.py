@@ -147,8 +147,21 @@ class TestComputeFundamentals:
         assert year_2024["operatingCashFlow"] == 8_000_000_000
         # fcf: (2B - 0.8B) * 4 = 4.8B
         assert year_2024["fcf"] == 4_800_000_000
-        # dividends: -500M * 4 = -2B
-        assert year_2024["dividendsPaid"] == -2_000_000_000
+        # Dividends paid are reported as positive amounts even though the
+        # cash-flow statement convention stores them as negative outflows.
+        # 500M * 4 = 2B
+        assert year_2024["dividendsPaid"] == 2_000_000_000
+
+    def test_dividends_reported_as_positive(
+        self, multi_year_cash_flows, ipca_entries
+    ):
+        """Dividends paid are always non-negative in the API output."""
+        result = compute_fundamentals("WEGE3", market_cap=None, current_price=None)
+        for row in result:
+            if row["dividendsPaid"] is not None:
+                assert row["dividendsPaid"] >= 0
+            if row["dividendsAdjusted"] is not None:
+                assert row["dividendsAdjusted"] >= 0
 
     def test_quarters_count(
         self, multi_year_earnings, multi_year_cash_flows, ipca_entries

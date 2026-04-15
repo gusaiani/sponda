@@ -54,7 +54,12 @@ def _aggregate_earnings(ticker: str) -> dict[int, dict]:
 
 
 def _aggregate_cash_flows(ticker: str) -> dict[int, dict]:
-    """Sum quarterly cash flows per year: operating CF, FCF, dividends."""
+    """Sum quarterly cash flows per year: operating CF, FCF, dividends.
+
+    Dividends paid are stored as negative values in the cash flow statement
+    (cash outflow convention from both BRAPI and FMP). They are surfaced as
+    positive amounts here so downstream consumers see the amount distributed.
+    """
     quarters = QuarterlyCashFlow.objects.filter(ticker=ticker.upper()).order_by("end_date")
 
     yearly: dict[int, dict] = defaultdict(
@@ -71,7 +76,7 @@ def _aggregate_cash_flows(ticker: str) -> dict[int, dict]:
             yearly[year]["fcf"] += operating + investment
             yearly[year]["hasOperatingCF"] = True
         if quarter.dividends_paid is not None:
-            yearly[year]["dividendsPaid"] += quarter.dividends_paid
+            yearly[year]["dividendsPaid"] += abs(quarter.dividends_paid)
             yearly[year]["hasDividends"] = True
         yearly[year]["quarters"] += 1
 
