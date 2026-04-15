@@ -16,7 +16,7 @@ import {
 import { csrfHeaders } from "../utils/csrf";
 import { CompanyCard } from "./HomepageCompanyCards";
 import { ListCard } from "./ListCard";
-import { AddFavoriteCard, shouldShowAddFavoriteCard } from "./AddFavoriteCard";
+import { AddFavoriteCard, getAddFavoriteCardPosition } from "./AddFavoriteCard";
 import { AuthModal } from "./AuthModal";
 import { HomepageHeader } from "./HomepageHeader";
 import { YearsSlider } from "./YearsSlider";
@@ -56,6 +56,22 @@ export function computeHomepageMaxYears(
     .filter((value): value is number => value !== null && value !== undefined);
   if (available.length === 0) return defaultMax;
   return Math.max(...available);
+}
+
+export type CardFavoriteState = "hidden" | "outlined" | "filled";
+
+export function getCardFavoriteState({
+  itemType,
+  isAuthenticated,
+  isFavorited,
+}: {
+  itemType: "ticker" | "list";
+  isAuthenticated: boolean;
+  isFavorited: boolean;
+}): CardFavoriteState {
+  if (itemType !== "ticker") return "hidden";
+  if (isAuthenticated && isFavorited) return "filled";
+  return "outlined";
 }
 
 export function getHomepageTickers({
@@ -100,6 +116,39 @@ function ShareCardIcon() {
       <circle cx="18" cy="19" r="3" />
       <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
       <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
+
+function FavoriteStarIcon({ filled }: { filled: boolean }) {
+  if (filled) {
+    return (
+      <svg
+        className="homepage-grid-favorite-icon"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      className="homepage-grid-favorite-icon"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   );
 }
@@ -272,6 +321,7 @@ export function HomepageGrid() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalMessage, setAuthModalMessage] = useState<string | undefined>(undefined);
   const [pendingFavoriteTicker, setPendingFavoriteTicker] = useState<string | null>(null);
+  const [tickerToUnfavorite, setTickerToUnfavorite] = useState<string | null>(null);
 
   const [dragSourceIndex, setDragSourceIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -305,13 +355,12 @@ export function HomepageGrid() {
   });
 
   const defaultTickers = getDefaultTickers(region);
-  const showPlaceholder = shouldShowAddFavoriteCard(isAuthenticated, favoriteTickers.length);
   const tickers = getHomepageTickers({
     isAuthenticated,
     isVerified,
     favoriteTickers,
     defaultTickers,
-    showPlaceholder,
+    showPlaceholder: true,
   });
 
   const layout = useMemo(() => {
@@ -473,6 +522,52 @@ export function HomepageGrid() {
     setAuthModalMessage(undefined);
   }, []);
 
+  const handleFavoriteClick = useCallback((ticker: string) => {
+    if (!isAuthenticated) {
+      setPendingFavoriteTicker(ticker);
+      setAuthModalMessage(undefined);
+      setShowAuthModal(true);
+      return;
+    }
+    if (isFavorite(ticker)) {
+      setTickerToUnfavorite(ticker);
+      return;
+    }
+    toggleFavorite(ticker);
+  }, [isAuthenticated, isFavorite, toggleFavorite]);
+
+  const handleConfirmUnfavorite = useCallback(() => {
+    if (tickerToUnfavorite) {
+      toggleFavorite(tickerToUnfavorite);
+    }
+    setTickerToUnfavorite(null);
+  }, [tickerToUnfavorite, toggleFavorite]);
+
+  const handleCancelUnfavorite = useCallback(() => {
+    setTickerToUnfavorite(null);
+  }, []);
+
+  useEffect(() => {
+    if (!tickerToUnfavorite) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        handleCancelUnfavorite();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [tickerToUnfavorite, handleCancelUnfavorite]);
+
+  const addFavoriteCardPosition = getAddFavoriteCardPosition({
+    isAuthenticated,
+    favoriteCount: favoriteTickers.length,
+  });
+  const addFavoriteCardNode = (
+    <div className="homepage-grid-item homepage-grid-item--no-drag">
+      <AddFavoriteCard onSelectTicker={handleFavoriteSelect} />
+    </div>
+  );
+
   return (
     <section className="hcc-section">
       <div ref={headerRef}>
@@ -493,12 +588,18 @@ export function HomepageGrid() {
         </div>
       )}
       <div className="homepage-grid">
+        {addFavoriteCardPosition === "first" && addFavoriteCardNode}
         {activeLayout.map((item, index) => {
           const isSpan2 = item.type === "list";
           const isDragging = dragSourceIndex === index;
           const isDragOver = dragOverIndex === index && dragSourceIndex !== index;
 
           const classNames = getGridItemClassNames(isSpan2, isDragging, isDragOver);
+          const favoriteState = getCardFavoriteState({
+            itemType: item.type,
+            isAuthenticated,
+            isFavorited: isFavorite(item.id),
+          });
 
           return (
             <div
@@ -513,6 +614,29 @@ export function HomepageGrid() {
               onDrop={(event) => handleDrop(event, index)}
             >
               <span className="homepage-grid-card-actions">
+                {favoriteState !== "hidden" && (
+                  <button
+                    type="button"
+                    className={`homepage-grid-favorite-handle homepage-grid-favorite-handle--${favoriteState}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      event.preventDefault();
+                      handleFavoriteClick(item.id);
+                    }}
+                    aria-label={
+                      favoriteState === "filled"
+                        ? t("favorites.remove")
+                        : t("favorites.add")
+                    }
+                    title={
+                      favoriteState === "filled"
+                        ? t("favorites.remove")
+                        : t("favorites.add")
+                    }
+                  >
+                    <FavoriteStarIcon filled={favoriteState === "filled"} />
+                  </button>
+                )}
                 <CardShareDropdown itemType={item.type} itemId={item.id} lists={lists} />
                 <span className="homepage-grid-drag-handle">
                   <DragHandleIcon />
@@ -526,11 +650,7 @@ export function HomepageGrid() {
             </div>
           );
         })}
-        {showPlaceholder && (
-          <div className="homepage-grid-item homepage-grid-item--no-drag">
-            <AddFavoriteCard onSelectTicker={handleFavoriteSelect} />
-          </div>
-        )}
+        {addFavoriteCardPosition === "last" && addFavoriteCardNode}
       </div>
 
       {showAuthModal && (
@@ -539,6 +659,33 @@ export function HomepageGrid() {
           onClose={handleCloseAuthModal}
           message={authModalMessage}
         />
+      )}
+
+      {tickerToUnfavorite && (
+        <div className="compare-save-overlay" onClick={handleCancelUnfavorite}>
+          <div
+            className="compare-save-modal"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 className="compare-save-modal-title">
+              {t("favorites.remove_confirm", { ticker: tickerToUnfavorite })}
+            </h3>
+            <div className="compare-save-modal-actions homepage-grid-remove-favorite-actions">
+              <button
+                className="auth-button compare-delete-button"
+                onClick={handleConfirmUnfavorite}
+              >
+                {t("common.remove")}
+              </button>
+              <button
+                className="auth-button-secondary"
+                onClick={handleCancelUnfavorite}
+              >
+                {t("common.cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );

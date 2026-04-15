@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getGridItemClassNames, getHomepageTickers, computeHomepageMaxYears } from "./HomepageGrid";
+import {
+  getGridItemClassNames,
+  getHomepageTickers,
+  computeHomepageMaxYears,
+  getCardFavoriteState,
+} from "./HomepageGrid";
 
 describe("getGridItemClassNames", () => {
   it("always includes the base class", () => {
@@ -113,6 +118,35 @@ describe("getHomepageTickers", () => {
       showPlaceholder: true,
     });
     expect(result).toHaveLength(7);
+  });
+});
+
+describe("getCardFavoriteState", () => {
+  it("returns 'hidden' for list cards (only tickers can be favorited)", () => {
+    expect(
+      getCardFavoriteState({ itemType: "list", isAuthenticated: false, isFavorited: false }),
+    ).toBe("hidden");
+    expect(
+      getCardFavoriteState({ itemType: "list", isAuthenticated: true, isFavorited: true }),
+    ).toBe("hidden");
+  });
+
+  it("returns 'outlined' for ticker cards when the user is not authenticated", () => {
+    expect(
+      getCardFavoriteState({ itemType: "ticker", isAuthenticated: false, isFavorited: false }),
+    ).toBe("outlined");
+  });
+
+  it("returns 'filled' for favorited ticker cards when authenticated", () => {
+    expect(
+      getCardFavoriteState({ itemType: "ticker", isAuthenticated: true, isFavorited: true }),
+    ).toBe("filled");
+  });
+
+  it("returns 'outlined' for non-favorited ticker cards when authenticated (default tickers for new accounts)", () => {
+    expect(
+      getCardFavoriteState({ itemType: "ticker", isAuthenticated: true, isFavorited: false }),
+    ).toBe("outlined");
   });
 });
 

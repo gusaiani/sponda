@@ -9,14 +9,17 @@ import { useTranslation } from "../i18n";
 import { logoUrl } from "../utils/format";
 import "../styles/homepage-cards.css";
 
-const MAX_FAVORITES_FOR_PLACEHOLDER = 3;
+export type AddFavoriteCardPosition = "first" | "last";
 
-export function shouldShowAddFavoriteCard(
-  isAuthenticated: boolean,
-  favoriteCount: number,
-): boolean {
-  if (!isAuthenticated) return true;
-  return favoriteCount >= 1 && favoriteCount <= MAX_FAVORITES_FOR_PLACEHOLDER;
+export function getAddFavoriteCardPosition({
+  isAuthenticated,
+  favoriteCount,
+}: {
+  isAuthenticated: boolean;
+  favoriteCount: number;
+}): AddFavoriteCardPosition {
+  if (isAuthenticated && favoriteCount > 0) return "last";
+  return "first";
 }
 
 interface AddFavoriteCardProps {
@@ -145,26 +148,60 @@ export function AddFavoriteCard({ onSelectTicker }: AddFavoriteCardProps) {
         <span className="hcc-add-favorite-star">☆</span>
         <span className="hcc-add-favorite-text">{t("favorites.add_card_title")}</span>
       </div>
-      <input
-        ref={inputRef}
-        type="text"
-        className="hcc-add-favorite-input"
-        placeholder={t("favorites.search_placeholder")}
-        value={input}
-        onChange={(e) => {
-          setInput(e.target.value);
-          if (e.target.value.trim().length > 0) {
-            openDropdown();
-          } else {
-            setShowDropdown(false);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        onFocus={() => {
-          if (input.trim()) openDropdown();
-        }}
-        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
-      />
+      <div
+        className="hcc-add-favorite-search"
+        role="search"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <input
+          ref={inputRef}
+          type="search"
+          className="hcc-add-favorite-input"
+          aria-label={t("favorites.search_placeholder")}
+          placeholder={t("favorites.search_placeholder")}
+          value={input}
+          onChange={(e) => {
+            setInput(e.target.value);
+            if (e.target.value.trim().length > 0) {
+              openDropdown();
+            } else {
+              setShowDropdown(false);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => {
+            if (input.trim()) openDropdown();
+          }}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+        />
+        <button
+          type="button"
+          className="hcc-add-favorite-search-button"
+          aria-label={t("favorites.search_placeholder")}
+          onClick={(event) => {
+            event.preventDefault();
+            if (results.length > 0) {
+              select(results[selectedIndex >= 0 ? selectedIndex : 0]);
+              return;
+            }
+            inputRef.current?.focus();
+          }}
+        >
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </button>
+      </div>
       {dropdown}
     </div>
   );
