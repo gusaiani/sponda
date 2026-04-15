@@ -376,6 +376,8 @@ export interface TranslationDictionary {
   "homepage.cagr_earnings_short": string;
   "homepage.cagr_fcf_short": string;
   "homepage.price_to_book": string;
+  "homepage.your_favorites": string;
+  "homepage.favorites_empty_cta": string;
 
   /* ── Saved Lists ── */
   "lists.your_lists": string;

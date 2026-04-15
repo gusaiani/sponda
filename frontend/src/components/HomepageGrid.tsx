@@ -18,6 +18,8 @@ import { CompanyCard } from "./HomepageCompanyCards";
 import { ListCard } from "./ListCard";
 import { AddFavoriteCard, shouldShowAddFavoriteCard } from "./AddFavoriteCard";
 import { AuthModal } from "./AuthModal";
+import { HomepageHeader } from "./HomepageHeader";
+import { YearsSlider } from "./YearsSlider";
 import { useRegion } from "../hooks/useRegion";
 import { useTranslation } from "../i18n";
 import { getDefaultTickers } from "../utils/suggestedCompanies";
@@ -43,6 +45,18 @@ export function getGridItemClassNames(
 const UNVERIFIED_HOMEPAGE_TICKER_LIMIT = 8;
 const DEFAULT_TICKER_COUNT_WITH_PLACEHOLDER = 7;
 const DEFAULT_TICKER_COUNT = 8;
+const DEFAULT_HOMEPAGE_YEARS = 10;
+
+export function computeHomepageMaxYears(
+  entries: { maxYearsAvailable: number | null }[],
+  defaultMax: number,
+): number {
+  const available = entries
+    .map((entry) => entry.maxYearsAvailable)
+    .filter((value): value is number => value !== null && value !== undefined);
+  if (available.length === 0) return defaultMax;
+  return Math.max(...available);
+}
 
 export function getHomepageTickers({
   isAuthenticated,
@@ -263,6 +277,9 @@ export function HomepageGrid() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragCounter = useRef<Map<number, number>>(new Map());
   const { startGhost, stopGhost } = useDragGhost();
+  const [years, setYears] = useState(DEFAULT_HOMEPAGE_YEARS);
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  const [sliderFixedTop, setSliderFixedTop] = useState<number | null>(null);
 
   const { data: savedLayout } = useQuery({
     queryKey: ["homepage-layout"],
@@ -320,7 +337,7 @@ export function HomepageGrid() {
     [activeLayout],
   );
 
-  const compareEntries = useCompareData(tickersInLayout, 10);
+  const compareEntries = useCompareData(tickersInLayout, years);
 
   const compareDataMap = useMemo(() => {
     const map = new Map<string, (typeof compareEntries)[number]>();
@@ -329,6 +346,25 @@ export function HomepageGrid() {
     }
     return map;
   }, [compareEntries]);
+
+  const maxYears = useMemo(
+    () =>
+      computeHomepageMaxYears(
+        compareEntries.map((entry) => ({
+          maxYearsAvailable: entry.data?.maxYearsAvailable ?? null,
+        })),
+        DEFAULT_HOMEPAGE_YEARS,
+      ),
+    [compareEntries],
+  );
+
+  // Measure initial header position so the desktop fixed slider floats at the
+  // same vertical offset as the inline slider on first render.
+  useEffect(() => {
+    if (!headerRef.current) return;
+    const rect = headerRef.current.getBoundingClientRect();
+    setSliderFixedTop(rect.top);
+  }, []);
 
   const handleDragStart = useCallback((event: DragEvent, index: number) => {
     const element = event.currentTarget as HTMLElement;
@@ -439,6 +475,23 @@ export function HomepageGrid() {
 
   return (
     <section className="hcc-section">
+      <div ref={headerRef}>
+        <HomepageHeader
+          isAuthenticated={isAuthenticated}
+          favoriteCount={favoriteTickers.length}
+          listCount={lists.length}
+          years={years}
+          maxYears={maxYears}
+          onYearsChange={setYears}
+        />
+      </div>
+
+      {/* Fixed slider (desktop) — stays pinned while the grid scrolls */}
+      {maxYears > 1 && sliderFixedTop !== null && (
+        <div className="years-slider-fixed" style={{ top: sliderFixedTop }}>
+          <YearsSlider years={years} maxYears={maxYears} onYearsChange={setYears} />
+        </div>
+      )}
       <div className="homepage-grid">
         {activeLayout.map((item, index) => {
           const isSpan2 = item.type === "list";
@@ -466,7 +519,7 @@ export function HomepageGrid() {
                 </span>
               </span>
               {item.type === "ticker" ? (
-                <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} />
+                <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} years={years} />
               ) : (
                 <ListGridItem listId={item.id} lists={lists} />
               )}
@@ -494,14 +547,16 @@ export function HomepageGrid() {
 interface TickerGridItemProps {
   ticker: string;
   compareDataMap: Map<string, { data: import("../hooks/usePE10").QuoteResult | null; isLoading: boolean }>;
+  years: number;
 }
 
-function TickerGridItem({ ticker, compareDataMap }: TickerGridItemProps) {
+function TickerGridItem({ ticker, compareDataMap, years }: TickerGridItemProps) {
   const entry = compareDataMap.get(ticker);
   return (
     <CompanyCard
       data={entry?.data ?? null}
       isLoading={entry?.isLoading ?? true}
+      years={years}
     />
   );
 }

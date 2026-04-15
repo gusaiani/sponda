@@ -101,12 +101,47 @@ describe("deriveForYears", () => {
       expect(derived.pfcf10Label).toBe("PFCF3");
     });
 
-    it("caps at available data when requesting more years than exist", () => {
+    it("returns null for year-dependent metrics when requesting more years than available", () => {
       const full = makeFullData({ years: 5 });
       const derived = deriveForYears(full, 20);
 
-      expect(derived.pe10YearsOfData).toBe(5);
-      expect(derived.pfcf10YearsOfData).toBe(5);
+      // Strict semantics: if the company has fewer than the requested years of
+      // data, year-dependent metrics must be null so the UI can render N/A.
+      expect(derived.pe10).toBeNull();
+      expect(derived.pfcf10).toBeNull();
+      expect(derived.peg).toBeNull();
+      expect(derived.pfcfPeg).toBeNull();
+      expect(derived.earningsCAGR).toBeNull();
+      expect(derived.fcfCAGR).toBeNull();
+      expect(derived.debtToAvgEarnings).toBeNull();
+      expect(derived.debtToAvgFCF).toBeNull();
+      expect(derived.roe).toBeNull();
+    });
+
+    it("labels reflect the requested years, not the clipped available years", () => {
+      const full = makeFullData({ years: 5 });
+      const derived = deriveForYears(full, 20);
+
+      expect(derived.pe10Label).toBe("PE20");
+      expect(derived.pfcf10Label).toBe("PFCF20");
+    });
+
+    it("returns pe10 as null but keeps pfcf10 when only FCF data is sufficient", () => {
+      const full = makeFullData({ years: 5 });
+      // Pretend FCF has more years than earnings by extending its array
+      full.pfcf10CalculationDetails = Array.from({ length: 10 }, (_, i) => ({
+        year: 2025 - i,
+        nominalFCF: 80_000,
+        ipcaFactor: 1,
+        adjustedFCF: 80_000,
+        quarters: 4,
+        quarterlyDetail: [],
+      }));
+
+      const derived = deriveForYears(full, 7);
+
+      expect(derived.pe10).toBeNull();
+      expect(derived.pfcf10).not.toBeNull();
     });
 
     it("handles 1 year", () => {

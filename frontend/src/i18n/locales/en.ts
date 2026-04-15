@@ -376,6 +376,8 @@ export const en: TranslationDictionary = {
   "homepage.cagr_earnings_short": "CAGR E",
   "homepage.cagr_fcf_short": "CAGR FCF",
   "homepage.price_to_book": "P/B",
+  "homepage.your_favorites": "Your Favorites",
+  "homepage.favorites_empty_cta": "Favorite companies and create lists to see them here",
 
   /* ── Saved Lists ── */
   "lists.your_lists": "Your lists",
