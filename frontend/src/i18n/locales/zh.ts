@@ -4,6 +4,7 @@ export const zh: TranslationDictionary = {
   /* ── Common ── */
   "common.loading": "加载中\u2026",
   "common.cancel": "取消",
+  "common.remove": "移除",
   "common.save": "保存",
   "common.close": "关闭",
   "common.delete": "删除",
@@ -135,6 +136,7 @@ export const zh: TranslationDictionary = {
   "favorites.add_prominent": "添加到收藏夹",
   "favorites.add_card_title": "添加收藏",
   "favorites.search_placeholder": "搜索公司...",
+  "favorites.remove_confirm": "从收藏夹中移除 {ticker}？",
 
   /* ── Popular ── */
   "popular.title": "最多关注",

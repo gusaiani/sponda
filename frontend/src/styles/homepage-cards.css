@@ -241,18 +241,23 @@
   color: #64748b;
 }
 
+.hcc-add-favorite-search {
+  position: relative;
+  width: 100%;
+}
+
 .hcc-add-favorite-input {
   font-family: 'Inter', system-ui, sans-serif;
   width: 100%;
-  padding: 12px 20px;
+  padding: 8px 72px 8px 16px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 100px;
   font-size: 16px;
   color: var(--color-ink);
-  background: #ffffff;
+  background: #e9ebee;
   outline: none;
-  text-align: center;
   letter-spacing: 0;
+  box-sizing: border-box;
 }
 
 .hcc-add-favorite-input:focus {
@@ -262,6 +267,29 @@
 .hcc-add-favorite-input::placeholder {
   color: var(--color-muted);
   font-weight: 300;
+}
+
+.hcc-add-favorite-search-button {
+  font-family: 'Inter', system-ui, sans-serif;
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 100px;
+  background: #1b347e;
+  color: #ffffff;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s;
+}
+
+.hcc-add-favorite-search-button:hover {
+  background: #0f1d42;
 }
 
 /* ===== Homepage Unified Grid ===== */
@@ -343,6 +371,47 @@
   pointer-events: none;
 }
 
+.homepage-grid-favorite-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  padding: 0;
+}
+
+.homepage-grid-favorite-handle--outlined {
+  color: var(--color-muted);
+}
+
+.homepage-grid-favorite-handle--filled {
+  color: #f59e0b;
+}
+
+.homepage-grid-favorite-handle--filled:hover {
+  color: #d97706;
+}
+
+.homepage-grid-favorite-handle--outlined:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.homepage-grid-favorite-icon {
+  display: block;
+}
+
+.homepage-grid-remove-favorite-actions .auth-button,
+.homepage-grid-remove-favorite-actions .auth-button-secondary {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
 .homepage-grid-share-handle {
   display: flex;
   align-items: center;
@@ -386,6 +455,10 @@
 .homepage-grid-item:hover .homepage-grid-share-handle {
   opacity: 1;
   pointer-events: auto;
+}
+
+.homepage-grid-item:hover .homepage-grid-favorite-handle {
+  opacity: 1;
 }
 
 .homepage-grid-item:hover .homepage-grid-drag-handle:hover {

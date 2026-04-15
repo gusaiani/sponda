@@ -4,6 +4,7 @@ export const en: TranslationDictionary = {
   /* ── Common ── */
   "common.loading": "Loading\u2026",
   "common.cancel": "Cancel",
+  "common.remove": "Remove",
   "common.save": "Save",
   "common.close": "Close",
   "common.delete": "Delete",
@@ -135,6 +136,7 @@ export const en: TranslationDictionary = {
   "favorites.add_prominent": "Add to Favorites",
   "favorites.add_card_title": "Add favorites",
   "favorites.search_placeholder": "Search company...",
+  "favorites.remove_confirm": "Remove {ticker} from favorites?",
 
   /* ── Popular ── */
   "popular.title": "Most followed",

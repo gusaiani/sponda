@@ -4,6 +4,7 @@ export interface TranslationDictionary {
   /* ── Common ── */
   "common.loading": string;
   "common.cancel": string;
+  "common.remove": string;
   "common.save": string;
   "common.close": string;
   "common.delete": string;
@@ -135,6 +136,7 @@ export interface TranslationDictionary {
   "favorites.add_prominent": string;
   "favorites.add_card_title": string;
   "favorites.search_placeholder": string;
+  "favorites.remove_confirm": string;
 
   /* ── Popular ── */
   "popular.title": string;
