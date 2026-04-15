@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { localizeLabel, ptLabel, br, formatLargeNumber, formatQuarterLabel } from "./format";
+import { localizeLabel, ptLabel, br, formatLargeNumber, formatQuarterLabel, currencyCode } from "./format";
+
+describe("currencyCode", () => {
+  it("returns BRL for Brazilian tickers", () => {
+    expect(currencyCode("COGN3")).toBe("BRL");
+    expect(currencyCode("PETR4")).toBe("BRL");
+    expect(currencyCode("SANB11")).toBe("BRL");
+  });
+
+  it("returns USD for US tickers", () => {
+    expect(currencyCode("AAPL")).toBe("USD");
+    expect(currencyCode("MSFT")).toBe("USD");
+    expect(currencyCode("SCCO")).toBe("USD");
+  });
+});
 
 describe("localizeLabel", () => {
   it("converts PE10 to P/L10 in Portuguese", () => {

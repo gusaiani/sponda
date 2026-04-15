@@ -27,6 +27,7 @@ export const zh: TranslationDictionary = {
   /* ── Header ── */
   "header.tagline": "为价值投资者而设",
   "header.menu": "菜单",
+  "header.currency": "货币",
 
   /* ── Footer ── */
   "footer.tool_by": "工具开发者",
