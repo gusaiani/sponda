@@ -98,6 +98,20 @@
   white-space: nowrap;
 }
 
+.list-card-ticker-symbol {
+  vertical-align: middle;
+}
+
+.list-card-logo {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .list-card-null {
   color: var(--color-muted);
 }

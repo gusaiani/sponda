@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getListCardColumns } from "./ListCard";
+import { getListCardColumns, computeVisibleRowCount } from "./ListCard";
 import { pt } from "../i18n/locales/pt";
 import type { TranslationKey } from "../i18n";
 
@@ -127,5 +127,38 @@ describe("getListCardColumns", () => {
     expect(labels).toContain("P/E10");
     expect(labels).toContain("P/FCF10");
     expect(labels).toContain("D/E");
+  });
+});
+
+describe("computeVisibleRowCount", () => {
+  const rowHeight = 20;
+  const totalRows = 11;
+
+  it("returns the minimum when available height is zero", () => {
+    expect(computeVisibleRowCount({ availableHeight: 0, rowHeight, totalRows, minRows: 3 })).toBe(3);
+  });
+
+  it("never exceeds totalRows", () => {
+    expect(computeVisibleRowCount({ availableHeight: 10_000, rowHeight, totalRows, minRows: 3 })).toBe(totalRows);
+  });
+
+  it("returns how many whole rows fit in the available height", () => {
+    expect(computeVisibleRowCount({ availableHeight: 105, rowHeight, totalRows, minRows: 3 })).toBe(5);
+  });
+
+  it("floors partial rows", () => {
+    expect(computeVisibleRowCount({ availableHeight: 99, rowHeight, totalRows, minRows: 3 })).toBe(4);
+  });
+
+  it("never returns less than minRows even when height is tight", () => {
+    expect(computeVisibleRowCount({ availableHeight: 20, rowHeight, totalRows, minRows: 3 })).toBe(3);
+  });
+
+  it("caps at totalRows when fewer rows exist than fit", () => {
+    expect(computeVisibleRowCount({ availableHeight: 1000, rowHeight, totalRows: 2, minRows: 3 })).toBe(2);
+  });
+
+  it("returns totalRows when minRows exceeds totalRows", () => {
+    expect(computeVisibleRowCount({ availableHeight: 0, rowHeight, totalRows: 2, minRows: 5 })).toBe(2);
   });
 });
