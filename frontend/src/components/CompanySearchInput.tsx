@@ -49,6 +49,8 @@ export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
       e.preventDefault();
       if (selectedIndex >= 0 && selectedIndex < results.length) {
         select(results[selectedIndex]);
+      } else if (results.length > 0) {
+        select(results[0]);
       } else if (input.trim()) {
         const ticker = input.trim().toUpperCase();
         setInput("");
