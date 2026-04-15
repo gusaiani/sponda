@@ -5,6 +5,11 @@ export function currencySymbol(ticker: string): string {
   return isBrazilianTicker(ticker) ? "R$" : "$";
 }
 
+/** Return the ISO 4217 currency code for a given ticker. */
+export function currencyCode(ticker: string): string {
+  return isBrazilianTicker(ticker) ? "BRL" : "USD";
+}
+
 /** Proxied logo URL served from our server. */
 export function logoUrl(symbol: string): string {
   return `/api/logos/${symbol}.png`;

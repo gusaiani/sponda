@@ -60,7 +60,7 @@ import { useMultiplesHistory, fetchMultiplesHistory } from "../../../hooks/useMu
 import { deriveForYears } from "../../../hooks/deriveForYears";
 import { fetchFundamentals, useFundamentals } from "../../../hooks/useFundamentals";
 import { useSavedLists } from "../../../hooks/useSavedLists";
-import { logoUrl } from "../../../utils/format";
+import { logoUrl, currencyCode } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
 import { YearsSlider } from "../../../components/YearsSlider";
 
@@ -199,7 +199,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             )}
-            <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker}</span></h2>
+            <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker} · {t("header.currency")}: {currencyCode(upperTicker)}</span></h2>
           </div>
           <div className="company-header-actions">
             <VisitedButton ticker={upperTicker} />
