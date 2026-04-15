@@ -354,7 +354,8 @@ class TestFavorites:
         assert "PETR4" in tickers
         assert "VALE3" in tickers
 
-    def test_favorite_limit_enforced(self, authenticated_client, user):
+    def test_favorite_limit_enforced_for_unverified_user(self, authenticated_client, user):
+        assert user.email_verified is False
         for i in range(20):
             FavoriteCompany.objects.create(user=user, ticker=f"TST{i}")
         response = authenticated_client.post(
@@ -364,6 +365,19 @@ class TestFavorites:
         )
         assert response.status_code == 400
         assert "Limite" in response.json()["error"]
+
+    def test_verified_user_bypasses_favorite_limit(self, authenticated_client, user):
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+        for i in range(20):
+            FavoriteCompany.objects.create(user=user, ticker=f"TST{i}")
+        response = authenticated_client.post(
+            "/api/auth/favorites/",
+            {"ticker": "EXTRA1"},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        assert FavoriteCompany.objects.filter(user=user).count() == 21
 
     def test_favorite_at_limit_can_still_remove(self, authenticated_client, user):
         for i in range(20):

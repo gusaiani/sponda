@@ -580,12 +580,13 @@ class FavoriteListView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        current_count = FavoriteCompany.objects.filter(user=request.user).count()
-        if current_count >= self.MAX_FAVORITES:
-            return Response(
-                {"error": f"Limite de {self.MAX_FAVORITES} favoritos atingido"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if not request.user.email_verified:
+            current_count = FavoriteCompany.objects.filter(user=request.user).count()
+            if current_count >= self.MAX_FAVORITES:
+                return Response(
+                    {"error": f"Limite de {self.MAX_FAVORITES} favoritos atingido"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         _, created = FavoriteCompany.objects.get_or_create(
             user=request.user, ticker=ticker
