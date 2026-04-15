@@ -835,11 +835,45 @@ class TestSitemap:
         assert response.status_code == 200
         assert response["Content-Type"] == "application/xml"
         content = response.content.decode()
-        assert "https://sponda.capital/" in content
-        assert "https://sponda.capital/PETR4" in content
-        assert "https://sponda.capital/PETR4/fundamentos" in content
-        assert "https://sponda.capital/PETR4/graficos" in content
-        assert "https://sponda.capital/PETR4/comparar" in content
+        assert "https://sponda.capital/en" in content
+        assert "https://sponda.capital/pt" in content
+
+    def test_sitemap_has_locale_prefixed_ticker_urls(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petroleo Brasileiro", type="stock")
+        content = api_client.get("/api/sitemap.xml").content.decode()
+        for locale in ("en", "pt", "es", "zh", "fr", "de", "it"):
+            assert f"https://sponda.capital/{locale}/PETR4" in content
+
+    def test_sitemap_uses_localized_tab_slugs(self, api_client, db):
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        content = api_client.get("/api/sitemap.xml").content.decode()
+        # Portuguese slugs
+        assert "https://sponda.capital/pt/PETR4/fundamentos" in content
+        assert "https://sponda.capital/pt/PETR4/graficos" in content
+        assert "https://sponda.capital/pt/PETR4/comparar" in content
+        # English slugs
+        assert "https://sponda.capital/en/PETR4/fundamentals" in content
+        assert "https://sponda.capital/en/PETR4/charts" in content
+        assert "https://sponda.capital/en/PETR4/compare" in content
+        # French slugs
+        assert "https://sponda.capital/fr/PETR4/fondamentaux" in content
+        assert "https://sponda.capital/fr/PETR4/graphiques" in content
+        # German slugs
+        assert "https://sponda.capital/de/PETR4/fundamentaldaten" in content
+
+    def test_sitemap_includes_hreflang_alternates(self, api_client, db):
+        Ticker.objects.create(symbol="VALE3", name="Vale", type="stock")
+        content = api_client.get("/api/sitemap.xml").content.decode()
+        # Each URL group should advertise every locale via xhtml:link rel="alternate"
+        assert 'xmlns:xhtml="http://www.w3.org/1999/xhtml"' in content
+        assert 'hreflang="en"' in content
+        assert 'hreflang="pt-BR"' in content
+        assert 'hreflang="es"' in content
+        assert 'hreflang="zh-CN"' in content
+        assert 'hreflang="fr"' in content
+        assert 'hreflang="de"' in content
+        assert 'hreflang="it"' in content
+        assert 'hreflang="x-default"' in content
 
     def test_sitemap_excludes_fractional_shares(self, api_client, db):
         Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
@@ -893,7 +927,7 @@ class TestOGTagInjection:
         assert "PETR4" in result
         assert 'content="summary_large_image"' in result
 
-    def test_inject_og_tags_canonical_includes_subpath(self, db):
+    def test_inject_og_tags_canonical_includes_locale_and_subpath(self, db):
         from config.urls import _inject_og_tags
 
         Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
@@ -902,8 +936,10 @@ class TestOGTagInjection:
             '<link rel="canonical" href="https://sponda.capital/" />'
             '</head>'
         )
-        result = _inject_og_tags(html, "PETR4", "fundamentos")
-        assert 'href="https://sponda.capital/PETR4/fundamentos"' in result
+        result = _inject_og_tags(html, "PETR4", "fundamentos", locale="pt")
+        # Canonical URLs always embed the locale prefix so search engines
+        # index the localized page, not a locale-less alias.
+        assert 'href="https://sponda.capital/pt/PETR4/fundamentos"' in result
 
     def test_inject_og_tags_includes_json_ld(self, db):
         from config.urls import _inject_og_tags
@@ -915,6 +951,91 @@ class TestOGTagInjection:
         assert '"@type": "BreadcrumbList"' in result
         assert "WEG" in result
         assert "Industrials" in result
+
+    def test_inject_og_tags_uses_english_strings_for_en_locale(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        html = '<head><title>Sponda</title><meta name="description" content="default" /></head>'
+        result = _inject_og_tags(html, "PETR4", locale="en")
+        assert "Fundamental Indicators" in result
+        assert "Fundamental indicators for" in result
+        # Portuguese strings should not leak into the English version.
+        assert "Indicadores Fundamentalistas" not in result
+        assert "Indicadores fundamentalistas" not in result
+
+    def test_inject_og_tags_uses_portuguese_strings_for_pt_locale(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        html = '<head><title>Sponda</title></head>'
+        result = _inject_og_tags(html, "PETR4", locale="pt")
+        assert "Indicadores Fundamentalistas" in result
+
+    def test_inject_og_tags_canonical_for_english_locale_uses_localized_tab(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        html = '<head><link rel="canonical" href="https://sponda.capital/" /></head>'
+        result = _inject_og_tags(html, "PETR4", "fundamentals", locale="en")
+        assert 'href="https://sponda.capital/en/PETR4/fundamentals"' in result
+
+    def test_inject_og_tags_localizes_tab_labels_in_breadcrumb(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        html = '<head><title>Sponda</title></head>'
+        result = _inject_og_tags(html, "PETR4", "fundamentals", locale="en")
+        # BreadcrumbList item for the tab should use the English label.
+        assert '"Fundamentals"' in result
+
+    def test_inject_og_tags_defaults_to_portuguese_without_locale(self, db):
+        from config.urls import _inject_og_tags
+
+        Ticker.objects.create(symbol="PETR4", name="Petroleo", type="stock")
+        html = '<head><title>Sponda</title></head>'
+        # Backward compat: calling without a locale keeps the previous PT output.
+        result = _inject_og_tags(html, "PETR4")
+        assert "Indicadores Fundamentalistas" in result
+
+
+class TestTickerRegex:
+    def test_ticker_regex_matches_bare_ticker(self):
+        from config.urls import _TICKER_RE
+        m = _TICKER_RE.match("PETR4")
+        assert m is not None and m.group("ticker") == "PETR4"
+
+    def test_ticker_regex_matches_ticker_with_portuguese_tab(self):
+        from config.urls import _TICKER_RE
+        m = _TICKER_RE.match("PETR4/graficos")
+        assert m is not None and m.group("ticker") == "PETR4"
+
+    def test_ticker_regex_matches_locale_prefixed_ticker(self):
+        from config.urls import _TICKER_RE
+        m = _TICKER_RE.match("en/PETR4")
+        assert m is not None
+        assert m.group("locale") == "en"
+        assert m.group("ticker") == "PETR4"
+
+    def test_ticker_regex_matches_locale_prefixed_with_english_tab(self):
+        from config.urls import _TICKER_RE
+        m = _TICKER_RE.match("en/PETR4/fundamentals")
+        assert m is not None
+        assert m.group("locale") == "en"
+        assert m.group("ticker") == "PETR4"
+        assert m.group("sub") == "fundamentals"
+
+    def test_ticker_regex_matches_french_tab_with_locale(self):
+        from config.urls import _TICKER_RE
+        m = _TICKER_RE.match("fr/PETR4/fondamentaux")
+        assert m is not None
+        assert m.group("locale") == "fr"
+        assert m.group("sub") == "fondamentaux"
+
+    def test_ticker_regex_rejects_unsupported_locale(self):
+        from config.urls import _TICKER_RE
+        # "xx" is not a supported locale; the path shouldn't be treated as a ticker URL.
+        assert _TICKER_RE.match("xx/PETR4") is None
 
 
 class TestHomepageLayout:
