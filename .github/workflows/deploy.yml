@@ -172,6 +172,10 @@ jobs:
             cd /opt/sponda
 
             # Build Hugo blog (blog.sponda.capital)
+            command -v hugo >/dev/null 2>&1 || {
+              DEBIAN_FRONTEND=noninteractive apt-get update -y
+              DEBIAN_FRONTEND=noninteractive apt-get install -y hugo
+            }
             cd /opt/sponda/blog
             hugo --minify --gc
             cd /opt/sponda
