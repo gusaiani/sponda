@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Providers } from "../providers";
 import { LayoutShell } from "../layout-shell";
 import { SUPPORTED_LOCALES, isSupportedLocale, LOCALE_TO_HTML_LANG, LOCALE_TO_OG_LOCALE } from "../../lib/i18n-config";
+import { getOgImageUrl } from "../../lib/metadata";
 import type { Locale } from "../../i18n/types";
 
 const BASE_URL = "https://sponda.capital";
@@ -93,14 +94,14 @@ export async function generateMetadata({ params }: LocaleLayoutProps): Promise<M
       title,
       description,
       url: `/${locale}`,
-      images: [{ url: `${BASE_URL}/images/sponda-og.jpg`, width: 1200, height: 630 }],
+      images: [{ url: `${BASE_URL}${getOgImageUrl(locale)}`, width: 1200, height: 630 }],
       locale: ogLocale,
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [`${BASE_URL}/images/sponda-og.jpg`],
+      images: [`${BASE_URL}${getOgImageUrl(locale)}`],
     },
   };
 }

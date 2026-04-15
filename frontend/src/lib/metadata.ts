@@ -4,6 +4,20 @@ import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 
 const BASE_URL = "https://sponda.capital";
 
+/**
+ * Path to the OG image for a given locale.
+ *
+ * The Portuguese image uses the Portuguese tagline; every other locale
+ * falls back to the English image. Only two JPEGs are maintained today
+ * because most crawlers only cache one OG image per URL and localizing
+ * the tagline further isn't worth the asset churn yet.
+ */
+export function getOgImageUrl(locale: string): string {
+  return locale === "pt"
+    ? "/images/sponda-og.jpg"
+    : "/images/sponda-og-en.jpg";
+}
+
 interface TickerInfo {
   name: string;
   sector: string;
@@ -138,7 +152,7 @@ export async function generateTickerMetadata(
       title,
       description,
       url,
-      images: [{ url: `${BASE_URL}/images/sponda-og.jpg`, width: 1200, height: 630 }],
+      images: [{ url: `${BASE_URL}${getOgImageUrl(locale)}`, width: 1200, height: 630 }],
       locale: ogLocale,
       siteName: "Sponda",
     },
@@ -146,7 +160,7 @@ export async function generateTickerMetadata(
       card: "summary_large_image",
       title,
       description,
-      images: [`${BASE_URL}/images/sponda-og.jpg`],
+      images: [`${BASE_URL}${getOgImageUrl(locale)}`],
     },
     other: {
       "structured-data": JSON.stringify([

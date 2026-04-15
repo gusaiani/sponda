@@ -995,8 +995,75 @@ class LogoProxyView(APIView):
         return response
 
 
+# Locales mirrored here must stay in sync with
+# frontend/src/lib/i18n-config.ts::SUPPORTED_LOCALES.
+SITEMAP_LOCALES = ("en", "pt", "es", "zh", "fr", "de", "it")
+
+# hreflang tags per locale — mirrors LOCALE_TO_HTML_LANG on the frontend.
+SITEMAP_HREFLANG = {
+    "en": "en",
+    "pt": "pt-BR",
+    "es": "es",
+    "zh": "zh-CN",
+    "fr": "fr",
+    "de": "de",
+    "it": "it",
+}
+
+# x-default points at English, matching the frontend alternates.
+SITEMAP_X_DEFAULT_LOCALE = "en"
+
+# Canonical tab key → localized URL slug per locale.
+# Mirrors frontend/src/middleware.ts::CANONICAL_TO_LOCALE_SLUG.
+SITEMAP_TAB_SLUGS = {
+    "charts":       {"en": "charts", "pt": "graficos", "es": "graficos", "zh": "charts",
+                     "fr": "graphiques", "de": "diagramme", "it": "grafici"},
+    "fundamentals": {"en": "fundamentals", "pt": "fundamentos", "es": "fundamentos", "zh": "fundamentals",
+                     "fr": "fondamentaux", "de": "fundamentaldaten", "it": "fondamentali"},
+    "compare":      {"en": "compare", "pt": "comparar", "es": "comparar", "zh": "compare",
+                     "fr": "comparer", "de": "vergleich", "it": "confronta"},
+}
+
+
+def _sitemap_url_group(base_url, path_builder, priority, changefreq, lastmod=""):
+    """Emit one <url> entry per locale, each with hreflang alternates for all locales.
+
+    `path_builder(locale)` returns the path segment after the locale prefix,
+    e.g. "" for the homepage or "/PETR4/fundamentos" for a ticker tab.
+    """
+    lines = []
+    # Pre-compute every locale's absolute URL so we can reuse them as
+    # xhtml:link alternates inside each per-locale <url> block.
+    locale_urls = {loc: f"{base_url}/{loc}{path_builder(loc)}" for loc in SITEMAP_LOCALES}
+    for locale in SITEMAP_LOCALES:
+        lines.append("  <url>")
+        lines.append(f"    <loc>{locale_urls[locale]}</loc>")
+        if lastmod:
+            lines.append(f"    <lastmod>{lastmod}</lastmod>")
+        lines.append(f"    <changefreq>{changefreq}</changefreq>")
+        lines.append(f"    <priority>{priority}</priority>")
+        for alt_locale in SITEMAP_LOCALES:
+            hreflang = SITEMAP_HREFLANG[alt_locale]
+            lines.append(
+                f'    <xhtml:link rel="alternate" hreflang="{hreflang}" '
+                f'href="{locale_urls[alt_locale]}" />'
+            )
+        lines.append(
+            f'    <xhtml:link rel="alternate" hreflang="x-default" '
+            f'href="{locale_urls[SITEMAP_X_DEFAULT_LOCALE]}" />'
+        )
+        lines.append("  </url>")
+    return lines
+
+
 class SitemapView(APIView):
-    """Generate a dynamic XML sitemap with all stock ticker pages."""
+    """Generate a dynamic XML sitemap with locale-prefixed URLs and hreflang alternates.
+
+    Every page (homepage, ticker root, ticker tabs) is emitted once per supported
+    locale, with xhtml:link rel="alternate" entries advertising the other locale
+    variants. This mirrors the Next.js frontend's `alternates.languages` metadata
+    so search engines can index each locale and serve the right variant by region.
+    """
 
     def get(self, request):
         base_url = "https://sponda.capital"
@@ -1009,31 +1076,37 @@ class SitemapView(APIView):
 
         lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
-            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-            "  <url>",
-            f"    <loc>{base_url}/</loc>",
-            "    <changefreq>daily</changefreq>",
-            "    <priority>1.0</priority>",
-            "  </url>",
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"',
+            '        xmlns:xhtml="http://www.w3.org/1999/xhtml">',
         ]
 
-        sub_pages = [
-            ("", "0.8", "weekly"),
-            ("/fundamentos", "0.6", "weekly"),
-            ("/graficos", "0.5", "weekly"),
-            ("/comparar", "0.4", "monthly"),
+        # Homepage: one <url> per locale, each with full hreflang alternates.
+        lines.extend(_sitemap_url_group(
+            base_url,
+            path_builder=lambda _locale: "",
+            priority="1.0",
+            changefreq="daily",
+        ))
+
+        # Per-ticker URL groups: root, fundamentals, charts, compare.
+        ticker_groups = [
+            (None,           "0.8", "weekly"),
+            ("fundamentals", "0.6", "weekly"),
+            ("charts",       "0.5", "weekly"),
+            ("compare",      "0.4", "monthly"),
         ]
 
         for symbol, updated_at in tickers:
             lastmod = updated_at.strftime("%Y-%m-%d") if updated_at else ""
-            for suffix, priority, changefreq in sub_pages:
-                lines.append("  <url>")
-                lines.append(f"    <loc>{base_url}/{symbol}{suffix}</loc>")
-                if lastmod:
-                    lines.append(f"    <lastmod>{lastmod}</lastmod>")
-                lines.append(f"    <changefreq>{changefreq}</changefreq>")
-                lines.append(f"    <priority>{priority}</priority>")
-                lines.append("  </url>")
+            for tab_key, priority, changefreq in ticker_groups:
+                if tab_key is None:
+                    path_builder = lambda _locale, s=symbol: f"/{s}"
+                else:
+                    slug_map = SITEMAP_TAB_SLUGS[tab_key]
+                    path_builder = lambda locale, s=symbol, m=slug_map: f"/{s}/{m[locale]}"
+                lines.extend(_sitemap_url_group(
+                    base_url, path_builder, priority, changefreq, lastmod,
+                ))
 
         lines.append("</urlset>")
 
