@@ -63,15 +63,17 @@ interface ListCardProps {
 function TickerCell({ ticker }: { ticker: string }) {
   return (
     <td className="list-card-ticker">
-      <img
-        className="list-card-logo"
-        src={logoUrl(ticker)}
-        alt=""
-        onError={(event) => {
-          (event.target as HTMLImageElement).style.visibility = "hidden";
-        }}
-      />
-      <span className="list-card-ticker-symbol">{ticker}</span>
+      <span className="list-card-ticker-inner">
+        <img
+          className="list-card-logo"
+          src={logoUrl(ticker)}
+          alt=""
+          onError={(event) => {
+            (event.target as HTMLImageElement).style.visibility = "hidden";
+          }}
+        />
+        {ticker}
+      </span>
     </td>
   );
 }
