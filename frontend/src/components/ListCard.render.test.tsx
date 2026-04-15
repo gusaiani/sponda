@@ -50,4 +50,13 @@ describe("ListCard ticker cell", () => {
     expect(tickerCell!.textContent).toContain("LREN3");
     expect(tickerCell!.querySelector("img.list-card-logo")).not.toBeNull();
   });
+
+  it("wraps logo and ticker in a single inline-flex container so they share one row", () => {
+    render(<ListCard listId={1} name="Renner" tickers={["LREN3"]} years={10} />);
+
+    const inner = document.querySelector(".list-card-ticker-inner");
+    expect(inner).not.toBeNull();
+    expect(inner!.querySelector("img.list-card-logo")).not.toBeNull();
+    expect(inner!.textContent).toContain("LREN3");
+  });
 });
