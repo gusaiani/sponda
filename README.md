@@ -214,6 +214,65 @@ docker compose run --rm web python manage.py migrate --noinput
 docker compose up -d
 ```
 
+## Blog
+
+The blog at [blog.sponda.capital](https://blog.sponda.capital) is a [Hugo](https://gohugo.io/) static site living in `blog/` in this repo. It serves flat HTML from nginx — no runtime, no database, no JavaScript.
+
+### Writing a post
+
+```bash
+cd blog
+hugo new content/posts/2026-04-15-my-post.md
+```
+
+Frontmatter supports `tags`, `categories`, and an explicit `slug` (recommended when the title has accents):
+
+```yaml
+---
+title: "Exemplo"
+slug: "exemplo"
+date: 2026-04-15
+tags: ["petrobras", "dividendos"]
+categories: ["análise"]
+---
+
+Markdown goes here. YouTube embeds use Hugo's built-in shortcode:
+
+{{< youtube dQw4w9WgXcQ >}}
+```
+
+Commit and push to `main`; the deploy workflow builds the site on the server.
+
+### Local preview
+
+```bash
+cd blog
+hugo server
+# open http://localhost:1313/
+```
+
+### Layout
+
+- `blog/content/posts/` · Markdown posts.
+- `blog/layouts/` · custom DF-minimal HTML templates (no theme dependency).
+- `blog/assets/css/main.css` · site CSS (fingerprinted and minified at build).
+- `blog/static/` · favicon and fonts, copied verbatim to the output.
+- `blog/hugo.toml` · site config.
+
+Tags and categories auto-generate index pages at `/tags/*` and `/categories/*`. RSS feed is auto-generated at `/index.xml`.
+
+### One-time server setup
+
+Before the first push that touches `blog/`, the droplet needs:
+
+1. DNS: `A` record `blog.sponda.capital → 159.203.108.19`.
+2. `apt install hugo` on the server (Ubuntu 24.04 repo is recent enough; confirm with `hugo version`).
+3. `certbot --nginx -d blog.sponda.capital` (after DNS propagates).
+4. `ln -sf /etc/nginx/sites-available/blog.sponda.capital.conf /etc/nginx/sites-enabled/`.
+5. `nginx -t && systemctl reload nginx`.
+
+Every subsequent `git push` to `main` rebuilds and publishes automatically.
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:

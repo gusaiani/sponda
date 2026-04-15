@@ -1,0 +1,34 @@
+{{- $css := resources.Get "css/main.css" | resources.Minify | resources.Fingerprint -}}
+<!doctype html>
+<html lang="{{ site.LanguageCode | default "pt-br" }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ block "title" . }}{{ if not .IsHome }}{{ .Title }} · {{ end }}{{ site.Title }}{{ end }}</title>
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ site.Params.description }}{{ end }}">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}">
+  {{- if .OutputFormats.Get "RSS" }}
+  <link rel="alternate" type="application/rss+xml" title="{{ site.Title }}" href="{{ "/index.xml" | absURL }}">
+  {{- end }}
+  <meta property="og:site_name" content="{{ site.Title }}">
+  <meta property="og:title" content="{{ if not .IsHome }}{{ .Title }}{{ else }}{{ site.Title }}{{ end }}">
+  <meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ site.Params.description }}{{ end }}">
+  <meta property="og:url" content="{{ .Permalink }}">
+  <meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site-header">
+      <a class="site-header-brand" href="/">Sponda</a>
+      <div class="site-header-tagline">Notas sobre investimento em ações brasileiras</div>
+    </header>
+    <main>
+      {{ block "main" . }}{{ end }}
+    </main>
+    <footer class="site-footer">
+      <a href="{{ site.Params.mainSiteURL }}">sponda.capital</a> · <a href="/index.xml">RSS</a> · <a href="/tags/">Tags</a>
+    </footer>
+  </div>
+</body>
+</html>

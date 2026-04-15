@@ -171,6 +171,11 @@ jobs:
             npm run build
             cd /opt/sponda
 
+            # Build Hugo blog (blog.sponda.capital)
+            cd /opt/sponda/blog
+            hugo --minify --gc
+            cd /opt/sponda
+
             # Django migrations and data refresh
             export DJANGO_SETTINGS_MODULE=config.settings.production
             cd /opt/sponda/backend
@@ -193,6 +198,7 @@ jobs:
             cp /opt/sponda/nginx/gzip.conf /etc/nginx/conf.d/gzip.conf
             cp /opt/sponda/nginx/sponda.capital.conf /etc/nginx/sites-available/
             cp /opt/sponda/nginx/sponda.poe.ma.conf /etc/nginx/sites-available/
+            cp /opt/sponda/nginx/blog.sponda.capital.conf /etc/nginx/sites-available/
             nginx -t && systemctl reload nginx
 
             # Restart services

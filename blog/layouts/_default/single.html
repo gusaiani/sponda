@@ -1,0 +1,27 @@
+{{ define "main" }}
+  <article>
+    <time class="post-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "02 Jan 2006" }}</time>
+    <h1 class="post-title">{{ .Title }}</h1>
+    <div class="post-content">
+      {{ .Content }}
+    </div>
+    {{- $tags := .GetTerms "tags" -}}
+    {{- $cats := .GetTerms "categories" -}}
+    {{- if or $tags $cats }}
+      <div class="post-tax">
+        {{- with $cats }}
+          <div class="post-tax-row">
+            <span class="post-tax-label">Categorias</span>
+            {{- range . }}<a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}
+          </div>
+        {{- end }}
+        {{- with $tags }}
+          <div class="post-tax-row">
+            <span class="post-tax-label">Tags</span>
+            {{- range . }}<a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}
+          </div>
+        {{- end }}
+      </div>
+    {{- end }}
+  </article>
+{{ end }}
