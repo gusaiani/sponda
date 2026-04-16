@@ -63,6 +63,7 @@ import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl, currencyCode } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
 import { YearsSlider } from "../../../components/YearsSlider";
+import { TabPills } from "../../../components/TabPills";
 
 const STALE_TIME = 30 * 60 * 1000;
 
@@ -214,34 +215,11 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       {!isLoading && !error && (
         <>
           <div className="tab-bar" ref={tabBarRef}>
-            <div className="tabs-desktop">
-              <button
-                className={`tab-pill ${activeTab === "metrics" ? "tab-pill-active" : ""}`}
-                onClick={() => switchTab("metrics")}
-              >
-                {t("tabs.metrics")}
-              </button>
-              <button
-                className={`tab-pill ${activeTab === "fundamentals" ? "tab-pill-active" : ""}`}
-                onClick={() => switchTab("fundamentals")}
-                onMouseEnter={() => prefetchTabData("fundamentals")}
-              >
-                {t("tabs.fundamentals")}
-              </button>
-              <button
-                className={`tab-pill ${activeTab === "compare" ? "tab-pill-active" : ""}`}
-                onClick={() => switchTab("compare")}
-              >
-                {t("tabs.compare")}
-              </button>
-              <button
-                className={`tab-pill ${activeTab === "charts" ? "tab-pill-active" : ""}`}
-                onClick={() => switchTab("charts")}
-                onMouseEnter={() => prefetchTabData("charts")}
-              >
-                {t("tabs.charts")}
-              </button>
-            </div>
+            <TabPills
+              ticker={upperTicker}
+              activeTab={activeTab}
+              onPrefetch={prefetchTabData}
+            />
           </div>
           <div className="tabs-mobile">
             <select
