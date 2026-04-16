@@ -161,4 +161,22 @@ describe("computeVisibleRowCount", () => {
   it("returns totalRows when minRows exceeds totalRows", () => {
     expect(computeVisibleRowCount({ availableHeight: 0, rowHeight, totalRows: 2, minRows: 5 })).toBe(2);
   });
+
+  it("never exceeds maxRows even when more rows fit and exist", () => {
+    expect(
+      computeVisibleRowCount({ availableHeight: 10_000, rowHeight, totalRows: 20, minRows: 3, maxRows: 9 }),
+    ).toBe(9);
+  });
+
+  it("returns totalRows when totalRows is below maxRows", () => {
+    expect(
+      computeVisibleRowCount({ availableHeight: 10_000, rowHeight, totalRows: 4, minRows: 3, maxRows: 9 }),
+    ).toBe(4);
+  });
+
+  it("respects maxRows even when minRows would exceed it", () => {
+    expect(
+      computeVisibleRowCount({ availableHeight: 0, rowHeight, totalRows: 20, minRows: 12, maxRows: 9 }),
+    ).toBe(9);
+  });
 });

@@ -18,6 +18,7 @@ interface ListCardColumnDef {
 }
 
 const MIN_VISIBLE_TICKERS = 5;
+const MAX_VISIBLE_TICKERS = 9;
 const ESTIMATED_ROW_HEIGHT_PX = 22;
 
 interface ComputeVisibleRowCountInput {
@@ -25,6 +26,7 @@ interface ComputeVisibleRowCountInput {
   rowHeight: number;
   totalRows: number;
   minRows: number;
+  maxRows?: number;
 }
 
 export function computeVisibleRowCount({
@@ -32,11 +34,13 @@ export function computeVisibleRowCount({
   rowHeight,
   totalRows,
   minRows,
+  maxRows,
 }: ComputeVisibleRowCountInput): number {
-  if (rowHeight <= 0) return Math.min(totalRows, minRows);
+  const cap = maxRows !== undefined ? Math.min(totalRows, maxRows) : totalRows;
+  if (rowHeight <= 0) return Math.min(cap, minRows);
   const fits = Math.floor(availableHeight / rowHeight);
   const atLeastMin = Math.max(fits, minRows);
-  return Math.min(totalRows, atLeastMin);
+  return Math.min(cap, atLeastMin);
 }
 
 export function getListCardColumns(years: number, t: (key: TranslationKey) => string): ListCardColumnDef[] {
@@ -87,7 +91,7 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
 
   const cardRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
-  const [visibleCount, setVisibleCount] = useState(Math.min(tickers.length, MIN_VISIBLE_TICKERS));
+  const [visibleCount, setVisibleCount] = useState(Math.min(tickers.length, MAX_VISIBLE_TICKERS, MIN_VISIBLE_TICKERS));
 
   useLayoutEffect(() => {
     const cardElement = cardRef.current;
@@ -110,6 +114,7 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
           rowHeight,
           totalRows: tickers.length,
           minRows: MIN_VISIBLE_TICKERS,
+          maxRows: MAX_VISIBLE_TICKERS,
         }),
       );
     };
