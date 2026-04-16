@@ -65,3 +65,22 @@ export function translateTabSlug(slug: string, targetLocale: string): string {
   if (!tab) return slug;
   return tabSlugForLocale(targetLocale, tab) || slug;
 }
+
+/** Build a compare-tab URL after the owner row has changed.
+ * Preserves listId and years query params; encodes the new comparison set as `with=`. */
+export function buildOwnerSwapUrl(
+  locale: string,
+  newOwner: string,
+  newExtras: string[],
+  sourceSearch: URLSearchParams,
+): string {
+  const base = buildTabPath(locale, newOwner, "compare");
+  const params = new URLSearchParams();
+  const listId = sourceSearch.get("listId");
+  const years = sourceSearch.get("years");
+  if (listId) params.set("listId", listId);
+  if (years) params.set("years", years);
+  if (newExtras.length > 0) params.set("with", newExtras.join(","));
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
+}

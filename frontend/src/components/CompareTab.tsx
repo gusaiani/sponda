@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCompareData, type CompareEntry } from "../hooks/useCompareData";
 import { useSavedLists } from "../hooks/useSavedLists";
@@ -10,17 +11,26 @@ import { useTranslation, type TranslationKey } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { br, logoUrl } from "../utils/format";
+import { buildOwnerSwapUrl } from "../utils/tabs";
 import type { QuoteResult } from "../hooks/usePE10";
+import type { FundamentalsYear } from "../hooks/useFundamentals";
 import "../styles/compare.css";
 
 /* ── Column definitions ── */
 
+export interface CompareRowData {
+  quote: QuoteResult;
+  recent: FundamentalsYear | null;
+  pe: number | null;
+  pfcf: number | null;
+}
+
 interface ColumnDef {
   key: string;
   label: string;
-  group: "endividamento" | "rentabilidade" | "valuation";
-  format: (d: QuoteResult) => string | null;
-  value: (d: QuoteResult) => number | null;
+  group: "balanco" | "resultado" | "caixa" | "retorno";
+  format: (d: CompareRowData) => string | null;
+  value: (d: CompareRowData) => number | null;
 }
 
 type SortDir = "asc" | "desc";
@@ -29,32 +39,96 @@ interface SortState {
   dir: SortDir;
 }
 
+function millions(value: number | null): string | null {
+  if (value === null) return null;
+  return br(value / 1e6, 0);
+}
+
+function ratio(value: number | null): string | null {
+  if (value === null) return null;
+  return br(value, 2);
+}
+
+function ratio1(value: number | null): string | null {
+  if (value === null) return null;
+  return br(value, 1);
+}
+
 export function getColumns(years: number, t: (key: TranslationKey) => string): ColumnDef[] {
-  const n = years;
   return [
-    // Endividamento
-    { key: "debtToEquity", label: t("compare.col_debt_to_equity"), group: "endividamento", format: (d) => d.debtToEquity !== null ? br(d.debtToEquity, 2) : null, value: (d) => d.debtToEquity },
-    { key: "debtExLeaseToEquity", label: t("compare.col_debt_ex_lease_to_equity"), group: "endividamento", format: (d) => d.debtExLeaseToEquity !== null ? br(d.debtExLeaseToEquity, 2) : null, value: (d) => d.debtExLeaseToEquity },
-    { key: "liabilitiesToEquity", label: t("compare.col_liabilities_to_equity"), group: "endividamento", format: (d) => d.liabilitiesToEquity !== null ? br(d.liabilitiesToEquity, 2) : null, value: (d) => d.liabilitiesToEquity },
-    { key: "debtToAvgEarnings", label: `${t("compare.col_debt_to_earnings")}${n}`, group: "endividamento", format: (d) => d.debtToAvgEarnings !== null ? br(d.debtToAvgEarnings, 1) : null, value: (d) => d.debtToAvgEarnings },
-    { key: "debtToAvgFCF", label: `${t("compare.col_debt_to_fcf")}${n}`, group: "endividamento", format: (d) => d.debtToAvgFCF !== null ? br(d.debtToAvgFCF, 1) : null, value: (d) => d.debtToAvgFCF },
-    { key: "currentRatio", label: t("compare.col_current_ratio"), group: "endividamento", format: (d) => d.currentRatio !== null ? br(d.currentRatio, 2) : null, value: (d) => d.currentRatio },
-    // Rentabilidade
-    { key: "roe", label: `${t("compare.col_roe")}${n}`, group: "rentabilidade", format: (d) => d.roe !== null ? `${br(d.roe, 1)}%` : null, value: (d) => d.roe },
-    { key: "priceToBook", label: t("compare.col_price_to_book"), group: "rentabilidade", format: (d) => d.priceToBook !== null ? br(d.priceToBook, 2) : null, value: (d) => d.priceToBook },
-    // Valuation
-    { key: "pe10", label: `${t("compare.col_pe")}${n}`, group: "valuation", format: (d) => d.pe10 !== null ? br(d.pe10, 1) : null, value: (d) => d.pe10 },
-    { key: "pfcf10", label: `${t("compare.col_pfcf")}${n}`, group: "valuation", format: (d) => d.pfcf10 !== null ? br(d.pfcf10, 1) : null, value: (d) => d.pfcf10 },
-    { key: "peg", label: `${t("compare.col_peg")}${n}`, group: "valuation", format: (d) => d.peg !== null ? br(d.peg, 2) : null, value: (d) => d.peg },
-    { key: "pfcfPeg", label: `${t("compare.col_pfcf_peg")}${n}`, group: "valuation", format: (d) => d.pfcfPeg !== null ? br(d.pfcfPeg, 2) : null, value: (d) => d.pfcfPeg },
-    { key: "earningsCAGR", label: `${t("compare.col_cagr_earnings")}${n}`, group: "valuation", format: (d) => d.earningsCAGR !== null ? `${br(d.earningsCAGR, 1)}%` : null, value: (d) => d.earningsCAGR },
-    { key: "fcfCAGR", label: `${t("compare.col_cagr_fcf")}${n}`, group: "valuation", format: (d) => d.fcfCAGR !== null ? `${br(d.fcfCAGR, 1)}%` : null, value: (d) => d.fcfCAGR },
+    // Balanço
+    { key: "debtExLease", label: t("fundamentals.col.debt"), group: "balanco",
+      format: (d) => millions(d.recent?.debtExLease ?? null),
+      value: (d) => d.recent?.debtExLease ?? null,
+    },
+    { key: "totalLiabilities", label: t("fundamentals.col.liabilities"), group: "balanco",
+      format: (d) => millions(d.recent?.totalLiabilities ?? null),
+      value: (d) => d.recent?.totalLiabilities ?? null,
+    },
+    { key: "equity", label: t("fundamentals.col.equity"), group: "balanco",
+      format: (d) => millions(d.recent?.stockholdersEquity ?? null),
+      value: (d) => d.recent?.stockholdersEquity ?? null,
+    },
+    { key: "debtToEquity", label: t("fundamentals.col.debt_equity"), group: "balanco",
+      format: (d) => ratio(d.recent?.debtToEquity ?? null),
+      value: (d) => d.recent?.debtToEquity ?? null,
+    },
+    { key: "liabToEquity", label: t("fundamentals.col.liab_equity"), group: "balanco",
+      format: (d) => ratio(d.recent?.liabilitiesToEquity ?? null),
+      value: (d) => d.recent?.liabilitiesToEquity ?? null,
+    },
+    { key: "currentRatio", label: t("fundamentals.col.current_ratio"), group: "balanco",
+      format: (d) => ratio(d.recent?.currentRatio ?? null),
+      value: (d) => d.recent?.currentRatio ?? null,
+    },
+    // Resultado
+    { key: "revenue", label: t("fundamentals.col.revenue"), group: "resultado",
+      format: (d) => millions(d.recent?.revenue ?? null),
+      value: (d) => d.recent?.revenue ?? null,
+    },
+    { key: "netIncome", label: t("fundamentals.col.net_income"), group: "resultado",
+      format: (d) => millions(d.recent?.netIncome ?? null),
+      value: (d) => d.recent?.netIncome ?? null,
+    },
+    { key: "pe", label: `${t("fundamentals.col.pe")}${years}`, group: "resultado",
+      format: (d) => ratio1(d.pe),
+      value: (d) => d.pe,
+    },
+    // Caixa
+    { key: "fcf", label: t("fundamentals.col.fcf"), group: "caixa",
+      format: (d) => millions(d.recent?.fcf ?? null),
+      value: (d) => d.recent?.fcf ?? null,
+    },
+    { key: "pfcf", label: `${t("fundamentals.col.pfcf")}${years}`, group: "caixa",
+      format: (d) => ratio1(d.pfcf),
+      value: (d) => d.pfcf,
+    },
+    { key: "operatingCF", label: t("fundamentals.col.operating_cf"), group: "caixa",
+      format: (d) => millions(d.recent?.operatingCashFlow ?? null),
+      value: (d) => d.recent?.operatingCashFlow ?? null,
+    },
+    // Retorno
+    { key: "marketCap", label: t("fundamentals.col.market_cap"), group: "retorno",
+      format: (d) => millions(d.quote.marketCap),
+      value: (d) => d.quote.marketCap,
+    },
+    { key: "dividends", label: t("fundamentals.col.dividends"), group: "retorno",
+      format: (d) => millions(d.recent?.dividendsPaid ?? null),
+      value: (d) => d.recent?.dividendsPaid ?? null,
+    },
   ];
 }
 
-const DEBT_COUNT = 6;
-const RENT_COUNT = 2;
-const VAL_COUNT = 6;
+const BALANCE_COUNT = 6;
+const RESULTADO_COUNT = 3;
+const CAIXA_COUNT = 3;
+const RETORNO_COUNT = 2;
+
+const GROUP_START_INDICES = new Set([
+  BALANCE_COUNT,
+  BALANCE_COUNT + RESULTADO_COUNT,
+  BALANCE_COUNT + RESULTADO_COUNT + CAIXA_COUNT,
+]);
 
 /* ── Drag handle icon ── */
 
@@ -85,6 +159,7 @@ interface Props {
 
 export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extraTickers, onExtraTickersChange, savedListId }: Props) {
   const { t, pluralize, locale } = useTranslation();
+  const router = useRouter();
   const allTickers = [currentTicker, ...extraTickers];
   const entries = useCompareData(allTickers, years);
   const columns = getColumns(years, t);
@@ -150,8 +225,8 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
     if (!col) return entries;
 
     return [...entries].sort((a, b) => {
-      const va = a.data ? col.value(a.data) : null;
-      const vb = b.data ? col.value(b.data) : null;
+      const va = a.data ? col.value({ quote: a.data, recent: a.recent, pe: a.pe, pfcf: a.pfcf }) : null;
+      const vb = b.data ? col.value({ quote: b.data, recent: b.recent, pe: b.pe, pfcf: b.pfcf }) : null;
       // nulls always go to the bottom
       if (va === null && vb === null) return 0;
       if (va === null) return 1;
@@ -176,6 +251,20 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
     const reordered = sortedEntries.map((e) => e.ticker);
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
+
+    const newTop = reordered[0];
+    if (newTop !== currentTicker) {
+      const newExtras = reordered.slice(1);
+      const targetUrl = buildOwnerSwapUrl(
+        locale,
+        newTop,
+        newExtras,
+        new URLSearchParams(window.location.search),
+      );
+      router.push(targetUrl);
+      return;
+    }
+
     onExtraTickersChange(reordered.filter((t) => t !== currentTicker));
     setSort(null); // clear sort after manual reorder
   }
@@ -195,19 +284,20 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
             <tr className="compare-group-row">
               <th className="compare-drag-col" />
               <th className="compare-sticky-col" />
-              <th colSpan={DEBT_COUNT}>{t("compare.debt_group")}</th>
-              <th colSpan={RENT_COUNT}>{t("compare.profitability_group")}</th>
-              <th colSpan={VAL_COUNT}>{t("compare.valuation_group")}</th>
+              <th colSpan={BALANCE_COUNT}>{t("fundamentals.balance")}</th>
+              <th colSpan={RESULTADO_COUNT} className="compare-group-separator">{t("fundamentals.income")}</th>
+              <th colSpan={CAIXA_COUNT} className="compare-group-separator">{t("fundamentals.cash_flow")}</th>
+              <th colSpan={RETORNO_COUNT} className="compare-group-separator">{t("fundamentals.returns")}</th>
               <th />
             </tr>
             {/* Column headers */}
             <tr>
               <th className="compare-drag-col" />
               <th className="compare-sticky-col">{t("compare.company")}</th>
-              {columns.map((col) => (
+              {columns.map((col, index) => (
                 <th
                   key={col.key}
-                  className="compare-sortable-th"
+                  className={`compare-sortable-th ${GROUP_START_INDICES.has(index) ? "compare-group-separator" : ""}`}
                   onClick={() => handleSort(col.key)}
                 >
                   {col.label} {sortIndicator(col.key)}
@@ -472,7 +562,7 @@ function CompareRow({
   onRequireAuth: () => void;
 }) {
   const { t } = useTranslation();
-  const { ticker, data, isLoading, error } = entry;
+  const { ticker, data, recent, pe, pfcf, isLoading, error } = entry;
 
   function handleDragStart(e: React.DragEvent) {
     dragIndexRef.current = index;
@@ -560,8 +650,8 @@ function CompareRow({
             </Link>
           </div>
         </td>
-        {columns.map((col) => (
-          <td key={col.key}>
+        {columns.map((col, index) => (
+          <td key={col.key} className={GROUP_START_INDICES.has(index) ? "compare-group-separator" : undefined}>
             <div className="compare-loading-cell" />
           </td>
         ))}
@@ -616,10 +706,12 @@ function CompareRow({
           </Link>
         </div>
       </td>
-      {columns.map((col) => {
-        const formatted = col.format(data);
+      {columns.map((col, index) => {
+        const rowData: CompareRowData = { quote: data, recent, pe, pfcf };
+        const formatted = col.format(rowData);
+        const className = GROUP_START_INDICES.has(index) ? "compare-group-separator" : undefined;
         return (
-          <td key={col.key}>
+          <td key={col.key} className={className}>
             {formatted !== null ? formatted : <span className="compare-null">—</span>}
           </td>
         );

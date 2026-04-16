@@ -6,36 +6,32 @@ import { br } from "../utils/format";
 import { isBrazilianTicker } from "../utils/ticker";
 import "../styles/fundamentals.css";
 
-/* ── Augmented row with Shiller PE ratios ── */
+/* ── Augmented row with Shiller PE ratios for a given window ── */
 
 interface AugmentedFundamentalsYear extends FundamentalsYear {
-  pe10: number | null;
-  pe5: number | null;
-  pfcl10: number | null;
-  pfcl5: number | null;
+  pe: number | null;
+  pfcf: number | null;
 }
 
 interface ShillerRatios {
-  pe10: number | null;
-  pe5: number | null;
-  pfcl10: number | null;
-  pfcl5: number | null;
+  pe: number | null;
+  pfcf: number | null;
 }
 
 export function computeShillerPERatios(
   data: FundamentalsYear[],
+  windowYears: number,
 ): Map<number, ShillerRatios> {
   const sortedAscending = [...data].sort((a, b) => a.year - b.year);
   const result = new Map<number, ShillerRatios>();
 
   for (const row of sortedAscending) {
     if (row.marketCap === null) {
-      result.set(row.year, { pe10: null, pe5: null, pfcl10: null, pfcl5: null });
+      result.set(row.year, { pe: null, pfcf: null });
       continue;
     }
 
     const getAverageValues = (
-      windowYears: number,
       accessor: (r: FundamentalsYear) => number | null,
     ): number | null => {
       const relevantValues = sortedAscending
@@ -49,19 +45,15 @@ export function computeShillerPERatios(
       return average !== 0 ? average : null;
     };
 
-    const averageEarnings10 = getAverageValues(10, (r) => r.netIncomeAdjusted);
-    const averageEarnings5 = getAverageValues(5, (r) => r.netIncomeAdjusted);
-    const averageFcf10 = getAverageValues(10, (r) => r.fcfAdjusted);
-    const averageFcf5 = getAverageValues(5, (r) => r.fcfAdjusted);
+    const averageEarnings = getAverageValues((r) => r.netIncomeAdjusted);
+    const averageFcf = getAverageValues((r) => r.fcfAdjusted);
 
     const computeRatio = (average: number | null): number | null =>
       average !== null ? Math.round((row.marketCap! / average) * 10) / 10 : null;
 
     result.set(row.year, {
-      pe10: computeRatio(averageEarnings10),
-      pe5: computeRatio(averageEarnings5),
-      pfcl10: computeRatio(averageFcf10),
-      pfcl5: computeRatio(averageFcf5),
+      pe: computeRatio(averageEarnings),
+      pfcf: computeRatio(averageFcf),
     });
   }
 
@@ -70,12 +62,13 @@ export function computeShillerPERatios(
 
 export function augmentWithPERatios(
   data: FundamentalsYear[],
+  windowYears: number,
 ): AugmentedFundamentalsYear[] {
-  const peRatios = computeShillerPERatios(data);
+  const peRatios = computeShillerPERatios(data, windowYears);
   return [...data]
     .sort((a, b) => b.year - a.year)
     .map((row) => {
-      const ratios = peRatios.get(row.year) ?? { pe10: null, pe5: null, pfcl10: null, pfcl5: null };
+      const ratios = peRatios.get(row.year) ?? { pe: null, pfcf: null };
       return { ...row, ...ratios };
     });
 }
@@ -107,7 +100,10 @@ function ratio(value: number | null): string | null {
   return br(value, 2);
 }
 
-function getTranslatedColumns(t: (key: TranslationKey) => string): ColumnDef[] {
+export function getTranslatedColumns(
+  t: (key: TranslationKey) => string,
+  windowYears: number,
+): ColumnDef[] {
   return [
     // Balanço
     {
@@ -144,12 +140,8 @@ function getTranslatedColumns(t: (key: TranslationKey) => string): ColumnDef[] {
       format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome),
     },
     {
-      key: "pe10", label: t("fundamentals.col.pe10"), group: "resultado",
-      format: (row) => ratio(row.pe10),
-    },
-    {
-      key: "pe5", label: t("fundamentals.col.pe5"), group: "resultado",
-      format: (row) => ratio(row.pe5),
+      key: "pe", label: `${t("fundamentals.col.pe")}${windowYears}`, group: "resultado",
+      format: (row) => ratio(row.pe),
     },
     // Caixa
     {
@@ -157,12 +149,8 @@ function getTranslatedColumns(t: (key: TranslationKey) => string): ColumnDef[] {
       format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.fcfAdjusted : row.fcf),
     },
     {
-      key: "pfcl10", label: t("fundamentals.col.pfcf10"), group: "caixa",
-      format: (row) => ratio(row.pfcl10),
-    },
-    {
-      key: "pfcl5", label: t("fundamentals.col.pfcf5"), group: "caixa",
-      format: (row) => ratio(row.pfcl5),
+      key: "pfcf", label: `${t("fundamentals.col.pfcf")}${windowYears}`, group: "caixa",
+      format: (row) => ratio(row.pfcf),
     },
     {
       key: "operatingCF", label: t("fundamentals.col.operating_cf"), group: "caixa",
@@ -184,8 +172,8 @@ function getTranslatedColumns(t: (key: TranslationKey) => string): ColumnDef[] {
 }
 
 const BALANCE_COUNT = 6;
-const RESULTADO_COUNT = 4;
-const CAIXA_COUNT = 4;
+const RESULTADO_COUNT = 3;
+const CAIXA_COUNT = 3;
 const RETORNO_COUNT = 2;
 
 const GROUP_START_INDICES = new Set([
@@ -198,17 +186,18 @@ const GROUP_START_INDICES = new Set([
 
 interface Props {
   ticker: string;
+  years: number;
 }
 
-export function FundamentalsTab({ ticker }: Props) {
+export function FundamentalsTab({ ticker, years }: Props) {
   const { data: response, isLoading, error } = useFundamentals(ticker, true);
   const rawData = response?.years;
   const { t } = useTranslation();
   const [valueMode, setValueMode] = useState<ValueMode>("nominal");
-  const columns = useMemo(() => getTranslatedColumns(t), [t]);
+  const columns = useMemo(() => getTranslatedColumns(t, years), [t, years]);
   const data = useMemo(
-    () => (rawData ? augmentWithPERatios(rawData) : null),
-    [rawData],
+    () => (rawData ? augmentWithPERatios(rawData, years) : null),
+    [rawData, years],
   );
 
   if (isLoading) return <FundamentalsTabLoading />;
@@ -315,10 +304,8 @@ function getRawValue(row: AugmentedFundamentalsYear, key: string, mode: ValueMod
     case "currentRatio": return row.currentRatio;
     case "revenue": return mode === "adjusted" ? row.revenueAdjusted : row.revenue;
     case "netIncome": return mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome;
-    case "pe10": return row.pe10;
-    case "pe5": return row.pe5;
-    case "pfcl10": return row.pfcl10;
-    case "pfcl5": return row.pfcl5;
+    case "pe": return row.pe;
+    case "pfcf": return row.pfcf;
     case "fcf": return mode === "adjusted" ? row.fcfAdjusted : row.fcf;
     case "operatingCF": return mode === "adjusted" ? row.operatingCashFlowAdjusted : row.operatingCashFlow;
     case "marketCap": return mode === "adjusted" ? row.marketCapAdjusted : row.marketCap;

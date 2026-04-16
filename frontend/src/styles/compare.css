@@ -20,13 +20,19 @@
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-xs font-normal py-2 px-2;
   color: var(--color-muted);
-  border-bottom: 1px solid var(--color-accent);
+  border-bottom: 1px solid #8da2c4;
   white-space: nowrap;
+  text-align: center;
 }
 
 .compare-group-row th:first-child,
 .compare-group-row th:nth-child(2) {
   border-bottom-color: transparent;
+}
+
+/* Vertical separators between groups */
+.compare-group-separator {
+  border-left: 1px solid var(--color-border);
 }
 
 /* Column header row */

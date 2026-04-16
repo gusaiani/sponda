@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveTab, buildTabPath, tabSlugForLocale, TAB_LABELS } from "./tabs";
+import { resolveTab, buildTabPath, tabSlugForLocale, TAB_LABELS, buildOwnerSwapUrl } from "./tabs";
 
 describe("resolveTab", () => {
   it("returns metrics for the root ticker path", () => {
@@ -74,6 +74,44 @@ describe("tabSlugForLocale", () => {
   it("returns empty string for metrics", () => {
     expect(tabSlugForLocale("en", "metrics")).toBe("");
     expect(tabSlugForLocale("pt", "metrics")).toBe("");
+  });
+});
+
+describe("buildOwnerSwapUrl", () => {
+  it("targets the new owner's compare tab in the given locale", () => {
+    const result = buildOwnerSwapUrl("pt", "VALE3", ["PETR4"], new URLSearchParams());
+    expect(result).toBe("/pt/VALE3/comparar?with=PETR4");
+  });
+
+  it("encodes the new extras as a comma-separated 'with' param", () => {
+    const result = buildOwnerSwapUrl(
+      "en",
+      "AAPL",
+      ["MSFT", "GOOG", "AMZN"],
+      new URLSearchParams(),
+    );
+    expect(result).toBe("/en/AAPL/compare?with=MSFT%2CGOOG%2CAMZN");
+  });
+
+  it("preserves listId and years from the source URL", () => {
+    const source = new URLSearchParams("listId=42&years=7");
+    const result = buildOwnerSwapUrl("pt", "ITUB4", ["BBDC4"], source);
+    expect(result).toContain("/pt/ITUB4/comparar");
+    expect(result).toContain("listId=42");
+    expect(result).toContain("years=7");
+    expect(result).toContain("with=BBDC4");
+  });
+
+  it("omits the with param when there are no extras", () => {
+    const result = buildOwnerSwapUrl("en", "AAPL", [], new URLSearchParams());
+    expect(result).toBe("/en/AAPL/compare");
+  });
+
+  it("ignores irrelevant source params", () => {
+    const source = new URLSearchParams("foo=bar&listId=1");
+    const result = buildOwnerSwapUrl("en", "AAPL", ["MSFT"], source);
+    expect(result).not.toContain("foo");
+    expect(result).toContain("listId=1");
   });
 });
 
