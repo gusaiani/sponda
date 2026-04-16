@@ -12,6 +12,8 @@ from .views import (
     ForgotPasswordView,
     GoogleAuthView,
     HomepageLayoutView,
+    IndicatorAlertDetailView,
+    IndicatorAlertListView,
     LoginView,
     LogoutView,
     MarkVisitedView,
@@ -68,4 +70,6 @@ urlpatterns = [
     path("feedback/", FeedbackView.as_view(), name="feedback"),
     path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
     path("admin/top-pages/", AdminTopPagesView.as_view(), name="admin-top-pages"),
+    path("alerts/", IndicatorAlertListView.as_view(), name="indicator-alert-list"),
+    path("alerts/<int:pk>/", IndicatorAlertDetailView.as_view(), name="indicator-alert-detail"),
 ]

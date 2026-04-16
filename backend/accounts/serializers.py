@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import CompanyVisit, FavoriteCompany, RevisitSchedule, SavedList
+from .models import CompanyVisit, FavoriteCompany, IndicatorAlert, RevisitSchedule, SavedList
 
 User = get_user_model()
 
@@ -107,3 +107,22 @@ class FeedbackSerializer(serializers.Serializer):
     email = serializers.EmailField()
     message = serializers.CharField(min_length=1, max_length=5000)
     human_check = serializers.IntegerField()
+
+
+class IndicatorAlertSerializer(serializers.ModelSerializer):
+    """Serialize IndicatorAlert rows. Ticker is uppercased on input so the
+    alert checker can match against upper-case IndicatorSnapshot keys."""
+
+    ticker = serializers.CharField(max_length=10)
+    indicator = serializers.ChoiceField(choices=[(f, f) for f in IndicatorAlert.ALLOWED_INDICATORS])
+
+    class Meta:
+        model = IndicatorAlert
+        fields = (
+            "id", "ticker", "indicator", "comparison", "threshold", "active",
+            "triggered_at", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "triggered_at", "created_at", "updated_at")
+
+    def validate_ticker(self, value):
+        return value.upper().strip()

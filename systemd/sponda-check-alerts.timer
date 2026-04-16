@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Sponda indicator alert checks daily at 07:30 UTC (after snapshot refresh)
+
+[Timer]
+OnCalendar=*-*-* 07:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

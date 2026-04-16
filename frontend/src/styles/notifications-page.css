@@ -169,3 +169,15 @@
   font-size: 13px;
   color: var(--color-muted);
 }
+
+.notifications-section {
+  margin-bottom: 32px;
+}
+
+.notifications-section-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0 0 8px 0;
+}

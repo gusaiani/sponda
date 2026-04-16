@@ -303,9 +303,72 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | Command | Timer | Purpose | Frequency |
 |---|---|---|---|
 | `refresh_ipca` + `refresh_tickers` | `sponda-refresh.timer` | Sync IPCA inflation index and B3 ticker list (~2,300 stocks) from BRAPI | Daily 06:00 UTC |
+| `refresh_snapshot_prices` | `sponda-refresh-snapshots.timer` | Quote-only refresh: updates market cap + current price + recomputes PE10 / PFCF10 / PEG / P/FCF PEG against existing fundamentals. One API call per ticker. | Daily 07:00 UTC |
+| `refresh_snapshot_fundamentals` | `sponda-refresh-fundamentals.timer` | Full refresh: resyncs quarterly earnings, cash flows, balance sheets, then recomputes the entire `IndicatorSnapshot` row. Four API calls per ticker. | Weekly Sun 06:00 UTC |
+| `check_indicator_alerts` | `sponda-check-alerts.timer` | Evaluate user alerts against the latest snapshots; email on threshold crossings | Daily 07:30 UTC |
 | `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
+
+## Screener
+
+The screener page at `/[locale]/screener` lets users filter the whole B3 universe by any of the indicators shown on a company's main page and sort the results. Backed by a dedicated `IndicatorSnapshot` table so filtering and sorting are one DB query instead of recomputing indicators for every ticker on every request.
+
+### Supported filters
+
+All are numeric `min` / `max` bounds (either side optional):
+
+- `pe10`, `pfcf10` · valuation multiples (10-year rolling)
+- `peg`, `pfcf_peg` · growth-adjusted valuation
+- `debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`, `current_ratio` · leverage / liquidity
+- `debt_to_avg_earnings`, `debt_to_avg_fcf` · debt vs. cash generation
+- `market_cap` · absolute currency amount
+
+### How it works
+
+1. **Snapshot table.** `IndicatorSnapshot` (one row per ticker) stores the latest value of every screened indicator. The table is kept current by a **three-layer refresh strategy** designed to respect BRAPI Pro and FMP Starter monthly budgets:
+   - **Persist-on-view.** Any time a user opens a company page, the `PE10View` endpoint writes the freshly computed indicators back into `IndicatorSnapshot` and updates `Ticker.market_cap` as a side-effect (wrapped in `try/except` so a write failure never breaks the page). This keeps actively viewed tickers perpetually fresh without any scheduled work.
+   - **Daily price refresh** (`refresh_snapshot_prices`, 07:00 UTC). For every ticker with a market cap, fetches the current quote (one API call) and recomputes only the price-dependent indicators — PE10, PFCF10, PEG, P/FCF PEG — against existing DB fundamentals. Leverage and debt-coverage fields are left alone.
+   - **Weekly fundamentals refresh** (`refresh_snapshot_fundamentals`, Sunday 06:00 UTC). Resyncs quarterly earnings / cash flows / balance sheets (three API calls per ticker) and then recomputes the full indicator set via `compute_company_indicators` — the same service the company page uses, so the screener and the company page can never disagree.
+   - **Bootstrap.** `sync_market_caps` routes Brazilian tickers through BRAPI and US tickers through FMP to backfill `Ticker.market_cap` for rows that are missing it. Run once after adding new tickers; both refresh jobs skip tickers without a market cap.
+2. **Query.** `GET /api/screener/` takes `<field>_min` / `<field>_max` params, a `sort` (prefix `-` for descending; nulls always last), `limit` (max 500), and `offset`. Returns `{ count, results[] }`.
+3. **Frontend.** The `useScreener` hook (`frontend/src/hooks/useScreener.ts`) wraps the endpoint in React Query with `staleTime: 60s`. The page is `frontend/src/app/[locale]/screener/page.tsx` — sticky filter sidebar + results table with click-to-sort column headers and cursor-based "load more" pagination.
+
+**Example:** `GET /api/screener/?pe10_max=10&debt_to_equity_max=1&sort=-market_cap&limit=50` returns the 50 largest Brazilian companies with PE10 ≤ 10 and D/E ≤ 1.
+
+## Indicator Alerts
+
+Signed-in users can save thresholds on any screened indicator per ticker. When an indicator crosses a threshold, they get an email plus an on-screen entry at `/[locale]/notificacoes`.
+
+### UX
+
+- A small bell button sits next to each indicator label on the company page (`AlertButton` in `frontend/src/components/AlertButton.tsx`). Click it to pick a comparison (`≤` or `≥`) and a threshold value.
+- Existing alerts for that (ticker, indicator) pair are listed inline so the popover is the single source of truth — no separate "manage alerts" page. Delete an alert with the `×` button.
+- The `/notificacoes` page has a **Triggered alerts** section above the revisit reminders; each row links back to the company and can be dismissed (which deletes the alert).
+
+### Data model
+
+`IndicatorAlert` (in `backend/accounts/models.py`) holds `user`, `ticker`, `indicator`, `comparison` (`lte` / `gte`), `threshold` (Decimal), `active`, and `triggered_at`. The unique constraint `(user, ticker, indicator, comparison)` means a user can set both a floor and a ceiling for the same indicator, but not two overlapping alerts. `model.clean()` validates the indicator against `IndicatorAlert.ALLOWED_INDICATORS` — the same 11 fields the screener supports.
+
+### Evaluation loop
+
+`check_indicator_alerts` (daily 07:30 UTC via `sponda-check-alerts.timer`, right after the snapshot refresh):
+
+1. Batch-loads every active alert's latest snapshot in one query.
+2. For each alert, compares the indicator value to the threshold using the stored comparison operator (`None` values are skipped — no snapshot means no evaluation).
+3. On a **false → true** transition sets `triggered_at = now()` and sends one email per alert. Re-triggers only happen after a `true → false` reset, so users aren't spammed on consecutive runs while the condition holds.
+4. Emails use Django's `send_mail` with a plain + HTML body (`_build_alert_email` in `backend/accounts/tasks.py`); the subject includes the ticker, indicator label, and threshold.
+
+### API
+
+| Method | URL | Purpose |
+|---|---|---|
+| `GET` | `/api/auth/alerts/` | List current user's alerts. Optional `?ticker=PETR4` filter. |
+| `POST` | `/api/auth/alerts/` | Create an alert: `{ ticker, indicator, comparison, threshold }`. 400 on duplicates. |
+| `PATCH` | `/api/auth/alerts/<id>/` | Update `active`, `threshold`, or `comparison`. |
+| `DELETE` | `/api/auth/alerts/<id>/` | Delete. Scoped to owner — other users get 404. |
+
+Tickers are uppercased on write; thresholds are `DecimalField(max_digits=20, decimal_places=6)` so precision matches the snapshot fields. Auth is session-based with CSRF (`frontend/src/utils/csrf.ts::csrfHeaders`).
 
 ## Rate Limiting
 

@@ -7,7 +7,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
-from quotes.models import IPCAIndex, LookupLog, Ticker
+from quotes.models import IndicatorSnapshot, IPCAIndex, LookupLog, Ticker
 from quotes.views import _clean_company_name, format_display_name
 
 
@@ -477,6 +477,81 @@ class TestPE10Endpoint:
             "regularMarketPrice": 45.0, "marketCap": 585000000000,
         }
         response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+
+
+class TestPE10ViewPersistsSnapshot:
+    """A successful quote view should cache the indicators into IndicatorSnapshot
+    and update Ticker.market_cap, so user-viewed tickers stay warm without
+    waiting for the next scheduled refresh."""
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_creates_indicator_snapshot_on_view(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+
+        snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
+        assert snapshot.market_cap == 585_000_000_000
+        assert snapshot.current_price == Decimal("45.0")
+        assert snapshot.pe10 is not None
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_updates_ticker_market_cap_on_view(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock", market_cap=None)
+        mock_quote.return_value = mock_brapi_quote
+
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+
+        ticker_row = Ticker.objects.get(symbol="PETR4")
+        assert ticker_row.market_cap == 585_000_000_000
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_update_or_create_not_duplicate(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        IndicatorSnapshot.objects.create(ticker="PETR4", market_cap=1)
+        mock_quote.return_value = mock_brapi_quote
+
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+
+        # One row, updated — not duplicated
+        assert IndicatorSnapshot.objects.filter(ticker="PETR4").count() == 1
+        snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
+        assert snapshot.market_cap == 585_000_000_000
+
+    @patch("quotes.views._persist_snapshot_from_view")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_view_still_succeeds_when_snapshot_write_fails(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_persist,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        mock_persist.side_effect = Exception("DB unreachable")
+
+        response = api_client.get("/api/quote/PETR4/")
+        # Persistence failure must not break the user-facing page
         assert response.status_code == 200
 
 

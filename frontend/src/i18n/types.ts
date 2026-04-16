@@ -445,6 +445,50 @@ export interface TranslationDictionary {
   "notifications.previous": string;
   "notifications.next": string;
   "notifications.page_of": string;
+  "notifications.triggered_alerts_title": string;
+  "notifications.triggered_alert_text": string;
+  "notifications.no_triggered_alerts": string;
+  "notifications.revisits_title": string;
+
+  /* ── Screener ── */
+  "screener.page_title": string;
+  "screener.page_hint": string;
+  "screener.filters_title": string;
+  "screener.min": string;
+  "screener.max": string;
+  "screener.clear_filters": string;
+  "screener.apply_filters": string;
+  "screener.no_results": string;
+  "screener.loading": string;
+  "screener.results_count": string;
+  "screener.col_ticker": string;
+  "screener.col_name": string;
+  "screener.col_sector": string;
+  "screener.load_more": string;
+  "screener.link_label": string;
+
+  /* ── Indicator Alerts ── */
+  "alerts.create": string;
+  "alerts.manage": string;
+  "alerts.title": string;
+  "alerts.indicator": string;
+  "alerts.comparison": string;
+  "alerts.comparison_lte": string;
+  "alerts.comparison_gte": string;
+  "alerts.threshold": string;
+  "alerts.active": string;
+  "alerts.paused": string;
+  "alerts.save": string;
+  "alerts.delete": string;
+  "alerts.confirm_delete": string;
+  "alerts.no_alerts_for_ticker": string;
+  "alerts.duplicate_error": string;
+  "alerts.save_error": string;
+  "alerts.must_login": string;
+
+  /* ── Header Links ── */
+  "header.screener": string;
+  "header.alerts": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

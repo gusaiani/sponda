@@ -1,0 +1,157 @@
+/* Bell-icon alert button that sits inline with metric labels.
+   The popover appears anchored to the button and holds the threshold form. */
+
+.alert-button-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.alert-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0 0 0 4px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  color: #5570a0;
+  cursor: pointer;
+  font-family: inherit;
+  vertical-align: middle;
+}
+
+.alert-button:hover {
+  color: #1b347e;
+  background: #e8eef7;
+}
+
+.alert-button--active {
+  color: #1b347e;
+}
+
+.alert-popover {
+  position: absolute;
+  top: 24px;
+  left: 0;
+  z-index: 20;
+  width: 260px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #d1dbed;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(12, 24, 41, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: Inter, system-ui, sans-serif;
+  color: #0c1829;
+}
+
+.alert-popover-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0c1829;
+  margin-bottom: 4px;
+}
+
+.alert-popover-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.alert-popover-label {
+  font-size: 11px;
+  color: #5570a0;
+  font-weight: 500;
+}
+
+.alert-popover-input {
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid #d1dbed;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #0c1829;
+  font-family: inherit;
+}
+
+.alert-popover-input:focus {
+  outline: none;
+  border-color: #1b347e;
+}
+
+.alert-popover-error {
+  font-size: 12px;
+  color: #b42318;
+}
+
+.alert-popover-save {
+  font-size: 13px;
+  padding: 8px;
+  border-radius: 4px;
+  border: none;
+  background: #1b347e;
+  color: #ffffff;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.alert-popover-save:hover {
+  background: #0c1829;
+}
+
+.alert-popover-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.alert-popover-list {
+  list-style: none;
+  padding: 8px 0 0 0;
+  margin: 4px 0 0 0;
+  border-top: 1px solid #e8eef7;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alert-popover-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #0c1829;
+}
+
+.alert-popover-item-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.alert-popover-item-triggered {
+  color: #1b347e;
+  font-weight: 500;
+}
+
+.alert-popover-item-delete {
+  background: transparent;
+  border: none;
+  color: #5570a0;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 4px;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.alert-popover-item-delete:hover {
+  color: #b42318;
+}

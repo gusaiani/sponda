@@ -22,7 +22,7 @@ from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
 from .leverage import calculate_leverage
-from .models import BalanceSheet, CompanyAnalysis, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from .models import BalanceSheet, CompanyAnalysis, IndicatorSnapshot, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
@@ -523,6 +523,63 @@ class HealthView(APIView):
         })
 
 
+def _persist_snapshot_from_view(
+    ticker: str,
+    market_cap: int,
+    current_price: Decimal,
+    pe10_result: dict,
+    pfcf10_result: dict,
+    leverage_result: dict,
+    peg_result: dict,
+    pfcf_peg_result: dict,
+    debt_to_avg_earnings,
+    debt_to_avg_fcf,
+) -> None:
+    """Cache the user-viewed indicator set into ``IndicatorSnapshot`` and keep
+    ``Ticker.market_cap`` in sync.
+
+    Called as a side-effect at the end of :class:`PE10View.get`. Any write
+    failure is swallowed — persistence must never break the page.
+    """
+
+    def _to_decimal(value):
+        if value is None:
+            return None
+        if isinstance(value, Decimal):
+            return value
+        return Decimal(str(value))
+
+    try:
+        IndicatorSnapshot.objects.update_or_create(
+            ticker=ticker,
+            defaults={
+                "pe10": _to_decimal(pe10_result.get("pe10")),
+                "pfcf10": _to_decimal(pfcf10_result.get("pfcf10")),
+                "peg": _to_decimal(peg_result.get("peg")),
+                "pfcf_peg": _to_decimal(pfcf_peg_result.get("pfcfPeg")),
+                "debt_to_equity": _to_decimal(leverage_result.get("debtToEquity")),
+                "debt_ex_lease_to_equity": _to_decimal(
+                    leverage_result.get("debtExLeaseToEquity"),
+                ),
+                "liabilities_to_equity": _to_decimal(
+                    leverage_result.get("liabilitiesToEquity"),
+                ),
+                "current_ratio": _to_decimal(leverage_result.get("currentRatio")),
+                "debt_to_avg_earnings": _to_decimal(debt_to_avg_earnings),
+                "debt_to_avg_fcf": _to_decimal(debt_to_avg_fcf),
+                "market_cap": int(market_cap) if market_cap else None,
+                "current_price": _to_decimal(current_price),
+            },
+        )
+    except Exception as error:
+        logger.warning("IndicatorSnapshot persist failed for %s: %s", ticker, error)
+
+    try:
+        Ticker.objects.filter(symbol=ticker).update(market_cap=int(market_cap))
+    except Exception as error:
+        logger.warning("Ticker.market_cap persist failed for %s: %s", ticker, error)
+
+
 def _ensure_fresh_data(ticker: str) -> None:
     """Sync earnings, cash flows, and balance sheets if older than 24h."""
     cutoff = timezone.now() - timedelta(hours=24)
@@ -678,6 +735,26 @@ class PE10View(APIView):
             "fcfCAGRMethod": pfcf_peg_result["fcfCAGRMethod"],
             "fcfCAGRExcludedYears": pfcf_peg_result["fcfCAGRExcludedYears"],
         }
+
+        # Warm the screener snapshot + refresh Ticker.market_cap as a side-effect
+        # of the user view. Wrapped in a broad try/except so any bug in the
+        # persist path (DB outage, schema drift, etc.) never breaks the page.
+        try:
+            _persist_snapshot_from_view(
+                ticker=ticker,
+                market_cap=market_cap,
+                current_price=current_price,
+                pe10_result=pe10_result,
+                pfcf10_result=pfcf10_result,
+                leverage_result=leverage_result,
+                peg_result=peg_result,
+                pfcf_peg_result=pfcf_peg_result,
+                debt_to_avg_earnings=debt_to_avg_earnings,
+                debt_to_avg_fcf=debt_to_avg_fcf,
+            )
+        except Exception as error:
+            logger.warning("persist_snapshot_from_view failed for %s: %s", ticker, error)
+
         cache.set(cache_key, result, PE10_CACHE_TTL)
         return Response(result)
 
@@ -1114,3 +1191,146 @@ class SitemapView(APIView):
         response = HttpResponse(xml, content_type="application/xml")
         response["Cache-Control"] = "public, max-age=86400"
         return response
+
+
+# ---------------------------------------------------------------------------
+# Screener
+# ---------------------------------------------------------------------------
+
+# Numeric indicator fields on IndicatorSnapshot that the screener can filter
+# and sort by. Kept as an explicit allow-list so unknown query params can be
+# ignored safely and `sort` can never reach model internals or SQL.
+SCREENER_NUMERIC_FIELDS = (
+    "pe10",
+    "pfcf10",
+    "peg",
+    "pfcf_peg",
+    "debt_to_equity",
+    "debt_ex_lease_to_equity",
+    "liabilities_to_equity",
+    "current_ratio",
+    "debt_to_avg_earnings",
+    "debt_to_avg_fcf",
+    "market_cap",
+)
+
+SCREENER_SORTABLE_FIELDS = SCREENER_NUMERIC_FIELDS + ("ticker",)
+SCREENER_DEFAULT_SORT = "ticker"
+SCREENER_DEFAULT_LIMIT = 50
+SCREENER_MAX_LIMIT = 500
+
+
+def _parse_decimal_param(raw_value: str, field_name: str) -> Decimal:
+    """Parse a query-string numeric bound, raising ValueError on garbage input."""
+    try:
+        return Decimal(raw_value)
+    except (ArithmeticError, ValueError, TypeError):
+        raise ValueError(f"Invalid numeric value for {field_name}: {raw_value!r}")
+
+
+class ScreenerView(APIView):
+    """Filter the IndicatorSnapshot table by ratio thresholds.
+
+    Query parameters (all optional):
+      * ``<field>_min`` / ``<field>_max`` — numeric bounds on any indicator in
+        :data:`SCREENER_NUMERIC_FIELDS`. Rows whose value is ``NULL`` are
+        excluded from the filter (cannot prove they satisfy the threshold).
+      * ``sort`` — one of :data:`SCREENER_SORTABLE_FIELDS`, optionally prefixed
+        with ``-`` for descending. Defaults to ``ticker`` ascending.
+      * ``limit`` — max rows returned (default 50, hard-capped at 500).
+      * ``offset`` — rows to skip before returning (for pagination).
+
+    Response shape::
+
+        {
+            "count": <total matching rows>,
+            "results": [
+                {"ticker": ..., "name": ..., "sector": ..., "logo": ...,
+                 "market_cap": ..., "current_price": ...,
+                 "pe10": ..., "pfcf10": ..., ...},
+                ...
+            ],
+        }
+    """
+
+    def get(self, request):
+        queryset = IndicatorSnapshot.objects.all()
+
+        # Apply numeric min/max filters ---------------------------------------
+        for field in SCREENER_NUMERIC_FIELDS:
+            for suffix, lookup in (("_min", "gte"), ("_max", "lte")):
+                raw_value = request.query_params.get(f"{field}{suffix}")
+                if raw_value is None or raw_value == "":
+                    continue
+                try:
+                    value = _parse_decimal_param(raw_value, f"{field}{suffix}")
+                except ValueError as exc:
+                    return Response(
+                        {"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST,
+                    )
+                queryset = queryset.filter(**{f"{field}__{lookup}": value})
+
+        total_count = queryset.count()
+
+        # Sort ----------------------------------------------------------------
+        sort_param = request.query_params.get("sort") or SCREENER_DEFAULT_SORT
+        sort_field = sort_param.lstrip("-")
+        if sort_field not in SCREENER_SORTABLE_FIELDS:
+            return Response(
+                {"error": f"Invalid sort field: {sort_param!r}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Nulls-last on DESC so rows with missing data don't dominate the top.
+        queryset = queryset.order_by(
+            F(sort_field).desc(nulls_last=True)
+            if sort_param.startswith("-")
+            else F(sort_field).asc(nulls_last=True),
+            "ticker",
+        )
+
+        # Paginate ------------------------------------------------------------
+        try:
+            limit = int(request.query_params.get("limit", SCREENER_DEFAULT_LIMIT))
+            offset = int(request.query_params.get("offset", 0))
+        except ValueError:
+            return Response(
+                {"error": "limit and offset must be integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        limit = max(1, min(limit, SCREENER_MAX_LIMIT))
+        offset = max(0, offset)
+        page = list(queryset[offset:offset + limit])
+
+        # Hydrate ticker metadata in one query so the response is fully
+        # self-contained for the frontend table.
+        ticker_symbols = [snapshot.ticker for snapshot in page]
+        ticker_metadata = {
+            row["symbol"]: row
+            for row in Ticker.objects.filter(symbol__in=ticker_symbols).values(
+                "symbol", "name", "display_name", "sector", "logo",
+            )
+        }
+
+        results = []
+        for snapshot in page:
+            metadata = ticker_metadata.get(snapshot.ticker, {})
+            results.append({
+                "ticker": snapshot.ticker,
+                "name": metadata.get("display_name") or metadata.get("name") or "",
+                "sector": metadata.get("sector") or "",
+                "logo": metadata.get("logo") or "",
+                "pe10": snapshot.pe10,
+                "pfcf10": snapshot.pfcf10,
+                "peg": snapshot.peg,
+                "pfcf_peg": snapshot.pfcf_peg,
+                "debt_to_equity": snapshot.debt_to_equity,
+                "debt_ex_lease_to_equity": snapshot.debt_ex_lease_to_equity,
+                "liabilities_to_equity": snapshot.liabilities_to_equity,
+                "current_ratio": snapshot.current_ratio,
+                "debt_to_avg_earnings": snapshot.debt_to_avg_earnings,
+                "debt_to_avg_fcf": snapshot.debt_to_avg_fcf,
+                "market_cap": snapshot.market_cap,
+                "current_price": snapshot.current_price,
+            })
+
+        return Response({"count": total_count, "results": results})

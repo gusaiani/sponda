@@ -1,0 +1,16 @@
+[Unit]
+Description=Sponda weekly fundamentals refresh (earnings, cash flows, balance sheets + full IndicatorSnapshot recompute)
+After=network-online.target postgresql.service sponda-refresh.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py refresh_snapshot_fundamentals
+Restart=on-failure
+RestartSec=300
+StartLimitIntervalSec=1800
+StartLimitBurst=2
