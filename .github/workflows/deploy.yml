@@ -126,13 +126,12 @@ jobs:
 
       - name: Run e2e tests
         working-directory: backend
-        continue-on-error: true
         env:
           DJANGO_SECRET_KEY: test-secret-key-for-ci
           BRAPI_API_KEY: test-api-key-for-ci
           GOOGLE_CLIENT_ID: test-client-id
           DEV_DATABASE_URL: postgres://sponda:sponda@localhost:5432/sponda_test
-        run: pytest -x -q --timeout=120 tests/${{ matrix.shard }} || pytest -x -q --timeout=120 tests/${{ matrix.shard }}
+        run: pytest -q --timeout=120 --reruns 1 --reruns-delay 2 tests/${{ matrix.shard }}
 
   e2e-tests-summary:
     name: e2e-tests

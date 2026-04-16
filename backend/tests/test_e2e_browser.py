@@ -228,8 +228,10 @@ class TestBrowserSearch:
         page.locator("input[placeholder*='Ticker']").first.fill("VALE3")
         page.locator("button[type='submit']").first.click()
 
-        # Should show 10 years of data
-        expect(page.locator(".pe10-detail-value", has_text="10")).to_be_visible(timeout=10000)
+        # Years-of-Data metric block was refactored in PR #116 — the value now
+        # lives inside `#years-of-data .pe10-value`. Seed data covers 10 years
+        # of both earnings and cash flow, so formatYearsOfData renders "10".
+        expect(page.locator("#years-of-data .pe10-value", has_text="10")).to_be_visible(timeout=10000)
 
 
 @pytest.mark.django_db(transaction=True)

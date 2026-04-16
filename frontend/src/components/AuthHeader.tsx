@@ -17,7 +17,10 @@ export function AuthHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const isOnAuthPage = AUTH_PAGES.some((path) => pathname.startsWith(path));
+  // Strip locale prefix (e.g. `/pt/login` → `/login`) before matching,
+  // so auth-page detection works under the i18n routing segment.
+  const pathWithoutLocale = pathname.replace(/^\/[a-z]{2}(?=\/|$)/, "") || "/";
+  const isOnAuthPage = AUTH_PAGES.some((path) => pathWithoutLocale.startsWith(path));
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

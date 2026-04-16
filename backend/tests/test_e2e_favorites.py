@@ -26,6 +26,12 @@ User = get_user_model()
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
 NEXTJS_PORT = 3098
 
+# Matches the post-auth landing URL. The login flow does
+# `window.location.href = "/${locale}"`, so the browser lands on e.g.
+# `http://localhost:3098/pt`. Accept any supported locale.
+def _home_url_pattern(base_url: str) -> re.Pattern:
+    return re.compile(rf"^{re.escape(base_url)}/(pt|en|es|de|fr|it|zh)?/?$")
+
 
 def _brapi_quote_callback(request):
     ticker = request.url.split("/quote/")[1].rstrip("/").split("?")[0]
@@ -151,8 +157,8 @@ def login_via_ui(page: Page, base_url: str, email: str, password: str):
         f"(base_url={base_url})"
     )
 
-    # After successful login, the page does window.location.href = "/"
-    page.wait_for_url(f"{base_url}/", timeout=10000)
+    # After successful login, the page does window.location.href = "/${locale}"
+    page.wait_for_url(_home_url_pattern(base_url), timeout=10000)
 
 
 @pytest.mark.django_db(transaction=True)
