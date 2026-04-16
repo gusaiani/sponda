@@ -101,6 +101,30 @@
   color: var(--color-accent);
 }
 
+/* Pill link next to the search bar — same height + radius as
+ * .search-input, green to mirror .visited-button-prominent. */
+.app-header-filter-link {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  padding: 8px 20px;
+  border: 1px solid #16a34a;
+  border-radius: 100px;
+  background: #16a34a;
+  color: #ffffff;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.app-header-filter-link:hover {
+  background: #15803d;
+  border-color: #15803d;
+  color: #ffffff;
+}
+
 
 .app-main {
   @apply max-w-[880px] mx-auto px-4;

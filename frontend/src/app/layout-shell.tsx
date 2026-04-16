@@ -43,6 +43,9 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             <span className="app-header-tagline">{t("header.tagline")}</span>
           </Link>
           <SearchBar onSearch={handleSearch} isLoading={false} />
+          <Link href={`/${locale}/screener`} className="app-header-filter-link">
+            {t("screener.apply_filters")}
+          </Link>
           <AuthHeader />
         </header>
       )}
