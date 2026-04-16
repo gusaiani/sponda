@@ -211,6 +211,90 @@ class RevisitSchedule(models.Model):
         return secrets.token_urlsafe(24)
 
 
+class IndicatorAlert(models.Model):
+    """A user-saved threshold on a company indicator.
+
+    When the daily snapshot refresh finds an indicator has crossed the
+    threshold, the alert checker emails the user and records the event so the
+    in-app notifications page can surface it. Each alert is one rule — a user
+    wanting both a floor *and* a ceiling on the same metric creates two rows.
+    """
+
+    COMPARISON_LTE = "lte"
+    COMPARISON_GTE = "gte"
+    COMPARISON_CHOICES = [
+        (COMPARISON_LTE, "Less than or equal to"),
+        (COMPARISON_GTE, "Greater than or equal to"),
+    ]
+
+    # Kept in sync with :class:`quotes.models.IndicatorSnapshot.INDICATOR_FIELDS`
+    # minus the pure metadata fields (current_price isn't worth alerting on —
+    # users watch prices elsewhere). If the snapshot model grows a new numeric
+    # indicator, add it here as well.
+    ALLOWED_INDICATORS = (
+        "pe10",
+        "pfcf10",
+        "peg",
+        "pfcf_peg",
+        "debt_to_equity",
+        "debt_ex_lease_to_equity",
+        "liabilities_to_equity",
+        "current_ratio",
+        "debt_to_avg_earnings",
+        "debt_to_avg_fcf",
+        "market_cap",
+    )
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="indicator_alerts",
+    )
+    ticker = models.CharField(max_length=10)
+    indicator = models.CharField(max_length=40)
+    comparison = models.CharField(max_length=3, choices=COMPARISON_CHOICES)
+    threshold = models.DecimalField(max_digits=20, decimal_places=6)
+    # Toggle without deleting: users can pause an alert temporarily.
+    active = models.BooleanField(default=True)
+    # Last time the alert condition evaluated true. Cleared when the indicator
+    # crosses back so one crossing doesn't fire repeat notifications.
+    triggered_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "ticker", "indicator", "comparison")
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "ticker"]),
+            models.Index(fields=["active"]),
+        ]
+
+    def __str__(self):
+        operator = "<=" if self.comparison == self.COMPARISON_LTE else ">="
+        return f"{self.user.email} {self.ticker} {self.indicator} {operator} {self.threshold}"
+
+    def clean(self):
+        super().clean()
+        if self.indicator not in self.ALLOWED_INDICATORS:
+            raise ValueError(
+                f"Unknown indicator {self.indicator!r}. "
+                f"Allowed: {', '.join(self.ALLOWED_INDICATORS)}",
+            )
+
+    def is_triggered_by(self, value):
+        """Return True when ``value`` satisfies this alert's threshold.
+
+        ``None`` values never trigger — we can't assert anything about a row
+        whose indicator couldn't be computed.
+        """
+        if value is None:
+            return False
+        if self.comparison == self.COMPARISON_LTE:
+            return value <= self.threshold
+        if self.comparison == self.COMPARISON_GTE:
+            return value >= self.threshold
+        return False
+
+
 class PageView(models.Model):
     """Lightweight page view tracking. IPs are SHA-256 hashed for privacy."""
 

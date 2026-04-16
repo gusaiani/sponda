@@ -147,6 +147,72 @@ class CompanyAnalysis(models.Model):
         return f"{self.ticker} — {self.data_quarter}"
 
 
+class IndicatorSnapshot(models.Model):
+    """Pre-computed screener indicators per ticker.
+
+    Populated by the ``refresh_indicator_snapshots`` management command (daily).
+    The screener endpoint queries this table directly so a single request never
+    has to recompute PE10/PFCF10/etc. for every ticker in the universe.
+
+    All indicator fields are nullable: a company may lack enough history for
+    one indicator while having another.
+    """
+
+    INDICATOR_FIELDS = (
+        "pe10",
+        "pfcf10",
+        "peg",
+        "pfcf_peg",
+        "debt_to_equity",
+        "debt_ex_lease_to_equity",
+        "liabilities_to_equity",
+        "current_ratio",
+        "debt_to_avg_earnings",
+        "debt_to_avg_fcf",
+        "market_cap",
+        "current_price",
+    )
+
+    ticker = models.CharField(max_length=10, unique=True, db_index=True)
+    # Valuation multiples
+    pe10 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pfcf10 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    peg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pfcf_peg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    # Leverage & liquidity
+    debt_to_equity = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    debt_ex_lease_to_equity = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    liabilities_to_equity = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    current_ratio = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    # Debt coverage
+    debt_to_avg_earnings = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    # Market
+    market_cap = models.BigIntegerField(null=True, blank=True)
+    current_price = models.DecimalField(max_digits=14, decimal_places=4, null=True, blank=True)
+    # Metadata
+    computed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["ticker"]
+        indexes = [
+            models.Index(fields=["pe10"]),
+            models.Index(fields=["pfcf10"]),
+            models.Index(fields=["market_cap"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ticker} snapshot @ {self.computed_at:%Y-%m-%d %H:%M}"
+
+
 class LookupLog(models.Model):
     session_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
     user = models.ForeignKey(

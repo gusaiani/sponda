@@ -1,0 +1,16 @@
+[Unit]
+Description=Sponda daily snapshot price refresh (feeds screener + alert checks)
+After=network-online.target postgresql.service sponda-refresh.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py refresh_snapshot_prices
+Restart=on-failure
+RestartSec=120
+StartLimitIntervalSec=600
+StartLimitBurst=3

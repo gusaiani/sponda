@@ -16,13 +16,14 @@ from quotes.models import LookupLog
 from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
 from datetime import date, timedelta
 
-from .models import CompanyVisit, EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, RevisitSchedule, SavedList, UserOperation
+from .models import CompanyVisit, EmailVerificationToken, FavoriteCompany, IndicatorAlert, PageView, PasswordResetToken, RevisitSchedule, SavedList, UserOperation
 from .serializers import (
     ChangePasswordSerializer,
     CompanyVisitSerializer,
     FavoriteCompanySerializer,
     FeedbackSerializer,
     ForgotPasswordSerializer,
+    IndicatorAlertSerializer,
     LoginSerializer,
     MarkVisitedSerializer,
     ResetPasswordSerializer,
@@ -1321,3 +1322,63 @@ class AdminTopPagesView(APIView):
             .order_by("-view_count")
         )
         return Response({"pages": pages})
+
+
+class IndicatorAlertListView(APIView):
+    """List / create indicator alerts for the signed-in user."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        alerts = IndicatorAlert.objects.filter(user=request.user)
+        ticker_filter = request.query_params.get("ticker")
+        if ticker_filter:
+            alerts = alerts.filter(ticker=ticker_filter.upper())
+        serializer = IndicatorAlertSerializer(alerts, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = IndicatorAlertSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        ticker = serializer.validated_data["ticker"]
+        indicator = serializer.validated_data["indicator"]
+        comparison = serializer.validated_data["comparison"]
+        # Enforce the unique_together constraint with a clean 400 instead of a
+        # 500 from the DB.
+        if IndicatorAlert.objects.filter(
+            user=request.user,
+            ticker=ticker,
+            indicator=indicator,
+            comparison=comparison,
+        ).exists():
+            return Response(
+                {"error": "An alert for this ticker, indicator, and comparison already exists."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        alert = serializer.save(user=request.user)
+        return Response(
+            IndicatorAlertSerializer(alert).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class IndicatorAlertDetailView(APIView):
+    """Update / delete a single alert. Scoped to the owning user."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            alert = IndicatorAlert.objects.get(pk=pk, user=request.user)
+        except IndicatorAlert.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = IndicatorAlertSerializer(alert, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, pk):
+        deleted, _ = IndicatorAlert.objects.filter(pk=pk, user=request.user).delete()
+        if not deleted:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
