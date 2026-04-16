@@ -18,7 +18,7 @@ interface ListCardColumnDef {
 }
 
 const MIN_VISIBLE_TICKERS = 5;
-const MAX_VISIBLE_TICKERS = 9;
+const MAX_VISIBLE_TICKERS = 7;
 const ESTIMATED_ROW_HEIGHT_PX = 22;
 
 interface ComputeVisibleRowCountInput {
