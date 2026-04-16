@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { useAuth } from "../../../hooks/useAuth";
 import { usePendingReminders, useRemindersList } from "../../../hooks/useVisits";
 import { useTranslation } from "../../../i18n";
-import { logoUrl } from "../../../utils/format";
+import { localToday, logoUrl } from "../../../utils/format";
 import "../../../styles/notifications-page.css";
 
 const PAGE_SIZE = 30;
@@ -37,7 +37,7 @@ export default function NotificationsPage() {
   const count = data?.count ?? 0;
   const schedules = data?.schedules ?? [];
   const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
 
   return (
     <div className="notifications-page">

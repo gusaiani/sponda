@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "../hooks/useAuth";
 import { usePendingReminders } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
+import { localToday } from "../utils/format";
 import "../styles/notification-bell.css";
 
 const DROPDOWN_LIMIT = 10;
@@ -59,7 +60,7 @@ export function NotificationBell() {
             </button>
           </div>
           {schedules.map((schedule) => {
-            const today = new Date().toISOString().slice(0, 10);
+            const today = localToday();
             const isOverdue = schedule.next_revisit < today;
             return (
               <div key={schedule.id} className="notification-bell-item">
