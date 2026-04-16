@@ -88,9 +88,20 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     const parsed = parseInt(param, 10);
     return parsed >= 1 && parsed <= 20 ? parsed : DEFAULT_YEARS;
   });
-  const [compareTickers, setCompareTickers] = useState<string[]>([]);
+  const initialWithTickers = (() => {
+    if (typeof window === "undefined") return [] as string[];
+    const withParam = new URLSearchParams(window.location.search).get("with");
+    if (!withParam) return [] as string[];
+    return withParam
+      .split(",")
+      .map((ticker) => ticker.trim().toUpperCase())
+      .filter(Boolean);
+  })();
+  const [compareTickers, setCompareTickers] = useState<string[]>(initialWithTickers);
   const [activeListId, setActiveListId] = useState<number | null>(null);
-  const seededForTicker = useRef<string | null>(null);
+  const seededForTicker = useRef<string | null>(
+    initialWithTickers.length > 0 ? upperTicker : null,
+  );
 
   const activeTab = resolveTab(pathname);
   const tabBarRef = useRef<HTMLDivElement>(null);
@@ -255,7 +266,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               <option value="charts">{t("tabs.charts")}</option>
             </select>
           </div>
-          {(activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && (
+          {(activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && (
             <div className="years-slider-inline years-slider-inline--mobile">
               <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
             </div>
@@ -264,7 +275,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Fixed slider (desktop) */}
-      {!isLoading && !error && (activeTab === "metrics" || activeTab === "compare") && maxYears > 1 && sliderFixedTop !== null && (
+      {!isLoading && !error && (activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && sliderFixedTop !== null && (
         <div className="years-slider-fixed" style={{ top: sliderFixedTop }}>
           <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
         </div>
@@ -311,7 +322,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
       {/* Fundamentals tab */}
       {activeTab === "fundamentals" && (
-        <FundamentalsTab ticker={upperTicker} />
+        <FundamentalsTab ticker={upperTicker} years={effectiveYears} />
       )}
 
       {/* Compare tab */}

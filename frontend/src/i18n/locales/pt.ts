@@ -212,10 +212,8 @@ export const pt: TranslationDictionary = {
   "fundamentals.col.operating_cf": "FC Oper. (M)",
   "fundamentals.col.market_cap": "Cap. Mercado (M)",
   "fundamentals.col.dividends": "Proventos (M)",
-  "fundamentals.col.pe10": "P/L10",
-  "fundamentals.col.pe5": "P/L5",
-  "fundamentals.col.pfcf10": "P/FCL10",
-  "fundamentals.col.pfcf5": "P/FCL5",
+  "fundamentals.col.pe": "P/L",
+  "fundamentals.col.pfcf": "P/FCL",
 
   /* ── Charts ── */
   "charts.no_data": "Dados hist\u00f3ricos indispon\u00edveis",
