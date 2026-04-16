@@ -1,242 +1,371 @@
-/* Screener page layout — sticky filter sidebar + scrollable results table. */
+/* Screener page — mirrors the company-page layout:
+ * - a full-bleed header with circular logo + title on the left
+ *   and a compact, collapsible filter popover on the right
+ *   (where YearsSlider sits on the company/home pages);
+ * - the results table below reuses .compare-* classes for visual
+ *   parity with /comparar. */
 
 .screener-page {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 24px 64px;
-  font-family: Inter, system-ui, sans-serif;
-  color: #0c1829;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--color-ink);
 }
+
+/* ── Header ─────────────────────────────────────────────────────────
+ * Breaks out of .app-main (max-width 880px) so the filter popover has
+ * room to open close to the title — mirrors .company-header exactly so
+ * the horizontal divider sits at the same height as on other pages. */
 
 .screener-header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding: 8px 16px 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: #ffffff;
 }
 
-.screener-title {
-  font-family: Satoshi, system-ui, sans-serif;
-  font-size: 28px;
-  font-weight: 600;
-  margin: 0;
-  color: #0c1829;
-}
-
-.screener-hint {
-  font-size: 14px;
-  color: #5570a0;
-  margin: 0;
-}
-
-.screener-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-
-@media (max-width: 768px) {
-  .screener-layout {
-    grid-template-columns: 1fr;
+@media (min-width: 640px) {
+  .screener-header {
+    padding: 8px 32px 16px;
+    margin-bottom: 40px;
   }
 }
 
-.screener-filters {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 20px;
-  position: sticky;
-  top: 16px;
+.screener-header-left {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: calc(100vh - 32px);
-  overflow-y: auto;
+  align-items: center;
+  flex: 0 0 auto;
 }
 
-.screener-filters-title {
-  font-size: 14px;
+.screener-header-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.screener-header-logo-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.screener-header-name {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 18px;
   font-weight: 600;
-  margin: 0 0 8px 0;
-  color: #0c1829;
+  color: var(--color-ink);
+  margin: 0;
+  white-space: nowrap;
 }
 
-.screener-filter-row {
+@media (min-width: 640px) {
+  .screener-header-name {
+    font-size: 24px;
+  }
+}
+
+/* ── Inline filter strip (wide viewports only) ─────────────────────
+ * Fills the horizontal gap between the title and the Filtros button
+ * with a row of min/max inputs for the flagship indicators. Hidden on
+ * narrow viewports; the full set stays accessible via the popover. */
+
+/* flex-wrap + clamped max-height means items that don't fit on the
+ * first line wrap to line 2 and are clipped by overflow:hidden. JS
+ * picks them up via offsetTop and surfaces them in the popover. This
+ * sidesteps the chicken-and-egg of "hide an item → have more room →
+ * should we un-hide it?" because hidden items never leave the DOM —
+ * they just render past the clip. */
+.screener-header-inline-filters {
+  display: none;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-content: flex-start;
+  gap: 8px 16px;
+  align-items: center;
+  min-width: 0;
+  max-height: 32px;
+  overflow: hidden;
+}
+
+@media (min-width: 1100px) {
+  .screener-header-inline-filters {
+    display: flex;
+  }
+}
+
+.screener-inline-filter {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+
+.screener-inline-label {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--color-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.screener-inline-inputs {
+  display: flex;
   gap: 4px;
 }
 
-.screener-filter-label {
+.screener-inline-input {
+  width: 52px;
   font-size: 12px;
-  color: #5570a0;
-  font-weight: 500;
-}
-
-.screener-filter-inputs {
-  display: flex;
-  gap: 6px;
-}
-
-.screener-filter-input {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  padding: 6px 8px;
-  border: 1px solid #d1dbed;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
   background: #ffffff;
   font-family: inherit;
-  color: #0c1829;
+  color: var(--color-ink);
 }
 
-.screener-filter-input:focus {
+.screener-inline-input::-webkit-outer-spin-button,
+.screener-inline-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.screener-inline-input {
+  -moz-appearance: textfield;
+}
+
+.screener-inline-input:focus {
   outline: none;
-  border-color: #1b347e;
+  border-color: var(--color-accent);
+}
+
+/* ── Filter toggle + popover ────────────────────────────────────────
+ * Collapsed by default: a compact button on the far right of the
+ * header, height in line with the title. Clicking opens a popover
+ * absolutely positioned below the button, so the header's height
+ * (and the horizontal divider) stays fixed. */
+
+.screener-header-filters {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Compact circular apply button sitting to the right of "mais filtros".
+ * Mirrors .search-button (blue disc with magnifier) to visually tie the
+ * filter action to the search pattern users already know. */
+.screener-filter-apply {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  background: #1b347e;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 0.15s;
+}
+
+.screener-filter-apply:hover {
+  background: #0f1d42;
+}
+
+.screener-filter-apply:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.screener-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.screener-filter-toggle:hover {
+  background: #f1f5f9;
+  border-color: var(--color-muted);
+}
+
+.screener-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #1b347e;
+  border-radius: 9999px;
+}
+
+/* Popover is anchored to .screener-header (which is position: relative,
+ * full-bleed 100vw) so its left/right pin to the page padding. The
+ * header's body padding is 16px (default) / 32px (>=640px); match here
+ * so the popover stretches from the start of the inline strip area all
+ * the way to the end of the layout, respecting the page gutter. */
+.screener-filter-popover {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  right: 16px;
+  z-index: 40;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(12, 24, 41, 0.12);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .screener-filter-popover {
+    left: 32px;
+    right: 32px;
+  }
+}
+
+/* Popover reuses .screener-inline-* classes for the individual
+ * fieldsets, then wraps them into rows inside this flex container so
+ * the popover feels like a continuation of the inline header strip. */
+.screener-popover-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
 }
 
 .screener-filter-actions {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
 }
 
 .screener-filter-button {
-  flex: 1;
   font-size: 13px;
-  padding: 8px;
+  padding: 8px 14px;
   border-radius: 4px;
-  border: 1px solid #d1dbed;
+  border: 1px solid var(--color-border);
   background: #ffffff;
-  color: #0c1829;
+  color: var(--color-ink);
   cursor: pointer;
   font-family: inherit;
+  font-weight: 500;
 }
 
 .screener-filter-button:hover {
-  background: #e8eef7;
+  background: #f1f5f9;
 }
 
-.screener-results {
-  min-width: 0;
+.screener-filter-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.screener-results-header {
-  font-size: 13px;
-  color: #5570a0;
-  margin-bottom: 8px;
-}
+/* ── Full-bleed table section (mirrors .compare-container) ───────── */
 
-.screener-table-wrapper {
-  overflow-x: auto;
-  border: 1px solid #e8eef7;
-  border-radius: 8px;
+.screener-table-section {
   background: #ffffff;
+  padding: 0 16px 32px;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
 }
 
-.screener-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+@media (min-width: 640px) {
+  .screener-table-section {
+    padding: 0 32px 48px;
+  }
 }
 
-.screener-table th {
-  text-align: left;
-  padding: 10px 12px;
-  background: #f5f7fa;
-  color: #0c1829;
-  font-weight: 600;
-  border-bottom: 1px solid #e8eef7;
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
+/* Screener-specific cell tweaks on top of compare-table styles. */
+.screener-compare-table .compare-sticky-col {
+  padding-left: 4px;
 }
 
-.screener-table th:hover {
-  background: #e8eef7;
-}
-
-.screener-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f0f3f8;
-  white-space: nowrap;
-}
-
-.screener-table tr:last-child td {
-  border-bottom: none;
-}
-
-.screener-table-row {
-  cursor: pointer;
-}
-
-.screener-table-row:hover {
-  background: #f5f7fa;
-}
-
-.screener-ticker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  color: #1b347e;
-}
-
-.screener-ticker-logo {
-  width: 20px;
-  height: 20px;
-  border-radius: 3px;
-  object-fit: cover;
-}
-
-.screener-name {
-  color: #0c1829;
-  max-width: 240px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.screener-sector {
-  color: #5570a0;
-}
-
-.screener-value {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+.screener-compare-table tbody tr {
+  cursor: default;
 }
 
 .screener-empty {
-  padding: 32px;
-  text-align: center;
-  color: #5570a0;
-  font-size: 14px;
+  padding: 32px !important;
+  text-align: center !important;
+  color: var(--color-muted) !important;
+  font-size: 14px !important;
+  font-style: italic;
 }
 
-.screener-scroll-sentinel {
-  width: 100%;
-  height: 1px;
+/* ── Show-more row (footer of the tbody) ────────────────────────── */
+
+.screener-show-more-row td {
+  padding: 0 !important;
+  border-bottom: none !important;
+  background: #ffffff;
+  position: sticky;
+  left: 0;
 }
 
-.screener-load-more {
+.screener-show-more-row:hover td,
+.screener-show-more-row:hover .compare-sticky-col {
+  background: #ffffff !important;
+}
+
+.screener-show-more-button {
   display: block;
-  margin: 16px auto 0;
-  padding: 10px 24px;
+  width: 100%;
+  padding: 14px 16px;
+  font-family: 'Inter', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: #ffffff;
-  background: #1b347e;
+  color: #1b347e;
+  background: #ffffff;
   border: none;
-  border-radius: 4px;
+  border-top: 1px solid var(--color-border);
   cursor: pointer;
-  font-family: inherit;
+  text-align: center;
+  letter-spacing: 0.02em;
 }
 
-.screener-load-more:hover {
-  background: #0c1829;
+.screener-show-more-button:hover {
+  background: #f1f5f9;
 }
 
-.screener-load-more:disabled {
+.screener-show-more-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
