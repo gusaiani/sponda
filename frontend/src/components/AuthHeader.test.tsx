@@ -117,3 +117,29 @@ describe("AuthHeader mobile hamburger menu", () => {
     expect(loginLink!.textContent).toBe("auth.login");
   });
 });
+
+describe("AuthHeader on auth pages (locale-prefixed paths)", () => {
+  beforeEach(() => {
+    mockUseAuth.mockReturnValue({ isAuthenticated: false, isSuperuser: false, isLoading: false });
+  });
+
+  it("renders the close button on /en/login (detects auth page under locale prefix)", () => {
+    mockPathname.mockReturnValue("/en/login");
+    render(<AuthHeader />);
+    expect(document.querySelector(".auth-header-close")).not.toBeNull();
+    expect(document.querySelector(".auth-header-signup")).toBeNull();
+  });
+
+  it("renders the close button on /pt/signup", () => {
+    mockPathname.mockReturnValue("/pt/signup");
+    render(<AuthHeader />);
+    expect(document.querySelector(".auth-header-close")).not.toBeNull();
+  });
+
+  it("still shows the login link on regular pages like /en/PETR4", () => {
+    mockPathname.mockReturnValue("/en/PETR4");
+    render(<AuthHeader />);
+    expect(document.querySelector(".auth-header-close")).toBeNull();
+    expect(document.querySelector(".auth-header-signup")).not.toBeNull();
+  });
+});

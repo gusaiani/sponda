@@ -15,4 +15,5 @@ factory-boy==3.3.1
 playwright==1.49.1
 pytest-playwright==0.6.2
 pytest-timeout==2.3.1
+pytest-rerunfailures==15.0
 responses==0.25.6

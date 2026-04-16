@@ -25,6 +25,13 @@ User = get_user_model()
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
 NEXTJS_PORT = 3097
 
+# Matches the post-auth landing URL. The login/signup flows do
+# `window.location.href = "/${locale}"`, so the browser lands on e.g.
+# `http://localhost:3097/pt`. Accept any supported locale (or a bare `/`
+# if locale middleware ever stops prefixing).
+def _home_url_pattern(base_url: str) -> re.Pattern:
+    return re.compile(rf"^{re.escape(base_url)}/(pt|en|es|de|fr|it|zh)?/?$")
+
 
 def _brapi_quote_callback(request):
     ticker = request.url.split("/quote/")[1].rstrip("/").split("?")[0]
@@ -177,7 +184,7 @@ class TestLoginPage:
         page.goto(f"{url}/login")
         fill_login_form(page, "test@example.com", "testpass123")
         submit_page_form(page)
-        page.wait_for_url(f"{url}/", timeout=10000)
+        page.wait_for_url(_home_url_pattern(url), timeout=10000)
 
     def test_login_wrong_password_shows_error(self, page: Page, url, test_user):
         page.goto(f"{url}/login")
@@ -197,7 +204,7 @@ class TestLoginPage:
         page.goto(f"{url}/login")
         expect(page.locator(".auth-header-close")).to_be_visible(timeout=5000)
         page.locator(".auth-header-close").click()
-        page.wait_for_url(f"{url}/", timeout=5000)
+        page.wait_for_url(_home_url_pattern(url), timeout=5000)
 
 
 # ── Signup Page Tests ──
@@ -230,7 +237,7 @@ class TestSignupPage:
         submit_page_form(page)
 
         # Should redirect to homepage
-        page.wait_for_url(f"{url}/", timeout=10000)
+        page.wait_for_url(_home_url_pattern(url), timeout=10000)
 
         # Should be logged in (sees "Minha conta", not "Entrar")
         expect(page.locator("text=Minha conta")).to_be_visible(timeout=5000)
@@ -279,7 +286,7 @@ class TestSignupPage:
         submit_page_form(page)
 
         # Should redirect to homepage after signup
-        page.wait_for_url(f"{url}/", timeout=10000)
+        page.wait_for_url(_home_url_pattern(url), timeout=10000)
 
         user = User.objects.get(email="contact@example.com")
         assert user.allow_contact is True
