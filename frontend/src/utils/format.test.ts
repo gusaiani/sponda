@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { localizeLabel, ptLabel, br, formatLargeNumber, formatQuarterLabel, currencyCode } from "./format";
+import { describe, it, expect, vi } from "vitest";
+import { localizeLabel, ptLabel, br, formatLargeNumber, formatQuarterLabel, currencyCode, localToday } from "./format";
 
 describe("currencyCode", () => {
   it("returns BRL for Brazilian tickers", () => {
@@ -135,5 +135,35 @@ describe("formatQuarterLabel", () => {
 
   it("returns 1T2023 for 2023-01-15", () => {
     expect(formatQuarterLabel("2023-01-15")).toBe("1T2023");
+  });
+});
+
+describe("localToday", () => {
+  it("returns the current local date as YYYY-MM-DD", () => {
+    const result = localToday();
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("uses local timezone, not UTC", () => {
+    // Simulate 11pm on April 15 in UTC-3 (which is 2am April 16 UTC)
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-16T02:00:00Z"));
+
+    const result = localToday();
+    // In UTC-3, this is still April 15 at 11pm
+    // In UTC, this is April 16 at 2am
+    // localToday should match the local timezone
+    const expected = new Date();
+    const expectedDate = `${expected.getFullYear()}-${String(expected.getMonth() + 1).padStart(2, "0")}-${String(expected.getDate()).padStart(2, "0")}`;
+    expect(result).toBe(expectedDate);
+
+    vi.useRealTimers();
+  });
+
+  it("pads single-digit months and days with leading zeros", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 5, 12, 0, 0)); // Jan 5, 2026 noon local
+    expect(localToday()).toBe("2026-01-05");
+    vi.useRealTimers();
   });
 });

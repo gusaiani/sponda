@@ -3,6 +3,7 @@
 import { useAuth } from "../hooks/useAuth";
 import { useRevisitSchedules, useVisits } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
+import { localToday } from "../utils/format";
 import "../styles/revisit-banner.css";
 
 interface RevisitBannerProps {
@@ -21,7 +22,7 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
   const schedule = getScheduleForTicker(ticker);
   if (!schedule) return null;
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const isDue = schedule.next_revisit <= today;
   if (!isDue) return null;
 

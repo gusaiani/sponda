@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
+import { localToday } from "../utils/format";
 
 export interface VisitEntry {
   id: number;
@@ -84,7 +85,7 @@ export function useVisits(ticker?: string) {
   });
 
   function isVisitedToday(checkTicker: string): boolean {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localToday();
     return visits.some(
       (visit) => visit.ticker === checkTicker.toUpperCase() && visit.visited_at === today,
     );

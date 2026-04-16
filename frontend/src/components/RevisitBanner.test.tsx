@@ -24,7 +24,12 @@ vi.mock("../i18n", () => ({
   }),
 }));
 
-const today = new Date().toISOString().slice(0, 10);
+function localToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+const today = localToday();
 
 function makeSchedule(overrides: Partial<{ next_revisit: string }> = {}) {
   return {
@@ -94,7 +99,9 @@ describe("RevisitBanner", () => {
     const future = new Date();
     future.setDate(future.getDate() + 7);
     mockUseRevisitSchedules.mockReturnValue({
-      getScheduleForTicker: () => makeSchedule({ next_revisit: future.toISOString().slice(0, 10) }),
+      getScheduleForTicker: () => makeSchedule({
+        next_revisit: `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`,
+      }),
     });
 
     render(<RevisitBanner ticker="VALE3" />);

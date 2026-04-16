@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useVisits, useRevisitSchedules } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
 import { AuthModal } from "./AuthModal";
+import { localToday } from "../utils/format";
 import "../styles/visited-button.css";
 
 interface VisitedButtonProps {
@@ -167,7 +168,7 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
                   className="visited-date-input"
                   value={nextRevisit}
                   onChange={(event) => setNextRevisit(event.target.value)}
-                  min={new Date().toISOString().slice(0, 10)}
+                  min={localToday()}
                 />
               </label>
               <label className="visited-schedule-label">

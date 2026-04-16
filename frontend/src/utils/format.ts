@@ -53,3 +53,14 @@ export function formatQuarterLabel(dateStr: string): string {
   const q = Math.ceil(month / 3);
   return `${q}T${year}`;
 }
+
+/**
+ * Return today's date as a YYYY-MM-DD string in the user's local timezone.
+ *
+ * Unlike `new Date().toISOString().slice(0, 10)`, which returns the UTC date,
+ * this returns the local date, matching the server's `date.today()` behavior.
+ */
+export function localToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}

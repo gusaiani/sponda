@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useAuth } from "../../../hooks/useAuth";
 import { useVisits, useRevisitSchedules, type VisitEntry, type RevisitScheduleEntry } from "../../../hooks/useVisits";
 import { useTranslation } from "../../../i18n";
-import { logoUrl } from "../../../utils/format";
+import { localToday, logoUrl } from "../../../utils/format";
 import "../../../styles/visits-page.css";
 
 function ScheduleCard({ schedule, locale }: { schedule: RevisitScheduleEntry; locale: string }) {
   const { t } = useTranslation();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const isOverdue = schedule.next_revisit < today;
   const isDueToday = schedule.next_revisit === today;
 
@@ -82,7 +82,7 @@ export default function VisitsPage() {
     );
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday();
   const visitedTodayTickers = new Set(
     visits.filter((visit) => visit.visited_at === today).map((visit) => visit.ticker),
   );
