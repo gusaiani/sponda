@@ -25,6 +25,9 @@ def _get(endpoint: str, params: dict | None = None) -> dict:
     return response.json()
 
 
+BRAPI_BATCH_SIZE = 20
+
+
 def fetch_quote(ticker: str) -> dict:
     """Fetch current quote data for a ticker."""
     data = _get(f"/quote/{ticker}")
@@ -32,6 +35,25 @@ def fetch_quote(ticker: str) -> dict:
     if not results:
         raise BRAPIError(f"No results for ticker {ticker}")
     return results[0]
+
+
+def fetch_quotes_batch(tickers: list[str]) -> dict[str, dict]:
+    """Fetch current quote data for multiple tickers.
+
+    BRAPI Pro supports up to 20 tickers per request. Larger lists are split
+    into chunks automatically. Returns a dict keyed by uppercase symbol.
+    """
+    if not tickers:
+        return {}
+    results: dict[str, dict] = {}
+    for chunk_start in range(0, len(tickers), BRAPI_BATCH_SIZE):
+        chunk = tickers[chunk_start : chunk_start + BRAPI_BATCH_SIZE]
+        data = _get(f"/quote/{','.join(chunk)}")
+        for quote in data.get("results", []):
+            symbol = (quote.get("symbol") or "").upper()
+            if symbol:
+                results[symbol] = quote
+    return results
 
 
 def fetch_dividends(ticker: str) -> dict:

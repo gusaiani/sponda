@@ -1,5 +1,5 @@
 [Unit]
-Description=Sponda daily snapshot price refresh (feeds screener + alert checks)
+Description=Sponda 15-min snapshot price refresh during market hours (feeds screener + alert checks)
 After=network-online.target postgresql.service sponda-refresh.service
 Wants=network-online.target
 

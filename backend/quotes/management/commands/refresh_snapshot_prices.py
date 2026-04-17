@@ -1,4 +1,4 @@
-"""Daily quote-only refresh for :class:`IndicatorSnapshot`.
+"""15-minute quote-only refresh for :class:`IndicatorSnapshot`.
 
 Fetches the current quote for every ticker with a market cap and recomputes
 only the price-dependent indicators (PE10, PFCF10, PEG, P/FCF PEG) against
@@ -6,14 +6,16 @@ existing DB fundamentals. Leverage and debt-coverage fields are left alone
 because they depend on balance-sheet / cash-flow data, which is refreshed
 weekly by ``refresh_snapshot_fundamentals``.
 
-This split keeps API usage within the BRAPI Pro and FMP Starter monthly
-budgets: ~1 call per ticker per day instead of ~4.
+Runs every 15 minutes via a systemd timer, but exits immediately when no
+exchange is open (B3 or NYSE). Use ``--force`` to bypass the market-hours
+check for manual or test runs.
 """
 import logging
 from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 
+from quotes.market_hours import any_exchange_open
 from quotes.models import IndicatorSnapshot, Ticker
 from quotes.pe10 import calculate_pe10
 from quotes.peg import calculate_peg
@@ -21,7 +23,7 @@ from quotes.pfcf10 import calculate_pfcf10
 from quotes.pfcf_peg import calculate_pfcf_peg
 from quotes.providers import (
     ProviderError,
-    fetch_quote,
+    fetch_quotes_batch,
     sync_balance_sheets,  # imported for test isolation; never called here
     sync_cash_flows,
     sync_earnings,
@@ -44,7 +46,7 @@ def _to_decimal(value):
 
 
 class Command(BaseCommand):
-    help = "Refresh price-dependent IndicatorSnapshot fields (daily cadence)"
+    help = "Refresh price-dependent IndicatorSnapshot fields (15-min cadence during market hours)"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -59,10 +61,21 @@ class Command(BaseCommand):
             default=None,
             help="Maximum number of tickers to refresh (default: no limit)",
         )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            default=False,
+            help="Bypass the market-hours check and refresh regardless",
+        )
 
     def handle(self, *args, **options):
         ticker_filter = options.get("ticker")
         batch_limit = options.get("limit")
+        force = options.get("force", False)
+
+        if not force and not any_exchange_open():
+            self.stdout.write("No exchange open — skipping price refresh.")
+            return
 
         tickers = Ticker.objects.exclude(market_cap__isnull=True).exclude(market_cap=0)
         if ticker_filter:
@@ -76,9 +89,14 @@ class Command(BaseCommand):
             self.stdout.write("No tickers to refresh.")
             return
 
-        self.stdout.write(
-            f"Refreshing snapshot prices for {total} ticker(s)..."
-        )
+        self.stdout.write(f"Refreshing snapshot prices for {total} ticker(s)...")
+
+        symbols = [ticker_row.symbol for ticker_row in tickers]
+        try:
+            quotes = fetch_quotes_batch(symbols)
+        except ProviderError as error:
+            self.stderr.write(f"Batch quote fetch failed: {error}")
+            return
 
         success_count = 0
         failure_count = 0
@@ -86,19 +104,21 @@ class Command(BaseCommand):
         for ticker_row in tickers:
             symbol = ticker_row.symbol
             try:
-                quote = fetch_quote(symbol)
+                quote = quotes.get(symbol)
+                if quote is None:
+                    logger.warning("No quote returned for %s in batch response", symbol)
+                    failure_count += 1
+                    continue
+
                 market_cap = quote.get("marketCap")
                 current_price = quote.get("regularMarketPrice")
                 if not market_cap:
-                    # Upstream returned no market cap; skip silently.
                     continue
 
                 market_cap_decimal = Decimal(str(market_cap))
 
                 pe10_result = calculate_pe10(symbol, market_cap_decimal, max_years=10)
-                pfcf10_result = calculate_pfcf10(
-                    symbol, market_cap_decimal, max_years=10,
-                )
+                pfcf10_result = calculate_pfcf10(symbol, market_cap_decimal, max_years=10)
                 pe10_value = pe10_result.get("pe10")
                 pfcf10_value = pfcf10_result.get("pfcf10")
 
@@ -132,9 +152,6 @@ class Command(BaseCommand):
 
                 Ticker.objects.filter(symbol=symbol).update(market_cap=int(market_cap))
                 success_count += 1
-            except ProviderError as error:
-                logger.warning("Price refresh failed for %s: %s", symbol, error)
-                failure_count += 1
             except Exception:
                 logger.exception("Price refresh raised unexpectedly for %s", symbol)
                 failure_count += 1

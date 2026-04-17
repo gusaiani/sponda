@@ -451,3 +451,40 @@ class TestSyncIPCA:
         mock_fetch.return_value = [{"date": "01/01/2025", "value": None}]
         count = sync_ipca()
         assert count == 0
+
+
+class TestFetchQuotesBatch:
+    @patch("quotes.brapi._get")
+    def test_returns_dict_keyed_by_symbol(self, mock_get):
+        mock_get.return_value = {
+            "results": [
+                {"symbol": "PETR4", "regularMarketPrice": 32.50, "marketCap": 100_000_000},
+                {"symbol": "VALE3", "regularMarketPrice": 65.0, "marketCap": 200_000_000},
+            ]
+        }
+        from quotes.brapi import fetch_quotes_batch
+        result = fetch_quotes_batch(["PETR4", "VALE3"])
+        assert result["PETR4"]["regularMarketPrice"] == 32.50
+        assert result["VALE3"]["marketCap"] == 200_000_000
+
+    @patch("quotes.brapi._get")
+    def test_calls_api_with_tickers_in_path(self, mock_get):
+        mock_get.return_value = {"results": []}
+        from quotes.brapi import fetch_quotes_batch
+        fetch_quotes_batch(["PETR4", "VALE3"])
+        mock_get.assert_called_once_with("/quote/PETR4,VALE3")
+
+    @patch("quotes.brapi._get")
+    def test_chunks_when_tickers_exceed_batch_size(self, mock_get):
+        mock_get.return_value = {"results": []}
+        from quotes.brapi import BRAPI_BATCH_SIZE, fetch_quotes_batch
+        tickers = [f"TIC{i}" for i in range(BRAPI_BATCH_SIZE + 5)]
+        fetch_quotes_batch(tickers)
+        assert mock_get.call_count == 2
+
+    @patch("quotes.brapi._get")
+    def test_empty_list_returns_empty_dict_without_api_call(self, mock_get):
+        from quotes.brapi import fetch_quotes_batch
+        result = fetch_quotes_batch([])
+        assert result == {}
+        mock_get.assert_not_called()

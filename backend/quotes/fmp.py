@@ -44,6 +44,24 @@ def fetch_quote(ticker: str) -> dict:
     return data[0]
 
 
+def fetch_quotes_batch(tickers: list[str]) -> dict[str, dict]:
+    """Fetch current quote data for multiple US tickers in one request.
+
+    FMP accepts comma-separated symbols: /stable/quote?symbol=AAPL,MSFT,...
+    Returns a dict keyed by uppercase symbol.
+    """
+    if not tickers:
+        return {}
+    data = _get("/stable/quote", params={"symbol": ",".join(tickers)})
+    if not isinstance(data, list):
+        return {}
+    return {
+        (quote.get("symbol") or "").upper(): quote
+        for quote in data
+        if quote.get("symbol")
+    }
+
+
 def fetch_income_statements(ticker: str) -> list[dict]:
     """Fetch quarterly income statements for a US ticker."""
     return _get(
