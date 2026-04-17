@@ -7,6 +7,48 @@ from django.core.cache import cache
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
+E2E_SEED_YEARS = range(2016, 2026)
+E2E_QUARTER_ENDS = [(3, 31), (6, 30), (9, 30), (12, 31)]
+
+
+def seed_e2e_baseline(ticker: str) -> None:
+    """Idempotent baseline seed for e2e tests.
+
+    Inserts 10 years of quarterly earnings + cash flows for `ticker`, plus
+    annual IPCA readings. Uses `ignore_conflicts=True` so reseeding a DB
+    that still has rows from a prior test (e.g. after a rerun or a fixture
+    setup error) is a no-op rather than a UniqueViolation crash.
+    """
+    earnings = [
+        QuarterlyEarnings(
+            ticker=ticker,
+            end_date=date(year, month, day),
+            net_income=10_000_000_000,
+        )
+        for year in E2E_SEED_YEARS
+        for month, day in E2E_QUARTER_ENDS
+    ]
+    QuarterlyEarnings.objects.bulk_create(earnings, ignore_conflicts=True)
+
+    ipca = [
+        IPCAIndex(date=date(year, 12, 1), annual_rate=Decimal("4.5"))
+        for year in E2E_SEED_YEARS
+    ]
+    IPCAIndex.objects.bulk_create(ipca, ignore_conflicts=True)
+
+    cash_flows = [
+        QuarterlyCashFlow(
+            ticker=ticker,
+            end_date=date(year, month, day),
+            operating_cash_flow=20_000_000_000,
+            investment_cash_flow=-8_000_000_000,
+        )
+        for year in E2E_SEED_YEARS
+        for month, day in E2E_QUARTER_ENDS
+    ]
+    QuarterlyCashFlow.objects.bulk_create(cash_flows, ignore_conflicts=True)
+
+
 @pytest.fixture(autouse=True)
 def clear_cache():
     """Clear Django cache before each test to prevent cross-test pollution."""
@@ -55,7 +97,7 @@ def sample_earnings(db):
                     eps=None,
                 )
             )
-    QuarterlyEarnings.objects.bulk_create(records)
+    QuarterlyEarnings.objects.bulk_create(records, ignore_conflicts=True)
     return records
 
 
@@ -77,7 +119,7 @@ def sample_ipca(db):
     entries = []
     for year, rate in rates.items():
         entries.append(IPCAIndex(date=date(year, 12, 1), annual_rate=rate))
-    IPCAIndex.objects.bulk_create(entries)
+    IPCAIndex.objects.bulk_create(entries, ignore_conflicts=True)
     return entries
 
 
@@ -120,7 +162,7 @@ def sample_cash_flows(db):
                     investment_cash_flow=icf,
                 )
             )
-    QuarterlyCashFlow.objects.bulk_create(records)
+    QuarterlyCashFlow.objects.bulk_create(records, ignore_conflicts=True)
     return records
 
 

@@ -7,16 +7,14 @@ import signal
 import subprocess
 import time
 import urllib.request
-from datetime import date
-from decimal import Decimal
-
 import pytest
 import responses
 from django.contrib.auth import get_user_model
 from playwright.sync_api import Page, expect
 
 from accounts.models import FavoriteCompany
-from quotes.models import IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from quotes.models import Ticker
+from tests.conftest import seed_e2e_baseline
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
@@ -96,27 +94,7 @@ def _nextjs(live_server, _build_frontend):
 
 @pytest.fixture
 def seed_data(db):
-    quarter_ends = [(3, 31), (6, 30), (9, 30), (12, 31)]
-    for year in range(2016, 2026):
-        for month, day in quarter_ends:
-            QuarterlyEarnings.objects.create(
-                ticker="PETR4",
-                end_date=date(year, month, day),
-                net_income=10_000_000_000,
-            )
-    for year in range(2016, 2026):
-        IPCAIndex.objects.create(
-            date=date(year, 12, 1),
-            annual_rate=Decimal("4.5"),
-        )
-    for year in range(2016, 2026):
-        for month, day in quarter_ends:
-            QuarterlyCashFlow.objects.create(
-                ticker="PETR4",
-                end_date=date(year, month, day),
-                operating_cash_flow=20_000_000_000,
-                investment_cash_flow=-8_000_000_000,
-            )
+    seed_e2e_baseline("PETR4")
 
 
 @pytest.fixture
