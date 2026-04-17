@@ -1,13 +1,13 @@
 """End-to-end tests using Playwright against Django's live server."""
 import os
 from datetime import date
-from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 from playwright.sync_api import Page
 
-from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+from quotes.models import BalanceSheet
+from tests.conftest import seed_e2e_baseline
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
@@ -29,34 +29,15 @@ def _mock_sync(ticker):
 @pytest.fixture
 def seed_data(db):
     """Seed the database with test data for e2e tests."""
-    quarter_ends = [(3, 31), (6, 30), (9, 30), (12, 31)]
-    for year in range(2016, 2026):
-        for month, day in quarter_ends:
-            QuarterlyEarnings.objects.create(
-                ticker="VALE3",
-                end_date=date(year, month, day),
-                net_income=10_000_000_000,
-            )
-    for year in range(2016, 2026):
-        IPCAIndex.objects.create(
-            date=date(year, 12, 1),
-            annual_rate=Decimal("4.5"),
-        )
-    quarter_ends_cf = [(3, 31), (6, 30), (9, 30), (12, 31)]
-    for year in range(2016, 2026):
-        for month, day in quarter_ends_cf:
-            QuarterlyCashFlow.objects.create(
-                ticker="VALE3",
-                end_date=date(year, month, day),
-                operating_cash_flow=20_000_000_000,
-                investment_cash_flow=-8_000_000_000,
-            )
-    BalanceSheet.objects.create(
+    seed_e2e_baseline("VALE3")
+    BalanceSheet.objects.update_or_create(
         ticker="VALE3",
         end_date=date(2025, 9, 30),
-        total_debt=150_000_000_000,
-        total_liabilities=300_000_000_000,
-        stockholders_equity=250_000_000_000,
+        defaults={
+            "total_debt": 150_000_000_000,
+            "total_liabilities": 300_000_000_000,
+            "stockholders_equity": 250_000_000_000,
+        },
     )
 
 
