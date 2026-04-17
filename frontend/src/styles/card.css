@@ -211,6 +211,7 @@
 
 .metric-block {
   @apply flex flex-col items-center relative;
+  justify-content: center;
   background: #f5f7fb;
   border: none;
   border-radius: 8px;
@@ -225,6 +226,7 @@
 /* Graph mode: stacked on mobile, side-by-side on desktop */
 .metric-block--graph {
   @apply flex-col items-stretch;
+  justify-content: flex-start;
   padding: 12px;
   min-height: 100px;
 }
@@ -342,11 +344,11 @@
   font-family: 'Inter', system-ui, sans-serif;
   color: var(--color-muted);
   border: 1px solid var(--color-border);
-  background: transparent;
+  background: #ffffff;
   vertical-align: middle;
   position: relative;
   top: -1px;
-  padding: 0 0 0 1px;
+  padding: 1px 0 0 0;
 }
 
 .info-btn:hover {

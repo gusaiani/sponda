@@ -106,6 +106,22 @@ class TestIndicatorAlertListCreate:
         assert response.status_code == 201
         assert IndicatorAlert.objects.get(user=user).ticker == "PETR4"
 
+    def test_create_alert_for_current_price(self, logged_in_client, user):
+        response = logged_in_client.post(
+            "/api/auth/alerts/",
+            data={
+                "ticker": "PETR4",
+                "indicator": "current_price",
+                "comparison": "lte",
+                "threshold": "30",
+            },
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        assert IndicatorAlert.objects.filter(
+            user=user, ticker="PETR4", indicator="current_price",
+        ).exists()
+
     def test_create_rejects_invalid_indicator(self, logged_in_client):
         response = logged_in_client.post(
             "/api/auth/alerts/",
