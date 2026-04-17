@@ -256,6 +256,7 @@ class IndicatorAlert(models.Model):
     # users watch prices elsewhere). If the snapshot model grows a new numeric
     # indicator, add it here as well.
     ALLOWED_INDICATORS = (
+        "current_price",
         "pe10",
         "pfcf10",
         "peg",

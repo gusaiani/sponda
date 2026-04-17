@@ -164,6 +164,7 @@ function formatMultiple(value: number): string {
  * omitted so the AlertButton is not rendered next to them.
  */
 const ALERT_INDICATOR_BY_METRIC_ID: Record<string, string> = {
+  "current-price": "current_price",
   "market-cap": "market_cap",
   "pe10": "pe10",
   "pfcf10": "pfcf10",
@@ -1203,7 +1204,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
         <div id={METRIC_IDS.currentPrice} {...metricBlockProps(METRIC_IDS.currentPrice)}>
           <ShareButton metricId={METRIC_IDS.currentPrice} years={years} />
           <div className="metric-value-container">
-            <div className="pe10-label">{t("metrics.current_price")}</div>
+            <div className="pe10-label">{t("metrics.current_price")} {renderAlertButton(METRIC_IDS.currentPrice, t("metrics.current_price"))}</div>
             <div className="pe10-value">
               {currencySymbol(data.ticker)} {br(data.currentPrice, 2)}
             </div>
