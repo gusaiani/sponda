@@ -1197,10 +1197,11 @@ class SitemapView(APIView):
 # Screener
 # ---------------------------------------------------------------------------
 
-# Numeric indicator fields on IndicatorSnapshot that the screener can filter
-# and sort by. Kept as an explicit allow-list so unknown query params can be
-# ignored safely and `sort` can never reach model internals or SQL.
-SCREENER_NUMERIC_FIELDS = (
+# Numeric indicator fields the screener can filter by. Explicit allow-list so
+# unknown query params are ignored safely. Market cap is deliberately excluded —
+# users rank by it (default sort) and read it in the results, but shouldn't
+# screen by it as a min/max bound.
+SCREENER_FILTERABLE_FIELDS = (
     "pe10",
     "pfcf10",
     "peg",
@@ -1211,10 +1212,12 @@ SCREENER_NUMERIC_FIELDS = (
     "current_ratio",
     "debt_to_avg_earnings",
     "debt_to_avg_fcf",
-    "market_cap",
 )
 
-SCREENER_SORTABLE_FIELDS = SCREENER_NUMERIC_FIELDS + ("ticker",)
+# Sortable set is the filterable set plus market_cap (for the default ranking)
+# and ticker (alphabetical). Kept as a separate constant so the filter/sort
+# surfaces can diverge without tangling.
+SCREENER_SORTABLE_FIELDS = SCREENER_FILTERABLE_FIELDS + ("market_cap", "ticker")
 SCREENER_DEFAULT_SORT = "ticker"
 SCREENER_DEFAULT_LIMIT = 50
 SCREENER_MAX_LIMIT = 500
@@ -1233,7 +1236,7 @@ class ScreenerView(APIView):
 
     Query parameters (all optional):
       * ``<field>_min`` / ``<field>_max`` — numeric bounds on any indicator in
-        :data:`SCREENER_NUMERIC_FIELDS`. Rows whose value is ``NULL`` are
+        :data:`SCREENER_FILTERABLE_FIELDS`. Rows whose value is ``NULL`` are
         excluded from the filter (cannot prove they satisfy the threshold).
       * ``sort`` — one of :data:`SCREENER_SORTABLE_FIELDS`, optionally prefixed
         with ``-`` for descending. Defaults to ``ticker`` ascending.
@@ -1257,7 +1260,7 @@ class ScreenerView(APIView):
         queryset = IndicatorSnapshot.objects.all()
 
         # Apply numeric min/max filters ---------------------------------------
-        for field in SCREENER_NUMERIC_FIELDS:
+        for field in SCREENER_FILTERABLE_FIELDS:
             for suffix, lookup in (("_min", "gte"), ("_max", "lte")):
                 raw_value = request.query_params.get(f"{field}{suffix}")
                 if raw_value is None or raw_value == "":

@@ -467,6 +467,13 @@ export interface TranslationDictionary {
   "screener.col_sector": string;
   "screener.load_more": string;
   "screener.link_label": string;
+  "screener.presets_label": string;
+  "screener.save_filters": string;
+  "screener.filter_preset_name": string;
+  "screener.confirm_delete_preset": string;
+  "screener.save_as_list": string;
+  "screener.save_list_description": string;
+  "screener.list_name_placeholder": string;
 
   /* ── Indicator Alerts ── */
   "alerts.create": string;

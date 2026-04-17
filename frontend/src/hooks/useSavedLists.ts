@@ -36,7 +36,21 @@ export function useSavedLists() {
         credentials: "include",
         body: JSON.stringify(params),
       });
-      if (!response.ok) throw new Error("Failed to save list");
+      if (!response.ok) {
+        // Surface the backend's error message (e.g. quota / CSRF / validation)
+        // so the UI can show something more useful than a generic failure.
+        const bodyText = await response.text().catch(() => "");
+        let detail = `HTTP ${response.status}`;
+        try {
+          const parsed = bodyText ? JSON.parse(bodyText) : null;
+          if (parsed?.error) detail = String(parsed.error);
+          else if (parsed?.detail) detail = String(parsed.detail);
+          else if (bodyText) detail = bodyText.slice(0, 200);
+        } catch {
+          if (bodyText) detail = bodyText.slice(0, 200);
+        }
+        throw new Error(detail);
+      }
       return response.json() as Promise<SavedListEntry>;
     },
     onSuccess: () => {

@@ -44,7 +44,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           </Link>
           <SearchBar onSearch={handleSearch} isLoading={false} />
           <Link href={`/${locale}/screener`} className="app-header-filter-link">
-            {t("screener.apply_filters")}
+            {t("screener.link_label")}
           </Link>
           <AuthHeader />
         </header>

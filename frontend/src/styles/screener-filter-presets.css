@@ -1,0 +1,119 @@
+/* Screener saved-filter preset strip. Sits directly below the screener
+ * header, full-bleed to match, and contains small chips — one per saved
+ * preset — plus a "save current" affordance on the right. */
+
+.screener-presets {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  margin-left: -50vw;
+  padding: 8px 16px;
+  margin-top: -32px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+  background: #ffffff;
+  flex-wrap: wrap;
+}
+
+@media (min-width: 640px) {
+  .screener-presets {
+    padding: 8px 32px;
+    margin-top: -36px;
+  }
+}
+
+.screener-presets-label {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11px;
+  color: var(--color-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.screener-presets-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.screener-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 12px;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  border: 1px solid var(--color-border);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.screener-preset-chip:hover {
+  background: #e2e8f0;
+  border-color: var(--color-muted);
+}
+
+.screener-preset-chip-active {
+  background: #1b347e;
+  color: #ffffff;
+  border-color: #1b347e;
+}
+
+.screener-preset-chip-active:hover {
+  background: #0f1d42;
+  border-color: #0f1d42;
+}
+
+.screener-preset-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+.screener-preset-chip:hover .screener-preset-delete {
+  opacity: 1;
+}
+
+.screener-preset-delete:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.screener-preset-chip-active .screener-preset-delete:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.screener-preset-save {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 1px dashed var(--color-muted);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.screener-preset-save:hover {
+  background: #f1f5f9;
+  color: var(--color-ink);
+  border-color: var(--color-ink);
+}

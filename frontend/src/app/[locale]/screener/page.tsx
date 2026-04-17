@@ -10,12 +10,22 @@ import {
 } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useScreener,
   SCREENER_INDICATORS,
   ScreenerFilters,
   ScreenerIndicator,
 } from "../../../hooks/useScreener";
+import { DualRangeSlider } from "../../../components/DualRangeSlider";
+import {
+  ScreenerFilterPresets,
+  SaveFilterPresetModal,
+} from "../../../components/ScreenerFilterPresets";
+import { useSavedScreenerFilters } from "../../../hooks/useSavedScreenerFilters";
+import { useSavedLists } from "../../../hooks/useSavedLists";
+import { useAuth } from "../../../hooks/useAuth";
+import { AuthModal } from "../../../components/AuthModal";
 import { useTranslation } from "../../../i18n";
 import { formatLargeNumber, logoUrl, br } from "../../../utils/format";
 import "../../../styles/compare.css";
@@ -23,22 +33,37 @@ import "../../../styles/screener.css";
 
 const PAGE_SIZE = 20;
 
-/** Indicators surfaced as inline min/max inputs in the header bar on
- * wide viewports. The full set of 11 remains accessible via the
- * popover; this is just the flagship value-investing shortlist. */
-const INLINE_INDICATORS: readonly ScreenerIndicator[] = [
+/** Screener indicators the user can set min/max bounds on. Market cap is
+ * intentionally absent: users rank by it (default sort) and read it from
+ * the table, but shouldn't screen by it as a numeric bound. 5y variants
+ * of PE/PFCF and debt-ratio filters aren't in the backend yet — add them
+ * here once the fields exist. */
+type FilterIndicator = Exclude<ScreenerIndicator, "market_cap">;
+
+/** Display order for the filter UI (inline strip + popover), ordered so
+ * balance-sheet screens land first — this is the shortlist the user
+ * tends to start a screening session with. */
+const FILTER_ORDER: readonly FilterIndicator[] = [
+  "debt_to_equity",
+  "liabilities_to_equity",
+  "current_ratio",
+  "debt_to_avg_earnings",
+  "debt_to_avg_fcf",
   "pe10",
   "pfcf10",
+  "debt_ex_lease_to_equity",
   "peg",
-  "debt_to_equity",
-  "market_cap",
+  "pfcf_peg",
 ] as const;
+
+/** Indicators surfaced as inline sliders in the header bar on wide
+ * viewports. Picks the first slots of FILTER_ORDER; anything that
+ * doesn't fit wraps into the popover via the overflow-detection hook. */
+const INLINE_INDICATORS: readonly FilterIndicator[] = FILTER_ORDER.slice(0, 5);
 
 /** The complement of INLINE_INDICATORS — shown inside the "mais filtros"
  * popover only, so users never see duplicate inputs for the same metric. */
-const EXTRA_INDICATORS: readonly ScreenerIndicator[] = SCREENER_INDICATORS.filter(
-  (indicator) => !INLINE_INDICATORS.includes(indicator),
-);
+const EXTRA_INDICATORS: readonly FilterIndicator[] = FILTER_ORDER.slice(5);
 
 /** Human-readable labels for each indicator, shown in the filter panel
  * and as table column headers. Kept here (rather than in a shared util)
@@ -52,9 +77,33 @@ const INDICATOR_LABELS: Record<ScreenerIndicator, string> = {
   debt_ex_lease_to_equity: "Debt (ex-lease) / Eq.",
   liabilities_to_equity: "Liab / Equity",
   current_ratio: "Current Ratio",
-  debt_to_avg_earnings: "Debt / Avg Earnings",
-  debt_to_avg_fcf: "Debt / Avg FCF",
+  debt_to_avg_earnings: "Debt / Avg Earnings (10y)",
+  debt_to_avg_fcf: "Debt / Avg FCF (10y)",
   market_cap: "Market Cap",
+};
+
+/** Slider track bounds for each indicator. All start at 0 — the value
+ * investor screener isn't meant to surface companies with negative
+ * multiples or negative leverage. Max values are picked to cover the
+ * realistic B3 range with a bit of headroom. */
+interface IndicatorBounds {
+  trackMin: number;
+  trackMax: number;
+  step: number;
+  format?: (value: number) => string;
+}
+
+const INDICATOR_BOUNDS: Record<FilterIndicator, IndicatorBounds> = {
+  pe10: { trackMin: 0, trackMax: 50, step: 1 },
+  pfcf10: { trackMin: 0, trackMax: 50, step: 1 },
+  peg: { trackMin: 0, trackMax: 5, step: 0.1 },
+  pfcf_peg: { trackMin: 0, trackMax: 5, step: 0.1 },
+  debt_to_equity: { trackMin: 0, trackMax: 5, step: 0.1 },
+  debt_ex_lease_to_equity: { trackMin: 0, trackMax: 5, step: 0.1 },
+  liabilities_to_equity: { trackMin: 0, trackMax: 5, step: 0.1 },
+  current_ratio: { trackMin: 0, trackMax: 10, step: 0.1 },
+  debt_to_avg_earnings: { trackMin: 0, trackMax: 20, step: 0.5 },
+  debt_to_avg_fcf: { trackMin: 0, trackMax: 20, step: 0.5 },
 };
 
 function SpondaCircleLogo() {
@@ -137,19 +186,32 @@ export default function ScreenerPage() {
   const [draftBounds, setDraftBounds] = useState<ScreenerFilters["bounds"]>(emptyBounds);
   const [appliedFilters, setAppliedFilters] = useState<ScreenerFilters>({
     bounds: {},
-    sort: "market_cap",
+    sort: "-market_cap",
     limit: PAGE_SIZE,
     offset: 0,
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [showSavePresetModal, setShowSavePresetModal] = useState(false);
+  const [showSaveListModal, setShowSaveListModal] = useState(false);
+  const [saveListName, setSaveListName] = useState("");
+  const [saveListError, setSaveListError] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingAuthAction, setPendingAuthAction] = useState<
+    "save-list" | "save-preset" | null
+  >(null);
+  const queryClient = useQueryClient();
   const filtersWrapperRef = useRef<HTMLDivElement | null>(null);
   const inlineStripRef = useRef<HTMLDivElement | null>(null);
+
+  const { isAuthenticated } = useAuth();
+  const { saveFilter } = useSavedScreenerFilters();
+  const { saveList } = useSavedLists();
 
   /** Tail of INLINE_INDICATORS that wrapped to a second line inside the
    * strip (and so are hidden by the strip's max-height + overflow:hidden).
    * We surface these in the popover so the user can still interact. */
   const [evictedFromInline, setEvictedFromInline] = useState<
-    ScreenerIndicator[]
+    FilterIndicator[]
   >([]);
 
   /** Detect which fieldsets the browser wrapped to a second row inside
@@ -163,10 +225,10 @@ export default function ScreenerPage() {
     const items = node.querySelectorAll<HTMLElement>("[data-inline-indicator]");
     if (items.length === 0) return;
     const firstLineTop = items[0].offsetTop;
-    const evicted: ScreenerIndicator[] = [];
+    const evicted: FilterIndicator[] = [];
     items.forEach((item) => {
       if (item.offsetTop > firstLineTop) {
-        evicted.push(item.dataset.inlineIndicator as ScreenerIndicator);
+        evicted.push(item.dataset.inlineIndicator as FilterIndicator);
       }
     });
     setEvictedFromInline((previous) => {
@@ -199,9 +261,9 @@ export default function ScreenerPage() {
   /** Popover renders the evicted (tail) inline items first, then the
    * always-hidden extras. Dedupe is defensive in case the two sets ever
    * overlap (they don't today). */
-  const popoverIndicators = useMemo<ScreenerIndicator[]>(() => {
-    const seen = new Set<ScreenerIndicator>();
-    const ordered: ScreenerIndicator[] = [];
+  const popoverIndicators = useMemo<FilterIndicator[]>(() => {
+    const seen = new Set<FilterIndicator>();
+    const ordered: FilterIndicator[] = [];
     for (const indicator of [...evictedFromInline, ...EXTRA_INDICATORS]) {
       if (seen.has(indicator)) continue;
       seen.add(indicator);
@@ -250,15 +312,22 @@ export default function ScreenerPage() {
     };
   }, [filtersOpen]);
 
-  function handleBoundChange(
-    indicator: ScreenerIndicator,
-    side: "min" | "max",
-    value: string,
+  function handleSliderChange(
+    indicator: FilterIndicator,
+    next: { min: string | null; max: string | null },
   ) {
-    setDraftBounds((previous) => ({
-      ...previous,
-      [indicator]: { ...previous[indicator], [side]: value },
-    }));
+    setDraftBounds((previous) => {
+      const updated = { ...previous };
+      if (next.min === null && next.max === null) {
+        delete updated[indicator];
+      } else {
+        updated[indicator] = {
+          ...(next.min !== null ? { min: next.min } : {}),
+          ...(next.max !== null ? { max: next.max } : {}),
+        };
+      }
+      return updated;
+    });
   }
 
   function applyFilters() {
@@ -279,6 +348,91 @@ export default function ScreenerPage() {
       limit: PAGE_SIZE,
       offset: 0,
     }));
+  }
+
+  function applyPreset(preset: { bounds: ScreenerFilters["bounds"]; sort: string }) {
+    setDraftBounds(preset.bounds);
+    setAppliedFilters((previous) => ({
+      ...previous,
+      bounds: preset.bounds,
+      sort: preset.sort,
+      limit: PAGE_SIZE,
+      offset: 0,
+    }));
+    setFiltersOpen(false);
+  }
+
+  function handleSavePreset(name: string) {
+    saveFilter.mutate(
+      { name, bounds: appliedFilters.bounds, sort: appliedFilters.sort },
+      { onSuccess: () => setShowSavePresetModal(false) },
+    );
+  }
+
+  function handleRequestSavePreset() {
+    if (!isAuthenticated) {
+      setPendingAuthAction("save-preset");
+      setShowAuthModal(true);
+      return;
+    }
+    setShowSavePresetModal(true);
+  }
+
+  function handleRequestSaveList() {
+    if (rows.length === 0) return;
+    if (!isAuthenticated) {
+      setPendingAuthAction("save-list");
+      setShowAuthModal(true);
+      return;
+    }
+    setSaveListError(null);
+    setShowSaveListModal(true);
+  }
+
+  function handleAuthSuccess() {
+    const nextAction = pendingAuthAction;
+    setShowAuthModal(false);
+    setPendingAuthAction(null);
+    queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(() => {
+      if (nextAction === "save-list") {
+        setSaveListError(null);
+        setShowSaveListModal(true);
+      } else if (nextAction === "save-preset") {
+        setShowSavePresetModal(true);
+      }
+    });
+  }
+
+  function handleAuthClose() {
+    setShowAuthModal(false);
+    setPendingAuthAction(null);
+  }
+
+  function handleSaveList(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmed = saveListName.trim();
+    if (!trimmed) return;
+    const tickers = rows.map((row) => row.ticker);
+    setSaveListError(null);
+    saveList.mutate(
+      { name: trimmed, tickers, years: 10 },
+      {
+        onSuccess: (saved) => {
+          setShowSaveListModal(false);
+          setSaveListName("");
+          setSaveListError(null);
+          const firstTicker = tickers[0];
+          if (firstTicker) {
+            window.location.href = `/${locale}/${firstTicker}/comparar?listId=${saved.id}`;
+          }
+        },
+        onError: (error: unknown) => {
+          const message =
+            error instanceof Error ? error.message : "Failed to save list";
+          setSaveListError(message);
+        },
+      },
+    );
   }
 
   function toggleSort(field: string) {
@@ -316,6 +470,7 @@ export default function ScreenerPage() {
         <div className="screener-header-inline-filters" ref={inlineStripRef}>
           {INLINE_INDICATORS.map((indicator) => {
             const bound = draftBounds[indicator] ?? {};
+            const sliderBounds = INDICATOR_BOUNDS[indicator];
             return (
               <div
                 key={indicator}
@@ -325,34 +480,15 @@ export default function ScreenerPage() {
                 <label className="screener-inline-label">
                   {INDICATOR_LABELS[indicator]}
                 </label>
-                <div className="screener-inline-inputs">
-                  <input
-                    type="number"
-                    step="any"
-                    className="screener-inline-input"
-                    placeholder={t("screener.min")}
-                    value={bound.min ?? ""}
-                    onChange={(event) =>
-                      handleBoundChange(indicator, "min", event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") applyFilters();
-                    }}
-                  />
-                  <input
-                    type="number"
-                    step="any"
-                    className="screener-inline-input"
-                    placeholder={t("screener.max")}
-                    value={bound.max ?? ""}
-                    onChange={(event) =>
-                      handleBoundChange(indicator, "max", event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") applyFilters();
-                    }}
-                  />
-                </div>
+                <DualRangeSlider
+                  trackMin={sliderBounds.trackMin}
+                  trackMax={sliderBounds.trackMax}
+                  step={sliderBounds.step}
+                  minValue={bound.min ?? null}
+                  maxValue={bound.max ?? null}
+                  format={sliderBounds.format}
+                  onChange={(value) => handleSliderChange(indicator, value)}
+                />
               </div>
             );
           })}
@@ -407,39 +543,21 @@ export default function ScreenerPage() {
             <div className="screener-popover-filters">
               {popoverIndicators.map((indicator) => {
                 const bound = draftBounds[indicator] ?? {};
+                const sliderBounds = INDICATOR_BOUNDS[indicator];
                 return (
                   <div key={indicator} className="screener-inline-filter">
                     <label className="screener-inline-label">
                       {INDICATOR_LABELS[indicator]}
                     </label>
-                    <div className="screener-inline-inputs">
-                      <input
-                        type="number"
-                        step="any"
-                        className="screener-inline-input"
-                        placeholder={t("screener.min")}
-                        value={bound.min ?? ""}
-                        onChange={(event) =>
-                          handleBoundChange(indicator, "min", event.target.value)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") applyFilters();
-                        }}
-                      />
-                      <input
-                        type="number"
-                        step="any"
-                        className="screener-inline-input"
-                        placeholder={t("screener.max")}
-                        value={bound.max ?? ""}
-                        onChange={(event) =>
-                          handleBoundChange(indicator, "max", event.target.value)
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") applyFilters();
-                        }}
-                      />
-                    </div>
+                    <DualRangeSlider
+                      trackMin={sliderBounds.trackMin}
+                      trackMax={sliderBounds.trackMax}
+                      step={sliderBounds.step}
+                      minValue={bound.min ?? null}
+                      maxValue={bound.max ?? null}
+                      format={sliderBounds.format}
+                      onChange={(value) => handleSliderChange(indicator, value)}
+                    />
                   </div>
                 );
               })}
@@ -456,6 +574,13 @@ export default function ScreenerPage() {
           </div>
         )}
       </div>
+
+      <ScreenerFilterPresets
+        currentBounds={appliedFilters.bounds}
+        currentSort={appliedFilters.sort}
+        onApplyPreset={applyPreset}
+        onRequestSave={handleRequestSavePreset}
+      />
 
       <div className="screener-table-section">
         <div className="compare-scroll-wrapper">
@@ -549,7 +674,69 @@ export default function ScreenerPage() {
             </tbody>
           </table>
         </div>
+
+        {rows.length > 0 && (
+          <div className="screener-floating-actions">
+            <button
+              type="button"
+              className="compare-save-floating"
+              onClick={handleRequestSaveList}
+            >
+              {t("screener.save_as_list")}
+            </button>
+          </div>
+        )}
       </div>
+
+      {showSavePresetModal && (
+        <SaveFilterPresetModal
+          onSave={handleSavePreset}
+          onCancel={() => setShowSavePresetModal(false)}
+        />
+      )}
+
+      {showSaveListModal && (
+        <div className="compare-save-overlay" onClick={() => { setShowSaveListModal(false); setSaveListError(null); }}>
+          <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="compare-save-modal-title">{t("screener.save_as_list")}</h3>
+            <p className="compare-save-modal-detail">
+              {rows.length} {t("common.companies")}
+            </p>
+            <form onSubmit={handleSaveList}>
+              <input
+                type="text"
+                className="auth-input"
+                placeholder={t("screener.list_name_placeholder")}
+                value={saveListName}
+                onChange={(event) => setSaveListName(event.target.value)}
+                autoFocus
+              />
+              {saveListError && (
+                <p className="auth-error">{saveListError}</p>
+              )}
+              <div className="compare-save-modal-actions">
+                <button type="submit" className="auth-button" disabled={!saveListName.trim() || saveList.isPending}>
+                  {t("common.save")}
+                </button>
+                <button
+                  type="button"
+                  className="auth-button-secondary"
+                  onClick={() => { setShowSaveListModal(false); setSaveListError(null); }}
+                >
+                  {t("common.cancel")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAuthModal && (
+        <AuthModal
+          onSuccess={handleAuthSuccess}
+          onClose={handleAuthClose}
+        />
+      )}
     </div>
   );
 }

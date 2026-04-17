@@ -161,6 +161,30 @@ class SavedList(models.Model):
         return secrets.token_urlsafe(24)
 
 
+class SavedScreenerFilter(models.Model):
+    """A user-saved combination of screener filter bounds and sort.
+
+    Stored as a blob so the screener can evolve its set of indicators
+    without requiring a migration each time. The view layer validates
+    indicator and sort keys against the allow-list before persisting.
+    """
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="saved_screener_filters",
+    )
+    name = models.CharField(max_length=200)
+    bounds = models.JSONField(default=dict, blank=True)
+    sort = models.CharField(max_length=40, default="-market_cap")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.user.email})"
+
+
 class CompanyVisit(models.Model):
     """Records each company visit by an analyst. One entry per user+ticker+date."""
 

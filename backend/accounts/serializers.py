@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import CompanyVisit, FavoriteCompany, IndicatorAlert, RevisitSchedule, SavedList
+from .models import CompanyVisit, FavoriteCompany, IndicatorAlert, RevisitSchedule, SavedList, SavedScreenerFilter
 
 User = get_user_model()
 
@@ -71,6 +71,13 @@ class SavedListSerializer(serializers.ModelSerializer):
         model = SavedList
         fields = ("id", "name", "tickers", "years", "display_order", "share_token", "created_at", "updated_at")
         read_only_fields = ("id", "share_token", "created_at", "updated_at")
+
+
+class SavedScreenerFilterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SavedScreenerFilter
+        fields = ("id", "name", "bounds", "sort", "created_at", "updated_at")
+        read_only_fields = ("id", "created_at", "updated_at")
 
 
 class CompanyVisitSerializer(serializers.ModelSerializer):
