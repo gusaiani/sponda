@@ -13,6 +13,7 @@ check for manual or test runs.
 import logging
 from decimal import Decimal
 
+from django.core.cache import cache
 from django.core.management.base import BaseCommand
 
 from quotes.market_hours import any_exchange_open
@@ -22,6 +23,7 @@ from quotes.peg import calculate_peg
 from quotes.pfcf10 import calculate_pfcf10
 from quotes.pfcf_peg import calculate_pfcf_peg
 from quotes.providers import (
+    PROVIDER_QUOTE_CACHE_TTL,
     ProviderError,
     fetch_quotes_batch,
     sync_balance_sheets,  # imported for test isolation; never called here
@@ -151,6 +153,14 @@ class Command(BaseCommand):
                     snapshot.save(update_fields=list(defaults.keys()) + ["computed_at"])
 
                 Ticker.objects.filter(symbol=symbol).update(market_cap=int(market_cap))
+
+                # Keep provider quote cache warm so the next page visit reads
+                # fresh price without a redundant live API call.
+                cache.set(f"provider:quote:{symbol}", quote, PROVIDER_QUOTE_CACHE_TTL)
+                # Invalidate the 24-hour PE10 view cache so the next visitor
+                # sees the fresh price rather than the stale cached response.
+                cache.delete(f"pe10:{symbol}")
+
                 success_count += 1
             except Exception:
                 logger.exception("Price refresh raised unexpectedly for %s", symbol)

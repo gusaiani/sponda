@@ -209,3 +209,30 @@ class TestRefreshSnapshotPrices:
         assert "upstream down" in err.getvalue()
         # Snapshot unchanged
         assert IndicatorSnapshot.objects.get(ticker="PETR4").market_cap == 400_000_000_000
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_invalidates_pe10_view_cache_after_update(
+        self, _mock_hours, mock_batch, seeded_universe,
+    ):
+        from django.core.cache import cache
+        cache.set("pe10:PETR4", {"stale": True}, 3600)
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
+        assert cache.get("pe10:PETR4") is None
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_warms_provider_quote_cache_after_update(
+        self, _mock_hours, mock_batch, seeded_universe,
+    ):
+        from django.core.cache import cache
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
+        assert cache.get("provider:quote:PETR4") == PETR4_QUOTE

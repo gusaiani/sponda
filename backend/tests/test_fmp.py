@@ -422,3 +422,11 @@ class TestFetchQuotesBatch:
         result = fetch_quotes_batch([])
         assert result == {}
         mock_get.assert_not_called()
+
+    @patch("quotes.fmp._get")
+    def test_chunks_tickers_larger_than_batch_size(self, mock_get):
+        mock_get.return_value = []
+        from quotes.fmp import FMP_BATCH_SIZE, fetch_quotes_batch
+        tickers = [f"TIC{i}" for i in range(FMP_BATCH_SIZE + 5)]
+        fetch_quotes_batch(tickers)
+        assert mock_get.call_count == 2
