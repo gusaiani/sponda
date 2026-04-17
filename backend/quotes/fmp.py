@@ -44,22 +44,29 @@ def fetch_quote(ticker: str) -> dict:
     return data[0]
 
 
+FMP_BATCH_SIZE = 100
+
+
 def fetch_quotes_batch(tickers: list[str]) -> dict[str, dict]:
-    """Fetch current quote data for multiple US tickers in one request.
+    """Fetch current quote data for multiple US tickers.
 
     FMP accepts comma-separated symbols: /stable/quote?symbol=AAPL,MSFT,...
-    Returns a dict keyed by uppercase symbol.
+    Large lists are chunked to avoid URL length limits. Returns a dict
+    keyed by uppercase symbol.
     """
     if not tickers:
         return {}
-    data = _get("/stable/quote", params={"symbol": ",".join(tickers)})
-    if not isinstance(data, list):
-        return {}
-    return {
-        (quote.get("symbol") or "").upper(): quote
-        for quote in data
-        if quote.get("symbol")
-    }
+    results: dict[str, dict] = {}
+    for chunk_start in range(0, len(tickers), FMP_BATCH_SIZE):
+        chunk = tickers[chunk_start : chunk_start + FMP_BATCH_SIZE]
+        data = _get("/stable/quote", params={"symbol": ",".join(chunk)})
+        if not isinstance(data, list):
+            continue
+        for quote in data:
+            symbol = (quote.get("symbol") or "").upper()
+            if symbol:
+                results[symbol] = quote
+    return results
 
 
 def fetch_income_statements(ticker: str) -> list[dict]:
