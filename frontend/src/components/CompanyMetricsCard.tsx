@@ -1189,11 +1189,13 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     const indicatorKey = ALERT_INDICATOR_BY_METRIC_ID[metricId];
     if (!indicatorKey) return null;
     return (
-      <AlertButton
-        ticker={data.ticker}
-        indicator={indicatorKey}
-        indicatorLabel={indicatorLabel}
-      />
+      <div className="metric-block-alert-btn">
+        <AlertButton
+          ticker={data.ticker}
+          indicator={indicatorKey}
+          indicatorLabel={indicatorLabel}
+        />
+      </div>
     );
   };
 
@@ -1202,9 +1204,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       {/* ── Key stats ── */}
       <div className="metrics-row">
         <div id={METRIC_IDS.currentPrice} {...metricBlockProps(METRIC_IDS.currentPrice)}>
+          {renderAlertButton(METRIC_IDS.currentPrice, t("metrics.current_price"))}
           <ShareButton metricId={METRIC_IDS.currentPrice} years={years} />
           <div className="metric-value-container">
-            <div className="pe10-label">{t("metrics.current_price")} {renderAlertButton(METRIC_IDS.currentPrice, t("metrics.current_price"))}</div>
+            <div className="pe10-label">{t("metrics.current_price")}</div>
             <div className="pe10-value">
               {currencySymbol(data.ticker)} {br(data.currentPrice, 2)}
             </div>
@@ -1212,9 +1215,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           {renderChart(METRIC_IDS.currentPrice)}
         </div>
         <div id={METRIC_IDS.marketCap} {...metricBlockProps(METRIC_IDS.marketCap)}>
+          {renderAlertButton(METRIC_IDS.marketCap, t("metrics.market_cap"))}
           <ShareButton metricId={METRIC_IDS.marketCap} years={years} />
           <div className="metric-value-container">
-            <div className="pe10-label">{t("metrics.market_cap")} {renderAlertButton(METRIC_IDS.marketCap, t("metrics.market_cap"))}</div>
+            <div className="pe10-label">{t("metrics.market_cap")}</div>
             <div className="pe10-value">
               {data.marketCap !== null ? formatAmount(data.marketCap) : "N/A"}
             </div>
@@ -1247,9 +1251,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
         {/* All 5 leverage indicators in one row */}
         <div className="metrics-row leverage-row-5col">
           <div id={METRIC_IDS.debtToEquity} {...metricBlockProps(METRIC_IDS.debtToEquity)}>
+            {renderAlertButton(METRIC_IDS.debtToEquity, t("metrics.gross_debt_equity"))}
             <ShareButton metricId={METRIC_IDS.debtToEquity} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} /> {renderAlertButton(METRIC_IDS.debtToEquity, t("metrics.gross_debt_equity"))}</div>
+              <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} /></div>
               {data.debtToEquity !== null ? (
                 <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
               ) : (
@@ -1260,18 +1265,20 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           </div>
           {data.debtExLeaseToEquity !== null && (
             <div id={METRIC_IDS.debtExLease} {...metricBlockProps(METRIC_IDS.debtExLease)}>
+              {renderAlertButton(METRIC_IDS.debtExLease, t("metrics.debt_ex_lease_equity"))}
               <ShareButton metricId={METRIC_IDS.debtExLease} years={years} />
               <div className="metric-value-container">
-                <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /> {renderAlertButton(METRIC_IDS.debtExLease, t("metrics.debt_ex_lease_equity"))}</div>
+                <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /></div>
                 <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
               </div>
               {renderChart(METRIC_IDS.debtExLease)}
             </div>
           )}
           <div id={METRIC_IDS.liabToEquity} {...metricBlockProps(METRIC_IDS.liabToEquity)}>
+            {renderAlertButton(METRIC_IDS.liabToEquity, t("metrics.liab_equity"))}
             <ShareButton metricId={METRIC_IDS.liabToEquity} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} /> {renderAlertButton(METRIC_IDS.liabToEquity, t("metrics.liab_equity"))}</div>
+              <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} /></div>
               {data.liabilitiesToEquity !== null ? (
                 <div className="pe10-value">{br(data.liabilitiesToEquity, 2)}</div>
               ) : (
@@ -1281,9 +1288,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderChart(METRIC_IDS.liabToEquity)}
           </div>
           <div id={METRIC_IDS.debtToEarnings} {...metricBlockProps(METRIC_IDS.debtToEarnings)}>
+            {renderAlertButton(METRIC_IDS.debtToEarnings, t("metrics.gross_debt_earnings"))}
             <ShareButton metricId={METRIC_IDS.debtToEarnings} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /> {renderAlertButton(METRIC_IDS.debtToEarnings, t("metrics.gross_debt_earnings"))}</div>
+              <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
               {data.debtToAvgEarnings !== null ? (
                 <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
               ) : (
@@ -1293,9 +1301,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderChart(METRIC_IDS.debtToEarnings)}
           </div>
           <div id={METRIC_IDS.debtToFCF} {...metricBlockProps(METRIC_IDS.debtToFCF)}>
+            {renderAlertButton(METRIC_IDS.debtToFCF, t("metrics.gross_debt_fcf"))}
             <ShareButton metricId={METRIC_IDS.debtToFCF} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /> {renderAlertButton(METRIC_IDS.debtToFCF, t("metrics.gross_debt_fcf"))}</div>
+              <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
               {data.debtToAvgFCF !== null ? (
                 <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
               ) : (
@@ -1315,9 +1324,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
         {/* All 6 valuation indicators in one row */}
         <div className="metrics-row valuation-row-6col">
           <div id={METRIC_IDS.pe10} {...metricBlockProps(METRIC_IDS.pe10)}>
+            {renderAlertButton(METRIC_IDS.pe10, pl10Label)}
             <ShareButton metricId={METRIC_IDS.pe10} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} /> {renderAlertButton(METRIC_IDS.pe10, pl10Label)}</div>
+              <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} /></div>
               {data.pe10 !== null ? (
                 <div className="pe10-value">{br(data.pe10, 1)}</div>
               ) : (
@@ -1327,9 +1337,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderChart(METRIC_IDS.pe10)}
           </div>
           <div id={METRIC_IDS.peg} {...metricBlockProps(METRIC_IDS.peg)}>
+            {renderAlertButton(METRIC_IDS.peg, "PEG")}
             <ShareButton metricId={METRIC_IDS.peg} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} /> {renderAlertButton(METRIC_IDS.peg, "PEG")}</div>
+              <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} /></div>
               {data.peg !== null ? (
                 <div className="pe10-value">{br(data.peg, 2)}</div>
               ) : (
@@ -1351,9 +1362,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderChart(METRIC_IDS.cagrEarnings)}
           </div>
           <div id={METRIC_IDS.pfcf10} {...metricBlockProps(METRIC_IDS.pfcf10)}>
+            {renderAlertButton(METRIC_IDS.pfcf10, pfcl10Label)}
             <ShareButton metricId={METRIC_IDS.pfcf10} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} /> {renderAlertButton(METRIC_IDS.pfcf10, pfcl10Label)}</div>
+              <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} /></div>
               {data.pfcf10 !== null ? (
                 <div className="pe10-value">{br(data.pfcf10, 1)}</div>
               ) : (
@@ -1363,9 +1375,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderChart(METRIC_IDS.pfcf10)}
           </div>
           <div id={METRIC_IDS.pfcfg} {...metricBlockProps(METRIC_IDS.pfcfg)}>
+            {renderAlertButton(METRIC_IDS.pfcfg, t("metrics.pfcfg_label"))}
             <ShareButton metricId={METRIC_IDS.pfcfg} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /> {renderAlertButton(METRIC_IDS.pfcfg, t("metrics.pfcfg_label"))}</div>
+              <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
               {data.pfcfPeg !== null ? (
                 <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
               ) : (
