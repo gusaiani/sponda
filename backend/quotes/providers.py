@@ -88,6 +88,33 @@ def _normalize_fmp_dividends(fmp_dividends: list[dict]) -> dict:
     }
 
 
+def fetch_quotes_batch(tickers: list[str]) -> dict[str, dict]:
+    """Fetch quotes for multiple tickers, routing each to BRAPI or FMP.
+
+    Returns a dict keyed by uppercase symbol. Tickers absent from the
+    provider response are simply missing from the returned dict.
+    """
+    br_tickers = [t for t in tickers if is_brazilian_ticker(t)]
+    us_tickers = [t for t in tickers if not is_brazilian_ticker(t)]
+    results: dict[str, dict] = {}
+
+    if br_tickers:
+        try:
+            results.update(brapi.fetch_quotes_batch(br_tickers))
+        except brapi.BRAPIError as error:
+            raise ProviderError(str(error)) from error
+
+    if us_tickers:
+        try:
+            raw = fmp.fetch_quotes_batch(us_tickers)
+            for symbol, quote in raw.items():
+                results[symbol] = _normalize_fmp_quote(quote)
+        except fmp.FMPError as error:
+            raise ProviderError(str(error)) from error
+
+    return results
+
+
 def fetch_quote(ticker: str) -> dict:
     cache_key = f"provider:quote:{ticker.upper()}"
     cached = cache.get(cache_key)

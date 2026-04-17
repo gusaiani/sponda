@@ -1,4 +1,4 @@
-"""Tests for refresh_snapshot_prices — daily quote-only snapshot refresh."""
+"""Tests for refresh_snapshot_prices — 15-min quote-only snapshot refresh."""
 from datetime import date
 from decimal import Decimal
 from io import StringIO
@@ -26,7 +26,6 @@ def ipca_zero(db):
 
 @pytest.fixture
 def seeded_universe(db, ipca_zero):
-    # PETR4 — full earnings history so PE10 can be recomputed
     Ticker.objects.create(
         symbol="PETR4", name="Petrobras", type="stock", market_cap=400_000_000_000,
     )
@@ -44,9 +43,6 @@ def seeded_universe(db, ipca_zero):
         total_liabilities=500_000_000_000,
         stockholders_equity=200_000_000_000,
     )
-
-    # Pre-existing snapshot with leverage fields populated — price refresh
-    # must leave leverage untouched (it only touches price-dependent fields).
     IndicatorSnapshot.objects.create(
         ticker="PETR4",
         market_cap=400_000_000_000,
@@ -55,115 +51,161 @@ def seeded_universe(db, ipca_zero):
         liabilities_to_equity=Decimal("2.5"),
         current_ratio=Decimal("1.2"),
     )
-
-    # SKIP3 — no market cap → skipped
+    # SKIP3 — no market cap → never included
     Ticker.objects.create(symbol="SKIP3", name="Skip", type="stock", market_cap=None)
+
+
+PETR4_QUOTE = {"marketCap": 500_000_000_000, "regularMarketPrice": 50.0}
+
+
+def _run(*args, **kwargs):
+    call_command("refresh_snapshot_prices", *args, stdout=StringIO(), stderr=StringIO(), **kwargs)
+
+
+@pytest.mark.django_db
+class TestRefreshSnapshotPricesMarketHours:
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=False,
+    )
+    def test_skips_when_no_exchange_open(self, _mock_hours, mock_batch, seeded_universe):
+        out = StringIO()
+        call_command("refresh_snapshot_prices", stdout=out, stderr=StringIO())
+        mock_batch.assert_not_called()
+        assert "No exchange open" in out.getvalue()
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=False,
+    )
+    def test_force_flag_bypasses_market_hours(self, _mock_hours, mock_batch, seeded_universe):
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        call_command(
+            "refresh_snapshot_prices", force=True, stdout=StringIO(), stderr=StringIO(),
+        )
+        mock_batch.assert_called_once()
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_calls_batch_fetch_when_exchange_open(self, _mock_hours, mock_batch, seeded_universe):
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
+        mock_batch.assert_called_once_with(["PETR4"])
 
 
 @pytest.mark.django_db
 class TestRefreshSnapshotPrices:
-    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quote")
-    def test_updates_market_cap_and_current_price(self, mock_fetch_quote, seeded_universe):
-        mock_fetch_quote.return_value = {
-            "marketCap": 500_000_000_000,
-            "regularMarketPrice": 50.0,
-        }
-
-        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=StringIO())
-
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_updates_market_cap_and_current_price(
+        self, _mock_hours, mock_batch, seeded_universe,
+    ):
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
         snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
         assert snapshot.market_cap == 500_000_000_000
         assert snapshot.current_price == Decimal("50.0")
 
-    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quote")
-    def test_recomputes_pe10_from_fresh_market_cap(self, mock_fetch_quote, seeded_universe):
-        # Double the market cap → PE10 should roughly double (avg earnings unchanged)
-        mock_fetch_quote.return_value = {
-            "marketCap": 800_000_000_000,
-            "regularMarketPrice": 80.0,
-        }
-
-        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=StringIO())
-
-        snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_recomputes_pe10_from_fresh_market_cap(
+        self, _mock_hours, mock_batch, seeded_universe,
+    ):
+        mock_batch.return_value = {"PETR4": {"marketCap": 800_000_000_000, "regularMarketPrice": 80.0}}
+        _run()
         # avg earnings 10B, market cap 800B → PE10 = 80
-        assert snapshot.pe10 == Decimal("80")
+        assert IndicatorSnapshot.objects.get(ticker="PETR4").pe10 == Decimal("80")
 
     @patch("quotes.management.commands.refresh_snapshot_prices.sync_earnings")
     @patch("quotes.management.commands.refresh_snapshot_prices.sync_cash_flows")
     @patch("quotes.management.commands.refresh_snapshot_prices.sync_balance_sheets")
-    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quote")
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
     def test_does_not_call_any_sync_functions(
-        self, mock_fetch_quote, mock_sync_bs, mock_sync_cf, mock_sync_e, seeded_universe
+        self, _mock_hours, mock_batch, mock_sync_bs, mock_sync_cf, mock_sync_e, seeded_universe,
     ):
-        mock_fetch_quote.return_value = {
-            "marketCap": 500_000_000_000,
-            "regularMarketPrice": 50.0,
-        }
-
-        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=StringIO())
-
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
         assert mock_sync_e.call_count == 0
         assert mock_sync_cf.call_count == 0
         assert mock_sync_bs.call_count == 0
 
-    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quote")
-    def test_leaves_leverage_fields_untouched(self, mock_fetch_quote, seeded_universe):
-        """Price refresh must NOT overwrite leverage fields — leverage depends on
-        fundamentals, not price, and is refreshed by the weekly job only."""
-        mock_fetch_quote.return_value = {
-            "marketCap": 500_000_000_000,
-            "regularMarketPrice": 50.0,
-        }
-
-        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=StringIO())
-
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_leaves_leverage_fields_untouched(
+        self, _mock_hours, mock_batch, seeded_universe,
+    ):
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
         snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
-        # Leverage fields preserved from seed, not overwritten with None
         assert snapshot.debt_to_equity == Decimal("1.5")
         assert snapshot.liabilities_to_equity == Decimal("2.5")
         assert snapshot.current_ratio == Decimal("1.2")
 
-    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quote")
-    def test_updates_ticker_market_cap(self, mock_fetch_quote, seeded_universe):
-        mock_fetch_quote.return_value = {
-            "marketCap": 500_000_000_000,
-            "regularMarketPrice": 50.0,
-        }
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_updates_ticker_market_cap(self, _mock_hours, mock_batch, seeded_universe):
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
+        assert Ticker.objects.get(symbol="PETR4").market_cap == 500_000_000_000
 
-        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=StringIO())
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_skips_tickers_without_market_cap(self, _mock_hours, mock_batch, seeded_universe):
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        _run()
+        # SKIP3 has no market cap — must not appear in batch call
+        symbols_passed = mock_batch.call_args[0][0]
+        assert "SKIP3" not in symbols_passed
 
-        ticker_row = Ticker.objects.get(symbol="PETR4")
-        assert ticker_row.market_cap == 500_000_000_000
-
-    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quote")
-    def test_skips_tickers_without_market_cap(self, mock_fetch_quote, seeded_universe):
-        mock_fetch_quote.return_value = {
-            "marketCap": 500_000_000_000,
-            "regularMarketPrice": 50.0,
-        }
-
-        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=StringIO())
-
-        # SKIP3 has no market cap → was not fetched
-        fetched_symbols = [c.args[0] for c in mock_fetch_quote.call_args_list]
-        assert "SKIP3" not in fetched_symbols
-
-    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quote")
-    def test_continues_after_provider_error(self, mock_fetch_quote, seeded_universe):
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_counts_missing_ticker_as_failure(self, _mock_hours, mock_batch, seeded_universe):
         Ticker.objects.create(symbol="VALE3", name="Vale", type="stock", market_cap=300_000_000_000)
         IndicatorSnapshot.objects.create(ticker="VALE3", market_cap=300_000_000_000)
-
-        from quotes.providers import ProviderError
-        def flaky(symbol):
-            if symbol == "VALE3":
-                raise ProviderError("upstream down")
-            return {"marketCap": 500_000_000_000, "regularMarketPrice": 50.0}
-
-        mock_fetch_quote.side_effect = flaky
-
-        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=StringIO())
-
-        # PETR4 still updated; VALE3 unchanged
+        # VALE3 absent from batch response — counted as failure
+        mock_batch.return_value = {"PETR4": PETR4_QUOTE}
+        out = StringIO()
+        call_command("refresh_snapshot_prices", stdout=out, stderr=StringIO())
         assert IndicatorSnapshot.objects.get(ticker="PETR4").market_cap == 500_000_000_000
         assert IndicatorSnapshot.objects.get(ticker="VALE3").market_cap == 300_000_000_000
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_aborts_on_batch_provider_error(self, _mock_hours, mock_batch, seeded_universe):
+        from quotes.providers import ProviderError
+        mock_batch.side_effect = ProviderError("upstream down")
+        err = StringIO()
+        call_command("refresh_snapshot_prices", stdout=StringIO(), stderr=err)
+        assert "upstream down" in err.getvalue()
+        # Snapshot unchanged
+        assert IndicatorSnapshot.objects.get(ticker="PETR4").market_cap == 400_000_000_000

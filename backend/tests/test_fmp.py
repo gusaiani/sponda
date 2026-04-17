@@ -395,3 +395,30 @@ class TestFetchEtfSymbols:
         ]
         result = fetch_etf_symbols()
         assert result == {"SPY"}
+
+
+class TestFetchQuotesBatch:
+    @patch("quotes.fmp._get")
+    def test_returns_dict_keyed_by_symbol(self, mock_get):
+        mock_get.return_value = [
+            {"symbol": "AAPL", "price": 178.72, "marketCap": 2_800_000_000_000},
+            {"symbol": "MSFT", "price": 420.0, "marketCap": 3_000_000_000_000},
+        ]
+        from quotes.fmp import fetch_quotes_batch
+        result = fetch_quotes_batch(["AAPL", "MSFT"])
+        assert result["AAPL"]["price"] == 178.72
+        assert result["MSFT"]["marketCap"] == 3_000_000_000_000
+
+    @patch("quotes.fmp._get")
+    def test_passes_comma_separated_symbols(self, mock_get):
+        mock_get.return_value = []
+        from quotes.fmp import fetch_quotes_batch
+        fetch_quotes_batch(["AAPL", "MSFT"])
+        mock_get.assert_called_once_with("/stable/quote", params={"symbol": "AAPL,MSFT"})
+
+    @patch("quotes.fmp._get")
+    def test_empty_list_returns_empty_dict_without_api_call(self, mock_get):
+        from quotes.fmp import fetch_quotes_batch
+        result = fetch_quotes_batch([])
+        assert result == {}
+        mock_get.assert_not_called()
