@@ -27,7 +27,7 @@ export type FetchQuoteServerResult =
 export async function fetchQuoteServer(ticker: string): Promise<FetchQuoteServerResult> {
   try {
     const response = await fetch(`${DJANGO_API_URL}/api/quote/${ticker}/`, {
-      next: { revalidate: 3600 },
+      cache: "no-store",
     });
 
     if (response.status === 404) {
