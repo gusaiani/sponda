@@ -105,10 +105,13 @@ class TestScreenerAPI:
         tickers = {r["ticker"] for r in response.json()["results"]}
         assert tickers == {"PETR4"}
 
-    def test_filter_market_cap_min(self, api_client, snapshot_universe):
+    def test_market_cap_filter_is_ignored(self, api_client, snapshot_universe):
+        """market_cap is deliberately not filterable — the param is silently
+        ignored so older clients or URL shares don't break, but no filter is
+        applied. All three tickers are returned."""
         response = api_client.get("/api/screener/?market_cap_min=100000000000")
         tickers = {r["ticker"] for r in response.json()["results"]}
-        assert tickers == {"PETR4", "WEGE3"}
+        assert tickers == {"PETR4", "WEGE3", "MICRO3"}
 
     def test_filter_current_ratio_min(self, api_client, snapshot_universe):
         response = api_client.get("/api/screener/?current_ratio_min=1.5")

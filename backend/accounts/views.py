@@ -16,7 +16,7 @@ from quotes.models import LookupLog
 from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
 from datetime import date, timedelta
 
-from .models import CompanyVisit, EmailVerificationToken, FavoriteCompany, IndicatorAlert, PageView, PasswordResetToken, RevisitSchedule, SavedList, UserOperation
+from .models import CompanyVisit, EmailVerificationToken, FavoriteCompany, IndicatorAlert, PageView, PasswordResetToken, RevisitSchedule, SavedList, SavedScreenerFilter, UserOperation
 from .serializers import (
     ChangePasswordSerializer,
     CompanyVisitSerializer,
@@ -29,6 +29,7 @@ from .serializers import (
     ResetPasswordSerializer,
     RevisitScheduleSerializer,
     SavedListSerializer,
+    SavedScreenerFilterSerializer,
     SignupSerializer,
 )
 
@@ -968,6 +969,128 @@ class SharedListView(APIView):
             "shared_by": saved_list.user.email,
             "created_at": saved_list.created_at,
         })
+
+
+# ── Saved screener filters ──
+
+
+# Kept in sync with quotes.views.SCREENER_FILTERABLE_FIELDS and
+# SCREENER_SORTABLE_FIELDS. Duplicated (rather than imported) because accounts
+# shouldn't depend on quotes, and the list changes rarely. If either drifts,
+# the other must be updated. market_cap is sortable but not filterable.
+_SCREENER_BOUND_FIELDS = {
+    "pe10", "pfcf10", "peg", "pfcf_peg",
+    "debt_to_equity", "debt_ex_lease_to_equity", "liabilities_to_equity",
+    "current_ratio", "debt_to_avg_earnings", "debt_to_avg_fcf",
+}
+_SCREENER_SORTABLE_FIELDS = _SCREENER_BOUND_FIELDS | {"market_cap", "ticker"}
+
+
+def _validate_screener_payload(bounds, sort):
+    """Return (error_message_or_none). Accepts bounds dict and sort string."""
+    if bounds is not None:
+        if not isinstance(bounds, dict):
+            return "bounds must be an object"
+        for key, value in bounds.items():
+            if key not in _SCREENER_BOUND_FIELDS:
+                return f"Unknown indicator: {key!r}"
+            if not isinstance(value, dict):
+                return f"bounds[{key!r}] must be an object"
+            for side, raw in value.items():
+                if side not in ("min", "max"):
+                    return f"bounds[{key!r}] may only contain min/max"
+                if raw is None or raw == "":
+                    continue
+                if not isinstance(raw, (str, int, float)):
+                    return f"bounds[{key!r}][{side!r}] must be numeric or string"
+    if sort is not None:
+        sort_field = sort.lstrip("-") if isinstance(sort, str) else sort
+        if sort_field not in _SCREENER_SORTABLE_FIELDS:
+            return f"Invalid sort field: {sort!r}"
+    return None
+
+
+class SavedScreenerFilterListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        filters = SavedScreenerFilter.objects.filter(user=request.user)
+        serializer = SavedScreenerFilterSerializer(filters, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
+        serializer = SavedScreenerFilterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        error = _validate_screener_payload(
+            serializer.validated_data.get("bounds"),
+            serializer.validated_data.get("sort"),
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+
+        saved = SavedScreenerFilter.objects.create(
+            user=request.user,
+            name=serializer.validated_data["name"],
+            bounds=serializer.validated_data.get("bounds", {}) or {},
+            sort=serializer.validated_data.get("sort", "-market_cap"),
+        )
+        UserOperation.record(request.user, "save_screener_filter")
+        return Response(
+            SavedScreenerFilterSerializer(saved).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class SavedScreenerFilterDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
+        try:
+            saved = SavedScreenerFilter.objects.get(user=request.user, pk=pk)
+        except SavedScreenerFilter.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SavedScreenerFilterSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        error = _validate_screener_payload(
+            serializer.validated_data.get("bounds"),
+            serializer.validated_data.get("sort"),
+        )
+        if error:
+            return Response({"error": error}, status=status.HTTP_400_BAD_REQUEST)
+
+        if "name" in serializer.validated_data:
+            saved.name = serializer.validated_data["name"]
+        if "bounds" in serializer.validated_data:
+            saved.bounds = serializer.validated_data["bounds"] or {}
+        if "sort" in serializer.validated_data:
+            saved.sort = serializer.validated_data["sort"]
+        saved.save()
+        UserOperation.record(request.user, "update_screener_filter")
+        return Response(SavedScreenerFilterSerializer(saved).data)
+
+    def delete(self, request, pk):
+        allowed, error_response = _check_operation_permission(request.user)
+        if not allowed:
+            return error_response
+
+        deleted, _ = SavedScreenerFilter.objects.filter(
+            user=request.user, pk=pk,
+        ).delete()
+        if not deleted:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        UserOperation.record(request.user, "delete_screener_filter")
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ── Homepage Layout ──

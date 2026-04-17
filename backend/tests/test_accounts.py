@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client
 from django.utils import timezone
 
-from accounts.models import CompanyVisit, EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, UserOperation
+from accounts.models import CompanyVisit, EmailVerificationToken, FavoriteCompany, PageView, PasswordResetToken, SavedList, SavedScreenerFilter, UserOperation
 from quotes.models import LookupLog
 
 User = get_user_model()
@@ -737,6 +737,164 @@ class TestSavedLists:
         response = authenticated_client.get("/api/auth/lists/")
         names = [entry["name"] for entry in response.json()]
         assert names == ["First", "Second", "Third"]
+
+
+# ── Saved screener filters ──
+
+
+class TestSavedScreenerFilters:
+    def test_list_empty(self, authenticated_client):
+        response = authenticated_client.get("/api/auth/screener-filters/")
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_save_filter(self, authenticated_client):
+        response = authenticated_client.post(
+            "/api/auth/screener-filters/",
+            {
+                "name": "Low PE",
+                "bounds": {"pe10": {"min": "0", "max": "15"}},
+                "sort": "-market_cap",
+            },
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["name"] == "Low PE"
+        assert data["bounds"] == {"pe10": {"min": "0", "max": "15"}}
+        assert data["sort"] == "-market_cap"
+        assert "id" in data
+
+    def test_save_filter_defaults_sort(self, authenticated_client):
+        response = authenticated_client.post(
+            "/api/auth/screener-filters/",
+            {"name": "Minimal", "bounds": {}},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        assert response.json()["sort"] == "-market_cap"
+
+    def test_list_filters_returns_user_filters(self, authenticated_client, user):
+        SavedScreenerFilter.objects.create(
+            user=user,
+            name="Alpha",
+            bounds={"pe10": {"max": "20"}},
+            sort="market_cap",
+        )
+        SavedScreenerFilter.objects.create(
+            user=user,
+            name="Beta",
+            bounds={"peg": {"max": "1"}},
+            sort="-pe10",
+        )
+        response = authenticated_client.get("/api/auth/screener-filters/")
+        assert response.status_code == 200
+        names = {entry["name"] for entry in response.json()}
+        assert names == {"Alpha", "Beta"}
+
+    def test_update_filter_name(self, authenticated_client, user):
+        saved = SavedScreenerFilter.objects.create(
+            user=user, name="Original", bounds={}, sort="-market_cap",
+        )
+        response = authenticated_client.put(
+            f"/api/auth/screener-filters/{saved.pk}/",
+            {"name": "Renamed"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "Renamed"
+
+    def test_update_filter_bounds_and_sort(self, authenticated_client, user):
+        saved = SavedScreenerFilter.objects.create(
+            user=user, name="X", bounds={}, sort="-market_cap",
+        )
+        response = authenticated_client.put(
+            f"/api/auth/screener-filters/{saved.pk}/",
+            {"bounds": {"pe10": {"max": "10"}}, "sort": "-pe10"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["bounds"] == {"pe10": {"max": "10"}}
+        assert data["sort"] == "-pe10"
+
+    def test_delete_filter(self, authenticated_client, user):
+        saved = SavedScreenerFilter.objects.create(
+            user=user, name="Temp", bounds={}, sort="-market_cap",
+        )
+        response = authenticated_client.delete(
+            f"/api/auth/screener-filters/{saved.pk}/",
+        )
+        assert response.status_code == 204
+        assert not SavedScreenerFilter.objects.filter(pk=saved.pk).exists()
+
+    def test_filters_require_auth(self, api_client, db):
+        response = api_client.get("/api/auth/screener-filters/")
+        assert response.status_code == 403
+
+    def test_cannot_update_other_users_filter(self, api_client, user):
+        other = User.objects.create_user(
+            username="otherf@example.com",
+            email="otherf@example.com",
+            password="otherpass",
+        )
+        saved = SavedScreenerFilter.objects.create(
+            user=other, name="Theirs", bounds={}, sort="-market_cap",
+        )
+        api_client.login(username="test@example.com", password="securepass123")
+        response = api_client.put(
+            f"/api/auth/screener-filters/{saved.pk}/",
+            {"name": "Hijack"},
+            content_type="application/json",
+        )
+        assert response.status_code == 404
+
+    def test_cannot_delete_other_users_filter(self, api_client, user):
+        other = User.objects.create_user(
+            username="otherfd@example.com",
+            email="otherfd@example.com",
+            password="otherpass",
+        )
+        saved = SavedScreenerFilter.objects.create(
+            user=other, name="Theirs", bounds={}, sort="-market_cap",
+        )
+        api_client.login(username="test@example.com", password="securepass123")
+        response = api_client.delete(f"/api/auth/screener-filters/{saved.pk}/")
+        assert response.status_code == 404
+        assert SavedScreenerFilter.objects.filter(pk=saved.pk).exists()
+
+    def test_rejects_invalid_sort_field(self, authenticated_client):
+        response = authenticated_client.post(
+            "/api/auth/screener-filters/",
+            {"name": "Bad", "bounds": {}, "sort": "wat_is_this"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_rejects_unknown_indicator_in_bounds(self, authenticated_client):
+        response = authenticated_client.post(
+            "/api/auth/screener-filters/",
+            {"name": "Bad", "bounds": {"not_a_field": {"min": "1"}}, "sort": "-market_cap"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_rejects_market_cap_in_bounds(self, authenticated_client):
+        """market_cap is sortable (default ranking) but not filterable."""
+        response = authenticated_client.post(
+            "/api/auth/screener-filters/",
+            {"name": "Bad", "bounds": {"market_cap": {"min": "1"}}, "sort": "-market_cap"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_update_nonexistent_returns_404(self, authenticated_client):
+        response = authenticated_client.put(
+            "/api/auth/screener-filters/99999/",
+            {"name": "Ghost"},
+            content_type="application/json",
+        )
+        assert response.status_code == 404
 
 
 # ── Me endpoint ──

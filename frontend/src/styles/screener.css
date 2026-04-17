@@ -96,7 +96,7 @@
   gap: 8px 16px;
   align-items: center;
   min-width: 0;
-  max-height: 32px;
+  max-height: 18px;
   overflow: hidden;
 }
 
@@ -108,8 +108,9 @@
 
 .screener-inline-filter {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: 0 0 auto;
 }
 
@@ -118,7 +119,7 @@
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 11px;
   color: var(--color-muted);
-  font-weight: 500;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -261,12 +262,31 @@
 }
 
 /* Popover reuses .screener-inline-* classes for the individual
- * fieldsets, then wraps them into rows inside this flex container so
- * the popover feels like a continuation of the inline header strip. */
+ * fieldsets, then arranges them into a responsive grid that fills the
+ * popover width. auto-fit + minmax gives us at least 3 columns on the
+ * common wide viewport and more on larger screens, without any
+ * breakpoint math. Within each cell the label + slider sit flush right
+ * with a tight 8px gap — long labels wrap to a second line if needed. */
 .screener-popover-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  column-gap: 24px;
+  row-gap: 24px;
+}
+
+.screener-popover-filters .screener-inline-filter {
+  justify-content: flex-end;
+  width: 100%;
+  gap: 10px;
+  min-width: 0;
+}
+
+.screener-popover-filters .screener-inline-label {
+  white-space: normal;
+  line-height: 1.25;
+  text-align: right;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .screener-filter-actions {
@@ -368,4 +388,13 @@
 .screener-show-more-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Floating action row at the bottom of the screener, aligned to the
+ * right. Uses compare-save-floating for the button chrome so the
+ * "Save as list" button matches the Comparar save affordance. */
+.screener-floating-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
