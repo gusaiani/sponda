@@ -310,6 +310,46 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
+## Observability
+
+Unified error, performance, and cron monitoring through Sentry (free tier) plus UptimeRobot for external health checks. Full plan and rollout status: `docs/observability-plan.md`.
+
+**How it works**
+
+- **Django + Celery.** `config.observability.init_sentry` runs from `settings/base.py`. It is a no-op when `SENTRY_DSN` is unset, so dev and tests stay quiet. `before_send` scrubs `Authorization`, `Cookie`, `Set-Cookie`, `DATABASE_URL`, and `SECRET_KEY` from events. Integrations: `DjangoIntegration`, `CeleryIntegration`, `LoggingIntegration` (INFO breadcrumbs, ERROR-level events).
+- **Systemd-timer commands.** Subclass `config.monitored_command.MonitoredCommand` and implement `run()` instead of `handle()`. The base class captures any unhandled exception to Sentry and re-raises (so systemd still marks the unit as failed). Setting `sentry_monitor_slug` wraps execution in `sentry_sdk.crons.monitor`, so Sentry Crons alerts you when a timer misses or fails. All six timer-invoked commands (`refresh_ipca`, `refresh_tickers`, `refresh_snapshot_prices`, `refresh_snapshot_fundamentals`, `check_indicator_alerts`, `send_revisit_reminders`) use this base.
+- **Next.js.** `@sentry/nextjs` is wired up via `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, all delegating to `src/lib/sentry.ts`. `withSentryConfig` in `next.config.ts` handles source-map upload at build time. Session Replay: 10% of sessions + 100% of error sessions (within free-tier quota).
+- **Request IDs.** `config.middleware.request_id.RequestIDMiddleware` attaches a UUID to every request (or honors an inbound `X-Request-ID`, capped at 128 chars). The ID is echoed back in the `X-Request-ID` response header, tagged on the Sentry scope, and included in every JSON log line emitted during the request.
+- **Structured logging.** `config.logging_formatter.JSONLogFormatter` emits one JSON object per log record (`timestamp`, `level`, `logger`, `message`, `request_id`, `exception`). Writes to stderr → captured by journald on production. No external log shipping yet; when we want it, point Promtail/Vector at the journal.
+- **External uptime.** UptimeRobot (free) hits `https://sponda.capital/` and `https://sponda.capital/api/health/` every 5 minutes. Setup is manual, outside the repo.
+
+**Environment variables**
+
+| Name | Where | Purpose |
+|---|---|---|
+| `SENTRY_DSN` | backend `.env` | Django + Celery DSN. Unset → Sentry is inactive. |
+| `SENTRY_ENVIRONMENT` | backend | `production` / `development`. Defaults to `development`. |
+| `SENTRY_RELEASE` | backend | Git SHA for release-tagged events. Optional. |
+| `SENTRY_TRACES_SAMPLE_RATE` | backend | Perf trace sampling. Defaults to `1.0`; lower when traffic grows. |
+| `NEXT_PUBLIC_SENTRY_DSN` | frontend build | Browser DSN. Baked into the client bundle at build time. |
+| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | frontend | Same semantics as backend, but client-side. |
+| `NEXT_PUBLIC_SENTRY_RELEASE` | frontend | Client release tag. |
+| `SENTRY_AUTH_TOKEN` | frontend build / CI | Source-map upload. Build succeeds without it, source maps just aren't uploaded. |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | frontend build | Target for source-map upload. |
+
+**Local testing**
+
+```bash
+# Backend: tests run green with no DSN (init is a no-op).
+cd backend && .venv/bin/pytest tests/test_observability.py tests/test_monitored_command.py tests/test_request_id_middleware.py tests/test_json_log_formatter.py
+
+# Frontend: vitest covers the initSentry helper.
+cd frontend && npx vitest run src/lib/sentry.test.ts
+
+# End-to-end smoke (optional): export SENTRY_DSN=<dev-dsn> before running
+# the dev server and trigger a 500 from any view to verify delivery.
+```
+
 ## Screener
 
 The screener page at `/[locale]/screener` lets users filter the whole B3 universe by any of the indicators shown on a company's main page and sort the results. Backed by a dedicated `IndicatorSnapshot` table so filtering and sorting are one DB query instead of recomputing indicators for every ticker on every request.

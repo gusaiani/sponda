@@ -14,8 +14,8 @@ import logging
 from decimal import Decimal
 
 from django.core.cache import cache
-from django.core.management.base import BaseCommand
 
+from config.monitored_command import MonitoredCommand
 from quotes.market_hours import any_exchange_open
 from quotes.models import IndicatorSnapshot, Ticker
 from quotes.pe10 import calculate_pe10
@@ -47,8 +47,9 @@ def _to_decimal(value):
     return Decimal(str(value))
 
 
-class Command(BaseCommand):
+class Command(MonitoredCommand):
     help = "Refresh price-dependent IndicatorSnapshot fields (15-min cadence during market hours)"
+    sentry_monitor_slug = "sponda-refresh-snapshot-prices"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -70,7 +71,7 @@ class Command(BaseCommand):
             help="Bypass the market-hours check and refresh regardless",
         )
 
-    def handle(self, *args, **options):
+    def run(self, *args, **options):
         ticker_filter = options.get("ticker")
         batch_limit = options.get("limit")
         force = options.get("force", False)

@@ -5,15 +5,15 @@ alerts always compare against fresh numbers. Alerts that newly meet their
 threshold trigger an email to the user; alerts whose condition clears are
 reset so the next crossing fires again.
 """
-from django.core.management.base import BaseCommand
-
 from accounts.tasks import check_indicator_alerts
+from config.monitored_command import MonitoredCommand
 
 
-class Command(BaseCommand):
+class Command(MonitoredCommand):
     help = "Evaluate IndicatorAlert rows and email users when thresholds are crossed."
+    sentry_monitor_slug = "sponda-check-alerts"
 
-    def handle(self, *args, **options):
+    def run(self, *args, **options):
         summary = check_indicator_alerts()
         self.stdout.write(
             self.style.SUCCESS(

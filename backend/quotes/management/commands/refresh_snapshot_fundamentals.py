@@ -10,8 +10,7 @@ valuation multiples fresh without hammering the statement endpoints.
 """
 import logging
 
-from django.core.management.base import BaseCommand
-
+from config.monitored_command import MonitoredCommand
 from quotes.indicators import compute_company_indicators
 from quotes.models import IndicatorSnapshot, Ticker
 from quotes.providers import (
@@ -25,8 +24,9 @@ from quotes.providers import (
 logger = logging.getLogger(__name__)
 
 
-class Command(BaseCommand):
+class Command(MonitoredCommand):
     help = "Resync quarterly statements and recompute IndicatorSnapshot (weekly cadence)"
+    sentry_monitor_slug = "sponda-refresh-snapshot-fundamentals"
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -42,7 +42,7 @@ class Command(BaseCommand):
             help="Maximum number of tickers to refresh (default: no limit)",
         )
 
-    def handle(self, *args, **options):
+    def run(self, *args, **options):
         ticker_filter = options.get("ticker")
         batch_limit = options.get("limit")
 
