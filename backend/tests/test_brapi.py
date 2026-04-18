@@ -483,6 +483,50 @@ class TestBrapiSyncEarningsIsBulk:
         )
 
 
+class TestBrapiSyncHandlesDuplicateDates:
+    """BRAPI occasionally returns two statements with the same endDate for
+    one ticker. Dedupe inside sync_* before bulk upsert (last-wins),
+    or Postgres ON CONFLICT rejects the whole statement.
+    """
+
+    @patch("quotes.brapi.fetch_income_statements")
+    def test_earnings_dedup(self, mock_fetch, db):
+        mock_fetch.return_value = [
+            {"endDate": "2025-09-30", "netIncome": 111, "totalRevenue": 1, "basicEarningsPerCommonShare": 0.1},
+            {"endDate": "2025-09-30", "netIncome": 222, "totalRevenue": 2, "basicEarningsPerCommonShare": 0.2},
+        ]
+        earnings = sync_earnings("PETR4")
+        assert len(earnings) == 1
+        record = QuarterlyEarnings.objects.get(ticker="PETR4", end_date=date(2025, 9, 30))
+        assert record.net_income == 222
+
+    @patch("quotes.brapi.fetch_cash_flow_statements")
+    def test_cash_flows_dedup(self, mock_fetch, db):
+        mock_fetch.return_value = [
+            {"endDate": "2025-09-30", "operatingCashFlow": 1, "investmentCashFlow": -1, "dividendsPaid": -1},
+            {"endDate": "2025-09-30", "operatingCashFlow": 99, "investmentCashFlow": -9, "dividendsPaid": -9},
+        ]
+        cash_flows = sync_cash_flows("PETR4")
+        assert len(cash_flows) == 1
+        record = QuarterlyCashFlow.objects.get(ticker="PETR4", end_date=date(2025, 9, 30))
+        assert record.operating_cash_flow == 99
+
+    @patch("quotes.brapi.fetch_financial_data")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    @patch("quotes.brapi.fetch_balance_sheets")
+    def test_balance_sheets_dedup(self, mock_fetch, mock_annual_lease, mock_financial_data, db):
+        mock_fetch.return_value = [
+            {"endDate": "2025-09-30", "loansAndFinancing": 1, "longTermLoansAndFinancing": 1, "currentLiabilities": 1, "nonCurrentLiabilities": 1, "shareholdersEquity": 1},
+            {"endDate": "2025-09-30", "loansAndFinancing": 500, "longTermLoansAndFinancing": 500, "currentLiabilities": 1, "nonCurrentLiabilities": 1, "shareholdersEquity": 1},
+        ]
+        mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {}
+        sheets = sync_balance_sheets("PETR4")
+        assert len(sheets) == 1
+        record = BalanceSheet.objects.get(ticker="PETR4", end_date=date(2025, 9, 30))
+        assert record.total_debt == 1000
+
+
 class TestBrapiSyncCashFlowsIsBulk:
     @patch("quotes.brapi.fetch_cash_flow_statements")
     def test_uses_constant_query_count_regardless_of_row_count(self, mock_fetch, db):

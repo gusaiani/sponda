@@ -124,7 +124,10 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
     """
     statements = fetch_income_statements(ticker)
     upper_ticker = ticker.upper()
-    records: list[QuarterlyEarnings] = []
+    # Providers occasionally return duplicate endDates (amended filings).
+    # Keep the last, matching the prior update_or_create loop semantics,
+    # and avoid Postgres ON CONFLICT rejecting the whole batch.
+    by_end_date: dict[date, QuarterlyEarnings] = {}
 
     for stmt in statements:
         end_date_str = stmt.get("endDate", "")[:10]
@@ -142,21 +145,19 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         revenue_raw = stmt.get("totalRevenue")
         revenue_value = int(revenue_raw) if revenue_raw is not None else None
 
-        records.append(
-            QuarterlyEarnings(
-                ticker=upper_ticker,
-                end_date=end_date,
-                eps=eps_value,
-                net_income=net_income_value,
-                revenue=revenue_value,
-            )
+        by_end_date[end_date] = QuarterlyEarnings(
+            ticker=upper_ticker,
+            end_date=end_date,
+            eps=eps_value,
+            net_income=net_income_value,
+            revenue=revenue_value,
         )
 
-    if not records:
+    if not by_end_date:
         return []
 
     return QuarterlyEarnings.objects.bulk_create(
-        records,
+        list(by_end_date.values()),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
         update_fields=["eps", "net_income", "revenue", "fetched_at"],
@@ -199,7 +200,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
     """Fetch and store cash flow data for a ticker from BRAPI."""
     statements = fetch_cash_flow_statements(ticker)
     upper_ticker = ticker.upper()
-    records: list[QuarterlyCashFlow] = []
+    by_end_date: dict[date, QuarterlyCashFlow] = {}
 
     for stmt in statements:
         end_date_str = stmt.get("endDate", "")[:10]
@@ -220,21 +221,19 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         if dividends_paid is not None:
             dividends_paid = int(dividends_paid)
 
-        records.append(
-            QuarterlyCashFlow(
-                ticker=upper_ticker,
-                end_date=end_date,
-                operating_cash_flow=operating_cf,
-                investment_cash_flow=investment_cf,
-                dividends_paid=dividends_paid,
-            )
+        by_end_date[end_date] = QuarterlyCashFlow(
+            ticker=upper_ticker,
+            end_date=end_date,
+            operating_cash_flow=operating_cf,
+            investment_cash_flow=investment_cf,
+            dividends_paid=dividends_paid,
         )
 
-    if not records:
+    if not by_end_date:
         return []
 
     return QuarterlyCashFlow.objects.bulk_create(
-        records,
+        list(by_end_date.values()),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
         update_fields=[
@@ -328,7 +327,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
     """Fetch and store balance sheet data for a ticker from BRAPI."""
     statements = fetch_balance_sheets(ticker)
     upper_ticker = ticker.upper()
-    records: list[BalanceSheet] = []
+    by_end_date: dict[date, BalanceSheet] = {}
 
     # Pre-fetch annual lease data in case quarterly doesn't have it
     annual_lease: dict[str, tuple[int | None, int | None]] | None = None
@@ -384,24 +383,22 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         if current_assets is not None:
             current_assets = int(current_assets)
 
-        records.append(
-            BalanceSheet(
-                ticker=upper_ticker,
-                end_date=end_date,
-                total_debt=total_debt,
-                total_lease=total_lease,
-                total_liabilities=total_liab,
-                stockholders_equity=equity,
-                current_assets=current_assets,
-                current_liabilities=int(current_liab) if current_liab is not None else None,
-            )
+        by_end_date[end_date] = BalanceSheet(
+            ticker=upper_ticker,
+            end_date=end_date,
+            total_debt=total_debt,
+            total_lease=total_lease,
+            total_liabilities=total_liab,
+            stockholders_equity=equity,
+            current_assets=current_assets,
+            current_liabilities=int(current_liab) if current_liab is not None else None,
         )
 
-    if not records:
+    if not by_end_date:
         return []
 
     sheets = BalanceSheet.objects.bulk_create(
-        records,
+        list(by_end_date.values()),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
         update_fields=[

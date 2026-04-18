@@ -409,6 +409,54 @@ class TestSyncEarningsIsBulk:
         assert latest.net_income == 501
 
 
+class TestSyncEarningsHandlesDuplicateDates:
+    """FMP occasionally returns two statements with the same end_date for
+    one ticker (e.g. an amended filing listed alongside the original).
+    Postgres ON CONFLICT DO UPDATE rejects duplicate constrained values in
+    a single statement, so we must dedupe inside sync_* before upserting.
+    Last-wins, matching the prior update_or_create loop semantics.
+    """
+
+    @patch("quotes.fmp.fetch_income_statements")
+    def test_deduplicates_same_end_date_keeping_last(self, mock_fetch, db):
+        mock_fetch.return_value = [
+            {"date": "2025-09-30", "netIncome": 111, "revenue": 1, "eps": 0.1},
+            {"date": "2025-09-30", "netIncome": 222, "revenue": 2, "eps": 0.2},
+            {"date": "2025-06-30", "netIncome": 333, "revenue": 3, "eps": 0.3},
+        ]
+        earnings = sync_earnings("AAPL")
+        assert len(earnings) == 2
+        assert QuarterlyEarnings.objects.filter(ticker="AAPL").count() == 2
+        latest = QuarterlyEarnings.objects.get(ticker="AAPL", end_date=date(2025, 9, 30))
+        assert latest.net_income == 222
+
+
+class TestSyncCashFlowsHandlesDuplicateDates:
+    @patch("quotes.fmp.fetch_cash_flow_statements")
+    def test_deduplicates_same_end_date_keeping_last(self, mock_fetch, db):
+        mock_fetch.return_value = [
+            {"date": "2025-09-30", "operatingCashFlow": 1, "netCashProvidedByInvestingActivities": -1, "commonDividendsPaid": -1},
+            {"date": "2025-09-30", "operatingCashFlow": 99, "netCashProvidedByInvestingActivities": -9, "commonDividendsPaid": -9},
+        ]
+        cash_flows = sync_cash_flows("AAPL")
+        assert len(cash_flows) == 1
+        record = QuarterlyCashFlow.objects.get(ticker="AAPL", end_date=date(2025, 9, 30))
+        assert record.operating_cash_flow == 99
+
+
+class TestSyncBalanceSheetsHandlesDuplicateDates:
+    @patch("quotes.fmp.fetch_balance_sheets")
+    def test_deduplicates_same_end_date_keeping_last(self, mock_fetch, db):
+        mock_fetch.return_value = [
+            {"date": "2025-09-30", "totalDebt": 1, "totalLiabilities": 1, "totalStockholdersEquity": 1, "totalCurrentAssets": 1, "totalCurrentLiabilities": 1},
+            {"date": "2025-09-30", "totalDebt": 999, "totalLiabilities": 9, "totalStockholdersEquity": 9, "totalCurrentAssets": 9, "totalCurrentLiabilities": 9},
+        ]
+        sheets = sync_balance_sheets("AAPL")
+        assert len(sheets) == 1
+        record = BalanceSheet.objects.get(ticker="AAPL", end_date=date(2025, 9, 30))
+        assert record.total_debt == 999
+
+
 class TestSyncCashFlowsIsBulk:
     @patch("quotes.fmp.fetch_cash_flow_statements")
     def test_uses_constant_query_count_regardless_of_row_count(self, mock_fetch, db):
