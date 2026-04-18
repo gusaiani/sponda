@@ -172,7 +172,7 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
                 <button className="revisit-banner-save" onClick={handleSaveSettings} type="button">
                   {t("visits.save")}
                 </button>
-                {!confirmingCancel && (
+                {schedule.recurrence_days && !confirmingCancel && (
                   <button
                     className="revisit-banner-cancel-recurrence"
                     onClick={() => setConfirmingCancel(true)}
@@ -181,7 +181,7 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
                     {t("visits.banner_cancel_recurrence")}
                   </button>
                 )}
-                {confirmingCancel && (
+                {schedule.recurrence_days && confirmingCancel && (
                   <button
                     className="revisit-banner-cancel-recurrence-confirm"
                     onClick={handleCancelRecurrence}
