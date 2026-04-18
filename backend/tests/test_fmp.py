@@ -4,6 +4,8 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from quotes.fmp import (
     FMPError,
@@ -331,6 +333,108 @@ class TestSyncBalanceSheets:
         sync_balance_sheets("AAPL")
         sync_balance_sheets("AAPL")
         assert BalanceSheet.objects.filter(ticker="AAPL").count() == 2
+
+
+def _synthetic_income_statements(count: int) -> list[dict]:
+    return [
+        {
+            "date": f"20{25 - (i // 4):02d}-{((i % 4) * 3 + 1):02d}-15",
+            "symbol": "AAPL",
+            "revenue": 1000 + i,
+            "netIncome": 500 + i,
+            "eps": 1.0 + i * 0.01,
+        }
+        for i in range(count)
+    ]
+
+
+def _synthetic_cash_flow_statements(count: int) -> list[dict]:
+    return [
+        {
+            "date": f"20{25 - (i // 4):02d}-{((i % 4) * 3 + 1):02d}-15",
+            "symbol": "AAPL",
+            "operatingCashFlow": 1000 + i,
+            "netCashProvidedByInvestingActivities": -100 - i,
+            "commonDividendsPaid": -50 - i,
+        }
+        for i in range(count)
+    ]
+
+
+def _synthetic_balance_sheets(count: int) -> list[dict]:
+    return [
+        {
+            "date": f"20{25 - (i // 4):02d}-{((i % 4) * 3 + 1):02d}-15",
+            "symbol": "AAPL",
+            "totalDebt": 1000 + i,
+            "totalLiabilities": 5000 + i,
+            "totalStockholdersEquity": 2000 + i,
+            "totalCurrentAssets": 3000 + i,
+            "totalCurrentLiabilities": 1500 + i,
+        }
+        for i in range(count)
+    ]
+
+
+# Tight bound — one upsert + at most a couple of surrounding statements
+# (e.g. a savepoint from an ambient transaction). The pre-fix loop issued
+# 2 queries per row, so this would have been ~40 for 20 statements.
+MAX_QUERIES_PER_SYNC = 5
+
+
+class TestSyncEarningsIsBulk:
+    @patch("quotes.fmp.fetch_income_statements")
+    def test_uses_constant_query_count_regardless_of_row_count(self, mock_fetch, db):
+        mock_fetch.return_value = _synthetic_income_statements(20)
+        with CaptureQueriesContext(connection) as captured:
+            earnings = sync_earnings("AAPL")
+        assert len(earnings) == 20
+        assert QuarterlyEarnings.objects.filter(ticker="AAPL").count() == 20
+        assert len(captured) <= MAX_QUERIES_PER_SYNC, (
+            f"Expected ≤{MAX_QUERIES_PER_SYNC} queries, got {len(captured)}:\n"
+            + "\n".join(q["sql"] for q in captured)
+        )
+
+    @patch("quotes.fmp.fetch_income_statements")
+    def test_upsert_preserves_data_on_second_sync(self, mock_fetch, db):
+        mock_fetch.return_value = _synthetic_income_statements(5)
+        sync_earnings("AAPL")
+        mock_fetch.return_value = [
+            {**stmt, "netIncome": (stmt["netIncome"] or 0) + 1}
+            for stmt in _synthetic_income_statements(5)
+        ]
+        sync_earnings("AAPL")
+        assert QuarterlyEarnings.objects.filter(ticker="AAPL").count() == 5
+        latest = QuarterlyEarnings.objects.get(ticker="AAPL", end_date=date(2025, 1, 15))
+        assert latest.net_income == 501
+
+
+class TestSyncCashFlowsIsBulk:
+    @patch("quotes.fmp.fetch_cash_flow_statements")
+    def test_uses_constant_query_count_regardless_of_row_count(self, mock_fetch, db):
+        mock_fetch.return_value = _synthetic_cash_flow_statements(20)
+        with CaptureQueriesContext(connection) as captured:
+            cash_flows = sync_cash_flows("AAPL")
+        assert len(cash_flows) == 20
+        assert QuarterlyCashFlow.objects.filter(ticker="AAPL").count() == 20
+        assert len(captured) <= MAX_QUERIES_PER_SYNC, (
+            f"Expected ≤{MAX_QUERIES_PER_SYNC} queries, got {len(captured)}:\n"
+            + "\n".join(q["sql"] for q in captured)
+        )
+
+
+class TestSyncBalanceSheetsIsBulk:
+    @patch("quotes.fmp.fetch_balance_sheets")
+    def test_uses_constant_query_count_regardless_of_row_count(self, mock_fetch, db):
+        mock_fetch.return_value = _synthetic_balance_sheets(20)
+        with CaptureQueriesContext(connection) as captured:
+            sheets = sync_balance_sheets("AAPL")
+        assert len(sheets) == 20
+        assert BalanceSheet.objects.filter(ticker="AAPL").count() == 20
+        assert len(captured) <= MAX_QUERIES_PER_SYNC, (
+            f"Expected ≤{MAX_QUERIES_PER_SYNC} queries, got {len(captured)}:\n"
+            + "\n".join(q["sql"] for q in captured)
+        )
 
 
 class TestSyncUSCPI:
