@@ -1,12 +1,12 @@
-from django.core.management.base import BaseCommand
-
+from config.monitored_command import MonitoredCommand
 from quotes.brapi import sync_ipca
 
 
-class Command(BaseCommand):
+class Command(MonitoredCommand):
     help = "Fetch and update IPCA index data from BRAPI"
+    sentry_monitor_slug = "sponda-refresh-ipca"
 
-    def handle(self, *args, **options):
+    def run(self, *args, **options):
         self.stdout.write("Fetching IPCA data from BRAPI...")
         try:
             count = sync_ipca()

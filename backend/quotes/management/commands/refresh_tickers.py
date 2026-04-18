@@ -1,13 +1,14 @@
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
 
+from config.monitored_command import MonitoredCommand
 from quotes.brapi import sync_tickers
 
 
-class Command(BaseCommand):
+class Command(MonitoredCommand):
     help = "Fetch and update the ticker list from BRAPI (BR) and FMP (US)"
+    sentry_monitor_slug = "sponda-refresh-tickers"
 
-    def handle(self, *args, **options):
+    def run(self, *args, **options):
         self.stdout.write("Fetching BR ticker list from BRAPI...")
         try:
             count = sync_tickers()

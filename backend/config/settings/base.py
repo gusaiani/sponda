@@ -2,12 +2,21 @@ from pathlib import Path
 
 import environ
 
+from config.observability import init_sentry
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 env = environ.Env()
 env.read_env(BASE_DIR.parent / ".env", overrides=False)
 
 SECRET_KEY = env("DJANGO_SECRET_KEY")
+
+init_sentry(
+    dsn=env("SENTRY_DSN", default=""),
+    environment=env("SENTRY_ENVIRONMENT", default="development"),
+    release=env("SENTRY_RELEASE", default=None),
+    traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=1.0),
+)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -23,6 +32,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "config.middleware.request_id.RequestIDMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -32,6 +42,31 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "()": "config.logging_formatter.JSONLogFormatter",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        "django.request": {"handlers": ["console"], "level": "WARNING", "propagate": False},
+        "celery": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+}
 
 ROOT_URLCONF = "config.urls"
 

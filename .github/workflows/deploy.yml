@@ -164,9 +164,14 @@ jobs:
             command -v uv >/dev/null || pip install uv
             uv pip install -r backend/requirements.txt
 
-            # Build Next.js frontend
+            # Build Next.js frontend. Source /opt/sponda/.env so that
+            # NEXT_PUBLIC_* variables (e.g. SENTRY_DSN) get baked into
+            # the browser bundle at build time.
             cd frontend
             npm ci
+            set -a
+            . /opt/sponda/.env
+            set +a
             npm run build
             cd /opt/sponda
 
