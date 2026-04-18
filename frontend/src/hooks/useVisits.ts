@@ -104,7 +104,7 @@ export function useRevisitSchedules() {
   });
 
   const updateSchedule = useMutation({
-    mutationFn: async ({ id, ...data }: { id: number; next_revisit?: string; recurrence_days?: number }) => {
+    mutationFn: async ({ id, ...data }: { id: number; next_revisit?: string; recurrence_days?: number | null }) => {
       const response = await fetch(`/api/auth/visits/schedules/${id}/`, {
         method: "PUT",
         headers: csrfHeaders(),
