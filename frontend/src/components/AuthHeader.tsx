@@ -51,7 +51,9 @@ export function AuthHeader() {
       {/* Inline items — visible on desktop, hidden on mobile */}
       <div className="auth-header-inline">
         <ShareDropdown />
-        <LanguageToggle />
+        <a href="https://blog.sponda.capital" className="auth-header-link" target="_blank" rel="noopener noreferrer">
+          Blog
+        </a>
         {isAuthenticated && (
           <>
             <Link href={`/${locale}/visitas`} className="auth-header-link">
@@ -62,10 +64,13 @@ export function AuthHeader() {
                 Admin
               </Link>
             )}
-            <Link href={`/${locale}/account`} className="auth-header-link">
-              {t("auth.my_account")}
-            </Link>
           </>
+        )}
+        <LanguageToggle />
+        {isAuthenticated && (
+          <Link href={`/${locale}/account`} className="auth-header-link">
+            {t("auth.my_account")}
+          </Link>
         )}
         {!isAuthenticated && (isOnAuthPage ? (
           <button
@@ -103,6 +108,15 @@ export function AuthHeader() {
               <ShareDropdown />
               <LanguageToggle />
             </div>
+            <a
+              href="https://blog.sponda.capital"
+              className="auth-header-menu-link"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={closeMenu}
+            >
+              Blog
+            </a>
             {isAuthenticated && (
               <>
                 <Link

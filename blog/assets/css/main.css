@@ -48,9 +48,17 @@ a:hover {
 
 /* Header */
 .site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding-bottom: 24px;
   margin-bottom: 40px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.site-header-left {
+  display: flex;
+  flex-direction: column;
 }
 
 .site-header-brand {
@@ -72,6 +80,17 @@ a:hover {
   color: var(--color-muted);
   margin-top: 4px;
   letter-spacing: 0;
+}
+
+.site-header-back {
+  font-size: 13px;
+  color: var(--color-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.site-header-back:hover {
+  color: #1b347e;
 }
 
 /* Footer */
@@ -125,6 +144,12 @@ a:hover {
 .post-list-title:hover {
   color: var(--color-accent);
   text-decoration: none;
+}
+
+.post-list-summary {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin: 4px 0 0 0;
 }
 
 /* Single post */
