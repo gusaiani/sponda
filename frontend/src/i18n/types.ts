@@ -436,6 +436,9 @@ export interface TranslationDictionary {
   "visits.must_login": string;
   "visits.banner_due": string;
   "visits.banner_overdue": string;
+  "visits.banner_change_settings": string;
+  "visits.banner_cancel_recurrence": string;
+  "visits.banner_cancel_confirm": string;
   "notifications.title": string;
   "notifications.no_pending": string;
   "notifications.mark_all_seen": string;

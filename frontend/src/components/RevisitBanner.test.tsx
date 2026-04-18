@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { RevisitBanner } from "./RevisitBanner";
 
 afterEach(cleanup);
@@ -31,7 +31,7 @@ function localToday(): string {
 
 const today = localToday();
 
-function makeSchedule(overrides: Partial<{ next_revisit: string }> = {}) {
+function makeSchedule(overrides: Partial<{ next_revisit: string; recurrence_days?: number | null }> = {}) {
   return {
     id: 1,
     ticker: "VALE3",
@@ -57,6 +57,8 @@ describe("RevisitBanner", () => {
   it("renders the banner when a revisit is due today and not yet visited", () => {
     mockUseRevisitSchedules.mockReturnValue({
       getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
     });
 
     render(<RevisitBanner ticker="VALE3" />);
@@ -66,6 +68,8 @@ describe("RevisitBanner", () => {
   it("hides the banner when the company has been visited today", () => {
     mockUseRevisitSchedules.mockReturnValue({
       getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
     });
     mockUseVisits.mockReturnValue({
       markVisited: { mutate: vi.fn() },
@@ -79,6 +83,8 @@ describe("RevisitBanner", () => {
   it("hides the banner when there is no schedule", () => {
     mockUseRevisitSchedules.mockReturnValue({
       getScheduleForTicker: () => undefined,
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
     });
 
     render(<RevisitBanner ticker="VALE3" />);
@@ -89,6 +95,8 @@ describe("RevisitBanner", () => {
     mockUseAuth.mockReturnValue({ isAuthenticated: false });
     mockUseRevisitSchedules.mockReturnValue({
       getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
     });
 
     render(<RevisitBanner ticker="VALE3" />);
@@ -98,13 +106,123 @@ describe("RevisitBanner", () => {
   it("hides the banner when the revisit is not due yet", () => {
     const future = new Date();
     future.setDate(future.getDate() + 7);
+    const futureDate = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`;
+
     mockUseRevisitSchedules.mockReturnValue({
-      getScheduleForTicker: () => makeSchedule({
-        next_revisit: `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`,
-      }),
+      getScheduleForTicker: () => makeSchedule({ next_revisit: futureDate }),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
     });
 
     render(<RevisitBanner ticker="VALE3" />);
     expect(document.querySelector(".revisit-banner")).toBeNull();
+  });
+
+  it("renders both Mark as visited and Change settings buttons", () => {
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    expect(document.querySelector(".revisit-banner-mark-visited")).not.toBeNull();
+    expect(document.querySelector(".revisit-banner-change-settings")).not.toBeNull();
+  });
+
+  it("expands form when Mark as visited button is clicked", () => {
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    const markVisitedButton = document.querySelector(".revisit-banner-mark-visited") as HTMLButtonElement;
+
+    fireEvent.click(markVisitedButton);
+
+    expect(document.querySelector(".revisit-banner-expanded")).not.toBeNull();
+    expect(document.querySelector(".revisit-banner-note-input")).not.toBeNull();
+    expect(document.querySelector(".revisit-banner-recurrence-select")).not.toBeNull();
+  });
+
+  it("calls markVisited.mutate when Save button is clicked in mark mode", () => {
+    const markVisitedMock = vi.fn();
+
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
+    });
+    mockUseVisits.mockReturnValue({
+      markVisited: { mutate: markVisitedMock },
+      isVisitedToday: () => false,
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    const markVisitedButton = document.querySelector(".revisit-banner-mark-visited") as HTMLButtonElement;
+
+    fireEvent.click(markVisitedButton);
+
+    const saveButton = document.querySelector(".revisit-banner-save") as HTMLButtonElement;
+    fireEvent.click(saveButton);
+
+    expect(markVisitedMock).toHaveBeenCalledWith({ ticker: "VALE3" });
+  });
+
+  it("expands settings form when Change settings button is clicked", () => {
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    const changeSettingsButton = document.querySelector(".revisit-banner-change-settings") as HTMLButtonElement;
+
+    fireEvent.click(changeSettingsButton);
+
+    expect(document.querySelector(".revisit-banner-expanded")).not.toBeNull();
+    expect(document.querySelector(".revisit-banner-cancel-recurrence")).not.toBeNull();
+  });
+
+  it("calls deleteSchedule when cancel recurrence is confirmed", () => {
+    const deleteScheduleMock = vi.fn();
+
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule(),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: deleteScheduleMock },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    const changeSettingsButton = document.querySelector(".revisit-banner-change-settings") as HTMLButtonElement;
+
+    fireEvent.click(changeSettingsButton);
+
+    const cancelRecurrenceButton = document.querySelector(".revisit-banner-cancel-recurrence") as HTMLButtonElement;
+    fireEvent.click(cancelRecurrenceButton);
+
+    const confirmButton = document.querySelector(".revisit-banner-cancel-recurrence-confirm") as HTMLButtonElement;
+    fireEvent.click(confirmButton);
+
+    expect(deleteScheduleMock).toHaveBeenCalledWith(1);
+  });
+
+  it("shows overdue message for past due dates", () => {
+    const past = new Date();
+    past.setDate(past.getDate() - 5);
+    const pastDate = `${past.getFullYear()}-${String(past.getMonth() + 1).padStart(2, "0")}-${String(past.getDate()).padStart(2, "0")}`;
+
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule({ next_revisit: pastDate }),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    const banner = document.querySelector(".revisit-banner");
+    expect(banner?.classList.contains("revisit-banner-overdue")).toBe(true);
   });
 });
