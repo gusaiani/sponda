@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useRevisitSchedules, useVisits } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
@@ -47,24 +47,25 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
     ? t("visits.banner_overdue", { date: schedule.next_revisit })
     : t("visits.banner_due");
 
-  // Close on click outside
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    if (expandRef.current && !expandRef.current.contains(event.target as Node)) {
+      setExpanded(false);
+    }
+  }, []);
+
+  const handleEscape = useCallback((event: KeyboardEvent) => {
+    if (event.key === "Escape") setExpanded(false);
+  }, []);
+
   useEffect(() => {
     if (!expanded) return;
-    function handleClickOutside(event: MouseEvent) {
-      if (expandRef.current && !expandRef.current.contains(event.target as Node)) {
-        setExpanded(false);
-      }
-    }
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setExpanded(false);
-    }
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [expanded]);
+  }, [expanded, handleClickOutside, handleEscape]);
 
   function handleMarkVisited() {
     setExpandedMode("mark");
