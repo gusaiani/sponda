@@ -171,9 +171,9 @@ describe("RevisitBanner", () => {
     expect(markVisitedMock).toHaveBeenCalledWith({ ticker: "VALE3" });
   });
 
-  it("expands settings form when Change settings button is clicked", () => {
+  it("expands settings form with Cancel recurrence when schedule is recurring", () => {
     mockUseRevisitSchedules.mockReturnValue({
-      getScheduleForTicker: () => makeSchedule(),
+      getScheduleForTicker: () => makeSchedule({ recurrence_days: 90 }),
       updateSchedule: { mutate: vi.fn() },
       deleteSchedule: { mutate: vi.fn() },
     });
@@ -187,11 +187,27 @@ describe("RevisitBanner", () => {
     expect(document.querySelector(".revisit-banner-cancel-recurrence")).not.toBeNull();
   });
 
+  it("hides Cancel recurrence button when schedule has no recurrence", () => {
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule({ recurrence_days: null }),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    const changeSettingsButton = document.querySelector(".revisit-banner-change-settings") as HTMLButtonElement;
+
+    fireEvent.click(changeSettingsButton);
+
+    expect(document.querySelector(".revisit-banner-expanded")).not.toBeNull();
+    expect(document.querySelector(".revisit-banner-cancel-recurrence")).toBeNull();
+  });
+
   it("calls deleteSchedule when cancel recurrence is confirmed", () => {
     const deleteScheduleMock = vi.fn();
 
     mockUseRevisitSchedules.mockReturnValue({
-      getScheduleForTicker: () => makeSchedule(),
+      getScheduleForTicker: () => makeSchedule({ recurrence_days: 90 }),
       updateSchedule: { mutate: vi.fn() },
       deleteSchedule: { mutate: deleteScheduleMock },
     });
