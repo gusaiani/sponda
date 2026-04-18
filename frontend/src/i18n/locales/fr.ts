@@ -495,6 +495,9 @@ export const fr: TranslationDictionary = {
   "alerts.save_error": "Could not save. Please try again.",
   "alerts.must_login": "Sign in to create alerts.",
   "alerts.already_triggered": "This alert would already fire now, given the current value.",
+  "alerts.page_title": "Alerts",
+  "alerts.no_alerts": "You haven't created any alerts yet.",
+  "alerts.triggered_badge": "Triggered",
 
   "header.screener": "Screener",
   "header.alerts": "Alerts",

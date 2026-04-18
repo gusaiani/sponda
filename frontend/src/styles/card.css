@@ -280,26 +280,28 @@
 }
 
 .metric-block .share-btn {
-  visibility: hidden;
-  transition: visibility 0.15s;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 
 .metric-block:hover .share-btn {
-  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Share button (scoped to metric blocks) */
 .metric-block > .share-btn {
   @apply absolute flex items-center justify-center cursor-pointer;
   top: 6px;
-  right: 6px;
+  right: 40px;
   width: 28px;
   height: 28px;
   border-radius: 6px;
   border: 1px solid var(--color-border);
   background: #ffffff;
   color: var(--color-muted);
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: opacity 0.15s ease, color 0.15s, border-color 0.15s, background 0.15s;
   z-index: 10;
   padding: 0;
 }
@@ -319,22 +321,33 @@
 .metric-block .metric-share-menu {
   position: absolute;
   top: 38px;
-  right: 6px;
+  right: 40px;
   z-index: 20;
 }
 
-/* Bell alert button positioned to the left of the share button */
+/* Bell alert button sits to the right of (rightmost position), share is to the left */
 .metric-block .metric-block-alert-btn {
-  visibility: hidden;
-  transition: visibility 0.15s;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
   position: absolute;
   top: 6px;
-  right: 40px;
+  right: 6px;
   z-index: 10;
 }
 
 .metric-block:hover .metric-block-alert-btn {
-  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* When an alert already exists for this metric, keep the bell visible even
+   without hover (see `.alert-button--active` inside). The rounded-card
+   background still only shows on hover, so the at-rest state is just the
+   bell glyph. */
+.metric-block .metric-block-alert-btn:has(.alert-button--active) {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .metric-block-alert-btn .alert-button-wrapper {
@@ -349,21 +362,34 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  border: 1px solid var(--color-border);
-  background: #ffffff;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--color-muted);
   margin: 0;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.2s;
 }
 
-.metric-block-alert-btn .alert-button:hover {
+.metric-block:hover .metric-block-alert-btn .alert-button {
+  border-color: var(--color-border);
+  background: #ffffff;
+}
+
+.metric-block .metric-block-alert-btn .alert-button:hover {
   color: var(--color-accent);
   border-color: var(--color-accent);
   background: #f5f7fb;
+  transform: scale(1.15);
 }
 
-.metric-block-alert-btn .alert-button--active {
+.metric-block .metric-block-alert-btn .alert-button--active {
   color: var(--color-accent);
+  background: #c3d1e8;
+  border-color: #c3d1e8;
+}
+
+.metric-block .metric-block-alert-btn .alert-button--active:hover {
+  background: #ffffff;
+  border-color: var(--color-accent);
 }
 
 .metric-block-alert-btn .alert-button svg {
