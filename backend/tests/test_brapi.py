@@ -4,6 +4,8 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
 from quotes.brapi import (
     BRAPIError,
@@ -12,10 +14,11 @@ from quotes.brapi import (
     fetch_income_statements,
     fetch_quote,
     sync_balance_sheets,
+    sync_cash_flows,
     sync_ipca,
     sync_earnings,
 )
-from quotes.models import BalanceSheet, IPCAIndex, QuarterlyEarnings
+from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
 MOCK_QUOTE_RESPONSE = {
@@ -422,6 +425,96 @@ class TestSyncBalanceSheetsPatchesLatestDebtFromFinancialData:
 
         latest = BalanceSheet.objects.get(ticker="VALE3", end_date=date(2025, 9, 30))
         assert latest.total_debt == 103_457_000_000  # sum of the two loan fields
+
+
+def _synthetic_brapi_income_statements(count: int) -> list[dict]:
+    return [
+        {
+            "endDate": f"20{25 - (i // 4):02d}-{((i % 4) * 3 + 1):02d}-15",
+            "netIncome": 1000 + i,
+            "totalRevenue": 5000 + i,
+            "basicEarningsPerCommonShare": 1.0 + i * 0.01,
+        }
+        for i in range(count)
+    ]
+
+
+def _synthetic_brapi_cash_flows(count: int) -> list[dict]:
+    return [
+        {
+            "endDate": f"20{25 - (i // 4):02d}-{((i % 4) * 3 + 1):02d}-15",
+            "operatingCashFlow": 1000 + i,
+            "investmentCashFlow": -100 - i,
+            "dividendsPaid": -50 - i,
+        }
+        for i in range(count)
+    ]
+
+
+def _synthetic_brapi_balance_sheets(count: int) -> list[dict]:
+    return [
+        {
+            "endDate": f"20{25 - (i // 4):02d}-{((i % 4) * 3 + 1):02d}-15",
+            "loansAndFinancing": 1000 + i,
+            "longTermLoansAndFinancing": 2000 + i,
+            "currentLiabilities": 500 + i,
+            "nonCurrentLiabilities": 1500 + i,
+            "shareholdersEquity": 3000 + i,
+            "totalCurrentAssets": 4000 + i,
+        }
+        for i in range(count)
+    ]
+
+
+MAX_QUERIES_PER_SYNC = 5
+
+
+class TestBrapiSyncEarningsIsBulk:
+    @patch("quotes.brapi.fetch_income_statements")
+    def test_uses_constant_query_count_regardless_of_row_count(self, mock_fetch, db):
+        mock_fetch.return_value = _synthetic_brapi_income_statements(20)
+        with CaptureQueriesContext(connection) as captured:
+            earnings = sync_earnings("PETR4")
+        assert len(earnings) == 20
+        assert QuarterlyEarnings.objects.filter(ticker="PETR4").count() == 20
+        assert len(captured) <= MAX_QUERIES_PER_SYNC, (
+            f"Expected ≤{MAX_QUERIES_PER_SYNC} queries, got {len(captured)}:\n"
+            + "\n".join(q["sql"] for q in captured)
+        )
+
+
+class TestBrapiSyncCashFlowsIsBulk:
+    @patch("quotes.brapi.fetch_cash_flow_statements")
+    def test_uses_constant_query_count_regardless_of_row_count(self, mock_fetch, db):
+        mock_fetch.return_value = _synthetic_brapi_cash_flows(20)
+        with CaptureQueriesContext(connection) as captured:
+            cash_flows = sync_cash_flows("PETR4")
+        assert len(cash_flows) == 20
+        assert QuarterlyCashFlow.objects.filter(ticker="PETR4").count() == 20
+        assert len(captured) <= MAX_QUERIES_PER_SYNC, (
+            f"Expected ≤{MAX_QUERIES_PER_SYNC} queries, got {len(captured)}:\n"
+            + "\n".join(q["sql"] for q in captured)
+        )
+
+
+class TestBrapiSyncBalanceSheetsIsBulk:
+    @patch("quotes.brapi.fetch_financial_data")
+    @patch("quotes.brapi._fetch_annual_lease_data")
+    @patch("quotes.brapi.fetch_balance_sheets")
+    def test_uses_constant_query_count_regardless_of_row_count(
+        self, mock_fetch, mock_annual_lease, mock_financial_data, db
+    ):
+        mock_fetch.return_value = _synthetic_brapi_balance_sheets(20)
+        mock_annual_lease.return_value = {}
+        mock_financial_data.return_value = {}
+        with CaptureQueriesContext(connection) as captured:
+            sheets = sync_balance_sheets("PETR4")
+        assert len(sheets) == 20
+        assert BalanceSheet.objects.filter(ticker="PETR4").count() == 20
+        assert len(captured) <= MAX_QUERIES_PER_SYNC, (
+            f"Expected ≤{MAX_QUERIES_PER_SYNC} queries, got {len(captured)}:\n"
+            + "\n".join(q["sql"] for q in captured)
+        )
 
 
 class TestSyncIPCA:

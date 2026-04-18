@@ -128,7 +128,8 @@ def fetch_dividends(ticker: str) -> list[dict]:
 def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
     """Fetch and store earnings for a US ticker from FMP."""
     statements = fetch_income_statements(ticker)
-    earnings = []
+    upper_ticker = ticker.upper()
+    records: list[QuarterlyEarnings] = []
 
     for statement in statements:
         end_date_string = (statement.get("date") or "")[:10]
@@ -137,39 +138,41 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
 
         end_date = date.fromisoformat(end_date_string)
 
-        eps_value = None
         eps_raw = statement.get("eps")
-        if eps_raw is not None:
-            eps_value = Decimal(str(eps_raw))
+        eps_value = Decimal(str(eps_raw)) if eps_raw is not None else None
 
-        net_income_value = None
         net_income_raw = statement.get("netIncome")
-        if net_income_raw is not None:
-            net_income_value = int(net_income_raw)
+        net_income_value = int(net_income_raw) if net_income_raw is not None else None
 
-        revenue_value = None
         revenue_raw = statement.get("revenue")
-        if revenue_raw is not None:
-            revenue_value = int(revenue_raw)
+        revenue_value = int(revenue_raw) if revenue_raw is not None else None
 
-        obj, _ = QuarterlyEarnings.objects.update_or_create(
-            ticker=ticker.upper(),
-            end_date=end_date,
-            defaults={
-                "eps": eps_value,
-                "net_income": net_income_value,
-                "revenue": revenue_value,
-            },
+        records.append(
+            QuarterlyEarnings(
+                ticker=upper_ticker,
+                end_date=end_date,
+                eps=eps_value,
+                net_income=net_income_value,
+                revenue=revenue_value,
+            )
         )
-        earnings.append(obj)
 
-    return earnings
+    if not records:
+        return []
+
+    return QuarterlyEarnings.objects.bulk_create(
+        records,
+        update_conflicts=True,
+        unique_fields=["ticker", "end_date"],
+        update_fields=["eps", "net_income", "revenue", "fetched_at"],
+    )
 
 
 def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
     """Fetch and store cash flow data for a US ticker from FMP."""
     statements = fetch_cash_flow_statements(ticker)
-    cash_flows = []
+    upper_ticker = ticker.upper()
+    records: list[QuarterlyCashFlow] = []
 
     for statement in statements:
         end_date_string = (statement.get("date") or "")[:10]
@@ -190,24 +193,37 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         if dividends_paid is not None:
             dividends_paid = int(dividends_paid)
 
-        obj, _ = QuarterlyCashFlow.objects.update_or_create(
-            ticker=ticker.upper(),
-            end_date=end_date,
-            defaults={
-                "operating_cash_flow": operating_cash_flow,
-                "investment_cash_flow": investing_cash_flow,
-                "dividends_paid": dividends_paid,
-            },
+        records.append(
+            QuarterlyCashFlow(
+                ticker=upper_ticker,
+                end_date=end_date,
+                operating_cash_flow=operating_cash_flow,
+                investment_cash_flow=investing_cash_flow,
+                dividends_paid=dividends_paid,
+            )
         )
-        cash_flows.append(obj)
 
-    return cash_flows
+    if not records:
+        return []
+
+    return QuarterlyCashFlow.objects.bulk_create(
+        records,
+        update_conflicts=True,
+        unique_fields=["ticker", "end_date"],
+        update_fields=[
+            "operating_cash_flow",
+            "investment_cash_flow",
+            "dividends_paid",
+            "fetched_at",
+        ],
+    )
 
 
 def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
     """Fetch and store balance sheet data for a US ticker from FMP."""
     statements = fetch_balance_sheets(ticker)
-    sheets = []
+    upper_ticker = ticker.upper()
+    records: list[BalanceSheet] = []
 
     for statement in statements:
         end_date_string = (statement.get("date") or "")[:10]
@@ -236,21 +252,36 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         if current_liabilities is not None:
             current_liabilities = int(current_liabilities)
 
-        obj, _ = BalanceSheet.objects.update_or_create(
-            ticker=ticker.upper(),
-            end_date=end_date,
-            defaults={
-                "total_debt": total_debt,
-                "total_lease": None,
-                "total_liabilities": total_liabilities,
-                "stockholders_equity": stockholders_equity,
-                "current_assets": current_assets,
-                "current_liabilities": current_liabilities,
-            },
+        records.append(
+            BalanceSheet(
+                ticker=upper_ticker,
+                end_date=end_date,
+                total_debt=total_debt,
+                total_lease=None,
+                total_liabilities=total_liabilities,
+                stockholders_equity=stockholders_equity,
+                current_assets=current_assets,
+                current_liabilities=current_liabilities,
+            )
         )
-        sheets.append(obj)
 
-    return sheets
+    if not records:
+        return []
+
+    return BalanceSheet.objects.bulk_create(
+        records,
+        update_conflicts=True,
+        unique_fields=["ticker", "end_date"],
+        update_fields=[
+            "total_debt",
+            "total_lease",
+            "total_liabilities",
+            "stockholders_equity",
+            "current_assets",
+            "current_liabilities",
+            "fetched_at",
+        ],
+    )
 
 
 def sync_us_cpi() -> int:

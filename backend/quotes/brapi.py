@@ -123,7 +123,8 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
     Works with both quarterly and annual income statements.
     """
     statements = fetch_income_statements(ticker)
-    earnings = []
+    upper_ticker = ticker.upper()
+    records: list[QuarterlyEarnings] = []
 
     for stmt in statements:
         end_date_str = stmt.get("endDate", "")[:10]
@@ -132,33 +133,34 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
 
         end_date = date.fromisoformat(end_date_str)
 
-        eps_value = None
         eps_raw = stmt.get("basicEarningsPerCommonShare")
-        if eps_raw is not None:
-            eps_value = Decimal(str(eps_raw))
+        eps_value = Decimal(str(eps_raw)) if eps_raw is not None else None
 
-        net_income_value = None
         net_income_raw = stmt.get("netIncome")
-        if net_income_raw is not None:
-            net_income_value = int(net_income_raw)
+        net_income_value = int(net_income_raw) if net_income_raw is not None else None
 
-        revenue_value = None
         revenue_raw = stmt.get("totalRevenue")
-        if revenue_raw is not None:
-            revenue_value = int(revenue_raw)
+        revenue_value = int(revenue_raw) if revenue_raw is not None else None
 
-        obj, _ = QuarterlyEarnings.objects.update_or_create(
-            ticker=ticker.upper(),
-            end_date=end_date,
-            defaults={
-                "eps": eps_value,
-                "net_income": net_income_value,
-                "revenue": revenue_value,
-            },
+        records.append(
+            QuarterlyEarnings(
+                ticker=upper_ticker,
+                end_date=end_date,
+                eps=eps_value,
+                net_income=net_income_value,
+                revenue=revenue_value,
+            )
         )
-        earnings.append(obj)
 
-    return earnings
+    if not records:
+        return []
+
+    return QuarterlyEarnings.objects.bulk_create(
+        records,
+        update_conflicts=True,
+        unique_fields=["ticker", "end_date"],
+        update_fields=["eps", "net_income", "revenue", "fetched_at"],
+    )
 
 
 def fetch_cash_flow_statements(ticker: str) -> list[dict]:
@@ -196,7 +198,8 @@ def fetch_cash_flow_statements(ticker: str) -> list[dict]:
 def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
     """Fetch and store cash flow data for a ticker from BRAPI."""
     statements = fetch_cash_flow_statements(ticker)
-    cash_flows = []
+    upper_ticker = ticker.upper()
+    records: list[QuarterlyCashFlow] = []
 
     for stmt in statements:
         end_date_str = stmt.get("endDate", "")[:10]
@@ -217,18 +220,30 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         if dividends_paid is not None:
             dividends_paid = int(dividends_paid)
 
-        obj, _ = QuarterlyCashFlow.objects.update_or_create(
-            ticker=ticker.upper(),
-            end_date=end_date,
-            defaults={
-                "operating_cash_flow": operating_cf,
-                "investment_cash_flow": investment_cf,
-                "dividends_paid": dividends_paid,
-            },
+        records.append(
+            QuarterlyCashFlow(
+                ticker=upper_ticker,
+                end_date=end_date,
+                operating_cash_flow=operating_cf,
+                investment_cash_flow=investment_cf,
+                dividends_paid=dividends_paid,
+            )
         )
-        cash_flows.append(obj)
 
-    return cash_flows
+    if not records:
+        return []
+
+    return QuarterlyCashFlow.objects.bulk_create(
+        records,
+        update_conflicts=True,
+        unique_fields=["ticker", "end_date"],
+        update_fields=[
+            "operating_cash_flow",
+            "investment_cash_flow",
+            "dividends_paid",
+            "fetched_at",
+        ],
+    )
 
 
 def fetch_balance_sheets(ticker: str) -> list[dict]:
@@ -312,7 +327,8 @@ def fetch_financial_data(ticker: str) -> dict:
 def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
     """Fetch and store balance sheet data for a ticker from BRAPI."""
     statements = fetch_balance_sheets(ticker)
-    sheets = []
+    upper_ticker = ticker.upper()
+    records: list[BalanceSheet] = []
 
     # Pre-fetch annual lease data in case quarterly doesn't have it
     annual_lease: dict[str, tuple[int | None, int | None]] | None = None
@@ -368,19 +384,36 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         if current_assets is not None:
             current_assets = int(current_assets)
 
-        obj, _ = BalanceSheet.objects.update_or_create(
-            ticker=ticker.upper(),
-            end_date=end_date,
-            defaults={
-                "total_debt": total_debt,
-                "total_lease": total_lease,
-                "total_liabilities": total_liab,
-                "stockholders_equity": equity,
-                "current_assets": current_assets,
-                "current_liabilities": int(current_liab) if current_liab is not None else None,
-            },
+        records.append(
+            BalanceSheet(
+                ticker=upper_ticker,
+                end_date=end_date,
+                total_debt=total_debt,
+                total_lease=total_lease,
+                total_liabilities=total_liab,
+                stockholders_equity=equity,
+                current_assets=current_assets,
+                current_liabilities=int(current_liab) if current_liab is not None else None,
+            )
         )
-        sheets.append(obj)
+
+    if not records:
+        return []
+
+    sheets = BalanceSheet.objects.bulk_create(
+        records,
+        update_conflicts=True,
+        unique_fields=["ticker", "end_date"],
+        update_fields=[
+            "total_debt",
+            "total_lease",
+            "total_liabilities",
+            "stockholders_equity",
+            "current_assets",
+            "current_liabilities",
+            "fetched_at",
+        ],
+    )
 
     _patch_latest_total_debt_from_financial_data(ticker, sheets)
     return sheets
