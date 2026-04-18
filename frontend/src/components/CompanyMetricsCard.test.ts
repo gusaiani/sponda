@@ -1,11 +1,52 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildDebtToRollingAvgSeries,
   buildMarketCapSeries,
   buildQuarterlyRatioSeries,
   buildRollingRatioSeries,
   formatYearsOfData,
   rollingAverage,
 } from "./CompanyMetricsCard";
+import type { FundamentalsYear } from "../hooks/useFundamentals";
+
+function year(
+  y: number,
+  totalDebt: number | null,
+  netIncomeAdjusted: number | null,
+  fcfAdjusted: number | null,
+): FundamentalsYear {
+  return {
+    year: y,
+    quarters: 4,
+    balanceSheetDate: `${y}-12-31`,
+    marketCap: null,
+    marketCapAdjusted: null,
+    totalDebt,
+    totalLease: null,
+    debtExLease: null,
+    debtExLeaseAdjusted: null,
+    totalLiabilities: null,
+    totalLiabilitiesAdjusted: null,
+    stockholdersEquity: null,
+    stockholdersEquityAdjusted: null,
+    currentAssets: null,
+    currentLiabilities: null,
+    debtToEquity: null,
+    liabilitiesToEquity: null,
+    currentRatio: null,
+    revenue: null,
+    revenueAdjusted: null,
+    netIncome: null,
+    netIncomeAdjusted,
+    fcf: null,
+    fcfAdjusted,
+    operatingCashFlow: null,
+    operatingCashFlowAdjusted: null,
+    dividendsPaid: null,
+    dividendsAdjusted: null,
+    ipcaFactor: 1,
+  };
+}
 
 describe("buildMarketCapSeries", () => {
   const priceHistory = [
@@ -111,6 +152,90 @@ describe("buildQuarterlyRatioSeries", () => {
     const result = buildQuarterlyRatioSeries(quarterlyRatios, "debtToEquity", 10);
     expect(result[0].yearTick).toBe("23");
     expect(result[4].yearTick).toBe("24");
+  });
+});
+
+describe("buildDebtToRollingAvgSeries", () => {
+  // 6 years of fundamentals with debt + earnings + fcf
+  const fundamentals: FundamentalsYear[] = [
+    year(2019, 100, 10, 20),
+    year(2020, 120, 20, 30),
+    year(2021, 150, 30, 40),
+    year(2022, 200, 40, 50),
+    year(2023, 220, 50, 60),
+    year(2024, 240, 60, 70),
+  ];
+
+  it("computes debt(y) / rolling-avg-earnings(window ending at y)", () => {
+    const result = buildDebtToRollingAvgSeries(fundamentals, "netIncomeAdjusted", 3, 10);
+    // window=3, so first plottable year is 2021 with avg(2019,2020,2021) = (10+20+30)/3 = 20
+    // ratio at 2021 = 150 / 20 = 7.5
+    expect(result[0].label).toBe("2021");
+    expect(result[0].value).toBe(7.5);
+    // last: 2024 with avg(2022,2023,2024)=(40+50+60)/3=50 → 240/50 = 4.8
+    expect(result[result.length - 1].label).toBe("2024");
+    expect(result[result.length - 1].value).toBeCloseTo(4.8, 5);
+  });
+
+  it("works for fcfAdjusted field", () => {
+    const result = buildDebtToRollingAvgSeries(fundamentals, "fcfAdjusted", 3, 10);
+    // window=3, 2021: avg(20,30,40)=30 → 150/30 = 5
+    expect(result[0].value).toBe(5);
+  });
+
+  it("skips years without enough prior history for the rolling window", () => {
+    const result = buildDebtToRollingAvgSeries(fundamentals, "netIncomeAdjusted", 5, 10);
+    // window=5 → first plottable year is 2023 (needs 2019..2023)
+    expect(result.length).toBe(2);
+    expect(result[0].label).toBe("2023");
+    expect(result[1].label).toBe("2024");
+  });
+
+  it("applies sliceYears to the tail", () => {
+    // Window 2 gives 5 plottable years (2020..2024). sliceYears=3 keeps last 3.
+    const result = buildDebtToRollingAvgSeries(fundamentals, "netIncomeAdjusted", 2, 3);
+    expect(result.length).toBe(3);
+    expect(result.map((p) => p.label)).toEqual(["2022", "2023", "2024"]);
+  });
+
+  it("skips years where debt is missing", () => {
+    const withMissing = [
+      year(2020, null, 10, 20),
+      year(2021, 100, 20, 30),
+      year(2022, 150, 30, 40),
+    ];
+    const result = buildDebtToRollingAvgSeries(withMissing, "netIncomeAdjusted", 2, 10);
+    // window=2: 2021 needs 2020+2021 earnings (both present), debt(2021)=100, avg=15 → 100/15
+    // 2022 needs 2021+2022 earnings, debt(2022)=150, avg=25 → 150/25=6
+    expect(result.map((p) => p.label)).toEqual(["2021", "2022"]);
+    expect(result[1].value).toBe(6);
+  });
+
+  it("skips years where avg denominator is zero or negative", () => {
+    const withLoss = [
+      year(2020, 100, -10, -10),
+      year(2021, 100, -20, -20),
+      year(2022, 100, -30, -30),
+    ];
+    const result = buildDebtToRollingAvgSeries(withLoss, "netIncomeAdjusted", 2, 10);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty when window exceeds available history", () => {
+    const result = buildDebtToRollingAvgSeries(fundamentals, "netIncomeAdjusted", 20, 10);
+    expect(result).toEqual([]);
+  });
+
+  it("includes yearTick", () => {
+    const result = buildDebtToRollingAvgSeries(fundamentals, "netIncomeAdjusted", 3, 10);
+    expect(result[0].yearTick).toBe("21");
+  });
+
+  it("handles unsorted input", () => {
+    const shuffled = [fundamentals[3], fundamentals[0], fundamentals[5], fundamentals[1], fundamentals[4], fundamentals[2]];
+    const result = buildDebtToRollingAvgSeries(shuffled, "netIncomeAdjusted", 3, 10);
+    expect(result[0].label).toBe("2021");
+    expect(result[result.length - 1].label).toBe("2024");
   });
 });
 

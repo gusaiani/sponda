@@ -108,6 +108,38 @@ export function buildRollingRatioSeries(
   return series;
 }
 
+export function buildDebtToRollingAvgSeries(
+  fundamentals: import("../hooks/useFundamentals").FundamentalsYear[],
+  denominatorField: "netIncomeAdjusted" | "fcfAdjusted",
+  windowYears: number,
+  sliceYears: number,
+): DataPoint[] {
+  if (!fundamentals.length || windowYears < 1) return [];
+  const sorted = [...fundamentals].sort((a, b) => a.year - b.year);
+  if (sorted.length < windowYears) return [];
+
+  const points: DataPoint[] = [];
+  for (let i = windowYears - 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    if (current.totalDebt === null) continue;
+
+    const window = sorted.slice(i - windowYears + 1, i + 1);
+    const values = window.map((y) => y[denominatorField]);
+    if (values.some((v) => v === null || v === undefined)) continue;
+
+    const avg = (values as number[]).reduce((a, b) => a + b, 0) / window.length;
+    if (avg <= 0) continue;
+
+    points.push({
+      label: String(current.year),
+      value: current.totalDebt / avg,
+      yearTick: String(current.year).slice(2),
+    });
+  }
+
+  return points.slice(-sliceYears);
+}
+
 export function buildQuarterlyRatioSeries(
   quarterlyRatios: { date: string; debtToEquity: number | null; liabilitiesToEquity: number | null }[],
   field: "debtToEquity" | "liabilitiesToEquity",
@@ -186,6 +218,8 @@ const CHART_VALUE_FORMATTERS: Record<string, (value: number) => string> = {
   [METRIC_IDS.debtToEquity]: (value) => value.toFixed(2),
   [METRIC_IDS.debtExLease]: (value) => value.toFixed(2),
   [METRIC_IDS.liabToEquity]: (value) => value.toFixed(2),
+  [METRIC_IDS.debtToEarnings]: (value) => value.toFixed(1),
+  [METRIC_IDS.debtToFCF]: (value) => value.toFixed(1),
 };
 
 /* ── Share button + dropdown (matches header ShareDropdown) ── */
@@ -1103,6 +1137,22 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       years,
     );
 
+    // Rolling N-year debt-coverage ratios — matches the main number's formula
+    // at each historical year. N = slider window (same as PE10 / PFCF10 window).
+    const debtToEarningsSeries: DataPoint[] = buildDebtToRollingAvgSeries(
+      fundamentals ?? [],
+      "netIncomeAdjusted",
+      data.pe10YearsOfData || years,
+      years,
+    );
+
+    const debtToFCFSeries: DataPoint[] = buildDebtToRollingAvgSeries(
+      fundamentals ?? [],
+      "fcfAdjusted",
+      data.pfcf10YearsOfData || years,
+      years,
+    );
+
     const marketCapSeries: DataPoint[] = buildMarketCapSeries(
       priceHistory ?? [],
       data.marketCap,
@@ -1154,10 +1204,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       [METRIC_IDS.debtToEquity]: debtEquitySeries,
       [METRIC_IDS.debtExLease]: debtEquitySeries,
       [METRIC_IDS.liabToEquity]: liabEquitySeries,
-      [METRIC_IDS.debtToEarnings]: earningsSeries,
-      [METRIC_IDS.debtToFCF]: fcfSeries,
+      [METRIC_IDS.debtToEarnings]: debtToEarningsSeries,
+      [METRIC_IDS.debtToFCF]: debtToFCFSeries,
     } as Record<string, DataPoint[]>;
-  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, data.marketCap, data.currentPrice, data.earningsCAGR, data.fcfCAGR, fundamentals, quarterlyRatios, priceHistory, years]);
+  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, data.pe10YearsOfData, data.pfcf10YearsOfData, data.marketCap, data.currentPrice, data.earningsCAGR, data.fcfCAGR, fundamentals, quarterlyRatios, priceHistory, years]);
 
   /* Highlight metric from URL hash */
   useEffect(() => {
