@@ -1,6 +1,6 @@
 baseURL = "https://blog.sponda.capital/"
-languageCode = "pt-br"
-defaultContentLanguage = "pt-br"
+languageCode = "en"
+defaultContentLanguage = "en"
 title = "Sponda"
 enableRobotsTXT = true
 enableGitInfo = false
@@ -21,6 +21,6 @@ pagination.pagerSize = 50
   endLevel = 3
 
 [params]
-  description = "Notas sobre investimento em ações brasileiras."
+  description = "Notes on stock investing."
   author = "Sponda"
   mainSiteURL = "https://sponda.capital"

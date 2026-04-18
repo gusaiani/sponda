@@ -1,6 +1,6 @@
 {{- $css := resources.Get "css/main.css" | resources.Minify | resources.Fingerprint -}}
 <!doctype html>
-<html lang="{{ site.LanguageCode | default "pt-br" }}">
+<html lang="{{ site.LanguageCode | default "en" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -20,8 +20,11 @@
 <body>
   <div class="wrap">
     <header class="site-header">
-      <a class="site-header-brand" href="/">Sponda</a>
-      <div class="site-header-tagline">Notas sobre investimento em ações brasileiras</div>
+      <div class="site-header-left">
+        <a class="site-header-brand" href="/">Sponda Blog</a>
+        <div class="site-header-tagline">{{ site.Params.description }}</div>
+      </div>
+      <a class="site-header-back" href="{{ site.Params.mainSiteURL }}">Back to Sponda →</a>
     </header>
     <main>
       {{ block "main" . }}{{ end }}
