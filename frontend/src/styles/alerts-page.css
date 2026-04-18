@@ -1,0 +1,101 @@
+@reference "tailwindcss";
+
+.alerts-page {
+  @apply max-w-3xl mx-auto;
+}
+
+.alerts-page-title {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-2xl font-semibold mb-6;
+  color: var(--color-ink);
+}
+
+.alerts-page-text {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm;
+  color: var(--color-muted);
+}
+
+.alerts-page-empty {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm italic;
+  color: var(--color-muted);
+  padding: 16px 0;
+}
+
+.alerts-page-list {
+  @apply flex flex-col gap-2 list-none p-0;
+}
+
+.alerts-page-item {
+  @apply flex items-center rounded-lg;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f5f7fb;
+  padding: 12px 16px;
+  gap: 12px;
+  transition: background 0.15s;
+}
+
+.alerts-page-item:hover {
+  background: #eaeff8;
+}
+
+.alerts-page-item-link {
+  @apply flex items-center flex-1 no-underline;
+  color: var(--color-ink);
+  gap: 12px;
+  min-width: 0;
+}
+
+.alerts-page-item-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.alerts-page-item-ticker {
+  @apply font-semibold text-sm;
+  color: var(--color-ink);
+  min-width: 64px;
+}
+
+.alerts-page-item-condition {
+  @apply text-sm;
+  color: var(--color-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alerts-page-item-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: #b42318;
+  background: #ffeaea;
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.alerts-page-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--color-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+
+.alerts-page-item-delete:hover {
+  color: #b42318;
+}
+
+.alerts-page-item-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

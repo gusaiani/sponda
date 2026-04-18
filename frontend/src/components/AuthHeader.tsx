@@ -59,6 +59,9 @@ export function AuthHeader() {
             <Link href={`/${locale}/visitas`} className="auth-header-link">
               {t("visits.page_title")}
             </Link>
+            <Link href={`/${locale}/alertas`} className="auth-header-link">
+              {t("alerts.page_title")}
+            </Link>
             {isSuperuser && (
               <Link href={`/${locale}/admin-dashboard`} className="auth-header-link auth-header-admin">
                 Admin
@@ -125,6 +128,13 @@ export function AuthHeader() {
                   onClick={closeMenu}
                 >
                   {t("visits.page_title")}
+                </Link>
+                <Link
+                  href={`/${locale}/alertas`}
+                  className="auth-header-menu-link"
+                  onClick={closeMenu}
+                >
+                  {t("alerts.page_title")}
                 </Link>
                 {isSuperuser && (
                   <Link

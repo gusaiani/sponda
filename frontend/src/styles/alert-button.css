@@ -23,11 +23,13 @@
   cursor: pointer;
   font-family: inherit;
   vertical-align: middle;
+  transition: color 0.15s, background 0.15s, border-color 0.15s, transform 0.2s;
 }
 
 .alert-button:hover {
   color: #1b347e;
   background: #e8eef7;
+  transform: scale(1.15);
 }
 
 .alert-button--active {
