@@ -334,6 +334,7 @@ Unified error, performance, and cron monitoring through Sentry (free tier) plus 
 | `NEXT_PUBLIC_SENTRY_DSN` | frontend build | Browser DSN. Baked into the client bundle at build time. |
 | `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | frontend | Same semantics as backend, but client-side. |
 | `NEXT_PUBLIC_SENTRY_RELEASE` | frontend | Client release tag. |
+| `SENTRY_DSN_NEXTJS` | frontend runtime | DSN used by the Next.js Node + edge runtimes. Separate from Django's `SENTRY_DSN` so server-rendered and API-route errors reach the `javascript-nextjs` project. Falls back to `SENTRY_DSN` when unset. |
 | `SENTRY_AUTH_TOKEN` | frontend build / CI | Source-map upload. Build succeeds without it, source maps just aren't uploaded. |
 | `SENTRY_ORG`, `SENTRY_PROJECT` | frontend build | Target for source-map upload. |
 
