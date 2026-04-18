@@ -494,6 +494,7 @@ export const pt: TranslationDictionary = {
   "alerts.duplicate_error": "J\u00e1 existe um alerta com essa condi\u00e7\u00e3o.",
   "alerts.save_error": "N\u00e3o foi poss\u00edvel salvar. Tente novamente.",
   "alerts.must_login": "Fa\u00e7a login para criar alertas.",
+  "alerts.already_triggered": "Este alerta j\u00e1 seria disparado agora, com o valor atual.",
 
   "header.screener": "Triagem",
   "header.alerts": "Alertas",
