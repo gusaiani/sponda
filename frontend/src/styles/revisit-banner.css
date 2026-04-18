@@ -118,7 +118,6 @@
 .revisit-banner-note-input:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px rgba(var(--color-accent-rgb), 0.1);
 }
 
 .revisit-banner-recurrence-label {
