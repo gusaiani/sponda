@@ -32,21 +32,6 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
   const [recurrenceDays, setRecurrenceDays] = useState("");
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
-  if (!isAuthenticated) return null;
-  if (isVisitedToday(ticker)) return null;
-
-  const schedule = getScheduleForTicker(ticker);
-  if (!schedule) return null;
-
-  const today = localToday();
-  const isDue = schedule.next_revisit <= today;
-  if (!isDue) return null;
-
-  const isOverdue = schedule.next_revisit < today;
-  const message = isOverdue
-    ? t("visits.banner_overdue", { date: schedule.next_revisit })
-    : t("visits.banner_due");
-
   const handleClickOutside = useCallback((event: MouseEvent) => {
     if (expandRef.current && !expandRef.current.contains(event.target as Node)) {
       setExpanded(false);
@@ -66,6 +51,21 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
       document.removeEventListener("keydown", handleEscape);
     };
   }, [expanded, handleClickOutside, handleEscape]);
+
+  if (!isAuthenticated) return null;
+  if (isVisitedToday(ticker)) return null;
+
+  const schedule = getScheduleForTicker(ticker);
+  if (!schedule) return null;
+
+  const today = localToday();
+  const isDue = schedule.next_revisit <= today;
+  if (!isDue) return null;
+
+  const isOverdue = schedule.next_revisit < today;
+  const message = isOverdue
+    ? t("visits.banner_overdue", { date: schedule.next_revisit })
+    : t("visits.banner_due");
 
   function handleMarkVisited() {
     setExpandedMode("mark");
