@@ -18,7 +18,8 @@
 
 @media (max-width: 640px) {
   .revisit-banner {
-    margin-left: 16px;
+    margin-left: 0;
+    margin-right: 0;
   }
 }
 
