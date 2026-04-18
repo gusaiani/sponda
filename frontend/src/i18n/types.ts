@@ -496,6 +496,7 @@ export interface TranslationDictionary {
   "alerts.duplicate_error": string;
   "alerts.save_error": string;
   "alerts.must_login": string;
+  "alerts.already_triggered": string;
 
   /* ── Header Links ── */
   "header.screener": string;

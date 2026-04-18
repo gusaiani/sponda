@@ -1235,6 +1235,20 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     return <MiniChart data={series} formatValue={formatter} />;
   };
 
+  const currentValueByIndicator: Record<string, number | null> = {
+    current_price: data.currentPrice,
+    market_cap: data.marketCap,
+    pe10: data.pe10,
+    pfcf10: data.pfcf10,
+    peg: data.peg,
+    pfcf_peg: data.pfcfPeg,
+    debt_to_equity: data.debtToEquity,
+    debt_ex_lease_to_equity: data.debtExLeaseToEquity,
+    liabilities_to_equity: data.liabilitiesToEquity,
+    debt_to_avg_earnings: data.debtToAvgEarnings,
+    debt_to_avg_fcf: data.debtToAvgFCF,
+  };
+
   const renderAlertButton = (metricId: string, indicatorLabel: string) => {
     const indicatorKey = ALERT_INDICATOR_BY_METRIC_ID[metricId];
     if (!indicatorKey) return null;
@@ -1244,6 +1258,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           ticker={data.ticker}
           indicator={indicatorKey}
           indicatorLabel={indicatorLabel}
+          currentValue={currentValueByIndicator[indicatorKey] ?? null}
         />
       </div>
     );

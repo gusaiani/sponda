@@ -13,6 +13,12 @@ interface AlertButtonProps {
   indicator: string;
   /** Label shown in the popover header so the user knows what they're alerting on. */
   indicatorLabel: string;
+  /**
+   * Current indicator value. When provided, the popover warns (and blocks save)
+   * if the entered threshold + comparison would already be satisfied — otherwise
+   * the alert would fire immediately after creation.
+   */
+  currentValue?: number | null;
 }
 
 /**
@@ -26,7 +32,7 @@ interface AlertButtonProps {
  * "delete + recreate" which matches how the backend enforces the
  * (ticker, indicator, comparison) unique constraint.
  */
-export function AlertButton({ ticker, indicator, indicatorLabel }: AlertButtonProps) {
+export function AlertButton({ ticker, indicator, indicatorLabel, currentValue }: AlertButtonProps) {
   const { t } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { alerts, createAlert, deleteAlert } = useAlerts(ticker);
@@ -39,6 +45,15 @@ export function AlertButton({ ticker, indicator, indicatorLabel }: AlertButtonPr
 
   const alertsForIndicator = alerts.filter((alert) => alert.indicator === indicator);
   const hasAlerts = alertsForIndicator.length > 0;
+
+  const parsedThreshold = threshold.trim() === "" ? NaN : Number(threshold);
+  const thresholdIsValid = Number.isFinite(parsedThreshold);
+  const alreadyTriggered =
+    thresholdIsValid &&
+    currentValue !== null &&
+    currentValue !== undefined &&
+    Number.isFinite(currentValue) &&
+    (comparison === "lte" ? currentValue <= parsedThreshold : currentValue >= parsedThreshold);
 
   // Close on click-outside / Escape.
   useEffect(() => {
@@ -72,6 +87,7 @@ export function AlertButton({ ticker, indicator, indicatorLabel }: AlertButtonPr
 
   async function handleSave() {
     if (!threshold.trim()) return;
+    if (alreadyTriggered) return;
     setSubmitError(null);
     try {
       await createAlert.mutateAsync({
@@ -145,13 +161,19 @@ export function AlertButton({ ticker, indicator, indicatorLabel }: AlertButtonPr
             />
           </div>
 
+          {alreadyTriggered && (
+            <div className="alert-popover-warning" role="alert">
+              {t("alerts.already_triggered")}
+            </div>
+          )}
+
           {submitError && <div className="alert-popover-error">{submitError}</div>}
 
           <button
             type="button"
             className="alert-popover-save"
             onClick={handleSave}
-            disabled={!threshold.trim() || createAlert.isPending}
+            disabled={!threshold.trim() || alreadyTriggered || createAlert.isPending}
           >
             {t("alerts.save")}
           </button>
