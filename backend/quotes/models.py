@@ -116,6 +116,11 @@ class Ticker(models.Model):
     type = models.CharField(max_length=50, blank=True, default="")
     logo = models.URLField(max_length=500, blank=True, default="")
     market_cap = models.BigIntegerField(null=True, blank=True, default=None)
+    aliases = models.TextField(
+        blank=True,
+        default="",
+        help_text="Newline-separated former or alternate names used for search (e.g. 'General Electric' for GE after the 2024 rebrand).",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

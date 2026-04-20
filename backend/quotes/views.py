@@ -8,7 +8,7 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import F
+from django.db.models import Case, F, IntegerField, Q, Value, When
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
@@ -460,20 +460,30 @@ class TickerSearchView(APIView):
 
         fields = ("symbol", "name", "display_name", "sector", "type", "logo", "market_cap")
 
-        # Symbol prefix matches (capped to leave room for name matches)
+        # Symbol prefix matches. Rank the exact-symbol row (if any) ahead of
+        # longer siblings so it survives the MAX_SYMBOL_MATCHES cap even when
+        # its market_cap is NULL.
+        exact_symbol_priority = Case(
+            When(symbol__iexact=query_upper, then=Value(0)),
+            default=Value(1),
+            output_field=IntegerField(),
+        )
         symbol_matches = list(
             Ticker.objects.filter(type="stock", symbol__istartswith=query_upper)
             .exclude(symbol__regex=exclude_fractional)
-            .order_by(market_cap_ordering)
+            .order_by(exact_symbol_priority, market_cap_ordering)
             .values(*fields)
             [:self.MAX_SYMBOL_MATCHES]
         )
 
-        # Name matches (always fetched to blend in popular companies)
+        # Name and alias matches (always fetched to blend in popular companies,
+        # and to surface tickers whose current display_name no longer contains
+        # the phrase users still search for — e.g. "General Electric" → GE).
         found_symbols = {r["symbol"] for r in symbol_matches}
         name_slots = max(self.MIN_NAME_SLOTS, self.SEARCH_LIMIT - len(symbol_matches))
         name_matches = list(
-            Ticker.objects.filter(type="stock", display_name__icontains=query)
+            Ticker.objects.filter(type="stock")
+            .filter(Q(display_name__icontains=query) | Q(aliases__icontains=query))
             .exclude(symbol__in=found_symbols)
             .exclude(symbol__regex=exclude_fractional)
             .order_by(market_cap_ordering)
@@ -481,9 +491,22 @@ class TickerSearchView(APIView):
             [:name_slots]
         )
 
-        # Merge and sort: all results together, ranked by market cap
+        # Merge by relevance bucket first, then market cap. Buckets:
+        #   0 = exact symbol match, 1 = symbol prefix match, 2 = name contains.
+        # Within a bucket, larger market caps win and NULLs sort last.
+        def relevance_key(row):
+            symbol = row["symbol"].upper()
+            if symbol == query_upper:
+                bucket = 0
+            elif symbol.startswith(query_upper):
+                bucket = 1
+            else:
+                bucket = 2
+            market_cap = row["market_cap"]
+            return (bucket, market_cap is None, -(market_cap or 0))
+
         results = symbol_matches + name_matches
-        results.sort(key=lambda r: (r["market_cap"] is None, -(r["market_cap"] or 0)))
+        results.sort(key=relevance_key)
         results = results[:self.SEARCH_LIMIT]
 
         for ticker in results:
