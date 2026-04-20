@@ -228,6 +228,50 @@
   text-decoration: underline;
 }
 
+.account-action-danger {
+  color: #b91c1c;
+}
+
+.account-preferences {
+  @apply flex flex-col gap-2 mb-6;
+  padding: 16px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.account-preferences-status {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-xs;
+  color: var(--color-muted);
+  margin: 0;
+  padding-left: 24px;
+}
+
+.account-preferences-status-saved {
+  color: #16a34a;
+}
+
+.account-delete-warning {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm text-center mb-4;
+  color: #b91c1c;
+  line-height: 1.6;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 12px 16px;
+}
+
+.auth-button-danger {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+
+.auth-button-danger:hover:not(:disabled) {
+  background: #7f1d1d;
+  border-color: #7f1d1d;
+}
+
 .account-back-link {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-sm bg-transparent border-none cursor-pointer;

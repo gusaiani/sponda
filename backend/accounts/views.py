@@ -18,8 +18,10 @@ from datetime import date, timedelta
 
 from .models import CompanyVisit, EmailVerificationToken, FavoriteCompany, IndicatorAlert, PageView, PasswordResetToken, RevisitSchedule, SavedList, SavedScreenerFilter, UserOperation
 from .serializers import (
+    ChangeEmailSerializer,
     ChangePasswordSerializer,
     CompanyVisitSerializer,
+    DeleteAccountSerializer,
     FavoriteCompanySerializer,
     FeedbackSerializer,
     ForgotPasswordSerializer,
@@ -31,6 +33,7 @@ from .serializers import (
     SavedListSerializer,
     SavedScreenerFilterSerializer,
     SignupSerializer,
+    UpdatePreferencesSerializer,
 )
 
 User = get_user_model()
@@ -402,6 +405,7 @@ class MeView(APIView):
             "is_superuser": request.user.is_superuser,
             "email_verified": request.user.email_verified,
             "date_joined": request.user.date_joined,
+            "allow_contact": request.user.allow_contact,
         })
 
 
@@ -471,6 +475,82 @@ class ChangePasswordView(APIView):
         request.user.save()
         login(request, request.user)  # Re-login to refresh session
         return Response({"ok": True})
+
+
+class ChangeEmailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangeEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_email = serializer.validated_data["new_email"].strip().lower()
+        password = serializer.validated_data["password"]
+
+        if not request.user.check_password(password):
+            return Response(
+                {"error": "Senha incorreta"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if new_email == request.user.email.strip().lower():
+            return Response(
+                {"error": "O novo email deve ser diferente do atual"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if User.objects.filter(email__iexact=new_email).exclude(pk=request.user.pk).exists():
+            return Response(
+                {"error": "Já existe uma conta com este email"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.email = new_email
+        request.user.username = new_email
+        request.user.email_verified = False
+        request.user.save(update_fields=["email", "username", "email_verified"])
+
+        EmailVerificationToken.objects.filter(
+            user=request.user, used=False
+        ).update(used=True)
+
+        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
+        _send_verification_email(request.user, base_url)
+
+        return Response({"email": request.user.email, "email_verified": False})
+
+
+class UpdatePreferencesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        serializer = UpdatePreferencesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        request.user.allow_contact = serializer.validated_data["allow_contact"]
+        request.user.save(update_fields=["allow_contact"])
+
+        return Response({"allow_contact": request.user.allow_contact})
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        serializer = DeleteAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        confirmation = serializer.validated_data["email_confirmation"].strip().lower()
+        if confirmation != request.user.email.strip().lower():
+            return Response(
+                {"error": "Confirmação de email não confere"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        logout(request)
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class ForgotPasswordView(APIView):

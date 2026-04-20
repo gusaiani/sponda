@@ -6,6 +6,7 @@ export interface AuthUser {
   is_superuser: boolean;
   email_verified: boolean;
   date_joined: string;
+  allow_contact: boolean;
 }
 
 async function fetchMe(): Promise<AuthUser | null> {
@@ -36,11 +37,16 @@ export function useAuth() {
     queryClient.invalidateQueries({ queryKey: ["quota"] });
   }
 
+  async function refreshUser() {
+    await queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+  }
+
   return {
     user: user ?? null,
     isAuthenticated: !!user,
     isSuperuser: user?.is_superuser ?? false,
     isLoading,
     logout,
+    refreshUser,
   };
 }

@@ -223,6 +223,243 @@ class TestChangePassword:
         assert response.status_code == 403
 
 
+# ── Delete Account ──
+
+
+class TestDeleteAccount:
+    def test_delete_account_success(self, authenticated_client, user):
+        response = authenticated_client.delete(
+            "/api/auth/delete-account/",
+            {"email_confirmation": "test@example.com"},
+            content_type="application/json",
+        )
+        assert response.status_code == 204
+        assert not User.objects.filter(pk=user.pk).exists()
+
+    def test_delete_account_wrong_email_confirmation(self, authenticated_client, user):
+        response = authenticated_client.delete(
+            "/api/auth/delete-account/",
+            {"email_confirmation": "wrong@example.com"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert User.objects.filter(pk=user.pk).exists()
+
+    def test_delete_account_email_confirmation_case_insensitive(self, authenticated_client, user):
+        response = authenticated_client.delete(
+            "/api/auth/delete-account/",
+            {"email_confirmation": "TEST@example.com"},
+            content_type="application/json",
+        )
+        assert response.status_code == 204
+        assert not User.objects.filter(pk=user.pk).exists()
+
+    def test_delete_account_missing_confirmation(self, authenticated_client, user):
+        response = authenticated_client.delete(
+            "/api/auth/delete-account/",
+            {},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        assert User.objects.filter(pk=user.pk).exists()
+
+    def test_delete_account_cascades_related_data(self, authenticated_client, user):
+        FavoriteCompany.objects.create(user=user, ticker="PETR4")
+        SavedList.objects.create(
+            user=user,
+            name="My List",
+            tickers=["PETR4"],
+            share_token=SavedList.generate_share_token(),
+        )
+
+        response = authenticated_client.delete(
+            "/api/auth/delete-account/",
+            {"email_confirmation": "test@example.com"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 204
+        assert not FavoriteCompany.objects.filter(user_id=user.pk).exists()
+        assert not SavedList.objects.filter(user_id=user.pk).exists()
+
+    def test_delete_account_invalidates_session(self, authenticated_client, user):
+        authenticated_client.delete(
+            "/api/auth/delete-account/",
+            {"email_confirmation": "test@example.com"},
+            content_type="application/json",
+        )
+
+        # Session should be terminated — /me must now return 401
+        me_response = authenticated_client.get("/api/auth/me/")
+        assert me_response.status_code == 401
+
+    def test_delete_account_unauthenticated(self, api_client, db):
+        response = api_client.delete(
+            "/api/auth/delete-account/",
+            {"email_confirmation": "test@example.com"},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
+
+# ── Change Email ──
+
+
+class TestChangeEmail:
+    def test_change_email_success(self, authenticated_client, user):
+        response = authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "new@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        user.refresh_from_db()
+        assert user.email == "new@example.com"
+        assert user.username == "new@example.com"
+        assert user.email_verified is False
+
+    def test_change_email_wrong_password(self, authenticated_client, user):
+        response = authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "new@example.com", "password": "wrongpassword"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        user.refresh_from_db()
+        assert user.email == "test@example.com"
+
+    def test_change_email_duplicate_fails(self, authenticated_client, user, db):
+        User.objects.create_user(
+            username="taken@example.com",
+            email="taken@example.com",
+            password="pass123456",
+        )
+        response = authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "taken@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        user.refresh_from_db()
+        assert user.email == "test@example.com"
+
+    def test_change_email_same_email_fails(self, authenticated_client, user):
+        response = authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "test@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_change_email_invalid_email_format(self, authenticated_client, user):
+        response = authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "not-an-email", "password": "securepass123"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+
+    def test_change_email_marks_email_unverified(self, authenticated_client, user):
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+
+        authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "new@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+
+        user.refresh_from_db()
+        assert user.email_verified is False
+
+    def test_change_email_sends_verification_email_to_new_address(self, authenticated_client, user):
+        from django.core import mail
+
+        mail.outbox = []
+        authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "new@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+
+        assert len(mail.outbox) == 1
+        assert mail.outbox[0].to == ["new@example.com"]
+        assert EmailVerificationToken.objects.filter(user=user, used=False).exists()
+
+    def test_change_email_invalidates_prior_unused_tokens(self, authenticated_client, user):
+        stale_token = EmailVerificationToken.create_for_user(user)
+
+        authenticated_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "new@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+
+        stale_token.refresh_from_db()
+        assert stale_token.used is True
+
+    def test_change_email_unauthenticated(self, api_client, db):
+        response = api_client.post(
+            "/api/auth/change-email/",
+            {"new_email": "new@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
+
+# ── User Preferences ──
+
+
+class TestUpdatePreferences:
+    def test_update_allow_contact_true(self, authenticated_client, user):
+        assert user.allow_contact is False
+        response = authenticated_client.patch(
+            "/api/auth/preferences/",
+            {"allow_contact": True},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        user.refresh_from_db()
+        assert user.allow_contact is True
+
+    def test_update_allow_contact_false(self, authenticated_client, user):
+        user.allow_contact = True
+        user.save(update_fields=["allow_contact"])
+
+        response = authenticated_client.patch(
+            "/api/auth/preferences/",
+            {"allow_contact": False},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        user.refresh_from_db()
+        assert user.allow_contact is False
+
+    def test_update_preferences_returns_current_state(self, authenticated_client, user):
+        response = authenticated_client.patch(
+            "/api/auth/preferences/",
+            {"allow_contact": True},
+            content_type="application/json",
+        )
+        assert response.json()["allow_contact"] is True
+
+    def test_update_preferences_unauthenticated(self, api_client, db):
+        response = api_client.patch(
+            "/api/auth/preferences/",
+            {"allow_contact": True},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
+    def test_me_endpoint_exposes_allow_contact(self, authenticated_client, user):
+        user.allow_contact = True
+        user.save(update_fields=["allow_contact"])
+
+        response = authenticated_client.get("/api/auth/me/")
+        assert response.status_code == 200
+        assert response.json()["allow_contact"] is True
+
+
 # ── Forgot Password ──
 
 
