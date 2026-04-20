@@ -72,6 +72,23 @@ export interface TranslationDictionary {
   "auth.password_changed": string;
   "auth.saving": string;
   "auth.change_password_button": string;
+  "auth.delete_account": string;
+  "auth.delete_account_title": string;
+  "auth.delete_account_warning": string;
+  "auth.delete_account_type_email": string;
+  "auth.delete_account_button": string;
+  "auth.delete_account_error": string;
+  "auth.delete_account_email_mismatch": string;
+  "auth.deleting": string;
+  "auth.change_email": string;
+  "auth.change_email_title": string;
+  "auth.new_email": string;
+  "auth.change_email_button": string;
+  "auth.change_email_error": string;
+  "auth.change_email_verification_sent": string;
+  "auth.preferences_update_error": string;
+  "auth.preferences_saving": string;
+  "auth.preferences_saved": string;
 
   /* ── Forgot / Reset Password ── */
   "forgot.title": string;

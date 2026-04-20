@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useAuth } from "../../../hooks/useAuth";
 import { csrfHeaders } from "../../../utils/csrf";
@@ -32,10 +32,10 @@ function formatDate(dateString: string, locale: string): string {
   });
 }
 
-type AccountView = "main" | "change-password";
+type AccountView = "main" | "change-password" | "change-email" | "delete-account";
 
 export default function AccountPage() {
-  const { user, isLoading, isAuthenticated, logout } = useAuth();
+  const { user, isLoading, isAuthenticated, logout, refreshUser } = useAuth();
   const [view, setView] = useState<AccountView>("main");
   const { t, locale, pluralize } = useTranslation();
 
@@ -77,6 +77,25 @@ export default function AccountPage() {
     return <ChangePasswordView onBack={() => setView("main")} />;
   }
 
+  if (view === "change-email") {
+    return (
+      <ChangeEmailView
+        currentEmail={user.email}
+        onBack={() => setView("main")}
+        refreshUser={refreshUser}
+      />
+    );
+  }
+
+  if (view === "delete-account") {
+    return (
+      <DeleteAccountView
+        email={user.email}
+        onBack={() => setView("main")}
+      />
+    );
+  }
+
   return (
     <div className="auth-container">
       <div className="auth-card">
@@ -95,6 +114,13 @@ export default function AccountPage() {
           <button
             type="button"
             className="account-action-link"
+            onClick={() => setView("change-email")}
+          >
+            {t("auth.change_email")}
+          </button>
+          <button
+            type="button"
+            className="account-action-link"
             onClick={() => setView("change-password")}
           >
             {t("auth.change_password")}
@@ -106,7 +132,17 @@ export default function AccountPage() {
           >
             {t("auth.logout")}
           </button>
+          <button
+            type="button"
+            className="account-action-link account-action-danger"
+            onClick={() => setView("delete-account")}
+          >
+            {t("auth.delete_account")}
+          </button>
         </div>
+
+        <PreferencesSection allowContact={user.allow_contact} />
+
 
         <p className="auth-link">
           <Link href={`/${locale}`}>{t("auth.back_to_homepage")}</Link>
@@ -221,6 +257,275 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
           {success && <p className="auth-success-text" style={{ color: "#16a34a" }}>{success}</p>}
           <button type="submit" className="auth-button" disabled={loading}>
             {loading ? t("auth.saving") : t("auth.change_password_button")}
+          </button>
+        </form>
+
+        <p className="auth-link">
+          <button type="button" className="account-back-link" onClick={onBack}>
+            ← {t("common.back")}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ChangeEmailView({
+  currentEmail,
+  onBack,
+  refreshUser,
+}: {
+  currentEmail: string;
+  onBack: () => void;
+  refreshUser: () => Promise<void> | void;
+}) {
+  const { t, locale } = useTranslation();
+  const [newEmail, setNewEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/change-email/", {
+        method: "POST",
+        headers: csrfHeaders(),
+        credentials: "include",
+        body: JSON.stringify({
+          new_email: newEmail.trim(),
+          password,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || t("auth.change_email_error"));
+        return;
+      }
+
+      setSuccess(t("auth.change_email_verification_sent"));
+      setPassword("");
+      await refreshUser();
+    } catch {
+      setError(t("auth.connection_error"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <Link href={`/${locale}`} className="auth-logo-link">
+          <span className="auth-logo">SPONDA</span>
+        </Link>
+        <h1 className="auth-title">{t("auth.change_email_title")}</h1>
+
+        <p className="account-membership">
+          {currentEmail}
+        </p>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div>
+            <label className="auth-label" htmlFor="change-email-new">
+              {t("auth.new_email")}
+            </label>
+            <input
+              id="change-email-new"
+              type="email"
+              className="auth-input"
+              value={newEmail}
+              onChange={(event) => setNewEmail(event.target.value)}
+              autoComplete="off"
+              required
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="auth-label" htmlFor="change-email-password">
+              {t("auth.current_password")}
+            </label>
+            <input
+              id="change-email-password"
+              type="password"
+              className="auth-input"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          {error && <p className="auth-error">{error}</p>}
+          {success && (
+            <p className="auth-success-text" style={{ color: "#16a34a" }}>
+              {success}
+            </p>
+          )}
+          <button type="submit" className="auth-button" disabled={loading}>
+            {loading ? t("auth.saving") : t("auth.change_email_button")}
+          </button>
+        </form>
+
+        <p className="auth-link">
+          <button type="button" className="account-back-link" onClick={onBack}>
+            ← {t("common.back")}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+type PreferencesStatus = "idle" | "saving" | "saved" | "error";
+
+const SAVED_INDICATOR_DURATION_MS = 2000;
+
+function PreferencesSection({ allowContact }: { allowContact: boolean }) {
+  const { t } = useTranslation();
+  const [checked, setChecked] = useState(allowContact);
+  const [status, setStatus] = useState<PreferencesStatus>("idle");
+
+  useEffect(() => {
+    if (status !== "saved") return;
+    const timer = setTimeout(() => setStatus("idle"), SAVED_INDICATOR_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [status]);
+
+  async function handleToggle(event: React.ChangeEvent<HTMLInputElement>) {
+    const next = event.target.checked;
+    const previous = checked;
+    setChecked(next);
+    setStatus("saving");
+
+    try {
+      const response = await fetch("/api/auth/preferences/", {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ allow_contact: next }),
+      });
+
+      if (!response.ok) {
+        setChecked(previous);
+        setStatus("error");
+        return;
+      }
+
+      setStatus("saved");
+    } catch {
+      setChecked(previous);
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="account-preferences">
+      <label className="auth-checkbox-label">
+        <input
+          type="checkbox"
+          className="auth-checkbox"
+          checked={checked}
+          onChange={handleToggle}
+          disabled={status === "saving"}
+        />
+        {t("auth.allow_contact")}
+      </label>
+      {status === "saving" && (
+        <p className="account-preferences-status">{t("auth.preferences_saving")}</p>
+      )}
+      {status === "saved" && (
+        <p className="account-preferences-status account-preferences-status-saved">
+          <span aria-hidden="true">✓ </span>
+          <span>{t("auth.preferences_saved")}</span>
+        </p>
+      )}
+      {status === "error" && (
+        <p className="auth-error">{t("auth.preferences_update_error")}</p>
+      )}
+    </div>
+  );
+}
+
+function DeleteAccountView({ email, onBack }: { email: string; onBack: () => void }) {
+  const { t, locale } = useTranslation();
+  const [typedEmail, setTypedEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const matches = typedEmail.trim().toLowerCase() === email.trim().toLowerCase();
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+
+    if (!matches) {
+      setError(t("auth.delete_account_email_mismatch"));
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/auth/delete-account/", {
+        method: "DELETE",
+        headers: csrfHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ email_confirmation: typedEmail.trim() }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || t("auth.delete_account_error"));
+        setLoading(false);
+        return;
+      }
+
+      window.location.href = `/${locale}`;
+    } catch {
+      setError(t("auth.connection_error"));
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="auth-container">
+      <div className="auth-card">
+        <Link href={`/${locale}`} className="auth-logo-link">
+          <span className="auth-logo">SPONDA</span>
+        </Link>
+        <h1 className="auth-title">{t("auth.delete_account_title")}</h1>
+
+        <p className="account-delete-warning">{t("auth.delete_account_warning")}</p>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div>
+            <label className="auth-label" htmlFor="delete-account-email">
+              {t("auth.delete_account_type_email")}
+            </label>
+            <input
+              id="delete-account-email"
+              type="email"
+              className="auth-input"
+              value={typedEmail}
+              onChange={(event) => setTypedEmail(event.target.value)}
+              autoComplete="off"
+              autoFocus
+              required
+            />
+          </div>
+          {error && <p className="auth-error">{error}</p>}
+          <button
+            type="submit"
+            className="auth-button auth-button-danger"
+            disabled={loading || !matches}
+          >
+            {loading ? t("auth.deleting") : t("auth.delete_account_button")}
           </button>
         </form>
 

@@ -50,6 +50,19 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(min_length=8)
 
 
+class DeleteAccountSerializer(serializers.Serializer):
+    email_confirmation = serializers.CharField()
+
+
+class ChangeEmailSerializer(serializers.Serializer):
+    new_email = serializers.EmailField()
+    password = serializers.CharField()
+
+
+class UpdatePreferencesSerializer(serializers.Serializer):
+    allow_contact = serializers.BooleanField()
+
+
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
