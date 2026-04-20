@@ -8,7 +8,7 @@ categories: ["tutorial"]
 summary: "What a share actually is, what market cap means, and how to read both on Sponda."
 ---
 
-Every company listed on a stock exchange is divided into a fixed number of units called **shares**. If you own one share of Nvidia, you own a small slice of Nvidia — the factories, the software, the brand, everything. The price you see quoted is the price of one of those slices.
+Every company listed on a stock exchange is divided into a number of units called **shares**. If you own one share of Nvidia, you own a small slice of Nvidia — the factories, the software, the brand, everything. The price you see quoted is the price of one of those slices.
 
 **Market cap** is just the logical next step: multiply the share price by the total number of shares in existence and you get the full price tag of the company. Nvidia trading at ~$200 with roughly 25 billion shares outstanding puts its market cap near $5 trillion.
 
