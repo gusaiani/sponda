@@ -1,3 +1,4 @@
+import { LOCALE_TO_HTML_LANG, isSupportedLocale } from "../lib/i18n-config";
 import { isBrazilianTicker } from "./ticker";
 
 /** Return the currency symbol for a given ticker. */
@@ -31,21 +32,28 @@ export function ptLabel(label: string): string {
   return localizeLabel(label, "pt");
 }
 
-/** Format number with Brazilian notation: period for thousands, comma for decimals */
-export function br(n: number, digits: number): string {
-  return n.toLocaleString("pt-BR", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).replace("-", "\u2013");
+function bcp47(locale: string): string {
+  return isSupportedLocale(locale) ? LOCALE_TO_HTML_LANG[locale] : "en";
 }
 
-export function formatLargeNumber(value: number, ticker: string = ""): string {
+/** Format a number using the given locale's decimal/thousand conventions.
+ * Hyphen-minus is replaced with an en-dash for a more typographic look. */
+export function formatNumber(n: number, digits: number, locale: string): string {
+  return n
+    .toLocaleString(bcp47(locale), {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    })
+    .replace("-", "\u2013");
+}
+
+export function formatLargeNumber(value: number, ticker: string = "", locale: string = "en"): string {
   const currency = ticker ? currencySymbol(ticker) : "R$";
   const abs = Math.abs(value);
-  if (abs >= 1e9) return `${currency} ${br(value / 1e9, 2)}B`;
-  if (abs >= 1e6) return `${currency} ${br(value / 1e6, 2)}M`;
-  if (abs >= 1e3) return `${currency} ${br(value / 1e3, 1)}K`;
-  return `${currency} ${br(value, 0)}`;
+  if (abs >= 1e9) return `${currency} ${formatNumber(value / 1e9, 2, locale)}B`;
+  if (abs >= 1e6) return `${currency} ${formatNumber(value / 1e6, 2, locale)}M`;
+  if (abs >= 1e3) return `${currency} ${formatNumber(value / 1e3, 1, locale)}K`;
+  return `${currency} ${formatNumber(value, 0, locale)}`;
 }
 
 export function formatQuarterLabel(dateStr: string): string {

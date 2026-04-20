@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useCompareData } from "../hooks/useCompareData";
 import { useTranslation, type TranslationKey } from "../i18n";
-import { br, logoUrl } from "../utils/format";
+import { formatNumber, logoUrl } from "../utils/format";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/list-card.css";
 
@@ -43,15 +43,19 @@ export function computeVisibleRowCount({
   return Math.min(cap, atLeastMin);
 }
 
-export function getListCardColumns(years: number, t: (key: TranslationKey) => string): ListCardColumnDef[] {
+export function getListCardColumns(
+  years: number,
+  t: (key: TranslationKey) => string,
+  locale: string = "en",
+): ListCardColumnDef[] {
   const n = years;
   return [
-    { key: "pe10", label: `${t("compare.col_pe")}${n}`, format: (quoteResult) => quoteResult.pe10 !== null ? br(quoteResult.pe10, 1) : null, value: (quoteResult) => quoteResult.pe10 },
-    { key: "pfcf10", label: `${t("compare.col_pfcf")}${n}`, format: (quoteResult) => quoteResult.pfcf10 !== null ? br(quoteResult.pfcf10, 1) : null, value: (quoteResult) => quoteResult.pfcf10 },
-    { key: "peg", label: `${t("compare.col_peg")}${n}`, format: (quoteResult) => quoteResult.peg !== null ? br(quoteResult.peg, 2) : null, value: (quoteResult) => quoteResult.peg },
-    { key: "earningsCAGR", label: `${t("compare.col_cagr_earnings")}${n}`, format: (quoteResult) => quoteResult.earningsCAGR !== null ? `${br(quoteResult.earningsCAGR, 1)}%` : null, value: (quoteResult) => quoteResult.earningsCAGR },
-    { key: "debtToEquity", label: t("compare.col_debt_to_equity"), format: (quoteResult) => quoteResult.debtToEquity !== null ? br(quoteResult.debtToEquity, 2) : null, value: (quoteResult) => quoteResult.debtToEquity },
-    { key: "roe", label: `${t("compare.col_roe")}${n}`, format: (quoteResult) => quoteResult.roe !== null ? `${br(quoteResult.roe, 1)}%` : null, value: (quoteResult) => quoteResult.roe },
+    { key: "pe10", label: `${t("compare.col_pe")}${n}`, format: (quoteResult) => quoteResult.pe10 !== null ? formatNumber(quoteResult.pe10, 1, locale) : null, value: (quoteResult) => quoteResult.pe10 },
+    { key: "pfcf10", label: `${t("compare.col_pfcf")}${n}`, format: (quoteResult) => quoteResult.pfcf10 !== null ? formatNumber(quoteResult.pfcf10, 1, locale) : null, value: (quoteResult) => quoteResult.pfcf10 },
+    { key: "peg", label: `${t("compare.col_peg")}${n}`, format: (quoteResult) => quoteResult.peg !== null ? formatNumber(quoteResult.peg, 2, locale) : null, value: (quoteResult) => quoteResult.peg },
+    { key: "earningsCAGR", label: `${t("compare.col_cagr_earnings")}${n}`, format: (quoteResult) => quoteResult.earningsCAGR !== null ? `${formatNumber(quoteResult.earningsCAGR, 1, locale)}%` : null, value: (quoteResult) => quoteResult.earningsCAGR },
+    { key: "debtToEquity", label: t("compare.col_debt_to_equity"), format: (quoteResult) => quoteResult.debtToEquity !== null ? formatNumber(quoteResult.debtToEquity, 2, locale) : null, value: (quoteResult) => quoteResult.debtToEquity },
+    { key: "roe", label: `${t("compare.col_roe")}${n}`, format: (quoteResult) => quoteResult.roe !== null ? `${formatNumber(quoteResult.roe, 1, locale)}%` : null, value: (quoteResult) => quoteResult.roe },
   ];
 }
 
@@ -85,7 +89,7 @@ function TickerCell({ ticker }: { ticker: string }) {
 export function ListCard({ listId, name, tickers, years }: ListCardProps) {
   const { t, locale } = useTranslation();
   const entries = useCompareData(tickers, years);
-  const columns = getListCardColumns(years, t);
+  const columns = getListCardColumns(years, t, locale);
   const compareUrl = `/${locale}/${tickers[0]}/comparar?listId=${listId}`;
   const isLoading = entries.length > 0 && entries.every((entry) => entry.isLoading);
 

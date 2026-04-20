@@ -10,7 +10,7 @@ import { useDragGhost } from "../hooks/useDragGhost";
 import { useTranslation, type TranslationKey } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
-import { br, logoUrl } from "../utils/format";
+import { formatNumber, logoUrl } from "../utils/format";
 import { buildOwnerSwapUrl } from "../utils/tabs";
 import type { QuoteResult } from "../hooks/usePE10";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
@@ -39,81 +39,85 @@ interface SortState {
   dir: SortDir;
 }
 
-function millions(value: number | null): string | null {
+function millions(value: number | null, locale: string): string | null {
   if (value === null) return null;
-  return br(value / 1e6, 0);
+  return formatNumber(value / 1e6, 0, locale);
 }
 
-function ratio(value: number | null): string | null {
+function ratio(value: number | null, locale: string): string | null {
   if (value === null) return null;
-  return br(value, 2);
+  return formatNumber(value, 2, locale);
 }
 
-function ratio1(value: number | null): string | null {
+function ratio1(value: number | null, locale: string): string | null {
   if (value === null) return null;
-  return br(value, 1);
+  return formatNumber(value, 1, locale);
 }
 
-export function getColumns(years: number, t: (key: TranslationKey) => string): ColumnDef[] {
+export function getColumns(
+  years: number,
+  t: (key: TranslationKey) => string,
+  locale: string = "en",
+): ColumnDef[] {
   return [
     // Balanço
     { key: "debtExLease", label: t("fundamentals.col.debt"), group: "balanco",
-      format: (d) => millions(d.recent?.debtExLease ?? null),
+      format: (d) => millions(d.recent?.debtExLease ?? null, locale),
       value: (d) => d.recent?.debtExLease ?? null,
     },
     { key: "totalLiabilities", label: t("fundamentals.col.liabilities"), group: "balanco",
-      format: (d) => millions(d.recent?.totalLiabilities ?? null),
+      format: (d) => millions(d.recent?.totalLiabilities ?? null, locale),
       value: (d) => d.recent?.totalLiabilities ?? null,
     },
     { key: "equity", label: t("fundamentals.col.equity"), group: "balanco",
-      format: (d) => millions(d.recent?.stockholdersEquity ?? null),
+      format: (d) => millions(d.recent?.stockholdersEquity ?? null, locale),
       value: (d) => d.recent?.stockholdersEquity ?? null,
     },
     { key: "debtToEquity", label: t("fundamentals.col.debt_equity"), group: "balanco",
-      format: (d) => ratio(d.recent?.debtToEquity ?? null),
+      format: (d) => ratio(d.recent?.debtToEquity ?? null, locale),
       value: (d) => d.recent?.debtToEquity ?? null,
     },
     { key: "liabToEquity", label: t("fundamentals.col.liab_equity"), group: "balanco",
-      format: (d) => ratio(d.recent?.liabilitiesToEquity ?? null),
+      format: (d) => ratio(d.recent?.liabilitiesToEquity ?? null, locale),
       value: (d) => d.recent?.liabilitiesToEquity ?? null,
     },
     { key: "currentRatio", label: t("fundamentals.col.current_ratio"), group: "balanco",
-      format: (d) => ratio(d.recent?.currentRatio ?? null),
+      format: (d) => ratio(d.recent?.currentRatio ?? null, locale),
       value: (d) => d.recent?.currentRatio ?? null,
     },
     // Resultado
     { key: "revenue", label: t("fundamentals.col.revenue"), group: "resultado",
-      format: (d) => millions(d.recent?.revenue ?? null),
+      format: (d) => millions(d.recent?.revenue ?? null, locale),
       value: (d) => d.recent?.revenue ?? null,
     },
     { key: "netIncome", label: t("fundamentals.col.net_income"), group: "resultado",
-      format: (d) => millions(d.recent?.netIncome ?? null),
+      format: (d) => millions(d.recent?.netIncome ?? null, locale),
       value: (d) => d.recent?.netIncome ?? null,
     },
     { key: "pe", label: `${t("fundamentals.col.pe")}${years}`, group: "resultado",
-      format: (d) => ratio1(d.pe),
+      format: (d) => ratio1(d.pe, locale),
       value: (d) => d.pe,
     },
     // Caixa
     { key: "fcf", label: t("fundamentals.col.fcf"), group: "caixa",
-      format: (d) => millions(d.recent?.fcf ?? null),
+      format: (d) => millions(d.recent?.fcf ?? null, locale),
       value: (d) => d.recent?.fcf ?? null,
     },
     { key: "pfcf", label: `${t("fundamentals.col.pfcf")}${years}`, group: "caixa",
-      format: (d) => ratio1(d.pfcf),
+      format: (d) => ratio1(d.pfcf, locale),
       value: (d) => d.pfcf,
     },
     { key: "operatingCF", label: t("fundamentals.col.operating_cf"), group: "caixa",
-      format: (d) => millions(d.recent?.operatingCashFlow ?? null),
+      format: (d) => millions(d.recent?.operatingCashFlow ?? null, locale),
       value: (d) => d.recent?.operatingCashFlow ?? null,
     },
     // Retorno
     { key: "marketCap", label: t("fundamentals.col.market_cap"), group: "retorno",
-      format: (d) => millions(d.quote.marketCap),
+      format: (d) => millions(d.quote.marketCap, locale),
       value: (d) => d.quote.marketCap,
     },
     { key: "dividends", label: t("fundamentals.col.dividends"), group: "retorno",
-      format: (d) => millions(d.recent?.dividendsPaid ?? null),
+      format: (d) => millions(d.recent?.dividendsPaid ?? null, locale),
       value: (d) => d.recent?.dividendsPaid ?? null,
     },
   ];
@@ -162,7 +166,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
   const router = useRouter();
   const allTickers = [currentTicker, ...extraTickers];
   const entries = useCompareData(allTickers, years);
-  const columns = getColumns(years, t);
+  const columns = getColumns(years, t, locale);
   const dragIndexRef = useRef<number | null>(null);
   const { startGhost, stopGhost } = useDragGhost();
   const [sort, setSort] = useState<SortState | null>(null);

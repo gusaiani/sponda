@@ -1,3 +1,4 @@
+import { formatNumber } from "../utils/format";
 import "../styles/dual-range-slider.css";
 
 export interface DualRangeValue {
@@ -13,15 +14,16 @@ interface Props {
   maxValue: string | null;
   onChange: (value: DualRangeValue) => void;
   format?: (value: number) => string;
+  locale?: string;
 }
 
 /** Render `value` using the supplied formatter, or fall back to the default
  * short numeric form. Kept as a helper so the range and value labels stay
  * aligned without repeating the fallback logic. */
-function formatValue(value: number, format?: (value: number) => string): string {
+function formatValue(value: number, locale: string, format?: (value: number) => string): string {
   if (format) return format(value);
   if (Number.isInteger(value)) return String(value);
-  return value.toFixed(1);
+  return formatNumber(value, 1, locale);
 }
 
 /** Given a raw handle number and whether it sits at the track extreme,
@@ -44,6 +46,7 @@ export function DualRangeSlider({
   maxValue,
   onChange,
   format,
+  locale = "en",
 }: Props) {
   const minNumeric = minValue !== null ? Number(minValue) : trackMin;
   const maxNumeric = maxValue !== null ? Number(maxValue) : trackMax;
@@ -75,7 +78,7 @@ export function DualRangeSlider({
   return (
     <div className="dual-range">
       <span className="dual-range-label dual-range-label-min">
-        {formatValue(minNumeric, format)}
+        {formatValue(minNumeric, locale, format)}
       </span>
       <div className="dual-range-track">
         <div
@@ -104,7 +107,7 @@ export function DualRangeSlider({
         />
       </div>
       <span className="dual-range-label dual-range-label-max">
-        {formatValue(maxNumeric, format)}
+        {formatValue(maxNumeric, locale, format)}
       </span>
     </div>
   );

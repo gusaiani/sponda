@@ -27,7 +27,7 @@ import { useSavedLists } from "../../../hooks/useSavedLists";
 import { useAuth } from "../../../hooks/useAuth";
 import { AuthModal } from "../../../components/AuthModal";
 import { useTranslation } from "../../../i18n";
-import { formatLargeNumber, logoUrl, br } from "../../../utils/format";
+import { formatLargeNumber, logoUrl, formatNumber } from "../../../utils/format";
 import "../../../styles/compare.css";
 import "../../../styles/screener.css";
 
@@ -157,14 +157,15 @@ function formatIndicatorValue(
   indicator: ScreenerIndicator,
   rawValue: string | number | null,
   ticker: string,
+  locale: string,
 ): string | null {
   if (rawValue === null || rawValue === undefined || rawValue === "") return null;
   const value = typeof rawValue === "string" ? Number(rawValue) : rawValue;
   if (Number.isNaN(value)) return null;
   if (indicator === "market_cap") {
-    return formatLargeNumber(value, ticker);
+    return formatLargeNumber(value, ticker, locale);
   }
-  return br(value, 2);
+  return formatNumber(value, 2, locale);
 }
 
 function emptyBounds(): ScreenerFilters["bounds"] {
@@ -487,6 +488,7 @@ export default function ScreenerPage() {
                   minValue={bound.min ?? null}
                   maxValue={bound.max ?? null}
                   format={sliderBounds.format}
+                  locale={locale}
                   onChange={(value) => handleSliderChange(indicator, value)}
                 />
               </div>
@@ -644,6 +646,7 @@ export default function ScreenerPage() {
                       indicator,
                       row[indicator],
                       row.ticker,
+                      locale,
                     );
                     return (
                       <td key={indicator}>

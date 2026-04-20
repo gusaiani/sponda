@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTranslation } from "../../../i18n";
+import { formatNumber } from "../../../utils/format";
 
 interface UserStats {
   email: string;
@@ -125,12 +126,12 @@ export default function AdminDashboardPage() {
       <h1 className="admin-title">Painel de Administração</h1>
 
       <div className="admin-overview-grid">
-        <OverviewCard label="Usuários" value={dashboardData.signup_stats.total} />
-        <OverviewCard label="Favoritos" value={dashboardData.favorites_count} />
-        <OverviewCard label="Listas salvas" value={dashboardData.saved_lists_count} />
-        <OverviewCard label="Views (24h)" value={dashboardData.page_views.day?.total_views ?? 0} />
-        <OverviewCard label="Únicos (24h)" value={dashboardData.page_views.day?.unique_visitors ?? 0} />
-        <OverviewCard label="Novos usuários (7d)" value={dashboardData.signup_stats.week} />
+        <OverviewCard label="Usuários" value={dashboardData.signup_stats.total} locale={locale} />
+        <OverviewCard label="Favoritos" value={dashboardData.favorites_count} locale={locale} />
+        <OverviewCard label="Listas salvas" value={dashboardData.saved_lists_count} locale={locale} />
+        <OverviewCard label="Views (24h)" value={dashboardData.page_views.day?.total_views ?? 0} locale={locale} />
+        <OverviewCard label="Únicos (24h)" value={dashboardData.page_views.day?.unique_visitors ?? 0} locale={locale} />
+        <OverviewCard label="Novos usuários (7d)" value={dashboardData.signup_stats.week} locale={locale} />
       </div>
 
       <h2 className="admin-section-title">Visualizações de Página</h2>
@@ -145,10 +146,10 @@ export default function AdminDashboardPage() {
             return (
               <tr key={period}>
                 <td>{PERIOD_LABELS[period]}</td>
-                <td>{stats.total_views.toLocaleString("pt-BR")}</td>
-                <td>{stats.unique_visitors.toLocaleString("pt-BR")}</td>
-                <td>{stats.authenticated_views?.toLocaleString("pt-BR") ?? "—"}</td>
-                <td>{stats.anonymous_views?.toLocaleString("pt-BR") ?? "—"}</td>
+                <td>{formatNumber(stats.total_views, 0, locale)}</td>
+                <td>{formatNumber(stats.unique_visitors, 0, locale)}</td>
+                <td>{stats.authenticated_views != null ? formatNumber(stats.authenticated_views, 0, locale) : "—"}</td>
+                <td>{stats.anonymous_views != null ? formatNumber(stats.anonymous_views, 0, locale) : "—"}</td>
               </tr>
             );
           })}
@@ -162,7 +163,7 @@ export default function AdminDashboardPage() {
           {dashboardData.top_pages.map((page) => (
             <tr key={page.path}>
               <td className="admin-path-cell">{page.path || "/"}</td>
-              <td>{page.view_count.toLocaleString("pt-BR")}</td>
+              <td>{formatNumber(page.view_count, 0, locale)}</td>
             </tr>
           ))}
         </tbody>
@@ -246,10 +247,10 @@ export default function AdminDashboardPage() {
   );
 }
 
-function OverviewCard({ label, value }: { label: string; value: number }) {
+function OverviewCard({ label, value, locale }: { label: string; value: number; locale: string }) {
   return (
     <div className="admin-overview-card">
-      <span className="admin-overview-value">{value.toLocaleString("pt-BR")}</span>
+      <span className="admin-overview-value">{formatNumber(value, 0, locale)}</span>
       <span className="admin-overview-label">{label}</span>
     </div>
   );

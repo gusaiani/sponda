@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useTranslation } from "../../../../i18n";
+import { formatNumber } from "../../../../utils/format";
 
 interface TopPage {
   path: string;
@@ -71,7 +72,7 @@ export default function MostVisitedPagesPage() {
     <div className="admin-container">
       <Link href={`/${locale}/admin-dashboard`} className="admin-back-link">← Voltar ao painel</Link>
       <h1 className="admin-title">Páginas mais visitadas (30 dias)</h1>
-      <p className="admin-text">Total: {pages.length.toLocaleString("pt-BR")} páginas</p>
+      <p className="admin-text">Total: {formatNumber(pages.length, 0, locale)} páginas</p>
 
       <table className="admin-table">
         <thead><tr><th>Página</th><th>Views</th></tr></thead>
@@ -79,7 +80,7 @@ export default function MostVisitedPagesPage() {
           {pages.map((page) => (
             <tr key={page.path}>
               <td className="admin-path-cell">{page.path || "/"}</td>
-              <td>{page.view_count.toLocaleString("pt-BR")}</td>
+              <td>{formatNumber(page.view_count, 0, locale)}</td>
             </tr>
           ))}
         </tbody>

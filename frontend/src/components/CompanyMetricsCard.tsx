@@ -185,8 +185,8 @@ const METRIC_IDS = {
   cagrFCF: "cagr-fcf",
 } as const;
 
-function formatMultiple(value: number): string {
-  return `${value.toFixed(1)}×`;
+function formatMultiple(value: number, locale: string): string {
+  return `${formatNumber(value, 1, locale)}×`;
 }
 
 /**
@@ -210,17 +210,19 @@ const ALERT_INDICATOR_BY_METRIC_ID: Record<string, string> = {
 };
 
 /** Per-metric chart value formatter — multiples show "×", ratios show 2 decimals. */
-const CHART_VALUE_FORMATTERS: Record<string, (value: number) => string> = {
-  [METRIC_IDS.pe10]: formatMultiple,
-  [METRIC_IDS.pfcf10]: formatMultiple,
-  [METRIC_IDS.peg]: (value) => value.toFixed(2),
-  [METRIC_IDS.pfcfg]: (value) => value.toFixed(2),
-  [METRIC_IDS.debtToEquity]: (value) => value.toFixed(2),
-  [METRIC_IDS.debtExLease]: (value) => value.toFixed(2),
-  [METRIC_IDS.liabToEquity]: (value) => value.toFixed(2),
-  [METRIC_IDS.debtToEarnings]: (value) => value.toFixed(1),
-  [METRIC_IDS.debtToFCF]: (value) => value.toFixed(1),
-};
+function getChartValueFormatters(locale: string): Record<string, (value: number) => string> {
+  return {
+    [METRIC_IDS.pe10]: (value) => formatMultiple(value, locale),
+    [METRIC_IDS.pfcf10]: (value) => formatMultiple(value, locale),
+    [METRIC_IDS.peg]: (value) => formatNumber(value, 2, locale),
+    [METRIC_IDS.pfcfg]: (value) => formatNumber(value, 2, locale),
+    [METRIC_IDS.debtToEquity]: (value) => formatNumber(value, 2, locale),
+    [METRIC_IDS.debtExLease]: (value) => formatNumber(value, 2, locale),
+    [METRIC_IDS.liabToEquity]: (value) => formatNumber(value, 2, locale),
+    [METRIC_IDS.debtToEarnings]: (value) => formatNumber(value, 1, locale),
+    [METRIC_IDS.debtToFCF]: (value) => formatNumber(value, 1, locale),
+  };
+}
 
 /* ── Share button + dropdown (matches header ShareDropdown) ── */
 
@@ -455,7 +457,7 @@ type ModalKey =
   | "pfcl10" | "pfclg" | "cagrFCF"
   | null;
 
-import { localizeLabel, br, formatLargeNumber, currencySymbol, formatQuarterLabel } from "../utils/format";
+import { localizeLabel, formatNumber, formatLargeNumber, currencySymbol, formatQuarterLabel } from "../utils/format";
 
 /* ── Error code → i18n key mapping ── */
 
@@ -514,16 +516,16 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-/** formatLargeNumber bound to a specific ticker's currency */
-function makeFormatAmount(ticker: string) {
-  return (value: number) => formatLargeNumber(value, ticker);
+/** formatLargeNumber bound to a specific ticker's currency and locale */
+function makeFormatAmount(ticker: string, locale: string) {
+  return (value: number) => formatLargeNumber(value, ticker, locale);
 }
 
 /* ── Balance sheet components helper ── */
 
 function BalanceSheetComponents({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker);
+  const { t, locale } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   if (data.stockholdersEquity === null) return null;
   return (
     <div className="pe10-calc-details">
@@ -568,8 +570,8 @@ function BalanceSheetComponents({ data }: { data: QuoteData }) {
 /* ── Per-metric modal content ── */
 
 function DebtToEquityInfo({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker);
+  const { t, locale } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   return (
     <>
       <div className="modal-explainer">
@@ -583,7 +585,7 @@ function DebtToEquityInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{formatAmount(data.totalDebt!)} ÷ {formatAmount(data.stockholdersEquity)}</span>
-              <span className="pe10-calc-formula-val">= {br(data.debtToEquity, 2)}</span>
+              <span className="pe10-calc-formula-val">= {formatNumber(data.debtToEquity, 2, locale)}</span>
             </div>
           </div>
         </div>
@@ -593,8 +595,8 @@ function DebtToEquityInfo({ data }: { data: QuoteData }) {
 }
 
 function DebtExLeaseInfo({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker);
+  const { t, locale } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   return (
     <>
       <div className="modal-explainer">
@@ -607,7 +609,7 @@ function DebtExLeaseInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>({formatAmount(data.totalDebt)} − {formatAmount(data.totalLease ?? 0)}) ÷ {formatAmount(data.stockholdersEquity)}</span>
-              <span className="pe10-calc-formula-val">= {br(data.debtExLeaseToEquity, 2)}</span>
+              <span className="pe10-calc-formula-val">= {formatNumber(data.debtExLeaseToEquity, 2, locale)}</span>
             </div>
           </div>
         </div>
@@ -617,8 +619,8 @@ function DebtExLeaseInfo({ data }: { data: QuoteData }) {
 }
 
 function LiabToEquityInfo({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker);
+  const { t, locale } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   return (
     <>
       <div className="modal-explainer">
@@ -632,7 +634,7 @@ function LiabToEquityInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{formatAmount(data.totalLiabilities!)} ÷ {formatAmount(data.stockholdersEquity)}</span>
-              <span className="pe10-calc-formula-val">= {br(data.liabilitiesToEquity, 2)}</span>
+              <span className="pe10-calc-formula-val">= {formatNumber(data.liabilitiesToEquity, 2, locale)}</span>
             </div>
           </div>
         </div>
@@ -642,8 +644,8 @@ function LiabToEquityInfo({ data }: { data: QuoteData }) {
 }
 
 function DebtToEarningsInfo({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker);
+  const { t, locale } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   return (
     <>
       <div className="modal-explainer">
@@ -664,7 +666,7 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
               <span>{formatAmount(data.totalDebt)} ÷ {formatAmount(data.avgAdjustedNetIncome)}</span>
-              <span className="pe10-calc-formula-val">= {br(data.debtToAvgEarnings, 2)}</span>
+              <span className="pe10-calc-formula-val">= {formatNumber(data.debtToAvgEarnings, 2, locale)}</span>
             </div>
           </div>
         </div>
@@ -674,8 +676,8 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
 }
 
 function DebtToFCFInfo({ data }: { data: QuoteData }) {
-  const { t } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker);
+  const { t, locale } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   return (
     <>
       <div className="modal-explainer">
@@ -695,7 +697,7 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
               <span>{formatAmount(data.totalDebt)} ÷ {formatAmount(data.avgAdjustedFCF)}</span>
-              <span className="pe10-calc-formula-val">= {br(data.debtToAvgFCF, 2)}</span>
+              <span className="pe10-calc-formula-val">= {formatNumber(data.debtToAvgFCF, 2, locale)}</span>
             </div>
           </div>
         </div>
@@ -707,7 +709,7 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
 function PL10Info({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
-  const formatAmount = makeFormatAmount(data.ticker);
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   const label = localizeLabel(data.pe10Label, locale);
   const hasCalc = data.pe10CalculationDetails.length > 0;
   const total = hasCalc
@@ -743,7 +745,7 @@ function PL10Info({ data }: { data: QuoteData }) {
                     <tr key={year.year} className="pe10-calc-year-row">
                       <td>{year.year}</td>
                       <td>{formatAmount(year.nominalNetIncome)}</td>
-                      <td>{br(year.ipcaFactor, 4)}×</td>
+                      <td>{formatNumber(year.ipcaFactor, 4, locale)}×</td>
                       <td>{formatAmount(year.adjustedNetIncome)}</td>
                       <td>
                         <button
@@ -793,7 +795,7 @@ function PL10Info({ data }: { data: QuoteData }) {
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
                 <span>= {label}</span>
-                <span className="pe10-calc-formula-val">{br(data.pe10, 2)}</span>
+                <span className="pe10-calc-formula-val">{formatNumber(data.pe10, 2, locale)}</span>
               </div>
             </div>
           )}
@@ -806,7 +808,7 @@ function PL10Info({ data }: { data: QuoteData }) {
 function PFCL10Info({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
-  const formatAmount = makeFormatAmount(data.ticker);
+  const formatAmount = makeFormatAmount(data.ticker, locale);
   const label = localizeLabel(data.pfcf10Label, locale);
   const hasCalc = data.pfcf10CalculationDetails.length > 0;
   const total = hasCalc
@@ -842,7 +844,7 @@ function PFCL10Info({ data }: { data: QuoteData }) {
                     <tr key={year.year} className="pe10-calc-year-row">
                       <td>{year.year}</td>
                       <td>{formatAmount(year.nominalFCF)}</td>
-                      <td>{br(year.ipcaFactor, 4)}×</td>
+                      <td>{formatNumber(year.ipcaFactor, 4, locale)}×</td>
                       <td>{formatAmount(year.adjustedFCF)}</td>
                       <td>
                         <button
@@ -896,7 +898,7 @@ function PFCL10Info({ data }: { data: QuoteData }) {
               </div>
               <div className="pe10-calc-formula pe10-calc-result">
                 <span>= {label}</span>
-                <span className="pe10-calc-formula-val">{br(data.pfcf10, 2)}</span>
+                <span className="pe10-calc-formula-val">{formatNumber(data.pfcf10, 2, locale)}</span>
               </div>
             </div>
           )}
@@ -937,15 +939,15 @@ function PEGInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "fc
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{baseLabel}</span>
-              <span className="pe10-calc-formula-val">{br(baseValue, 2)}</span>
+              <span className="pe10-calc-formula-val">{formatNumber(baseValue, 2, locale)}</span>
             </div>
             <div className="pe10-calc-formula">
               <span>CAGR {isEarnings ? t("modal.cagr_real_earnings") : t("modal.cagr_real_fcf")}{method === "regression" ? ` (${locale === "pt" ? "regressão" : "regression"})` : ""}</span>
-              <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
+              <span className="pe10-calc-formula-val">{formatNumber(cagr, 2, locale)}%</span>
             </div>
             <div className="pe10-calc-formula pe10-calc-result">
-              <span>{br(baseValue, 2)} ÷ {br(cagr, 2)}</span>
-              <span className="pe10-calc-formula-val">= {br(peg, 2)}</span>
+              <span>{formatNumber(baseValue, 2, locale)} ÷ {formatNumber(cagr, 2, locale)}</span>
+              <span className="pe10-calc-formula-val">= {formatNumber(peg, 2, locale)}</span>
             </div>
           </div>
           {method === "regression" && excludedYears.length > 0 && (
@@ -994,7 +996,7 @@ function CAGRInfo({ data, variant }: { data: QuoteData; variant: "earnings" | "f
             <div className="pe10-calc-section-title">{t("modal.cagr_result")}</div>
             <div className="pe10-calc-formula">
               <span>CAGR {isEarnings ? t("modal.cagr_real_earnings") : t("modal.cagr_real_fcf")}{method === "regression" ? ` (${locale === "pt" ? "regressão" : "regression"})` : ""}</span>
-              <span className="pe10-calc-formula-val">{br(cagr, 2)}%</span>
+              <span className="pe10-calc-formula-val">{formatNumber(cagr, 2, locale)}%</span>
             </div>
           </div>
         </div>
@@ -1044,7 +1046,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
   const showGraphs = true;
-  const formatAmount = makeFormatAmount(data.ticker);
+  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const chartValueFormatters = getChartValueFormatters(locale);
 
   const pl10Label = localizeLabel(data.pe10Label, locale);
   const pfcl10Label = localizeLabel(data.pfcf10Label, locale);
@@ -1231,7 +1234,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     if (!showGraphs) return null;
     const series = chartData[metricId];
     if (!series || series.length < 2) return null;
-    const formatter = CHART_VALUE_FORMATTERS[metricId];
+    const formatter = chartValueFormatters[metricId];
     return <MiniChart data={series} formatValue={formatter} />;
   };
 
@@ -1274,7 +1277,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           <div className="metric-value-container">
             <div className="pe10-label">{t("metrics.current_price")}</div>
             <div className="pe10-value">
-              {currencySymbol(data.ticker)} {br(data.currentPrice, 2)}
+              {currencySymbol(data.ticker)} {formatNumber(data.currentPrice, 2, locale)}
             </div>
           </div>
           {renderChart(METRIC_IDS.currentPrice)}
@@ -1321,7 +1324,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} /></div>
               {data.debtToEquity !== null ? (
-                <div className="pe10-value">{br(data.debtToEquity, 2)}</div>
+                <div className="pe10-value">{formatNumber(data.debtToEquity, 2, locale)}</div>
               ) : (
                 <div className="pe10-error">{data.leverageError || "N/A"}</div>
               )}
@@ -1334,7 +1337,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               <ShareButton metricId={METRIC_IDS.debtExLease} years={years} />
               <div className="metric-value-container">
                 <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /></div>
-                <div className="pe10-value">{br(data.debtExLeaseToEquity, 2)}</div>
+                <div className="pe10-value">{formatNumber(data.debtExLeaseToEquity, 2, locale)}</div>
               </div>
               {renderChart(METRIC_IDS.debtExLease)}
             </div>
@@ -1345,7 +1348,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} /></div>
               {data.liabilitiesToEquity !== null ? (
-                <div className="pe10-value">{br(data.liabilitiesToEquity, 2)}</div>
+                <div className="pe10-value">{formatNumber(data.liabilitiesToEquity, 2, locale)}</div>
               ) : (
                 <div className="pe10-error">{data.leverageError || "N/A"}</div>
               )}
@@ -1358,7 +1361,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
               {data.debtToAvgEarnings !== null ? (
-                <div className="pe10-value">{br(data.debtToAvgEarnings, 1)}</div>
+                <div className="pe10-value">{formatNumber(data.debtToAvgEarnings, 1, locale)}</div>
               ) : (
                 <div className="pe10-error">N/A</div>
               )}
@@ -1371,7 +1374,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
               {data.debtToAvgFCF !== null ? (
-                <div className="pe10-value">{br(data.debtToAvgFCF, 1)}</div>
+                <div className="pe10-value">{formatNumber(data.debtToAvgFCF, 1, locale)}</div>
               ) : (
                 <div className="pe10-error">N/A</div>
               )}
@@ -1394,7 +1397,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} /></div>
               {data.pe10 !== null ? (
-                <div className="pe10-value">{br(data.pe10, 1)}</div>
+                <div className="pe10-value">{formatNumber(data.pe10, 1, locale)}</div>
               ) : (
                 <div className="pe10-error">{translateError(data.pe10Error, t)}</div>
               )}
@@ -1407,7 +1410,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} /></div>
               {data.peg !== null ? (
-                <div className="pe10-value">{br(data.peg, 2)}</div>
+                <div className="pe10-value">{formatNumber(data.peg, 2, locale)}</div>
               ) : (
                 <div className="pe10-error">{translateError(data.pegError, t) || "N/A"}</div>
               )}
@@ -1419,7 +1422,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.cagr_earnings")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrEarnings")} /></div>
               {data.earningsCAGR !== null ? (
-                <div className="pe10-value">{br(data.earningsCAGR, 1)}%</div>
+                <div className="pe10-value">{formatNumber(data.earningsCAGR, 1, locale)}%</div>
               ) : (
                 <div className="pe10-error">N/A</div>
               )}
@@ -1432,7 +1435,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} /></div>
               {data.pfcf10 !== null ? (
-                <div className="pe10-value">{br(data.pfcf10, 1)}</div>
+                <div className="pe10-value">{formatNumber(data.pfcf10, 1, locale)}</div>
               ) : (
                 <div className="pe10-error">{translateError(data.pfcf10Error, t)}</div>
               )}
@@ -1445,7 +1448,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
               {data.pfcfPeg !== null ? (
-                <div className="pe10-value">{br(data.pfcfPeg, 2)}</div>
+                <div className="pe10-value">{formatNumber(data.pfcfPeg, 2, locale)}</div>
               ) : (
                 <div className="pe10-error">{translateError(data.pfcfPegError, t) || "N/A"}</div>
               )}
@@ -1457,7 +1460,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             <div className="metric-value-container">
               <div className="pe10-label">{t("metrics.cagr_fcf")} <span className="pe10-label-note">{t("metrics.real")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("cagrFCF")} /></div>
               {data.fcfCAGR !== null ? (
-                <div className="pe10-value">{br(data.fcfCAGR, 1)}%</div>
+                <div className="pe10-value">{formatNumber(data.fcfCAGR, 1, locale)}%</div>
               ) : (
                 <div className="pe10-error">N/A</div>
               )}
