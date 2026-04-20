@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useFundamentals, type FundamentalsYear } from "../hooks/useFundamentals";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n";
-import { br } from "../utils/format";
+import { formatNumber } from "../utils/format";
 import { isBrazilianTicker } from "../utils/ticker";
 import "../styles/fundamentals.css";
 
@@ -84,88 +84,88 @@ interface ColumnDef {
   format: (row: AugmentedFundamentalsYear, mode: ValueMode) => string | null;
 }
 
-function millions(value: number | null): string | null {
+function millions(value: number | null, locale: string): string | null {
   if (value === null) return null;
-  return br(value / 1e6, 0);
+  return formatNumber(value / 1e6, 0, locale);
 }
 
-function millionsWithSign(value: number | null): string | null {
+function millionsWithSign(value: number | null, locale: string): string | null {
   if (value === null) return null;
-  const formatted = br(value / 1e6, 0);
-  return value < 0 ? formatted : formatted;
+  return formatNumber(value / 1e6, 0, locale);
 }
 
-function ratio(value: number | null): string | null {
+function ratio(value: number | null, locale: string): string | null {
   if (value === null) return null;
-  return br(value, 2);
+  return formatNumber(value, 2, locale);
 }
 
 export function getTranslatedColumns(
   t: (key: TranslationKey) => string,
   windowYears: number,
+  locale: string,
 ): ColumnDef[] {
   return [
     // Balanço
     {
       key: "debtExLease", label: t("fundamentals.col.debt"), group: "balanco",
-      format: (row, mode) => millions(mode === "adjusted" ? row.debtExLeaseAdjusted : row.debtExLease),
+      format: (row, mode) => millions(mode === "adjusted" ? row.debtExLeaseAdjusted : row.debtExLease, locale),
     },
     {
       key: "totalLiabilities", label: t("fundamentals.col.liabilities"), group: "balanco",
-      format: (row, mode) => millions(mode === "adjusted" ? row.totalLiabilitiesAdjusted : row.totalLiabilities),
+      format: (row, mode) => millions(mode === "adjusted" ? row.totalLiabilitiesAdjusted : row.totalLiabilities, locale),
     },
     {
       key: "equity", label: t("fundamentals.col.equity"), group: "balanco",
-      format: (row, mode) => millions(mode === "adjusted" ? row.stockholdersEquityAdjusted : row.stockholdersEquity),
+      format: (row, mode) => millions(mode === "adjusted" ? row.stockholdersEquityAdjusted : row.stockholdersEquity, locale),
     },
     {
       key: "debtToEquity", label: t("fundamentals.col.debt_equity"), group: "balanco",
-      format: (row) => ratio(row.debtToEquity),
+      format: (row) => ratio(row.debtToEquity, locale),
     },
     {
       key: "liabToEquity", label: t("fundamentals.col.liab_equity"), group: "balanco",
-      format: (row) => ratio(row.liabilitiesToEquity),
+      format: (row) => ratio(row.liabilitiesToEquity, locale),
     },
     {
       key: "currentRatio", label: t("fundamentals.col.current_ratio"), group: "balanco",
-      format: (row) => ratio(row.currentRatio),
+      format: (row) => ratio(row.currentRatio, locale),
     },
     // Resultado
     {
       key: "revenue", label: t("fundamentals.col.revenue"), group: "resultado",
-      format: (row, mode) => millions(mode === "adjusted" ? row.revenueAdjusted : row.revenue),
+      format: (row, mode) => millions(mode === "adjusted" ? row.revenueAdjusted : row.revenue, locale),
     },
     {
       key: "netIncome", label: t("fundamentals.col.net_income"), group: "resultado",
-      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome),
+      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome, locale),
     },
     {
       key: "pe", label: `${t("fundamentals.col.pe")}${windowYears}`, group: "resultado",
-      format: (row) => ratio(row.pe),
+      format: (row) => ratio(row.pe, locale),
     },
     // Caixa
     {
       key: "fcf", label: t("fundamentals.col.fcf"), group: "caixa",
-      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.fcfAdjusted : row.fcf),
+      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.fcfAdjusted : row.fcf, locale),
     },
     {
       key: "pfcf", label: `${t("fundamentals.col.pfcf")}${windowYears}`, group: "caixa",
-      format: (row) => ratio(row.pfcf),
+      format: (row) => ratio(row.pfcf, locale),
     },
     {
       key: "operatingCF", label: t("fundamentals.col.operating_cf"), group: "caixa",
-      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.operatingCashFlowAdjusted : row.operatingCashFlow),
+      format: (row, mode) => millionsWithSign(mode === "adjusted" ? row.operatingCashFlowAdjusted : row.operatingCashFlow, locale),
     },
     // Retorno
     {
       key: "marketCap", label: t("fundamentals.col.market_cap"), group: "retorno",
-      format: (row, mode) => millions(mode === "adjusted" ? row.marketCapAdjusted : row.marketCap),
+      format: (row, mode) => millions(mode === "adjusted" ? row.marketCapAdjusted : row.marketCap, locale),
     },
     {
       key: "dividends", label: t("fundamentals.col.dividends"), group: "retorno",
       format: (row, mode) => {
         const value = mode === "adjusted" ? row.dividendsAdjusted : row.dividendsPaid;
-        return millions(value ?? 0);
+        return millions(value ?? 0, locale);
       },
     },
   ];
@@ -192,9 +192,9 @@ interface Props {
 export function FundamentalsTab({ ticker, years }: Props) {
   const { data: response, isLoading, error } = useFundamentals(ticker, true);
   const rawData = response?.years;
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [valueMode, setValueMode] = useState<ValueMode>("nominal");
-  const columns = useMemo(() => getTranslatedColumns(t, years), [t, years]);
+  const columns = useMemo(() => getTranslatedColumns(t, years, locale), [t, years, locale]);
   const data = useMemo(
     () => (rawData ? augmentWithPERatios(rawData, years) : null),
     [rawData, years],

@@ -1,5 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { localizeLabel, ptLabel, br, formatLargeNumber, formatQuarterLabel, currencyCode, localToday } from "./format";
+import {
+  localizeLabel,
+  ptLabel,
+  formatNumber,
+  formatLargeNumber,
+  formatQuarterLabel,
+  currencyCode,
+  localToday,
+} from "./format";
 
 describe("currencyCode", () => {
   it("returns BRL for Brazilian tickers", () => {
@@ -48,71 +56,136 @@ describe("ptLabel (deprecated)", () => {
   });
 });
 
-describe("br", () => {
-  it("formats with Brazilian locale using comma as decimal separator", () => {
-    expect(br(1234.56, 2)).toContain(",");
+describe("formatNumber", () => {
+  it("uses comma as decimal separator in Portuguese", () => {
+    expect(formatNumber(1.5, 2, "pt")).toBe("1,50");
+    expect(formatNumber(3.14159, 3, "pt")).toBe("3,142");
   });
 
-  it("respects the digits parameter for decimal places", () => {
-    expect(br(1.5, 0)).toBe("2");
-    expect(br(1.5, 2)).toBe("1,50");
-    expect(br(3.14159, 3)).toBe("3,142");
+  it("uses period as decimal separator in English", () => {
+    expect(formatNumber(1.5, 2, "en")).toBe("1.50");
+    expect(formatNumber(3.14159, 3, "en")).toBe("3.142");
   });
 
-  it("replaces hyphen-minus with n-dash for negative numbers", () => {
-    const result = br(-5, 0);
-    expect(result).not.toContain("-");
-    expect(result).toContain("\u2013");
-    expect(result).toBe("\u20135");
+  it("uses comma as decimal separator in Spanish", () => {
+    expect(formatNumber(1.5, 2, "es")).toBe("1,50");
+  });
+
+  it("uses comma as decimal separator in German", () => {
+    expect(formatNumber(1.5, 2, "de")).toBe("1,50");
+  });
+
+  it("uses comma as decimal separator in French", () => {
+    expect(formatNumber(1.5, 2, "fr")).toMatch(/^1,50$/);
+  });
+
+  it("uses comma as decimal separator in Italian", () => {
+    expect(formatNumber(1.5, 2, "it")).toBe("1,50");
+  });
+
+  it("uses period as decimal separator in Chinese", () => {
+    expect(formatNumber(1.5, 2, "zh")).toBe("1.50");
+  });
+
+  it("formats thousands with locale conventions (en)", () => {
+    expect(formatNumber(1234.56, 2, "en")).toBe("1,234.56");
+  });
+
+  it("formats thousands with locale conventions (pt)", () => {
+    expect(formatNumber(1234.56, 2, "pt")).toBe("1.234,56");
+  });
+
+  it("formats thousands with locale conventions (de)", () => {
+    expect(formatNumber(1234.56, 2, "de")).toBe("1.234,56");
+  });
+
+  it("respects the digits parameter", () => {
+    expect(formatNumber(1.5, 0, "pt")).toBe("2");
+    expect(formatNumber(1.5, 0, "en")).toBe("2");
+  });
+
+  it("replaces hyphen-minus with en-dash for negative numbers", () => {
+    const ptResult = formatNumber(-5, 0, "pt");
+    expect(ptResult).not.toContain("-");
+    expect(ptResult).toBe("\u20135");
+
+    const enResult = formatNumber(-5, 0, "en");
+    expect(enResult).not.toContain("-");
+    expect(enResult).toBe("\u20135");
   });
 
   it("handles zero", () => {
-    expect(br(0, 0)).toBe("0");
-    expect(br(0, 2)).toBe("0,00");
+    expect(formatNumber(0, 0, "pt")).toBe("0");
+    expect(formatNumber(0, 2, "pt")).toBe("0,00");
+    expect(formatNumber(0, 2, "en")).toBe("0.00");
   });
 });
 
 describe("formatLargeNumber", () => {
-  it("formats billions with B suffix", () => {
-    const result = formatLargeNumber(2_500_000_000);
+  it("formats billions with B suffix in Portuguese", () => {
+    const result = formatLargeNumber(2_500_000_000, "", "pt");
     expect(result).toMatch(/^R\$ .+B$/);
     expect(result).toContain("2,50");
   });
 
-  it("formats millions with M suffix", () => {
-    const result = formatLargeNumber(350_000_000);
+  it("formats billions with B suffix in English for US ticker", () => {
+    const result = formatLargeNumber(2_500_000_000, "AAPL", "en");
+    expect(result).toMatch(/^\$ .+B$/);
+    expect(result).toContain("2.50");
+  });
+
+  it("formats millions with M suffix in Portuguese", () => {
+    const result = formatLargeNumber(350_000_000, "", "pt");
     expect(result).toMatch(/^R\$ .+M$/);
     expect(result).toContain("350,00");
   });
 
-  it("formats thousands with K suffix", () => {
-    const result = formatLargeNumber(42_000);
+  it("formats millions with M suffix in English", () => {
+    const result = formatLargeNumber(350_000_000, "AAPL", "en");
+    expect(result).toMatch(/^\$ .+M$/);
+    expect(result).toContain("350.00");
+  });
+
+  it("formats thousands with K suffix in Portuguese", () => {
+    const result = formatLargeNumber(42_000, "", "pt");
     expect(result).toMatch(/^R\$ .+K$/);
     expect(result).toContain("42,0");
   });
 
-  it("formats small numbers without suffix", () => {
-    const result = formatLargeNumber(500);
-    expect(result).toBe("R$ 500");
+  it("formats thousands with K suffix in English", () => {
+    const result = formatLargeNumber(42_000, "AAPL", "en");
+    expect(result).toMatch(/^\$ .+K$/);
+    expect(result).toContain("42.0");
   });
 
-  it("handles negative values in billions", () => {
-    const result = formatLargeNumber(-1_000_000_000);
+  it("formats small numbers without suffix in Portuguese", () => {
+    expect(formatLargeNumber(500, "", "pt")).toBe("R$ 500");
+  });
+
+  it("formats small numbers without suffix in English", () => {
+    expect(formatLargeNumber(500, "AAPL", "en")).toBe("$ 500");
+  });
+
+  it("handles negative values in billions with en-dash", () => {
+    const result = formatLargeNumber(-1_000_000_000, "", "pt");
     expect(result).toMatch(/^R\$ .+B$/);
     expect(result).toContain("\u2013");
   });
 
-  it("handles negative values in millions", () => {
-    const result = formatLargeNumber(-50_000_000);
+  it("handles negative values in millions with en-dash", () => {
+    const result = formatLargeNumber(-50_000_000, "", "pt");
     expect(result).toMatch(/^R\$ .+M$/);
     expect(result).toContain("\u2013");
   });
 
-  it("always prefixes with R$", () => {
-    expect(formatLargeNumber(0)).toMatch(/^R\$ /);
-    expect(formatLargeNumber(999)).toMatch(/^R\$ /);
-    expect(formatLargeNumber(1_000_000)).toMatch(/^R\$ /);
-    expect(formatLargeNumber(1_000_000_000)).toMatch(/^R\$ /);
+  it("uses R$ prefix for Brazilian tickers regardless of locale", () => {
+    expect(formatLargeNumber(1_000_000, "PETR4", "en")).toMatch(/^R\$ /);
+    expect(formatLargeNumber(1_000_000, "PETR4", "pt")).toMatch(/^R\$ /);
+  });
+
+  it("uses $ prefix for US tickers regardless of locale", () => {
+    expect(formatLargeNumber(1_000_000, "AAPL", "en")).toMatch(/^\$ /);
+    expect(formatLargeNumber(1_000_000, "AAPL", "pt")).toMatch(/^\$ /);
   });
 });
 
@@ -145,14 +218,10 @@ describe("localToday", () => {
   });
 
   it("uses local timezone, not UTC", () => {
-    // Simulate 11pm on April 15 in UTC-3 (which is 2am April 16 UTC)
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-16T02:00:00Z"));
 
     const result = localToday();
-    // In UTC-3, this is still April 15 at 11pm
-    // In UTC, this is April 16 at 2am
-    // localToday should match the local timezone
     const expected = new Date();
     const expectedDate = `${expected.getFullYear()}-${String(expected.getMonth() + 1).padStart(2, "0")}-${String(expected.getDate()).padStart(2, "0")}`;
     expect(result).toBe(expectedDate);
@@ -162,7 +231,7 @@ describe("localToday", () => {
 
   it("pads single-digit months and days with leading zeros", () => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 0, 5, 12, 0, 0)); // Jan 5, 2026 noon local
+    vi.setSystemTime(new Date(2026, 0, 5, 12, 0, 0));
     expect(localToday()).toBe("2026-01-05");
     vi.useRealTimers();
   });

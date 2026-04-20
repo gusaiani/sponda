@@ -6,7 +6,7 @@ import { useFavorites } from "../hooks/useFavorites";
 import { useAuth } from "../hooks/useAuth";
 import { useRegion } from "../hooks/useRegion";
 import { useTranslation } from "../i18n";
-import { br, formatLargeNumber, currencySymbol, logoUrl } from "../utils/format";
+import { formatNumber, formatLargeNumber, currencySymbol, logoUrl } from "../utils/format";
 import { getDefaultTickers } from "../utils/suggestedCompanies";
 import type { QuoteResult } from "../hooks/usePE10";
 import "../styles/homepage-cards.css";
@@ -32,14 +32,14 @@ export function selectHomepageTickers({
   return defaultTickers.slice(0, maxCards);
 }
 
-export function formatMarketCap(value: number | null, ticker: string = ""): string | null {
+export function formatMarketCap(value: number | null, ticker: string = "", locale: string = "en"): string | null {
   if (value === null) return null;
   const currency = ticker ? currencySymbol(ticker) : "R$";
   const abs = Math.abs(value);
-  if (abs >= 1e12) return `${currency} ${br(value / 1e9, 0)}B`;
-  if (abs >= 1e9) return `${currency} ${br(value / 1e9, 1)}B`;
-  if (abs >= 1e6) return `${currency} ${br(value / 1e6, 0)}M`;
-  return `${currency} ${br(value, 0)}`;
+  if (abs >= 1e12) return `${currency} ${formatNumber(value / 1e9, 0, locale)}B`;
+  if (abs >= 1e9) return `${currency} ${formatNumber(value / 1e9, 1, locale)}B`;
+  if (abs >= 1e6) return `${currency} ${formatNumber(value / 1e6, 0, locale)}M`;
+  return `${currency} ${formatNumber(value, 0, locale)}`;
 }
 
 interface IndicatorProps {
@@ -113,33 +113,33 @@ export function CompanyCard({ data, isLoading, years }: { data: QuoteResult | nu
       <div className="hcc-price-row">
         <div className="hcc-price-item">
           <span className="hcc-price-label">{t("homepage.price")}</span>
-          <span className="hcc-price">{currencySymbol(data.ticker)} {br(data.currentPrice, 2)}</span>
+          <span className="hcc-price">{currencySymbol(data.ticker)} {formatNumber(data.currentPrice, 2, locale)}</span>
         </div>
         {data.marketCap && (
           <div className="hcc-price-item">
             <span className="hcc-price-label">{t("homepage.market_cap")}</span>
-            <span className="hcc-market-cap">{formatMarketCap(data.marketCap, data.ticker)}</span>
+            <span className="hcc-market-cap">{formatMarketCap(data.marketCap, data.ticker, locale)}</span>
           </div>
         )}
       </div>
 
       <div className="hcc-indicators-grid">
         {/* Balance sheet */}
-        <Indicator label={t("homepage.equity")} value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity, data.ticker) : null} />
-        <Indicator label={t("homepage.liabilities")} value={data.totalLiabilities !== null ? formatLargeNumber(data.totalLiabilities, data.ticker) : null} />
-        <Indicator label={t("homepage.gross_debt")} value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0), data.ticker) : null} />
-        <Indicator label={t("homepage.current_ratio")} value={data.currentRatio !== null ? br(data.currentRatio, 2) : null} />
-        <Indicator label={t("fundamentals.col.debt_equity")} value={data.debtToEquity !== null ? br(data.debtToEquity, 2) : null} />
-        <Indicator label={t("homepage.debt_fcf")} value={data.debtToAvgFCF !== null ? br(data.debtToAvgFCF, 1) : null} />
+        <Indicator label={t("homepage.equity")} value={data.stockholdersEquity !== null ? formatLargeNumber(data.stockholdersEquity, data.ticker, locale) : null} />
+        <Indicator label={t("homepage.liabilities")} value={data.totalLiabilities !== null ? formatLargeNumber(data.totalLiabilities, data.ticker, locale) : null} />
+        <Indicator label={t("homepage.gross_debt")} value={data.totalDebt !== null ? formatLargeNumber(data.totalDebt - (data.totalLease ?? 0), data.ticker, locale) : null} />
+        <Indicator label={t("homepage.current_ratio")} value={data.currentRatio !== null ? formatNumber(data.currentRatio, 2, locale) : null} />
+        <Indicator label={t("fundamentals.col.debt_equity")} value={data.debtToEquity !== null ? formatNumber(data.debtToEquity, 2, locale) : null} />
+        <Indicator label={t("homepage.debt_fcf")} value={data.debtToAvgFCF !== null ? formatNumber(data.debtToAvgFCF, 1, locale) : null} />
         {/* Valuation & growth */}
-        <Indicator label={`${t("compare.col_pe")}${years}`} value={data.pe10 !== null ? br(data.pe10, 1) : null} />
-        <Indicator label={`${t("compare.col_pfcf")}${years}`} value={data.pfcf10 !== null ? br(data.pfcf10, 1) : null} />
-        <Indicator label={`${t("compare.col_peg")}${years}`} value={data.peg !== null ? br(data.peg, 2) : null} />
-        <Indicator label={`${t("compare.col_pfcf_peg")}${years}`} value={data.pfcfPeg !== null ? br(data.pfcfPeg, 2) : null} />
-        <Indicator label={`${t("compare.col_cagr_earnings")}${years}`} value={data.earningsCAGR !== null ? br(data.earningsCAGR, 1) : null} suffix="%" />
-        <Indicator label={`${t("compare.col_cagr_fcf")}${years}`} value={data.fcfCAGR !== null ? br(data.fcfCAGR, 1) : null} suffix="%" />
-        <Indicator label={`${t("compare.col_roe")}${years}`} value={data.roe !== null ? br(data.roe, 1) : null} suffix="%" />
-        <Indicator label={t("homepage.price_to_book")} value={data.priceToBook !== null ? br(data.priceToBook, 2) : null} />
+        <Indicator label={`${t("compare.col_pe")}${years}`} value={data.pe10 !== null ? formatNumber(data.pe10, 1, locale) : null} />
+        <Indicator label={`${t("compare.col_pfcf")}${years}`} value={data.pfcf10 !== null ? formatNumber(data.pfcf10, 1, locale) : null} />
+        <Indicator label={`${t("compare.col_peg")}${years}`} value={data.peg !== null ? formatNumber(data.peg, 2, locale) : null} />
+        <Indicator label={`${t("compare.col_pfcf_peg")}${years}`} value={data.pfcfPeg !== null ? formatNumber(data.pfcfPeg, 2, locale) : null} />
+        <Indicator label={`${t("compare.col_cagr_earnings")}${years}`} value={data.earningsCAGR !== null ? formatNumber(data.earningsCAGR, 1, locale) : null} suffix="%" />
+        <Indicator label={`${t("compare.col_cagr_fcf")}${years}`} value={data.fcfCAGR !== null ? formatNumber(data.fcfCAGR, 1, locale) : null} suffix="%" />
+        <Indicator label={`${t("compare.col_roe")}${years}`} value={data.roe !== null ? formatNumber(data.roe, 1, locale) : null} suffix="%" />
+        <Indicator label={t("homepage.price_to_book")} value={data.priceToBook !== null ? formatNumber(data.priceToBook, 2, locale) : null} />
       </div>
     </Link>
   );

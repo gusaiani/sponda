@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import type { MultiplesHistoryResult } from "../hooks/useMultiplesHistory";
 import { useTranslation } from "../i18n";
+import { formatNumber } from "../utils/format";
 import "../styles/chart.css";
 
 type MultipleType = "pl" | "pfcl";
@@ -22,14 +23,6 @@ const LABELS: Record<MultipleType, string> = {
 
 const PRICE_COLOR = "#1e40af"; // --color-accent
 const MULTIPLE_COLOR = "#d97706"; // amber-600
-
-/** Format number with Brazilian convention (comma as decimal separator). */
-export function brFmt(n: number, decimals = 2): string {
-  return n.toLocaleString("pt-BR", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
 
 const MONTH_NAMES_PT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const MONTH_NAMES_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -50,14 +43,15 @@ interface PriceTooltipProps {
   active?: boolean;
   payload?: { value: number }[];
   label?: string;
+  locale: string;
 }
 
-function PriceTooltip({ active, payload, label }: PriceTooltipProps) {
+function PriceTooltip({ active, payload, label, locale }: PriceTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="chart-tooltip">
       <div className="chart-tooltip-label">{label}</div>
-      <div>R$ {brFmt(payload[0].value)}</div>
+      <div>R$ {formatNumber(payload[0].value, 2, locale)}</div>
     </div>
   );
 }
@@ -67,6 +61,7 @@ interface MultipleTooltipProps {
   payload?: { value: number | null }[];
   label?: string;
   multipleLabel: string;
+  locale: string;
 }
 
 function MultipleTooltip({
@@ -74,6 +69,7 @@ function MultipleTooltip({
   payload,
   label,
   multipleLabel,
+  locale,
 }: MultipleTooltipProps) {
   if (!active || !payload?.length) return null;
   const val = payload[0].value;
@@ -81,7 +77,7 @@ function MultipleTooltip({
     <div className="chart-tooltip">
       <div className="chart-tooltip-label">{label}</div>
       <div>
-        {multipleLabel}: {val != null ? brFmt(val) : "—"}
+        {multipleLabel}: {val != null ? formatNumber(val, 2, locale) : "—"}
       </div>
     </div>
   );
@@ -199,9 +195,9 @@ export function MultiplesChart({ data }: Props) {
               tickLine={false}
               axisLine={false}
               width={50}
-              tickFormatter={(v: number) => brFmt(v, 0)}
+              tickFormatter={(v: number) => formatNumber(v, 0, locale)}
             />
-            <Tooltip content={<PriceTooltip />} />
+            <Tooltip content={<PriceTooltip locale={locale} />} />
             <Line
               type="monotone"
               dataKey="adjustedClose"
@@ -249,11 +245,11 @@ export function MultiplesChart({ data }: Props) {
               tickLine={false}
               axisLine={false}
               width={50}
-              tickFormatter={(v: number) => brFmt(v, 1)}
+              tickFormatter={(v: number) => formatNumber(v, 1, locale)}
             />
             <Tooltip
               content={
-                <MultipleTooltip multipleLabel={LABELS[activeMultiple]} />
+                <MultipleTooltip multipleLabel={LABELS[activeMultiple]} locale={locale} />
               }
             />
             <Line
@@ -286,7 +282,7 @@ export function MultiplesChart({ data }: Props) {
           >
             <div className="chart-tooltip-label">{hoveredMultiple?.year ?? hoveredYear}</div>
             <div>
-              {LABELS[activeMultiple]}: {hoveredMultiple?.value != null ? brFmt(hoveredMultiple.value) : "—"}
+              {LABELS[activeMultiple]}: {hoveredMultiple?.value != null ? formatNumber(hoveredMultiple.value, 2, locale) : "—"}
             </div>
           </div>
         )}

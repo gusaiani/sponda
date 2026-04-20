@@ -1,4 +1,6 @@
 import { ResponsiveContainer, LineChart, Line, XAxis, Tooltip } from "recharts";
+import { useTranslation } from "../i18n";
+import { formatNumber } from "../utils/format";
 
 interface DataPoint {
   label: string;
@@ -13,11 +15,13 @@ interface MiniChartProps {
   formatValue?: (value: number) => string;
 }
 
-function defaultFormat(value: number): string {
-  if (Math.abs(value) >= 1e9) return `${(value / 1e9).toFixed(1)}B`;
-  if (Math.abs(value) >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-  if (Math.abs(value) >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-  return value.toFixed(2);
+function makeDefaultFormat(locale: string) {
+  return (value: number): string => {
+    if (Math.abs(value) >= 1e9) return `${formatNumber(value / 1e9, 1, locale)}B`;
+    if (Math.abs(value) >= 1e6) return `${formatNumber(value / 1e6, 1, locale)}M`;
+    if (Math.abs(value) >= 1e3) return `${formatNumber(value / 1e3, 1, locale)}K`;
+    return formatNumber(value, 2, locale);
+  };
 }
 
 function MiniTooltipContent({ active, payload, formatValue }: {
@@ -41,8 +45,10 @@ export function MiniChart({
   data,
   color = "#1e40af",
   height,
-  formatValue = defaultFormat,
+  formatValue,
 }: MiniChartProps) {
+  const { locale } = useTranslation();
+  const effectiveFormatValue = formatValue ?? makeDefaultFormat(locale);
   if (data.length < 2) return null;
 
   // Add numeric index for x-axis positioning
@@ -92,7 +98,7 @@ export function MiniChart({
             }}
           />
           <Tooltip
-            content={<MiniTooltipContent formatValue={formatValue} />}
+            content={<MiniTooltipContent formatValue={effectiveFormatValue} />}
             cursor={{ stroke: "#d0daea", strokeWidth: 1 }}
           />
           <Line

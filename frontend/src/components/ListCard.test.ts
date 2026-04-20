@@ -39,7 +39,7 @@ describe("getListCardColumns", () => {
   });
 
   it("formats values correctly using Brazilian locale", () => {
-    const columns = getListCardColumns(10, t);
+    const columns = getListCardColumns(10, t, "pt");
     const mockData = {
       pe10: 12.5,
       pfcf10: 8.3,

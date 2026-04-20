@@ -1,34 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brFmt, formatPriceDate, calculateTickInterval } from "./MultiplesChart";
-
-describe("brFmt", () => {
-  it("formats with comma as decimal separator", () => {
-    const result = brFmt(1234.56);
-    expect(result).toContain(",");
-    expect(result).toMatch(/1[.]?234,56/);
-  });
-
-  it("respects the decimals parameter", () => {
-    const zeroDecimals = brFmt(1234.5678, 0);
-    expect(zeroDecimals).not.toContain(",");
-
-    const oneDecimal = brFmt(1234.5, 1);
-    expect(oneDecimal).toMatch(/1[.]?234,5/);
-
-    const threeDecimals = brFmt(1.123, 3);
-    expect(threeDecimals).toMatch(/1,123/);
-  });
-
-  it("handles zero", () => {
-    const result = brFmt(0);
-    expect(result).toMatch(/0,00/);
-  });
-
-  it("handles negative numbers", () => {
-    const result = brFmt(-42.5);
-    expect(result).toContain("42,50");
-  });
-});
+import { formatPriceDate, calculateTickInterval } from "./MultiplesChart";
 
 describe("formatPriceDate", () => {
   it('converts "2024-01-31" to "jan/24"', () => {

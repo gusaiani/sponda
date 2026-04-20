@@ -64,30 +64,37 @@ describe("selectHomepageTickers", () => {
 
 describe("formatMarketCap", () => {
   it("returns null for null input", () => {
-    expect(formatMarketCap(null)).toBeNull();
+    expect(formatMarketCap(null, "", "pt")).toBeNull();
   });
 
-  it("formats trillions as billions", () => {
-    const result = formatMarketCap(1.5e12);
+  it("formats trillions as billions using locale separators (pt)", () => {
+    const result = formatMarketCap(1.5e12, "", "pt");
     expect(result).toContain("1.500");
     expect(result).toContain("B");
     expect(result).toContain("R$");
   });
 
+  it("formats trillions as billions using locale separators (en)", () => {
+    const result = formatMarketCap(1.5e12, "AAPL", "en");
+    expect(result).toContain("1,500");
+    expect(result).toContain("B");
+    expect(result).toContain("$");
+  });
+
   it("formats billions with one decimal", () => {
-    const result = formatMarketCap(45.3e9);
+    const result = formatMarketCap(45.3e9, "", "pt");
     expect(result).toContain("B");
     expect(result).toContain("R$");
   });
 
   it("formats millions", () => {
-    const result = formatMarketCap(350e6);
+    const result = formatMarketCap(350e6, "", "pt");
     expect(result).toContain("M");
     expect(result).toContain("R$");
   });
 
   it("formats small values without suffix", () => {
-    const result = formatMarketCap(50000);
+    const result = formatMarketCap(50000, "", "pt");
     expect(result).toContain("R$");
     expect(result).not.toContain("B");
     expect(result).not.toContain("M");

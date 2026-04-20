@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeShillerPERatios, augmentWithPERatios } from "./FundamentalsTab";
-import { br } from "../utils/format";
+import { formatNumber } from "../utils/format";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
 
 function makeYear(
@@ -222,15 +222,15 @@ describe("augmentWithPERatios", () => {
   });
 });
 
-describe("br() formatting", () => {
-  it("uses n-dash (U+2013) for negative numbers", () => {
-    const formatted = br(-1234.56, 2);
+describe("formatNumber formatting", () => {
+  it("uses en-dash (U+2013) for negative numbers", () => {
+    const formatted = formatNumber(-1234.56, 2, "pt");
     expect(formatted).toContain("\u2013");
     expect(formatted).not.toContain("-");
   });
 
   it("does not alter positive numbers", () => {
-    const formatted = br(1234.56, 2);
+    const formatted = formatNumber(1234.56, 2, "pt");
     expect(formatted).not.toContain("\u2013");
     expect(formatted).not.toContain("-");
   });
