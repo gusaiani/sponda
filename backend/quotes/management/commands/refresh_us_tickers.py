@@ -11,6 +11,7 @@ from django.core.management.base import BaseCommand
 
 from quotes.fmp import fetch_etf_symbols
 from quotes.models import Ticker
+from quotes.ticker_aliases import aliases_for, serialize_aliases
 
 BRAZILIAN_TICKER_PATTERN = re.compile(r"^[A-Z]+\d+$")
 
@@ -98,6 +99,7 @@ class Command(BaseCommand):
                 sector="",
                 type="stock",
                 logo=f"https://financialmodelingprep.com/image-stock/{symbol}.png",
+                aliases=serialize_aliases(aliases_for(symbol)),
             ))
 
         if objects:
@@ -105,7 +107,7 @@ class Command(BaseCommand):
                 objects,
                 update_conflicts=True,
                 unique_fields=["symbol"],
-                update_fields=["name", "display_name", "type", "logo"],
+                update_fields=["name", "display_name", "type", "logo", "aliases"],
             )
 
             # Remove US tickers that are no longer in the filtered list.

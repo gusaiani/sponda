@@ -202,6 +202,79 @@ class TestTickerSearchEndpoint:
         assert "MSFT" in symbols
         assert "MU" in symbols
 
+    def test_exact_symbol_match_surfaces_even_with_null_market_cap(self, api_client, db):
+        """Typing an exact ticker symbol should always surface that ticker,
+        even when many prefix-matching siblings have populated market caps
+        and the exact match does not. Repro: 'GM' returning no General Motors."""
+        Ticker.objects.create(
+            symbol="GM", name="General Motors Company",
+            display_name="General Motors Company", type="stock", market_cap=None,
+        )
+        for index, market_cap in enumerate([10_000_000_000, 9_000_000_000, 8_000_000_000, 7_000_000_000, 6_000_000_000, 5_000_000_000]):
+            Ticker.objects.create(
+                symbol=f"GM{chr(65 + index)}", name=f"GM Filler {index}",
+                display_name=f"GM Filler {index}", type="stock", market_cap=market_cap,
+            )
+        response = api_client.get("/api/tickers/search/?q=GM")
+        data = response.json()
+        symbols = [d["symbol"] for d in data]
+        assert "GM" in symbols, f"Exact symbol match GM should appear: {symbols}"
+        assert data[0]["symbol"] == "GM", f"Exact match should rank first: {symbols}"
+
+    def test_search_matches_former_name_via_aliases(self, api_client, db):
+        """Typing a former company name should surface the ticker via its
+        aliases field, even when the current display name no longer contains
+        that phrase. Repro: GE rebranded to 'GE Aerospace'."""
+        Ticker.objects.create(
+            symbol="GE", name="GE Aerospace", display_name="GE Aerospace",
+            type="stock", market_cap=200_000_000_000,
+            aliases="General Electric",
+        )
+        Ticker.objects.create(
+            symbol="POR", name="Portland General Electric Company",
+            display_name="Portland General Electric Company", type="stock",
+            market_cap=5_000_000_000,
+        )
+        response = api_client.get("/api/tickers/search/?q=General Electric")
+        data = response.json()
+        symbols = [d["symbol"] for d in data]
+        assert "GE" in symbols, f"GE should be found via alias: {symbols}"
+
+    def test_alias_match_ranks_with_name_matches(self, api_client, db):
+        """Alias matches should be a full-class citizen of the name bucket,
+        sortable by market cap."""
+        Ticker.objects.create(
+            symbol="GE", name="GE Aerospace", display_name="GE Aerospace",
+            type="stock", market_cap=200_000_000_000,
+            aliases="General Electric",
+        )
+        Ticker.objects.create(
+            symbol="TINYGE", name="Tiny General Electric Holdings",
+            display_name="Tiny General Electric Holdings", type="stock",
+            market_cap=50_000_000,
+        )
+        response = api_client.get("/api/tickers/search/?q=General Electric")
+        data = response.json()
+        symbols = [d["symbol"] for d in data]
+        assert symbols[0] == "GE", f"GE (200B) should outrank TINYGE (50M): {symbols}"
+
+    def test_symbol_prefix_outranks_name_contains_match(self, api_client, db):
+        """A ticker whose symbol starts with the query should rank above a
+        ticker that merely contains the query in its display name, even
+        when the name-match has higher market cap."""
+        Ticker.objects.create(
+            symbol="GE", name="GE Aerospace",
+            display_name="GE Aerospace", type="stock", market_cap=200_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="POR", name="Portland General Electric Company",
+            display_name="Portland General Electric Company", type="stock",
+            market_cap=500_000_000_000,
+        )
+        response = api_client.get("/api/tickers/search/?q=GE")
+        data = response.json()
+        assert data[0]["symbol"] == "GE", f"Symbol prefix GE should rank first: {[d['symbol'] for d in data]}"
+
 
 class TestHealthEndpoint:
     def test_returns_ok_when_data_is_fresh(self, api_client, db):
