@@ -1,5 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { config } from "./middleware";
+import { NextRequest } from "next/server";
+import { config, middleware, LANGUAGE_COOKIE_NAME } from "./middleware";
+
+function buildRequest(
+  pathname: string,
+  options: { acceptLanguage?: string; cookies?: Record<string, string> } = {},
+): NextRequest {
+  const url = new URL(`https://sponda.capital${pathname}`);
+  const headers = new Headers();
+  if (options.acceptLanguage) headers.set("Accept-Language", options.acceptLanguage);
+  if (options.cookies) {
+    headers.set(
+      "Cookie",
+      Object.entries(options.cookies).map(([k, v]) => `${k}=${v}`).join("; "),
+    );
+  }
+  return new NextRequest(url, { headers });
+}
+
+function cookieValue(response: Response, name: string): string | undefined {
+  const header = response.headers.get("set-cookie");
+  if (!header) return undefined;
+  const match = header.split(/,\s*/).find((c) => c.startsWith(`${name}=`));
+  return match?.split(";")[0].split("=")[1];
+}
 
 function resolveMatcher(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw as string[];
@@ -53,5 +77,32 @@ describe("middleware config.matcher", () => {
     expect(pathIsMatched("/favicon.svg")).toBe(false);
     expect(pathIsMatched("/fonts/Satoshi-Medium.woff2")).toBe(false);
     expect(pathIsMatched("/images/hero.png")).toBe(false);
+  });
+});
+
+describe("middleware locale persistence", () => {
+  it("writes sponda-lang cookie when path is already locale-prefixed", () => {
+    const response = middleware(buildRequest("/it/PETR4"));
+    expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("it");
+  });
+
+  it("writes sponda-lang cookie when redirecting bare URL to chosen locale", () => {
+    const response = middleware(
+      buildRequest("/", { acceptLanguage: "fr-CA,fr;q=0.9,en;q=0.8" }),
+    );
+    expect(response.status).toBe(302);
+    expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("fr");
+    expect(response.headers.get("location")).toContain("/fr");
+  });
+
+  it("prefers existing cookie over Accept-Language on bare URL", () => {
+    const response = middleware(
+      buildRequest("/", {
+        acceptLanguage: "en",
+        cookies: { [LANGUAGE_COOKIE_NAME]: "de" },
+      }),
+    );
+    expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("de");
+    expect(response.headers.get("location")).toContain("/de");
   });
 });
