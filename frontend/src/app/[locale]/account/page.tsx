@@ -141,6 +141,8 @@ export default function AccountPage() {
           </button>
         </div>
 
+        {!user.email_verified && <EmailVerificationSection />}
+
         <PreferencesSection allowContact={user.allow_contact} />
 
 
@@ -378,6 +380,55 @@ function ChangeEmailView({
           </button>
         </p>
       </div>
+    </div>
+  );
+}
+
+type ResendStatus = "idle" | "sending" | "sent" | "error";
+
+function EmailVerificationSection() {
+  const { t } = useTranslation();
+  const [status, setStatus] = useState<ResendStatus>("idle");
+
+  async function handleResend() {
+    setStatus("sending");
+    try {
+      const response = await fetch("/api/auth/resend-verification/", {
+        method: "POST",
+        headers: csrfHeaders(),
+        credentials: "include",
+      });
+      if (!response.ok) {
+        setStatus("error");
+        return;
+      }
+      setStatus("sent");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="account-verification">
+      <p className="account-verification-note">{t("auth.email_not_verified_note")}</p>
+      <button
+        type="button"
+        className="account-action-link"
+        onClick={handleResend}
+        disabled={status === "sending" || status === "sent"}
+      >
+        {status === "sending"
+          ? t("auth.resend_verification_sending")
+          : t("auth.resend_verification")}
+      </button>
+      {status === "sent" && (
+        <p className="auth-success-text" style={{ color: "#16a34a" }}>
+          {t("auth.resend_verification_sent")}
+        </p>
+      )}
+      {status === "error" && (
+        <p className="auth-error">{t("auth.resend_verification_error")}</p>
+      )}
     </div>
   );
 }
