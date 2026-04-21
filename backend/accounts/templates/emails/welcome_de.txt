@@ -1,0 +1,18 @@
+Willkommen bei Sponda!
+
+Ihr Konto wurde erstellt. Sie haben jetzt Zugriff auf alle Funktionen von Sponda.
+
+* Lieblingsunternehmen - verfolgen Sie die für Sie wichtigsten Unternehmen.
+* Vergleichslisten speichern - erstellen, speichern und teilen Sie Ihre Analysen.
+* Inflationsbereinigte Kennzahlen - KGV, P/FCF, PEG, CAGR und vieles mehr.
+
+Jetzt erkunden: {{ base_url }}
+
+Teilen Sie Sponda mit allen, die mit langfristiger Perspektive investieren.
+
+---
+{{ poema_performance_line }}
+{{ poema_disclaimer }}
+{{ poema_cta }}
+
+Sponda / Poema Parceria de Investimentos

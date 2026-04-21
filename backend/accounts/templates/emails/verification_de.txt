@@ -1,0 +1,9 @@
+Bestätige deine E-Mail
+
+Klicken Sie auf den untenstehenden Link, um Ihre E-Mail zu bestätigen:
+
+{{ verify_url }}
+
+Dieser Link läuft in 72 Stunden ab.
+
+Sponda

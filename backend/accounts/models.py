@@ -8,10 +8,20 @@ from django.db import models
 from django.utils import timezone
 
 
+SUPPORTED_LANGUAGES = ("pt", "en", "es", "zh", "fr", "de", "it")
+DEFAULT_LANGUAGE = "en"
+LANGUAGE_CHOICES = tuple((code, code) for code in SUPPORTED_LANGUAGES)
+
+
 class User(AbstractUser):
     email = models.EmailField(unique=True)
     allow_contact = models.BooleanField(default=False)
     email_verified = models.BooleanField(default=False)
+    language = models.CharField(
+        max_length=5,
+        choices=LANGUAGE_CHOICES,
+        default=DEFAULT_LANGUAGE,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     homepage_layout = models.JSONField(default=list, blank=True)
 

@@ -49,7 +49,7 @@ class TestSignup:
 
         api_client.post(
             "/api/auth/signup/",
-            {"email": "welcome@example.com", "password": "testpass123"},
+            {"email": "welcome@example.com", "password": "testpass123", "language": "pt"},
             content_type="application/json",
         )
         assert len(mail.outbox) == 2  # welcome + verification
@@ -65,7 +65,7 @@ class TestSignup:
 
         api_client.post(
             "/api/auth/signup/",
-            {"email": "html@example.com", "password": "testpass123"},
+            {"email": "html@example.com", "password": "testpass123", "language": "pt"},
             content_type="application/json",
         )
         welcome_email = mail.outbox[0]
@@ -123,6 +123,130 @@ class TestSignup:
             content_type="application/json",
         )
         assert response.status_code == 400
+
+
+class TestSignupLanguage:
+    def test_language_defaults_to_en_without_header_or_body(self, api_client, db):
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "default@example.com", "password": "testpass123"},
+            content_type="application/json",
+        )
+        user = User.objects.get(email="default@example.com")
+        assert user.language == "en"
+
+    def test_language_from_body_stored_on_user(self, api_client, db):
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "fr@example.com", "password": "testpass123", "language": "fr"},
+            content_type="application/json",
+        )
+        user = User.objects.get(email="fr@example.com")
+        assert user.language == "fr"
+
+    def test_language_from_accept_language_header(self, api_client, db):
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "header@example.com", "password": "testpass123"},
+            content_type="application/json",
+            HTTP_ACCEPT_LANGUAGE="fr-CA,fr;q=0.9,en;q=0.8",
+        )
+        user = User.objects.get(email="header@example.com")
+        assert user.language == "fr"
+
+    def test_unsupported_language_falls_back_to_en(self, api_client, db):
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "unsupp@example.com", "password": "testpass123", "language": "xx"},
+            content_type="application/json",
+        )
+        user = User.objects.get(email="unsupp@example.com")
+        assert user.language == "en"
+
+    def test_body_language_beats_accept_language_header(self, api_client, db):
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "both@example.com", "password": "testpass123", "language": "de"},
+            content_type="application/json",
+            HTTP_ACCEPT_LANGUAGE="fr-CA,fr;q=0.9",
+        )
+        user = User.objects.get(email="both@example.com")
+        assert user.language == "de"
+
+
+class TestWelcomeEmailLocalization:
+    @pytest.mark.parametrize(
+        "lang,tagline,welcome_heading,cta",
+        [
+            ("pt", "Para investidores em valor", "Te damos as boas-vindas", "Explorar agora"),
+            ("en", "For value investors", "Welcome", "Explore now"),
+            ("es", "Para inversores de valor", "Te damos la bienvenida", "Explorar ahora"),
+            ("fr", "Pour les investisseurs value", "Bienvenue", "Explorer"),
+            ("de", "Für Value-Investoren", "Willkommen", "Jetzt erkunden"),
+            ("it", "Per investitori value", "Benvenuto", "Esplora ora"),
+            ("zh", "为价值投资者而设", "欢迎", "立即探索"),
+        ],
+    )
+    def test_welcome_email_rendered_in_user_language(
+        self, api_client, db, lang, tagline, welcome_heading, cta,
+    ):
+        from django.core import mail
+
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": f"{lang}@example.com", "password": "testpass123", "language": lang},
+            content_type="application/json",
+        )
+        welcome_email = mail.outbox[0]
+        html_content = welcome_email.alternatives[0][0]
+        assert tagline in html_content
+        assert welcome_heading in html_content
+        assert cta in html_content
+        # Legacy Portuguese tagline must not leak into other locales
+        if lang != "pt":
+            assert "Indicadores de empresas brasileiras" not in html_content
+
+    def test_welcome_email_does_not_use_legacy_tagline(self, api_client, db):
+        from django.core import mail
+
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": "tag@example.com", "password": "testpass123", "language": "pt"},
+            content_type="application/json",
+        )
+        welcome_html = mail.outbox[0].alternatives[0][0]
+        assert "Indicadores de empresas brasileiras para investidores em valor" not in welcome_html
+
+
+class TestVerificationEmailLocalization:
+    @pytest.mark.parametrize(
+        "lang,heading,button",
+        [
+            ("pt", "Confirme seu email", "Verificar email"),
+            ("en", "Confirm your email", "Verify email"),
+            ("es", "Confirma tu email", "Verificar email"),
+            ("fr", "Confirmez votre e-mail", "Vérifier l'e-mail"),
+            ("de", "Bestätige deine E-Mail", "E-Mail bestätigen"),
+            ("it", "Conferma la tua email", "Verifica email"),
+            ("zh", "确认您的邮箱", "验证邮箱"),
+        ],
+    )
+    def test_verification_email_rendered_in_user_language(
+        self, api_client, db, lang, heading, button,
+    ):
+        from django.core import mail
+
+        api_client.post(
+            "/api/auth/signup/",
+            {"email": f"v{lang}@example.com", "password": "testpass123", "language": lang},
+            content_type="application/json",
+        )
+        verification_email = mail.outbox[1]
+        html_content = verification_email.alternatives[0][0]
+        assert heading in html_content
+        assert button in html_content
+        if lang != "pt":
+            assert "Indicadores de empresas brasileiras" not in html_content
 
 
 # ── Login ──
@@ -1468,7 +1592,7 @@ class TestEmailVerification:
 
         api_client.post(
             "/api/auth/signup/",
-            {"email": "verify@example.com", "password": "testpass123"},
+            {"email": "verify@example.com", "password": "testpass123", "language": "pt"},
             content_type="application/json",
         )
         # Should have 2 emails: welcome + verification
@@ -1523,7 +1647,7 @@ class TestEmailVerification:
         response = authenticated_client.post("/api/auth/resend-verification/")
         assert response.status_code == 200
         assert len(mail.outbox) == 1
-        assert "Confirme" in mail.outbox[0].subject
+        assert "Confirm" in mail.outbox[0].subject
 
     def test_resend_verification_already_verified(self, authenticated_client, user):
         user.email_verified = True
