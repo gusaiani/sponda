@@ -55,7 +55,7 @@ export default function LoginPage() {
       const endpoint = mode === "login" ? "/api/auth/login/" : "/api/auth/signup/";
       const body = mode === "login"
         ? { email, password }
-        : { email, password, allow_contact: allowContact };
+        : { email, password, allow_contact: allowContact, language: locale };
 
       const response = await fetch(endpoint, {
         method: "POST",

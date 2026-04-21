@@ -1,0 +1,18 @@
+欢迎来到 Sponda！
+
+您的账户已创建成功。现在您可以使用 Sponda 的全部功能。
+
+* 收藏公司 - 关注对您最重要的公司。
+* 保存对比列表 - 创建、保存并分享您的分析。
+* 通胀调整后的指标 - 市盈率、P/FCF、PEG、CAGR 和更多。
+
+立即探索：{{ base_url }}
+
+将 Sponda 分享给以长期视角投资的人。
+
+---
+{{ poema_performance_line }}
+{{ poema_disclaimer }}
+{{ poema_cta }}
+
+Sponda / Poema Parceria de Investimentos

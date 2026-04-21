@@ -1,0 +1,9 @@
+Confirm your email
+
+Click the link below to verify your email:
+
+{{ verify_url }}
+
+This link expires in 72 hours.
+
+Sponda

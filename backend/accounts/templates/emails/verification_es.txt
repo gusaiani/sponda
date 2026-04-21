@@ -1,0 +1,9 @@
+Confirma tu email
+
+Haz clic en el enlace de abajo para verificar tu email:
+
+{{ verify_url }}
+
+Este enlace expira en 72 horas.
+
+Sponda

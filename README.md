@@ -427,3 +427,19 @@ The backend cap lives in `accounts.views.FavoriteListView` (`MAX_FAVORITES = 20`
 ### Resending the verification email
 
 Users whose email is not verified see a notice on the account page (`/[locale]/account`) with a "Resend verification email" button. The button calls `POST /api/auth/resend-verification/` (in `accounts.views.ResendVerificationView`), which re-sends the branded verification link via `_send_verification_email`. The endpoint requires an authenticated session and returns 400 if the email is already verified. The UI lives in `EmailVerificationSection` inside `frontend/src/app/[locale]/account/page.tsx`.
+
+## Localized account emails
+
+Welcome and email-verification messages are rendered in the new user's preferred language. The `User.language` field (`accounts.models.User`, one of `pt`, `en`, `es`, `zh`, `fr`, `de`, `it`, default `en`) drives template selection.
+
+At signup the frontend (`AuthModal.tsx` and `[locale]/login/page.tsx`) sends the current UI locale as `language` in the POST body. If the field is missing, `SignupView._parse_accept_language` picks the highest-q supported locale from the `Accept-Language` header, falling back to `en`. Any later verification resend (`/api/auth/resend-verification/`, change-email flow) reuses the value stored on the user.
+
+Templates live under `backend/accounts/templates/emails/`:
+
+- `welcome_base.html` / `verification_base.html` — shared HTML shell with `{% block %}` placeholders for every translatable string.
+- `welcome_<lang>.html` / `verification_<lang>.html` — per-locale overrides (`extends` the base, fills blocks).
+- `welcome_<lang>.txt` / `verification_<lang>.txt` — plain-text bodies per locale.
+
+Subjects and localized share-link copy live in `accounts/email_subjects.py`. The sender (`accounts.views._send_welcome_email` / `_send_verification_email`) resolves the language via `_resolve_language`, renders the matching templates with `render_to_string`, and passes the localized subject.
+
+To add a new locale: register it in `SUPPORTED_LANGUAGES` (`accounts/models.py`), add a row to both subject dicts and `share_strings` in `email_subjects.py`, and create the four template files (`welcome_<lang>.html`, `welcome_<lang>.txt`, `verification_<lang>.html`, `verification_<lang>.txt`).

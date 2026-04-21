@@ -1,0 +1,18 @@
+¡Te damos la bienvenida a Sponda!
+
+Tu cuenta ha sido creada. Ahora tienes acceso a todo lo que Sponda ofrece.
+
+* Empresas favoritas - sigue las que más te importan.
+* Guardar listas de comparación - crea, guarda y comparte tus análisis.
+* Indicadores ajustados por inflación - P/E, P/FCF, PEG, CAGR y mucho más.
+
+Explorar ahora: {{ base_url }}
+
+Comparte Sponda con quien invierte con visión de largo plazo.
+
+---
+{{ poema_performance_line }}
+{{ poema_disclaimer }}
+{{ poema_cta }}
+
+Sponda / Poema Parceria de Investimentos

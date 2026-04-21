@@ -1,0 +1,9 @@
+Confirmez votre e-mail
+
+Cliquez sur le lien ci-dessous pour vérifier votre e-mail :
+
+{{ verify_url }}
+
+Ce lien expire dans 72 heures.
+
+Sponda

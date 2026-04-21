@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="{% block html_lang %}en{% endblock %}">
+<head><meta charset="utf-8"></head>
+<body style="margin:0; padding:0; background:#f5f7fb; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f7fb; padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:8px; overflow:hidden;">
+          <tr>
+            <td style="padding:32px 40px; text-align:center; border-bottom:1px solid #e8edf5;">
+              <span style="font-size:28px; font-weight:500; color:#1b347e; letter-spacing:1px;">SPONDA</span>
+              <br>
+              <span style="font-size:11px; color:#5570a0; letter-spacing:0.5px;">
+                {% block tagline %}For value investors{% endblock %}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px;">
+              <h1 style="margin:0 0 16px; font-size:22px; font-weight:600; color:#0c1829;">
+                {% block welcome_heading %}Welcome!{% endblock %}
+              </h1>
+              <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#5570a0;">
+                {% block welcome_body %}Your account has been created. You now have access to everything Sponda offers.{% endblock %}
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
+                <tr>
+                  <td style="padding:12px 0; border-bottom:1px solid #e8edf5;">
+                    <span style="font-size:18px; color:#f59e0b; vertical-align:middle;">&#9733;</span>
+                    <span style="font-size:14px; color:#0c1829; margin-left:8px; vertical-align:middle;">
+                      <strong>{% block feature_favorite_title %}Favorite companies{% endblock %}</strong>
+                    </span>
+                    <br>
+                    <span style="font-size:13px; color:#5570a0; margin-left:30px; display:inline-block; margin-top:4px;">
+                      {% block feature_favorite_desc %}Follow the companies that matter most to you right on the homepage.{% endblock %}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 0; border-bottom:1px solid #e8edf5;">
+                    <span style="font-size:18px; vertical-align:middle;">&#128203;</span>
+                    <span style="font-size:14px; color:#0c1829; margin-left:8px; vertical-align:middle;">
+                      <strong>{% block feature_savedlists_title %}Save comparison lists{% endblock %}</strong>
+                    </span>
+                    <br>
+                    <span style="font-size:13px; color:#5570a0; margin-left:30px; display:inline-block; margin-top:4px;">
+                      {% block feature_savedlists_desc %}Build, save and share comparative analyses with anyone.{% endblock %}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 0;">
+                    <span style="font-size:18px; vertical-align:middle;">&#128202;</span>
+                    <span style="font-size:14px; color:#0c1829; margin-left:8px; vertical-align:middle;">
+                      <strong>{% block feature_indicators_title %}Inflation-adjusted indicators{% endblock %}</strong>
+                    </span>
+                    <br>
+                    <span style="font-size:13px; color:#5570a0; margin-left:30px; display:inline-block; margin-top:4px;">
+                      {% block feature_indicators_desc %}P/E, P/FCF, PEG, CAGR and leverage &middot; all inflation-adjusted, and much more.{% endblock %}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+                <tr>
+                  <td align="center">
+                    <a href="{{ base_url }}"
+                       style="display:inline-block; padding:14px 40px; background:#1b347e; color:#ffffff;
+                              font-size:14px; font-weight:500; text-decoration:none; border-radius:6px;">
+                      {% block cta_button %}Explore now{% endblock %}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding:8px 0 0;">
+                    <p style="margin:0 0 12px; font-size:12px; color:#5570a0;">
+                      {% block share_title %}Share Sponda{% endblock %}
+                    </p>
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://twitter.com/intent/tweet?text={{ share_text_encoded }}&url={{ base_url }}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#000000; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="X / Twitter">&#x1D54F;</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">X</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://wa.me/?text={{ share_text_encoded }}+{{ base_url }}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#25D366; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="WhatsApp">W</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">WhatsApp</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://t.me/share/url?url={{ base_url }}&text={{ share_text_encoded }}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#26A5E4; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="Telegram">T</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">Telegram</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ base_url }}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#0A66C2; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="LinkedIn">in</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">LinkedIn</span>
+                        </td>
+                        <td align="center" style="padding:0 10px;">
+                          <a href="mailto:?subject={{ share_subject_encoded }}&body={{ share_text_encoded }}+{{ base_url }}"
+                             style="display:inline-block; width:40px; height:40px; line-height:40px; text-align:center;
+                                    background:#5570a0; border-radius:50%; text-decoration:none; font-size:15px;
+                                    color:#ffffff; font-weight:bold;"
+                             title="Email">@</a>
+                          <br>
+                          <span style="font-size:10px; color:#a0aec0;">Email</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 40px; border-top:1px solid #e8edf5; text-align:center;">
+              <p style="margin:0 0 4px; font-size:12px; color:#5570a0;">
+                {% block footer_tool_by %}A tool by{% endblock %}
+                <a href="https://poe.ma" style="color:#1e40af; text-decoration:none;">Poema Parceria de Investimentos</a>
+              </p>
+              <p style="margin:0 0 4px; font-size:10px; line-height:1.5; color:#a0aec0;">
+                {{ poema_performance_line }}<br>
+                {{ poema_disclaimer }}
+              </p>
+              <p style="margin:0 0 8px; font-size:11px; color:#1e40af;">
+                <a href="https://poe.ma" style="color:#1e40af; text-decoration:none; font-weight:500;">
+                  {{ poema_cta }}
+                </a>
+              </p>
+              <p style="margin:0; font-size:10px; color:#c0c8d8;">
+                {% block footer_recipient_note %}You received this email because you created a Sponda account.{% endblock %}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

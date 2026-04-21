@@ -12,7 +12,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,7 +43,7 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
       const endpoint = mode === "login" ? "/api/auth/login/" : "/api/auth/signup/";
       const body = mode === "login"
         ? { email, password }
-        : { email, password, allow_contact: allowContact };
+        : { email, password, allow_contact: allowContact, language: locale };
 
       const response = await fetch(endpoint, {
         method: "POST",

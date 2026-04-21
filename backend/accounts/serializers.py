@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import CompanyVisit, FavoriteCompany, IndicatorAlert, RevisitSchedule, SavedList, SavedScreenerFilter
+from .models import CompanyVisit, FavoriteCompany, IndicatorAlert, RevisitSchedule, SavedList, SavedScreenerFilter, SUPPORTED_LANGUAGES
 
 User = get_user_model()
 
@@ -25,17 +25,25 @@ class SignupSerializer(serializers.ModelSerializer):
     )
     password = serializers.CharField(write_only=True, min_length=8)
     allow_contact = serializers.BooleanField(required=False, default=False)
+    language = serializers.CharField(required=False, allow_blank=True, default="")
 
     class Meta:
         model = User
-        fields = ("email", "password", "allow_contact")
+        fields = ("email", "password", "allow_contact", "language")
+
+    def validate_language(self, value):
+        if value and value in SUPPORTED_LANGUAGES:
+            return value
+        return ""
 
     def create(self, validated_data):
+        language = validated_data.get("language") or self.context.get("fallback_language", "en")
         user = User.objects.create_user(
             username=validated_data["email"],
             email=validated_data["email"],
             password=validated_data["password"],
             allow_contact=validated_data.get("allow_contact", False),
+            language=language,
         )
         return user
 
