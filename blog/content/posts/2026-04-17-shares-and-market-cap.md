@@ -1,5 +1,5 @@
 ---
-title: "Shares and Market Cap"
+title: "Investing Basics: Shares and Market Cap"
 slug: "shares-and-market-cap"
 date: 2026-04-17
 draft: false

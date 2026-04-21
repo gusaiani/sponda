@@ -1,5 +1,5 @@
 ---
-title: "Liabilities and Equity"
+title: "Investing Basics: Liabilities and Equity"
 slug: "liabilities-and-equity"
 date: 2026-04-20
 draft: false
