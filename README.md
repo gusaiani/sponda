@@ -423,3 +423,7 @@ Signed-up users can favorite companies to pin them on the home page grid.
 - **Verified users** (those who confirmed their email) have no cap — they can add unlimited favorites and every favorite shows on the home page grid.
 
 The backend cap lives in `accounts.views.FavoriteListView` (`MAX_FAVORITES = 20`). The home page render logic lives in `getHomepageTickers` in `frontend/src/components/HomepageGrid.tsx`.
+
+### Resending the verification email
+
+Users whose email is not verified see a notice on the account page (`/[locale]/account`) with a "Resend verification email" button. The button calls `POST /api/auth/resend-verification/` (in `accounts.views.ResendVerificationView`), which re-sends the branded verification link via `_send_verification_email`. The endpoint requires an authenticated session and returns 400 if the email is already verified. The UI lives in `EmailVerificationSection` inside `frontend/src/app/[locale]/account/page.tsx`.

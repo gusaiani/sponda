@@ -86,6 +86,11 @@ export interface TranslationDictionary {
   "auth.change_email_button": string;
   "auth.change_email_error": string;
   "auth.change_email_verification_sent": string;
+  "auth.email_not_verified_note": string;
+  "auth.resend_verification": string;
+  "auth.resend_verification_sending": string;
+  "auth.resend_verification_sent": string;
+  "auth.resend_verification_error": string;
   "auth.preferences_update_error": string;
   "auth.preferences_saving": string;
   "auth.preferences_saved": string;

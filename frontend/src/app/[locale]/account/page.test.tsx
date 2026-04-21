@@ -232,6 +232,84 @@ describe("AccountPage change-email flow", () => {
   });
 });
 
+describe("AccountPage resend verification", () => {
+  it("hides the resend verification button when email is already verified", () => {
+    render(<AccountPage />);
+    expect(
+      screen.queryByRole("button", { name: "auth.resend_verification" })
+    ).toBeNull();
+  });
+
+  it("shows a resend verification button when email is not verified", () => {
+    authState.user = {
+      email: "user@example.com",
+      is_superuser: false,
+      email_verified: false,
+      date_joined: "2025-01-01T00:00:00Z",
+      allow_contact: false,
+    };
+
+    render(<AccountPage />);
+    expect(
+      screen.getByRole("button", { name: "auth.resend_verification" })
+    ).toBeTruthy();
+    expect(screen.getByText("auth.email_not_verified_note")).toBeTruthy();
+  });
+
+  it("POSTs to /api/auth/resend-verification/ and shows a success message", async () => {
+    authState.user = {
+      email: "user@example.com",
+      is_superuser: false,
+      email_verified: false,
+      date_joined: "2025-01-01T00:00:00Z",
+      allow_contact: false,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AccountPage />);
+    fireEvent.click(screen.getByRole("button", { name: "auth.resend_verification" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/auth/resend-verification/");
+    expect(options.method).toBe("POST");
+    expect(options.credentials).toBe("include");
+
+    await waitFor(() =>
+      expect(screen.getByText("auth.resend_verification_sent")).toBeTruthy()
+    );
+  });
+
+  it("shows an error message when the resend request fails", async () => {
+    authState.user = {
+      email: "user@example.com",
+      is_superuser: false,
+      email_verified: false,
+      date_joined: "2025-01-01T00:00:00Z",
+      allow_contact: false,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AccountPage />);
+    fireEvent.click(screen.getByRole("button", { name: "auth.resend_verification" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("auth.resend_verification_error")).toBeTruthy()
+    );
+  });
+});
+
 describe("AccountPage preferences toggle", () => {
   it("renders the allow_contact checkbox reflecting the current user preference", () => {
     authState.user = {

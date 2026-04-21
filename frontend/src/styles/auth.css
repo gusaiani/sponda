@@ -232,6 +232,21 @@
   color: #b91c1c;
 }
 
+.account-verification {
+  @apply flex flex-col items-center gap-2 mb-6;
+  padding: 16px;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  background-color: #fffbeb;
+}
+
+.account-verification-note {
+  font-family: 'Inter', system-ui, sans-serif;
+  @apply text-sm text-center;
+  color: #92400e;
+  margin: 0;
+}
+
 .account-preferences {
   @apply flex flex-col gap-2 mb-6;
   padding: 16px;
