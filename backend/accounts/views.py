@@ -87,9 +87,26 @@ class SignupView(APIView):
         _send_welcome_email(user, base_url)
         _send_verification_email(user, base_url)
 
-        return Response(
+        response = Response(
             {"email": user.email}, status=status.HTTP_201_CREATED
         )
+        return _set_language_cookie(response, _resolve_language(user))
+
+
+LANGUAGE_COOKIE_NAME = "sponda-lang"
+LANGUAGE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60
+
+
+def _set_language_cookie(response, language):
+    if language in SUPPORTED_LANGUAGES:
+        response.set_cookie(
+            LANGUAGE_COOKIE_NAME,
+            language,
+            max_age=LANGUAGE_COOKIE_MAX_AGE,
+            path="/",
+            samesite="Lax",
+        )
+    return response
 
 
 def _resolve_language(user):
@@ -172,7 +189,8 @@ class LoginView(APIView):
             )
 
         login(request, user)
-        return Response({"email": user.email})
+        response = Response({"email": user.email})
+        return _set_language_cookie(response, _resolve_language(user))
 
 
 class LogoutView(APIView):
@@ -216,13 +234,16 @@ class MeView(APIView):
     def get(self, request):
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
-        return Response({
+        language = _resolve_language(request.user)
+        response = Response({
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
             "email_verified": request.user.email_verified,
             "date_joined": request.user.date_joined,
             "allow_contact": request.user.allow_contact,
+            "language": language,
         })
+        return _set_language_cookie(response, language)
 
 
 class VerifyEmailView(APIView):
@@ -347,6 +368,24 @@ class UpdatePreferencesView(APIView):
         request.user.save(update_fields=["allow_contact"])
 
         return Response({"allow_contact": request.user.allow_contact})
+
+
+class UpdateLanguageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        language = (request.data.get("language") or "").strip()
+        if language not in SUPPORTED_LANGUAGES:
+            return Response(
+                {"error": f"Unsupported language: {language!r}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request.user.language = language
+        request.user.save(update_fields=["language"])
+
+        response = Response({"language": language})
+        return _set_language_cookie(response, language)
 
 
 class DeleteAccountView(APIView):

@@ -3,6 +3,18 @@ import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale, detectLocaleFromH
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
 
+export const LANGUAGE_COOKIE_NAME = "sponda-lang";
+const LANGUAGE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
+
+function persistLocaleCookie(response: NextResponse, locale: string): NextResponse {
+  response.cookies.set(LANGUAGE_COOKIE_NAME, locale, {
+    path: "/",
+    maxAge: LANGUAGE_COOKIE_MAX_AGE,
+    sameSite: "lax",
+  });
+  return response;
+}
+
 /**
  * Canonical (English) tab slug for every known locale-specific slug.
  * Used to detect cross-locale tab slugs and redirect to the correct one.
@@ -83,12 +95,12 @@ export function middleware(request: NextRequest) {
       if (corrected) {
         const url = request.nextUrl.clone();
         url.pathname = `/${locale}/${segments[1]}/${corrected}`;
-        return NextResponse.redirect(url, 301);
+        return persistLocaleCookie(NextResponse.redirect(url, 301), locale);
       }
     }
 
-    // Valid locale prefix — pass through
-    return NextResponse.next();
+    // Valid locale prefix — pass through, persist cookie so bare visits keep it
+    return persistLocaleCookie(NextResponse.next(), locale);
   }
 
   // 4. Bare URL → redirect to locale-prefixed version
@@ -117,7 +129,7 @@ export function middleware(request: NextRequest) {
   const response = NextResponse.redirect(url, 302);
   response.headers.set("Cache-Control", "no-store");
   response.headers.set("Vary", "Cookie, Accept-Language");
-  return response;
+  return persistLocaleCookie(response, locale);
 }
 
 export const config = {

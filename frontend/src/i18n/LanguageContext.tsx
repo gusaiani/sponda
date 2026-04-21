@@ -35,6 +35,14 @@ export function LanguageProvider({ children, initialLocale }: LanguageProviderPr
     localStorage.setItem(STORAGE_KEY, newLocale);
     // Set cookie so middleware can read the preference on subsequent visits
     document.cookie = `${STORAGE_KEY}=${newLocale};path=/;max-age=${365 * 24 * 60 * 60};SameSite=Lax`;
+    // Persist to backend so the preference survives across devices for
+    // authenticated users. Anonymous visitors get 401 — ignore it.
+    fetch("/api/auth/language/", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ language: newLocale }),
+    }).catch(() => {});
     // Navigation is handled by the LanguageToggle component
   }, []);
 

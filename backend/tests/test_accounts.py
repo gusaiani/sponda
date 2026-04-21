@@ -315,6 +315,82 @@ class TestMe:
         response = api_client.get("/api/auth/me/")
         assert response.status_code == 401
 
+    def test_me_returns_language(self, api_client, user):
+        user.language = "it"
+        user.save(update_fields=["language"])
+        api_client.login(username="test@example.com", password="securepass123")
+        response = api_client.get("/api/auth/me/")
+        assert response.status_code == 200
+        assert response.json()["language"] == "it"
+
+    def test_me_sets_language_cookie(self, api_client, user):
+        user.language = "de"
+        user.save(update_fields=["language"])
+        api_client.login(username="test@example.com", password="securepass123")
+        response = api_client.get("/api/auth/me/")
+        assert response.cookies["sponda-lang"].value == "de"
+
+
+class TestLanguagePersistence:
+    COOKIE_NAME = "sponda-lang"
+
+    def test_login_sets_language_cookie_from_user(self, api_client, user):
+        user.language = "fr"
+        user.save(update_fields=["language"])
+        response = api_client.post(
+            "/api/auth/login/",
+            {"email": "test@example.com", "password": "securepass123"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.cookies[self.COOKIE_NAME].value == "fr"
+
+    def test_signup_sets_language_cookie(self, api_client, db):
+        response = api_client.post(
+            "/api/auth/signup/",
+            {"email": "ck@example.com", "password": "testpass123", "language": "de"},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        assert response.cookies[self.COOKIE_NAME].value == "de"
+
+    def test_update_language_persists(self, authenticated_client, user):
+        response = authenticated_client.patch(
+            "/api/auth/language/",
+            {"language": "zh"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.json()["language"] == "zh"
+        user.refresh_from_db()
+        assert user.language == "zh"
+
+    def test_update_language_sets_cookie(self, authenticated_client, user):
+        response = authenticated_client.patch(
+            "/api/auth/language/",
+            {"language": "es"},
+            content_type="application/json",
+        )
+        assert response.cookies[self.COOKIE_NAME].value == "es"
+
+    def test_update_language_rejects_unsupported(self, authenticated_client, user):
+        response = authenticated_client.patch(
+            "/api/auth/language/",
+            {"language": "xx"},
+            content_type="application/json",
+        )
+        assert response.status_code == 400
+        user.refresh_from_db()
+        assert user.language != "xx"
+
+    def test_update_language_requires_auth(self, api_client, db):
+        response = api_client.patch(
+            "/api/auth/language/",
+            {"language": "fr"},
+            content_type="application/json",
+        )
+        assert response.status_code == 403
+
 
 # ── Change Password ──
 
