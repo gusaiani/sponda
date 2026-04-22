@@ -61,7 +61,28 @@ function correctSlugForLocale(locale: string, slug: string): string | null {
   return expected;
 }
 
-export function middleware(request: NextRequest) {
+async function fetchAuthenticatedUserLanguage(
+  request: NextRequest,
+): Promise<string | null> {
+  try {
+    const target = new URL("/api/auth/me/", DJANGO_API_URL);
+    const response = await fetch(target, {
+      headers: {
+        cookie: request.headers.get("cookie") ?? "",
+        host: new URL(DJANGO_API_URL).host,
+      },
+      // Edge middleware can't use cache here; every call is cheap enough.
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { language?: string };
+    return payload.language ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. Google OAuth callback — locale-free, served by Next.js (not Django)
@@ -104,11 +125,24 @@ export function middleware(request: NextRequest) {
   }
 
   // 4. Bare URL → redirect to locale-prefixed version
-  // Priority: saved cookie preference > Accept-Language header > default
+  // Priority:
+  //   1. Authenticated user.language (authoritative — beats any stale cookie,
+  //      fixes the case where the toggle's cookie write got dropped or the
+  //      cookie was cleared)
+  //   2. Valid saved cookie (anonymous visitors)
+  //   3. Accept-Language header
+  //   4. DEFAULT_LOCALE
+  const sessionCookie = request.cookies.get("sessionid")?.value;
+  const userLanguage = sessionCookie ? await fetchAuthenticatedUserLanguage(request) : null;
   const cookieLocale = request.cookies.get("sponda-lang")?.value;
-  const locale = (cookieLocale && isSupportedLocale(cookieLocale))
-    ? cookieLocale
-    : detectLocaleFromHeader(request.headers.get("accept-language"));
+  let locale: string;
+  if (userLanguage && isSupportedLocale(userLanguage)) {
+    locale = userLanguage;
+  } else if (cookieLocale && isSupportedLocale(cookieLocale)) {
+    locale = cookieLocale;
+  } else {
+    locale = detectLocaleFromHeader(request.headers.get("accept-language"));
+  }
 
   // Translate tab slugs when redirecting to a different locale
   let newPathname = pathname;
