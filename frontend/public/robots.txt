@@ -1,7 +1,11 @@
 User-agent: *
 Allow: /
+
 Disallow: /api/
 Disallow: /admin/
+Disallow: /google/callback
+
+# Auth and account pages (all locales)
 Disallow: /login
 Disallow: /signup
 Disallow: /forgot-password
@@ -9,6 +13,16 @@ Disallow: /reset-password
 Disallow: /verify-email
 Disallow: /account
 Disallow: /admin-dashboard
-Disallow: /google/callback
+Disallow: /*/login
+Disallow: /*/signup
+Disallow: /*/forgot-password
+Disallow: /*/reset-password
+Disallow: /*/verify-email
+Disallow: /*/account
+Disallow: /*/admin-dashboard
+Disallow: /*/listas
+Disallow: /*/alertas
+Disallow: /*/notificacoes
+Disallow: /*/visitas
 
 Sitemap: https://sponda.capital/sitemap.xml
