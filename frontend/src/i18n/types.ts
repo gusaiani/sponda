@@ -87,6 +87,11 @@ export interface TranslationDictionary {
   "auth.change_email_error": string;
   "auth.change_email_verification_sent": string;
   "auth.email_not_verified_note": string;
+  "auth.email_not_verified_link": string;
+  "auth.email_not_verified_tooltip_title": string;
+  "auth.email_not_verified_tooltip_queries": string;
+  "auth.email_not_verified_tooltip_favorites": string;
+  "auth.email_not_verified_tooltip_features": string;
   "auth.resend_verification": string;
   "auth.resend_verification_sending": string;
   "auth.resend_verification_sent": string;
@@ -124,6 +129,8 @@ export interface TranslationDictionary {
   "verify.invalid_token": string;
   "verify.error": string;
   "verify.expired_text": string;
+  "verify.pending_title": string;
+  "verify.pending_text": string;
 
   /* ── Feedback ── */
   "feedback.trigger": string;

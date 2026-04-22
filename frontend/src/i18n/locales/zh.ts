@@ -86,6 +86,11 @@ export const zh: TranslationDictionary = {
   "auth.change_email_button": "更改邮箱",
   "auth.change_email_error": "更改邮箱时出错",
   "auth.email_not_verified_note": "您的邮箱尚未验证。",
+  "auth.email_not_verified_link": "验证您的邮箱",
+  "auth.email_not_verified_tooltip_title": "验证邮箱后可解锁：",
+  "auth.email_not_verified_tooltip_queries": "更多查询次数",
+  "auth.email_not_verified_tooltip_favorites": "更多收藏数量",
+  "auth.email_not_verified_tooltip_features": "其他系统功能",
   "auth.resend_verification": "重新发送验证邮件",
   "auth.resend_verification_sending": "发送中…",
   "auth.resend_verification_sent": "验证邮件已发送。请查收。",
@@ -124,6 +129,8 @@ export const zh: TranslationDictionary = {
   "verify.invalid_token": "无效链接 \u2014 未找到令牌。",
   "verify.error": "验证邮箱时出错",
   "verify.expired_text": "链接可能已过期，请在账户设置中重新获取。",
+  "verify.pending_title": "验证您的邮箱",
+  "verify.pending_text": "请检查收件箱中的验证链接。如果没有收到，可在下方重新发送。",
 
   /* ── Feedback ── */
   "feedback.trigger": "您觉得 Sponda 到目前为止怎么样？",

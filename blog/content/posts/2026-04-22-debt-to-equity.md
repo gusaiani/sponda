@@ -8,7 +8,7 @@ categories: ["tutorial"]
 summary: "What debt to equity measures, why it matters for risk, and how to track it on Sponda."
 ---
 
-In the previous video we looked at liabilities to equity — the ratio of everything a company owes to everything the owners would keep if the business were liquidated. Debt to equity zooms in on the most dangerous slice of that "owes" pile.
+In the previous post we looked at liabilities to equity — the ratio of everything a company owes to everything the owners would keep if the business were liquidated. Debt to equity zooms in on the most dangerous slice of that "owes" pile.
 
 Liabilities include all sorts of obligations: unpaid supplier invoices, tax bills, lease commitments, provisions. Debt — bank loans, bonds, credit facilities — is just one component, but it's the one that comes with fixed repayment schedules and interest. Miss a payment on a supplier invoice and you negotiate. Miss a debt payment and creditors can force bankruptcy. That's why isolating debt from the rest of liabilities is worth the extra step.
 
@@ -20,4 +20,4 @@ On Sponda you'll find debt to equity as the first indicator under Leverage for a
 
 That's debt to equity. More metrics in the next videos.
 
-{{< youtube jKpsOkQsn18 >}}
+{{< youtube cpMHtPlIQIQ >}}

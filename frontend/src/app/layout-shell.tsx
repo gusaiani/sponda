@@ -11,7 +11,7 @@ import { usePageTracking } from "../hooks/usePageTracking";
 import { POEMA_RETURN, IBOVESPA_RETURN, POEMA_PERIOD } from "../utils/branding";
 import { useTranslation } from "../i18n";
 
-const AUTH_SUFFIXES = ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email"];
+const AUTH_SUFFIXES = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
 /** Strip the locale prefix from a pathname for matching purposes. */
 function stripLocale(pathname: string): string {
