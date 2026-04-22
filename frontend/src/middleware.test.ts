@@ -81,13 +81,13 @@ describe("middleware config.matcher", () => {
 });
 
 describe("middleware locale persistence", () => {
-  it("writes sponda-lang cookie when path is already locale-prefixed", () => {
-    const response = middleware(buildRequest("/it/PETR4"));
+  it("writes sponda-lang cookie when path is already locale-prefixed", async () => {
+    const response = await middleware(buildRequest("/it/PETR4"));
     expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("it");
   });
 
-  it("writes sponda-lang cookie when redirecting bare URL to chosen locale", () => {
-    const response = middleware(
+  it("writes sponda-lang cookie when redirecting bare URL to chosen locale", async () => {
+    const response = await middleware(
       buildRequest("/", { acceptLanguage: "fr-CA,fr;q=0.9,en;q=0.8" }),
     );
     expect(response.status).toBe(302);
@@ -95,8 +95,8 @@ describe("middleware locale persistence", () => {
     expect(response.headers.get("location")).toContain("/fr");
   });
 
-  it("prefers existing cookie over Accept-Language on bare URL", () => {
-    const response = middleware(
+  it("prefers existing cookie over Accept-Language on bare URL", async () => {
+    const response = await middleware(
       buildRequest("/", {
         acceptLanguage: "en",
         cookies: { [LANGUAGE_COOKIE_NAME]: "de" },
@@ -104,5 +104,27 @@ describe("middleware locale persistence", () => {
     );
     expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("de");
     expect(response.headers.get("location")).toContain("/de");
+  });
+
+  it("bare URL with session cookie but no sponda-lang: fetches user language from backend", async () => {
+    const originalFetch = globalThis.fetch;
+    const stub = async () =>
+      new Response(JSON.stringify({ email: "u@example.com", language: "it" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    (globalThis as { fetch: typeof fetch }).fetch = stub as typeof fetch;
+    try {
+      const response = await middleware(
+        buildRequest("/", {
+          cookies: { sessionid: "abc" },
+          acceptLanguage: "en",
+        }),
+      );
+      expect(response.headers.get("location")).toContain("/it");
+      expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("it");
+    } finally {
+      (globalThis as { fetch: typeof fetch }).fetch = originalFetch;
+    }
   });
 });

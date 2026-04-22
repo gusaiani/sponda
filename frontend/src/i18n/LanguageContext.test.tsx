@@ -87,4 +87,36 @@ describe("LanguageProvider", () => {
     });
     expect(rendered.context().locale).toBe("de");
   });
+
+  it("URL-driven initialLocale change triggers backend PATCH and updates state", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    let captured!: LanguageContextValue;
+    function Reader() {
+      captured = useContext(LanguageContext);
+      return null;
+    }
+    act(() => {
+      root.render(
+        <LanguageProvider initialLocale="en">
+          <Reader />
+        </LanguageProvider>,
+      );
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => {
+      root.render(
+        <LanguageProvider initialLocale="pt">
+          <Reader />
+        </LanguageProvider>,
+      );
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse(init.body as string)).toEqual({ language: "pt" });
+    expect(captured.locale).toBe("pt");
+    act(() => root.unmount());
+    container.remove();
+  });
 });

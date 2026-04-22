@@ -391,6 +391,84 @@ class TestLanguagePersistence:
         )
         assert response.status_code == 403
 
+    def test_authenticated_request_primes_missing_language_cookie(self, api_client, user):
+        """When the cookie is absent the next auth response primes it from
+        user.language, so bare-URL visits don't fall back to Accept-Language."""
+        user.language = "zh"
+        user.save(update_fields=["language"])
+        api_client.login(username="test@example.com", password="securepass123")
+        # simulate cookie cleared while session is still valid
+        api_client.cookies.pop(self.COOKIE_NAME, None)
+        response = api_client.get("/api/auth/quota/")
+        assert response.status_code == 200
+        assert response.cookies[self.COOKIE_NAME].value == "zh"
+
+    def test_authenticated_request_preserves_existing_cookie_choice(self, api_client, user):
+        """An already-valid cookie represents the user's most recent explicit
+        choice (e.g. from URL-driven navigation to /pt); the middleware must
+        not overwrite it with user.language."""
+        user.language = "en"
+        user.save(update_fields=["language"])
+        api_client.login(username="test@example.com", password="securepass123")
+        api_client.cookies[self.COOKIE_NAME] = "pt"
+        response = api_client.get("/api/auth/quota/")
+        assert response.status_code == 200
+        assert self.COOKIE_NAME not in response.cookies
+
+    def test_anon_request_does_not_set_language_cookie(self, api_client, db):
+        response = api_client.get("/api/auth/quota/")
+        # anon requests should not leak a cookie; only authenticated responses sync
+        assert self.COOKIE_NAME not in response.cookies
+
+    def test_google_oauth_sets_language_cookie(self, api_client, db, monkeypatch):
+        """Google OAuth must carry the stored user.language just like password login."""
+        User = get_user_model()
+        User.objects.create_user(
+            username="google@example.com",
+            email="google@example.com",
+            password="unused",
+            language="de",
+        )
+
+        class FakeResponse:
+            def __init__(self, status_code, payload):
+                self.status_code = status_code
+                self._payload = payload
+
+            def json(self):
+                return self._payload
+
+        def fake_post(url, data, timeout):
+            return FakeResponse(200, {"id_token": "stub"})
+
+        def fake_get(url, timeout):
+            return FakeResponse(200, {"email": "google@example.com"})
+
+        from accounts import views as accounts_views
+        monkeypatch.setattr(
+            accounts_views.settings,
+            "GOOGLE_CLIENT_ID",
+            "stub-client",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            accounts_views.settings,
+            "GOOGLE_CLIENT_SECRET",
+            "stub-secret",
+            raising=False,
+        )
+        import requests as http_requests
+        monkeypatch.setattr(http_requests, "post", fake_post)
+        monkeypatch.setattr(http_requests, "get", fake_get)
+
+        response = api_client.post(
+            "/api/auth/google/",
+            {"code": "ignored", "redirect_uri": "https://sponda.capital/google/callback"},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert response.cookies[self.COOKIE_NAME].value == "de"
+
 
 # ── Change Password ──
 
