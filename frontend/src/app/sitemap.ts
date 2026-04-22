@@ -1,16 +1,39 @@
 import type { MetadataRoute } from "next";
 import { SUPPORTED_LOCALES } from "../lib/i18n-config";
-import {
-  BASE_URL,
-  FEATURED_TICKERS,
-  FEATURED_SET,
-  TICKERS_PER_SITEMAP,
-  fetchAllTickers,
-  computeSitemapIds,
-} from "../lib/sitemap-data";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
+import { getPopularSymbols } from "../utils/suggestedCompanies";
+
+const BASE_URL = "https://sponda.capital";
+const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
 
 const TAB_KEYS: TabKey[] = ["charts", "fundamentals", "compare"];
+const TICKERS_PER_SITEMAP = 1500;
+
+const FEATURED_TICKERS = [...new Set([
+  ...getPopularSymbols("brazil"),
+  ...getPopularSymbols("us"),
+  ...getPopularSymbols("europe"),
+  ...getPopularSymbols("asia"),
+])];
+
+const FEATURED_SET = new Set(FEATURED_TICKERS);
+
+interface TickerEntry {
+  symbol: string;
+}
+
+async function fetchAllTickers(): Promise<string[]> {
+  try {
+    const response = await fetch(`${DJANGO_API_URL}/api/tickers/all/`, {
+      next: { revalidate: 86400 },
+    });
+    if (!response.ok) return [];
+    const tickers: TickerEntry[] = await response.json();
+    return tickers.map((ticker) => ticker.symbol);
+  } catch {
+    return [];
+  }
+}
 
 function buildAlternates(pathBuilder: (locale: string) => string): Record<string, string> {
   const languages: Record<string, string> = {};
@@ -65,7 +88,15 @@ function tickerEntries(
 }
 
 export async function generateSitemaps() {
-  return computeSitemapIds();
+  const allTickers = await fetchAllTickers();
+  const remainingTickers = allTickers.filter((ticker) => !FEATURED_SET.has(ticker));
+  const apiChunks = Math.ceil(remainingTickers.length / TICKERS_PER_SITEMAP);
+
+  const ids = [{ id: 0 }, { id: 1 }];
+  for (let i = 0; i < apiChunks; i++) {
+    ids.push({ id: i + 2 });
+  }
+  return ids;
 }
 
 export default async function sitemap({
