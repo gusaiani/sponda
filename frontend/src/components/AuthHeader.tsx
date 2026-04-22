@@ -10,7 +10,7 @@ import "../styles/auth-header.css";
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
 export function AuthHeader() {
-  const { isAuthenticated, isSuperuser, isLoading } = useAuth();
+  const { user, isAuthenticated, isSuperuser, isLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const { t, locale } = useTranslation();
@@ -50,6 +50,21 @@ export function AuthHeader() {
 
       {/* Inline items — visible on desktop, hidden on mobile */}
       <div className="auth-header-inline">
+        {isAuthenticated && !user?.email_verified && (
+          <div className="auth-header-tooltip-group">
+            <Link href={`/${locale}/verify-email`} className="auth-header-link auth-header-warning-pill">
+              {t("auth.email_not_verified_link")}
+            </Link>
+            <div className="auth-header-tooltip" role="tooltip">
+              <p className="auth-header-tooltip-title">{t("auth.email_not_verified_tooltip_title")}</p>
+              <ul className="auth-header-tooltip-list">
+                <li>{t("auth.email_not_verified_tooltip_queries")}</li>
+                <li>{t("auth.email_not_verified_tooltip_favorites")}</li>
+                <li>{t("auth.email_not_verified_tooltip_features")}</li>
+              </ul>
+            </div>
+          </div>
+        )}
         <ShareDropdown />
         <a href="https://blog.sponda.capital" className="auth-header-link" target="_blank" rel="noopener noreferrer">
           Blog
@@ -107,6 +122,15 @@ export function AuthHeader() {
         </button>
         {isMenuOpen && (
           <div className="auth-header-menu" role="menu">
+            {isAuthenticated && !user?.email_verified && (
+              <Link
+                href={`/${locale}/verify-email`}
+                className="auth-header-menu-link auth-header-warning"
+                onClick={closeMenu}
+              >
+                {t("auth.email_not_verified_link")}
+              </Link>
+            )}
             <div className="auth-header-menu-row auth-header-menu-row--controls">
               <ShareDropdown />
               <LanguageToggle />

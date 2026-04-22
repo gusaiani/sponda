@@ -86,6 +86,11 @@ export const de: TranslationDictionary = {
   "auth.change_email_button": "E-Mail ändern",
   "auth.change_email_error": "Fehler beim Ändern der E-Mail",
   "auth.email_not_verified_note": "Ihre E-Mail ist noch nicht bestätigt.",
+  "auth.email_not_verified_link": "Bestätigen Sie Ihre E-Mail",
+  "auth.email_not_verified_tooltip_title": "Bestätigen Sie Ihre E-Mail, um freizuschalten:",
+  "auth.email_not_verified_tooltip_queries": "eine höhere Anzahl an Abfragen",
+  "auth.email_not_verified_tooltip_favorites": "eine höhere Anzahl an Favoriten",
+  "auth.email_not_verified_tooltip_features": "weitere Systemfunktionen",
   "auth.resend_verification": "Bestätigungs-E-Mail erneut senden",
   "auth.resend_verification_sending": "Senden…",
   "auth.resend_verification_sent": "Bestätigungs-E-Mail gesendet. Prüfen Sie Ihren Posteingang.",
@@ -124,6 +129,8 @@ export const de: TranslationDictionary = {
   "verify.invalid_token": "Ungültiger Link \u2014 Token nicht gefunden.",
   "verify.error": "Fehler bei der E-Mail-Verifizierung",
   "verify.expired_text": "Der Link ist möglicherweise abgelaufen. Fordern Sie einen neuen in Ihrem Konto an.",
+  "verify.pending_title": "Bestätigen Sie Ihre E-Mail",
+  "verify.pending_text": "Prüfen Sie Ihren Posteingang auf den Bestätigungslink. Wenn Sie ihn nicht erhalten haben, senden Sie ihn unten erneut.",
 
   /* ── Feedback ── */
   "feedback.trigger": "Was halten Sie bisher von Sponda?",

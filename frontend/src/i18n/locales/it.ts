@@ -87,6 +87,11 @@ export const it: TranslationDictionary = {
   "auth.change_email_error": "Errore nella modifica dell'email",
   "auth.change_email_verification_sent": "Email aggiornata. Abbiamo inviato un link di verifica al nuovo indirizzo · fai clic per confermare.",
   "auth.email_not_verified_note": "La tua email non è ancora stata verificata.",
+  "auth.email_not_verified_link": "Verifica la tua email",
+  "auth.email_not_verified_tooltip_title": "Verifica la tua email per sbloccare:",
+  "auth.email_not_verified_tooltip_queries": "un numero maggiore di consultazioni",
+  "auth.email_not_verified_tooltip_favorites": "un numero maggiore di preferiti",
+  "auth.email_not_verified_tooltip_features": "altre funzionalità del sistema",
   "auth.resend_verification": "Rinvia email di verifica",
   "auth.resend_verification_sending": "Invio…",
   "auth.resend_verification_sent": "Email di verifica inviata. Controlla la tua casella.",
@@ -124,6 +129,8 @@ export const it: TranslationDictionary = {
   "verify.invalid_token": "Link non valido \u2014 token non trovato.",
   "verify.error": "Errore nella verifica dell'email",
   "verify.expired_text": "Il link potrebbe essere scaduto. Richiedine uno nuovo dal tuo account.",
+  "verify.pending_title": "Verifica la tua email",
+  "verify.pending_text": "Controlla la tua casella di posta per il link di verifica. Se non lo hai ricevuto, invialo di nuovo qui sotto.",
 
   /* ── Feedback ── */
   "feedback.trigger": "Cosa ne pensi di Sponda finora?",

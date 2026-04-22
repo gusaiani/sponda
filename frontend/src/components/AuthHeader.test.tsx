@@ -54,7 +54,12 @@ describe("AuthHeader mobile hamburger menu", () => {
   });
 
   it("opens the menu on hamburger click and shows Share, Visitas, Account and language toggle", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, isSuperuser: false, isLoading: false });
+    mockUseAuth.mockReturnValue({
+      user: { email_verified: true },
+      isAuthenticated: true,
+      isSuperuser: false,
+      isLoading: false,
+    });
 
     render(<AuthHeader />);
     fireEvent.click(document.querySelector(".auth-header-hamburger")!);
@@ -81,7 +86,12 @@ describe("AuthHeader mobile hamburger menu", () => {
   });
 
   it("shows the Admin link in the menu only for superusers", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, isSuperuser: true, isLoading: false });
+    mockUseAuth.mockReturnValue({
+      user: { email_verified: true },
+      isAuthenticated: true,
+      isSuperuser: true,
+      isLoading: false,
+    });
 
     render(<AuthHeader />);
     fireEvent.click(document.querySelector(".auth-header-hamburger")!);
@@ -91,7 +101,12 @@ describe("AuthHeader mobile hamburger menu", () => {
   });
 
   it("does not show the Admin link when the user is not a superuser", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, isSuperuser: false, isLoading: false });
+    mockUseAuth.mockReturnValue({
+      user: { email_verified: true },
+      isAuthenticated: true,
+      isSuperuser: false,
+      isLoading: false,
+    });
 
     render(<AuthHeader />);
     fireEvent.click(document.querySelector(".auth-header-hamburger")!);
@@ -115,6 +130,34 @@ describe("AuthHeader mobile hamburger menu", () => {
     const loginLink = document.querySelector(".auth-header-signup");
     expect(loginLink).not.toBeNull();
     expect(loginLink!.textContent).toBe("auth.login");
+  });
+
+  it("shows an email verification link for unverified authenticated users", () => {
+    mockUseAuth.mockReturnValue({
+      user: { email_verified: false },
+      isAuthenticated: true,
+      isSuperuser: false,
+      isLoading: false,
+    });
+
+    render(<AuthHeader />);
+    expect(document.body.textContent).toContain("auth.email_not_verified_link");
+    expect(document.body.textContent).toContain("auth.email_not_verified_tooltip_title");
+    expect(document.body.textContent).toContain("auth.email_not_verified_tooltip_queries");
+    expect(document.body.textContent).toContain("auth.email_not_verified_tooltip_favorites");
+    expect(document.body.textContent).toContain("auth.email_not_verified_tooltip_features");
+  });
+
+  it("does not show an email verification link for verified authenticated users", () => {
+    mockUseAuth.mockReturnValue({
+      user: { email_verified: true },
+      isAuthenticated: true,
+      isSuperuser: false,
+      isLoading: false,
+    });
+
+    render(<AuthHeader />);
+    expect(document.body.textContent).not.toContain("auth.email_not_verified_link");
   });
 });
 

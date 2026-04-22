@@ -86,6 +86,11 @@ export const fr: TranslationDictionary = {
   "auth.change_email_button": "Changer d'email",
   "auth.change_email_error": "Erreur lors du changement d'email",
   "auth.email_not_verified_note": "Votre email n'est pas encore vérifié.",
+  "auth.email_not_verified_link": "Vérifiez votre email",
+  "auth.email_not_verified_tooltip_title": "Vérifiez votre email pour débloquer :",
+  "auth.email_not_verified_tooltip_queries": "un plus grand nombre de consultations",
+  "auth.email_not_verified_tooltip_favorites": "un plus grand nombre de favoris",
+  "auth.email_not_verified_tooltip_features": "d'autres fonctionnalités du système",
   "auth.resend_verification": "Renvoyer l'email de vérification",
   "auth.resend_verification_sending": "Envoi…",
   "auth.resend_verification_sent": "Email de vérification envoyé. Vérifiez votre boîte de réception.",
@@ -124,6 +129,8 @@ export const fr: TranslationDictionary = {
   "verify.invalid_token": "Lien invalide \u2014 jeton introuvable.",
   "verify.error": "Erreur lors de la v\u00e9rification de l'e-mail",
   "verify.expired_text": "Le lien a peut-\u00eatre expir\u00e9. Demandez-en un nouveau depuis votre compte.",
+  "verify.pending_title": "Vérifiez votre email",
+  "verify.pending_text": "Consultez votre boîte de réception pour le lien de vérification. Si vous ne l'avez pas reçu, renvoyez-le ci-dessous.",
 
   /* ── Feedback ── */
   "feedback.trigger": "Que pensez-vous de Sponda jusqu'\u00e0 pr\u00e9sent\u00a0?",
