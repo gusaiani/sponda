@@ -157,6 +157,10 @@
   color: var(--color-muted);
 }
 
+.auth-signup-success {
+  @apply flex flex-col gap-1;
+}
+
 .auth-link {
   @apply text-center text-sm mt-4;
   color: var(--color-muted);

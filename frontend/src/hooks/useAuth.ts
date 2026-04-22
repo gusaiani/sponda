@@ -1,5 +1,10 @@
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
+import {
+  getEmailVerificationPromptVisible,
+  setEmailVerificationPromptVisible,
+} from "../utils/emailVerificationPrompt";
 
 export interface AuthUser {
   email: string;
@@ -19,6 +24,7 @@ async function fetchMe(): Promise<AuthUser | null> {
 
 export function useAuth() {
   const queryClient = useQueryClient();
+  const [showEmailVerificationPrompt, setShowEmailVerificationPrompt] = useState(false);
 
   const { data: user, isLoading } = useQuery({
     queryKey: ["auth-user"],
@@ -27,12 +33,34 @@ export function useAuth() {
     retry: false,
   });
 
+  useEffect(() => {
+    function syncPromptState() {
+      setShowEmailVerificationPrompt(getEmailVerificationPromptVisible());
+    }
+
+    syncPromptState();
+    window.addEventListener("storage", syncPromptState);
+    window.addEventListener("sponda-email-verification-prompt-change", syncPromptState);
+
+    return () => {
+      window.removeEventListener("storage", syncPromptState);
+      window.removeEventListener("sponda-email-verification-prompt-change", syncPromptState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading && (!user || user.email_verified)) {
+      setEmailVerificationPromptVisible(false);
+    }
+  }, [isLoading, user]);
+
   async function logout() {
     await fetch("/api/auth/logout/", {
       method: "POST",
       headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
       credentials: "include",
     });
+    setEmailVerificationPromptVisible(false);
     queryClient.setQueryData(["auth-user"], null);
     queryClient.invalidateQueries({ queryKey: ["quota"] });
   }
@@ -45,6 +73,7 @@ export function useAuth() {
     user: user ?? null,
     isAuthenticated: !!user,
     isSuperuser: user?.is_superuser ?? false,
+    showEmailVerificationPrompt,
     isLoading,
     logout,
     refreshUser,

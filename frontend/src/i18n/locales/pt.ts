@@ -94,7 +94,7 @@ export const pt: TranslationDictionary = {
   "auth.email_not_verified_tooltip_features": "outras funcionalidades do sistema",
   "auth.resend_verification": "Reenviar email de verificação",
   "auth.resend_verification_sending": "Enviando…",
-  "auth.resend_verification_sent": "Email de verificação enviado. Confira sua caixa de entrada.",
+  "auth.resend_verification_sent": "Email de verificação enviado.",
   "auth.resend_verification_error": "Não foi possível enviar. Tente novamente.",
   "auth.preferences_update_error": "Erro ao salvar preferências",
   "auth.preferences_saving": "Salvando…",
@@ -129,8 +129,8 @@ export const pt: TranslationDictionary = {
   "verify.invalid_token": "Link inv\u00e1lido \u2014 token n\u00e3o encontrado.",
   "verify.error": "Erro ao verificar email",
   "verify.expired_text": "O link pode ter expirado. Solicite um novo na sua conta.",
-  "verify.pending_title": "Verifique seu email",
-  "verify.pending_text": "Confira sua caixa de entrada para o link de verificação. Se não recebeu, reenvie abaixo.",
+  "verify.pending_title": "Confirme seu email",
+  "verify.pending_text": "Confira sua caixa de entrada. Se não recebeu, reenvie abaixo.",
 
   /* ── Feedback ── */
   "feedback.trigger": "O que voc\u00ea acha da Sponda at\u00e9 agora?",

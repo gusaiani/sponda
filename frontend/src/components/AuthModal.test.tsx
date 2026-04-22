@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { AuthModal } from "./AuthModal";
 
 afterEach(cleanup);
+
+const { setEmailVerificationPromptVisible } = vi.hoisted(() => ({
+  setEmailVerificationPromptVisible: vi.fn(),
+}));
+
+vi.mock("../utils/emailVerificationPrompt", () => ({
+  setEmailVerificationPromptVisible,
+}));
 
 describe("AuthModal", () => {
   const defaultProps = {
@@ -67,5 +75,28 @@ describe("AuthModal", () => {
 
     const closeButton = screen.getByLabelText("Close");
     expect(closeButton).toBeTruthy();
+  });
+
+  it("shows a verification modal after successful signup", async () => {
+    const onSuccess = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ email: "new@example.com" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AuthModal {...defaultProps} onSuccess={onSuccess} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign up" }));
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "new@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } });
+    fireEvent.change(screen.getByLabelText("Confirm Password"), { target: { value: "password123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Account" }));
+
+    expect(await screen.findByText("Confirm your email")).toBeTruthy();
+    expect(screen.getByText("Verification email sent. Check your inbox.")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onSuccess).toHaveBeenCalled();
   });
 });

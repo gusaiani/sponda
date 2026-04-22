@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
 import { localToday } from "../utils/format";
+import { buildApiError } from "../utils/emailVerificationPrompt";
 
 export interface VisitEntry {
   id: number;
@@ -74,7 +75,7 @@ export function useVisits(ticker?: string) {
         credentials: "include",
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Failed to mark visited");
+      if (!response.ok) throw await buildApiError(response, "Failed to mark visited");
       return response.json();
     },
     onSuccess: () => {
@@ -111,7 +112,7 @@ export function useRevisitSchedules() {
         credentials: "include",
         body: JSON.stringify(data),
       });
-      if (!response.ok) throw new Error("Failed to update schedule");
+      if (!response.ok) throw await buildApiError(response, "Failed to update schedule");
       return response.json();
     },
     onSuccess: () => {
@@ -127,7 +128,7 @@ export function useRevisitSchedules() {
         headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to delete schedule");
+      if (!response.ok) throw await buildApiError(response, "Failed to delete schedule");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["revisit-schedules"] });
@@ -159,7 +160,7 @@ export function usePendingReminders() {
         headers: csrfHeaders(),
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to dismiss reminder");
+      if (!response.ok) throw await buildApiError(response, "Failed to dismiss reminder");
       return response.json();
     },
     onSuccess: () => {
@@ -176,7 +177,7 @@ export function usePendingReminders() {
         headers: csrfHeaders(),
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to dismiss reminders");
+      if (!response.ok) throw await buildApiError(response, "Failed to dismiss reminders");
       return response.json();
     },
     onSuccess: () => {

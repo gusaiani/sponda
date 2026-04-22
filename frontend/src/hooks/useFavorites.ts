@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
+import { buildApiError } from "../utils/emailVerificationPrompt";
 
 interface FavoriteEntry {
   id: number;
@@ -32,7 +33,7 @@ export function useFavorites() {
         credentials: "include",
         body: JSON.stringify({ ticker }),
       });
-      if (!response.ok) throw new Error("Failed to add favorite");
+      if (!response.ok) throw await buildApiError(response, "Failed to add favorite");
       return response.json();
     },
     onSuccess: () => {
@@ -47,7 +48,7 @@ export function useFavorites() {
         headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to remove favorite");
+      if (!response.ok) throw await buildApiError(response, "Failed to remove favorite");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["favorites"] });

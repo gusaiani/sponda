@@ -4,6 +4,9 @@ import { useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "../../../i18n";
+import { SignupVerificationContent } from "../../../components/SignupVerificationContent";
+import { setEmailVerificationPromptVisible } from "../../../utils/emailVerificationPrompt";
+import "../../../styles/feedback.css";
 
 type AuthMode = "login" | "signup";
 
@@ -75,7 +78,12 @@ export default function LoginPage() {
         return;
       }
 
-      // Both signup and login: backend sets session cookie, redirect home
+      setEmailVerificationPromptVisible(false);
+      if (mode === "signup") {
+        setSignupSuccess(true);
+        return;
+      }
+
       window.location.href = `/${locale}`;
     } catch {
       setError(t("auth.connection_error"));
@@ -92,12 +100,17 @@ export default function LoginPage() {
             <span className="auth-logo">SPONDA</span>
           </Link>
           <h1 className="auth-title">{t("auth.account_created")}</h1>
-          <p className="auth-success-text">
-            {t("auth.account_created_text")}
-          </p>
-          <p className="auth-link">
-            <Link href={`/${locale}`}>{t("auth.go_to_homepage")}</Link>
-          </p>
+          <p className="auth-success-text">{t("auth.account_created_text")}</p>
+        </div>
+        <div className="feedback-overlay">
+          <div className="feedback-panel" style={{ maxWidth: "400px" }}>
+            <SignupVerificationContent
+              onContinue={() => {
+                window.location.href = `/${locale}`;
+              }}
+              continueLabel={t("auth.go_to_homepage")}
+            />
+          </div>
         </div>
       </div>
     );
