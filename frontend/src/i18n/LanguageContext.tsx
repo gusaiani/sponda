@@ -23,13 +23,6 @@ interface LanguageProviderProps {
 export function LanguageProvider({ children, initialLocale }: LanguageProviderProps) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
-  // Keep state in sync if initialLocale changes (e.g. navigation)
-  useEffect(() => {
-    if (initialLocale !== locale) {
-      setLocaleState(initialLocale);
-    }
-  }, [initialLocale]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale);
     localStorage.setItem(STORAGE_KEY, newLocale);
@@ -45,6 +38,17 @@ export function LanguageProvider({ children, initialLocale }: LanguageProviderPr
     }).catch(() => {});
     // Navigation is handled by the LanguageToggle component
   }, []);
+
+  // URL-driven locale change (user clicked an /it link, typed /fr in the
+  // address bar, etc.) should be treated as the user's new preference:
+  // persist it to the cookie and the backend. Defined after `setLocale` so
+  // the effect can call it. Runs when `initialLocale` changes — on mount
+  // `initialLocale === locale` so this is a no-op.
+  useEffect(() => {
+    if (initialLocale !== locale) {
+      setLocale(initialLocale);
+    }
+  }, [initialLocale]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync html lang attribute
   useEffect(() => {

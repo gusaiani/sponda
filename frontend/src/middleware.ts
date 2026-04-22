@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale, detectLocaleFromHeader } from "./lib/i18n-config";
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
-
 export const LANGUAGE_COOKIE_NAME = "sponda-lang";
 const LANGUAGE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
@@ -104,7 +103,7 @@ export function middleware(request: NextRequest) {
   }
 
   // 4. Bare URL → redirect to locale-prefixed version
-  // Priority: saved cookie preference > Accept-Language header > default
+  // Priority: cookie (user's explicit choice) → Accept-Language → default
   const cookieLocale = request.cookies.get("sponda-lang")?.value;
   const locale = (cookieLocale && isSupportedLocale(cookieLocale))
     ? cookieLocale
