@@ -1,11 +1,12 @@
-"""Middleware that keeps the `sponda-lang` cookie in sync with `user.language`.
+"""Middleware that primes `sponda-lang` from `user.language` when it's missing.
 
-The Next.js edge middleware decides the locale from that cookie, so if it
-ever drifts from the user's stored preference (e.g. the browser cleared
-it, or Google OAuth logged the user in without setting the cookie), the
-user would bounce to the wrong locale on bare-URL visits. This middleware
-rewrites the cookie on every authenticated response so one round-trip to
-any authenticated endpoint is enough to restore consistency.
+Frontend/edge middleware treats the `sponda-lang` cookie as the user's
+most recent explicit locale choice (including URL-driven navigation to
+`/pt`, `/es`, …). We only step in when the cookie is absent or invalid
+— for authenticated users, the stored `user.language` is a better
+fallback than Accept-Language. If the cookie is already a supported
+locale we leave it alone so URL-driven changes aren't clobbered on the
+next API round-trip.
 """
 from .models import SUPPORTED_LANGUAGES
 
@@ -28,10 +29,11 @@ class LanguagePersistenceMiddleware:
             return response
 
         cookie_language = request.COOKIES.get(LANGUAGE_COOKIE_NAME)
-        if cookie_language == user_language:
+        if cookie_language in SUPPORTED_LANGUAGES:
+            # Cookie already carries the user's most recent choice — leave it
+            # alone so URL-driven locale changes aren't clobbered.
             return response
 
-        # set_cookie replaces any previously-scheduled Set-Cookie with the same name
         response.set_cookie(
             LANGUAGE_COOKIE_NAME,
             user_language,

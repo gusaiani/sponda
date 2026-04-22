@@ -126,22 +126,23 @@ export async function middleware(request: NextRequest) {
 
   // 4. Bare URL → redirect to locale-prefixed version
   // Priority:
-  //   1. Authenticated user.language (authoritative — beats any stale cookie,
-  //      fixes the case where the toggle's cookie write got dropped or the
-  //      cookie was cleared)
-  //   2. Valid saved cookie (anonymous visitors)
+  //   1. Valid saved cookie (user's most recent explicit choice)
+  //   2. Authenticated user.language from Django (fills the cookie back in
+  //      when it was cleared while the session is still valid)
   //   3. Accept-Language header
   //   4. DEFAULT_LOCALE
-  const sessionCookie = request.cookies.get("sessionid")?.value;
-  const userLanguage = sessionCookie ? await fetchAuthenticatedUserLanguage(request) : null;
   const cookieLocale = request.cookies.get("sponda-lang")?.value;
   let locale: string;
-  if (userLanguage && isSupportedLocale(userLanguage)) {
-    locale = userLanguage;
-  } else if (cookieLocale && isSupportedLocale(cookieLocale)) {
+  if (cookieLocale && isSupportedLocale(cookieLocale)) {
     locale = cookieLocale;
   } else {
-    locale = detectLocaleFromHeader(request.headers.get("accept-language"));
+    const sessionCookie = request.cookies.get("sessionid")?.value;
+    const userLanguage = sessionCookie ? await fetchAuthenticatedUserLanguage(request) : null;
+    if (userLanguage && isSupportedLocale(userLanguage)) {
+      locale = userLanguage;
+    } else {
+      locale = detectLocaleFromHeader(request.headers.get("accept-language"));
+    }
   }
 
   // Translate tab slugs when redirecting to a different locale

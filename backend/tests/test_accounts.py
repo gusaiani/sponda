@@ -391,17 +391,29 @@ class TestLanguagePersistence:
         )
         assert response.status_code == 403
 
-    def test_any_authenticated_request_refreshes_language_cookie(self, api_client, user):
-        """If the cookie drifts from user.language, the next response brings it back.
-        Guarantees cross-device sync even when a PATCH on the toggle never reached
-        the browser (e.g. Google OAuth login or a dropped network request)."""
+    def test_authenticated_request_primes_missing_language_cookie(self, api_client, user):
+        """When the cookie is absent the next auth response primes it from
+        user.language, so bare-URL visits don't fall back to Accept-Language."""
         user.language = "zh"
         user.save(update_fields=["language"])
         api_client.login(username="test@example.com", password="securepass123")
-        api_client.cookies[self.COOKIE_NAME] = "en"
+        # simulate cookie cleared while session is still valid
+        api_client.cookies.pop(self.COOKIE_NAME, None)
         response = api_client.get("/api/auth/quota/")
         assert response.status_code == 200
         assert response.cookies[self.COOKIE_NAME].value == "zh"
+
+    def test_authenticated_request_preserves_existing_cookie_choice(self, api_client, user):
+        """An already-valid cookie represents the user's most recent explicit
+        choice (e.g. from URL-driven navigation to /pt); the middleware must
+        not overwrite it with user.language."""
+        user.language = "en"
+        user.save(update_fields=["language"])
+        api_client.login(username="test@example.com", password="securepass123")
+        api_client.cookies[self.COOKIE_NAME] = "pt"
+        response = api_client.get("/api/auth/quota/")
+        assert response.status_code == 200
+        assert self.COOKIE_NAME not in response.cookies
 
     def test_anon_request_does_not_set_language_cookie(self, api_client, db):
         response = api_client.get("/api/auth/quota/")
