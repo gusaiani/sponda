@@ -1,17 +1,17 @@
-"""Middleware that primes `sponda-lang` from `user.language` when it's missing.
+"""Middleware that syncs the sponda-lang cookie into user.language.
 
-Frontend/edge middleware treats the `sponda-lang` cookie as the user's
-most recent explicit locale choice (including URL-driven navigation to
-`/pt`, `/es`, …). We only step in when the cookie is absent or invalid
-— for authenticated users, the stored `user.language` is a better
-fallback than Accept-Language. If the cookie is already a supported
-locale we leave it alone so URL-driven changes aren't clobbered on the
-next API round-trip.
+The sponda-lang cookie is the user's authoritative locale choice (set by
+the Next.js edge middleware whenever the user visits a locale-prefixed URL
+or explicitly switches language). This middleware keeps the DB in sync so
+server-side concerns like email language stay accurate.
+
+If there is no valid cookie, we do nothing — Accept-Language is the
+fallback for routing, and the DB default is good enough for emails until
+the user makes an explicit choice.
 """
 from .models import SUPPORTED_LANGUAGES
 
 LANGUAGE_COOKIE_NAME = "sponda-lang"
-LANGUAGE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60
 
 
 class LanguagePersistenceMiddleware:
@@ -24,21 +24,13 @@ class LanguagePersistenceMiddleware:
         if user is None or not user.is_authenticated:
             return response
 
-        user_language = getattr(user, "language", None)
-        if user_language not in SUPPORTED_LANGUAGES:
-            return response
-
         cookie_language = request.COOKIES.get(LANGUAGE_COOKIE_NAME)
-        if cookie_language in SUPPORTED_LANGUAGES:
-            # Cookie already carries the user's most recent choice — leave it
-            # alone so URL-driven locale changes aren't clobbered.
+        if cookie_language not in SUPPORTED_LANGUAGES:
             return response
 
-        response.set_cookie(
-            LANGUAGE_COOKIE_NAME,
-            user_language,
-            max_age=LANGUAGE_COOKIE_MAX_AGE,
-            path="/",
-            samesite="Lax",
-        )
+        user_language = getattr(user, "language", None)
+        if cookie_language != user_language:
+            user.language = cookie_language
+            user.save(update_fields=["language"])
+
         return response

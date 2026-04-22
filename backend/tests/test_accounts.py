@@ -323,18 +323,18 @@ class TestMe:
         assert response.status_code == 200
         assert response.json()["language"] == "it"
 
-    def test_me_sets_language_cookie(self, api_client, user):
+    def test_me_does_not_set_language_cookie(self, api_client, user):
         user.language = "de"
         user.save(update_fields=["language"])
         api_client.login(username="test@example.com", password="securepass123")
         response = api_client.get("/api/auth/me/")
-        assert response.cookies["sponda-lang"].value == "de"
+        assert "sponda-lang" not in response.cookies
 
 
 class TestLanguagePersistence:
     COOKIE_NAME = "sponda-lang"
 
-    def test_login_sets_language_cookie_from_user(self, api_client, user):
+    def test_login_does_not_set_language_cookie(self, api_client, user):
         user.language = "fr"
         user.save(update_fields=["language"])
         response = api_client.post(
@@ -343,7 +343,7 @@ class TestLanguagePersistence:
             content_type="application/json",
         )
         assert response.status_code == 200
-        assert response.cookies[self.COOKIE_NAME].value == "fr"
+        assert self.COOKIE_NAME not in response.cookies
 
     def test_signup_sets_language_cookie(self, api_client, db):
         response = api_client.post(
@@ -391,26 +391,34 @@ class TestLanguagePersistence:
         )
         assert response.status_code == 403
 
-    def test_authenticated_request_primes_missing_language_cookie(self, api_client, user):
-        """When the cookie is absent the next auth response primes it from
-        user.language, so bare-URL visits don't fall back to Accept-Language."""
-        user.language = "zh"
-        user.save(update_fields=["language"])
-        api_client.login(username="test@example.com", password="securepass123")
-        # simulate cookie cleared while session is still valid
-        api_client.cookies.pop(self.COOKIE_NAME, None)
-        response = api_client.get("/api/auth/quota/")
-        assert response.status_code == 200
-        assert response.cookies[self.COOKIE_NAME].value == "zh"
-
-    def test_authenticated_request_preserves_existing_cookie_choice(self, api_client, user):
-        """An already-valid cookie represents the user's most recent explicit
-        choice (e.g. from URL-driven navigation to /pt); the middleware must
-        not overwrite it with user.language."""
+    def test_middleware_syncs_cookie_language_to_db(self, api_client, user):
+        """When cookie differs from user.language, middleware syncs cookie → DB."""
         user.language = "en"
         user.save(update_fields=["language"])
         api_client.login(username="test@example.com", password="securepass123")
+        api_client.cookies[self.COOKIE_NAME] = "fr"
+        response = api_client.get("/api/auth/quota/")
+        assert response.status_code == 200
+        user.refresh_from_db()
+        assert user.language == "fr"
+
+    def test_middleware_does_not_write_when_cookie_matches_db(self, api_client, user):
+        """No DB write when cookie and user.language already agree."""
+        user.language = "pt"
+        user.save(update_fields=["language"])
+        api_client.login(username="test@example.com", password="securepass123")
         api_client.cookies[self.COOKIE_NAME] = "pt"
+        response = api_client.get("/api/auth/quota/")
+        assert response.status_code == 200
+        user.refresh_from_db()
+        assert user.language == "pt"
+
+    def test_missing_cookie_does_not_prime_from_db(self, api_client, user):
+        """When cookie is absent, middleware does nothing — no DB→cookie priming."""
+        user.language = "zh"
+        user.save(update_fields=["language"])
+        api_client.login(username="test@example.com", password="securepass123")
+        api_client.cookies.pop(self.COOKIE_NAME, None)
         response = api_client.get("/api/auth/quota/")
         assert response.status_code == 200
         assert self.COOKIE_NAME not in response.cookies
@@ -420,8 +428,8 @@ class TestLanguagePersistence:
         # anon requests should not leak a cookie; only authenticated responses sync
         assert self.COOKIE_NAME not in response.cookies
 
-    def test_google_oauth_sets_language_cookie(self, api_client, db, monkeypatch):
-        """Google OAuth must carry the stored user.language just like password login."""
+    def test_google_oauth_existing_user_does_not_set_cookie(self, api_client, db, monkeypatch):
+        """Returning Google user: no cookie set, preserve browser choice."""
         User = get_user_model()
         User.objects.create_user(
             username="google@example.com",
@@ -445,18 +453,8 @@ class TestLanguagePersistence:
             return FakeResponse(200, {"email": "google@example.com"})
 
         from accounts import views as accounts_views
-        monkeypatch.setattr(
-            accounts_views.settings,
-            "GOOGLE_CLIENT_ID",
-            "stub-client",
-            raising=False,
-        )
-        monkeypatch.setattr(
-            accounts_views.settings,
-            "GOOGLE_CLIENT_SECRET",
-            "stub-secret",
-            raising=False,
-        )
+        monkeypatch.setattr(accounts_views.settings, "GOOGLE_CLIENT_ID", "stub-client", raising=False)
+        monkeypatch.setattr(accounts_views.settings, "GOOGLE_CLIENT_SECRET", "stub-secret", raising=False)
         import requests as http_requests
         monkeypatch.setattr(http_requests, "post", fake_post)
         monkeypatch.setattr(http_requests, "get", fake_get)
@@ -467,7 +465,42 @@ class TestLanguagePersistence:
             content_type="application/json",
         )
         assert response.status_code == 200
-        assert response.cookies[self.COOKIE_NAME].value == "de"
+        assert self.COOKIE_NAME not in response.cookies
+
+    def test_google_oauth_new_user_captures_accept_language(self, api_client, db, monkeypatch):
+        """New Google user: language set from Accept-Language, cookie set."""
+        class FakeResponse:
+            def __init__(self, status_code, payload):
+                self.status_code = status_code
+                self._payload = payload
+
+            def json(self):
+                return self._payload
+
+        def fake_post(url, data, timeout):
+            return FakeResponse(200, {"id_token": "stub"})
+
+        def fake_get(url, timeout):
+            return FakeResponse(200, {"email": "new-google@example.com"})
+
+        from accounts import views as accounts_views
+        monkeypatch.setattr(accounts_views.settings, "GOOGLE_CLIENT_ID", "stub-client", raising=False)
+        monkeypatch.setattr(accounts_views.settings, "GOOGLE_CLIENT_SECRET", "stub-secret", raising=False)
+        import requests as http_requests
+        monkeypatch.setattr(http_requests, "post", fake_post)
+        monkeypatch.setattr(http_requests, "get", fake_get)
+
+        response = api_client.post(
+            "/api/auth/google/",
+            {"code": "ignored", "redirect_uri": "https://sponda.capital/google/callback"},
+            content_type="application/json",
+            HTTP_ACCEPT_LANGUAGE="fr-FR,fr;q=0.9,en;q=0.8",
+        )
+        assert response.status_code == 200
+        assert response.cookies[self.COOKIE_NAME].value == "fr"
+        User = get_user_model()
+        user = User.objects.get(email="new-google@example.com")
+        assert user.language == "fr"
 
 
 # ── Change Password ──

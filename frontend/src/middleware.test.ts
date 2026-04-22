@@ -106,25 +106,14 @@ describe("middleware locale persistence", () => {
     expect(response.headers.get("location")).toContain("/de");
   });
 
-  it("bare URL with session cookie but no sponda-lang: fetches user language from backend", async () => {
-    const originalFetch = globalThis.fetch;
-    const stub = async () =>
-      new Response(JSON.stringify({ email: "u@example.com", language: "it" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    (globalThis as { fetch: typeof fetch }).fetch = stub as typeof fetch;
-    try {
-      const response = await middleware(
-        buildRequest("/", {
-          cookies: { sessionid: "abc" },
-          acceptLanguage: "en",
-        }),
-      );
-      expect(response.headers.get("location")).toContain("/it");
-      expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("it");
-    } finally {
-      (globalThis as { fetch: typeof fetch }).fetch = originalFetch;
-    }
+  it("bare URL with session cookie but no sponda-lang falls through to Accept-Language", async () => {
+    const response = await middleware(
+      buildRequest("/", {
+        cookies: { sessionid: "abc" },
+        acceptLanguage: "fr-FR,fr;q=0.9,en;q=0.8",
+      }),
+    );
+    expect(response.headers.get("location")).toContain("/fr");
+    expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("fr");
   });
 });

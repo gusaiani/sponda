@@ -189,8 +189,7 @@ class LoginView(APIView):
             )
 
         login(request, user)
-        response = Response({"email": user.email})
-        return _set_language_cookie(response, _resolve_language(user))
+        return Response({"email": user.email})
 
 
 class LogoutView(APIView):
@@ -235,7 +234,7 @@ class MeView(APIView):
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         language = _resolve_language(request.user)
-        response = Response({
+        return Response({
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
             "email_verified": request.user.email_verified,
@@ -243,7 +242,6 @@ class MeView(APIView):
             "allow_contact": request.user.allow_contact,
             "language": language,
         })
-        return _set_language_cookie(response, language)
 
 
 class VerifyEmailView(APIView):
@@ -1178,12 +1176,20 @@ class GoogleAuthView(APIView):
             email=email,
             defaults={"username": email},
         )
+        if created:
+            cookie_language = request.COOKIES.get(LANGUAGE_COOKIE_NAME)
+            if cookie_language in SUPPORTED_LANGUAGES:
+                language = cookie_language
+            else:
+                language = _parse_accept_language(request.headers.get("Accept-Language", ""))
+            user.language = language
+            user.save(update_fields=["language"])
 
         login(request, user)
-        return Response({
-            "email": user.email,
-            "created": created,
-        })
+        response = Response({"email": user.email, "created": created})
+        if created:
+            return _set_language_cookie(response, user.language)
+        return response
 
 
 # ── Admin Analytics Dashboard ──
