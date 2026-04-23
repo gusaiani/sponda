@@ -453,6 +453,7 @@ function isFinancialInstitution(name: string, sector: string): boolean {
 type ModalKey =
   | "debtToEquity" | "debtExLease" | "liabToEquity"
   | "debtToEarnings" | "debtToFCF"
+  | "marketCap"
   | "pl10" | "peg" | "cagrEarnings"
   | "pfcl10" | "pfclg" | "cagrFCF"
   | null;
@@ -577,6 +578,14 @@ function DebtToEquityInfo({ data }: { data: QuoteData }) {
       <div className="modal-explainer">
         <p>{t("modal.debt_equity_explain")}</p>
         <p>{t("modal.debt_equity_compare")}</p>
+        <div className="modal-video">
+          <iframe
+            src="https://www.youtube.com/embed/cpMHtPlIQIQ"
+            title="Gross Debt / Equity"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
       </div>
       <BalanceSheetComponents data={data} />
       {data.debtToEquity !== null && data.stockholdersEquity !== null && (
@@ -626,6 +635,14 @@ function LiabToEquityInfo({ data }: { data: QuoteData }) {
       <div className="modal-explainer">
         <p>{t("modal.liab_equity_explain")}</p>
         <p>{t("modal.liab_equity_broader")}</p>
+        <div className="modal-video">
+          <iframe
+            src="https://www.youtube.com/embed/g4NIUZs0Qf8"
+            title="Liabilities / Equity"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
       </div>
       <BalanceSheetComponents data={data} />
       {data.liabilitiesToEquity !== null && data.stockholdersEquity !== null && (
@@ -698,6 +715,37 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-formula pe10-calc-result">
               <span>{formatAmount(data.totalDebt)} ÷ {formatAmount(data.avgAdjustedFCF)}</span>
               <span className="pe10-calc-formula-val">= {formatNumber(data.debtToAvgFCF, 2, locale)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MarketCapInfo({ data }: { data: QuoteData }) {
+  const { t, locale } = useTranslation();
+  const formatAmount = makeFormatAmount(data.ticker, locale);
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>{t("modal.market_cap_explain")}</p>
+        <div className="modal-video">
+          <iframe
+            src="https://www.youtube.com/embed/r-nH3W5lAwE"
+            title="Market Cap"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+      {data.marketCap !== null && data.currentPrice !== null && data.currentPrice > 0 && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
+            <div className="pe10-calc-formula">
+              <span>{t("modal.market_cap_price")} × {t("modal.market_cap_shares")}</span>
+              <span className="pe10-calc-formula-val">= {formatAmount(data.marketCap)}</span>
             </div>
           </div>
         </div>
@@ -1014,6 +1062,7 @@ function ModalContent({ modalKey, data }: { modalKey: ModalKey; data: QuoteData 
     case "liabToEquity": return <LiabToEquityInfo data={data} />;
     case "debtToEarnings": return <DebtToEarningsInfo data={data} />;
     case "debtToFCF": return <DebtToFCFInfo data={data} />;
+    case "marketCap": return <MarketCapInfo data={data} />;
     case "pl10": return <PL10Info data={data} />;
     case "peg": return <PEGInfo data={data} variant="earnings" />;
     case "cagrEarnings": return <CAGRInfo data={data} variant="earnings" />;
@@ -1031,6 +1080,7 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: TFn, locale: string) => 
   liabToEquity: (_d, t) => t("modal.title.liab_equity"),
   debtToEarnings: (_d, t) => t("modal.title.debt_earnings"),
   debtToFCF: (_d, t) => t("modal.title.debt_fcf"),
+  marketCap: (_d, t) => t("modal.title.market_cap"),
   pl10: (d, _t, locale) => localizeLabel(d.pe10Label, locale),
   peg: (_d, t) => t("modal.title.peg"),
   cagrEarnings: (_d, t) => t("modal.title.cagr_earnings"),
@@ -1286,7 +1336,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           {renderAlertButton(METRIC_IDS.marketCap, t("metrics.market_cap"))}
           <ShareButton metricId={METRIC_IDS.marketCap} years={years} />
           <div className="metric-value-container">
-            <div className="pe10-label">{t("metrics.market_cap")}</div>
+            <div className="pe10-label">{t("metrics.market_cap")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("marketCap")} /></div>
             <div className="pe10-value">
               {data.marketCap !== null ? formatAmount(data.marketCap) : "N/A"}
             </div>

@@ -321,6 +321,10 @@ export const fr: TranslationDictionary = {
   "modal.debt_earnings_note": "La moyenne sur 10 ans lisse les cycles \u00e9conomiques et les r\u00e9sultats atypiques. N/D indique des b\u00e9n\u00e9fices moyens n\u00e9gatifs sur la p\u00e9riode.",
   "modal.debt_fcf_explain": "Dette Brute / FCF Moy. indique combien d'ann\u00e9es de flux de tr\u00e9sorerie libre moyen (ajust\u00e9 de l'inflation, sur les 10 derni\u00e8res ann\u00e9es) seraient n\u00e9cessaires pour rembourser la dette brute. Le FCF repr\u00e9sentant la tr\u00e9sorerie r\u00e9ellement entr\u00e9e dans l'entreprise, cet indicateur tend \u00e0 \u00eatre plus conservateur que celui bas\u00e9 sur les b\u00e9n\u00e9fices.",
 
+  "modal.market_cap_explain": "La capitalisation boursière est la valeur totale de toutes les actions en circulation de l'entreprise. Calculée en multipliant le cours actuel de l'action par le nombre total d'actions. Elle reflète comment le marché évalue l'entreprise à ce moment.",
+  "modal.market_cap_price": "Prix",
+  "modal.market_cap_shares": "Actions",
+
   "modal.pl10_explain": "Le {label} (CAPE) est le ratio cours/b\u00e9n\u00e9fices calcul\u00e9 sur la moyenne des b\u00e9n\u00e9fices r\u00e9els (ajust\u00e9s de l'inflation) sur les 10 derni\u00e8res ann\u00e9es. Il lisse les fluctuations cycliques et montre combien le march\u00e9 paie par unit\u00e9 de b\u00e9n\u00e9fice de mani\u00e8re plus stable.",
   "modal.pl10_high_low": "Des valeurs \u00e9lev\u00e9es sugg\u00e8rent un actif cher ; des valeurs basses peuvent indiquer des opportunit\u00e9s. Pour les entreprises en forte croissance ou en d\u00e9clin, la moyenne sur 10 ans peut ne pas refl\u00e9ter la trajectoire r\u00e9cente.",
   "modal.pl10_how_title": "Comment c'est calcul\u00e9",
@@ -364,6 +368,7 @@ export const fr: TranslationDictionary = {
   "modal.title.liab_equity": "Passif / Capitaux Propres",
   "modal.title.debt_earnings": "Dette Brute / B\u00e9n\u00e9fices Moy.",
   "modal.title.debt_fcf": "Dette Brute / FCF Moy.",
+  "modal.title.market_cap": "Capitalisation Boursière",
   "modal.title.peg": "PEG",
   "modal.title.cagr_earnings": "CAGR B\u00e9n\u00e9fices",
   "modal.title.pfclg": "PFCFG",

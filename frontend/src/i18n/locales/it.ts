@@ -321,6 +321,10 @@ export const it: TranslationDictionary = {
   "modal.debt_earnings_note": "La media a 10 anni attenua i cicli economici e i risultati atipici. N/D indica utili medi negativi nel periodo.",
   "modal.debt_fcf_explain": "Debito Lordo / FCF Medio indica quanti anni di flusso di cassa libero medio (corretto per l'inflazione, ultimi 10 anni) sarebbero necessari per estinguere il debito lordo. Poich\u00e9 il FCF rappresenta la cassa effettivamente generata dall'azienda, tende a essere pi\u00f9 conservativo dell'indicatore basato sugli utili.",
 
+  "modal.market_cap_explain": "La capitalizzazione di mercato è il valore totale di tutte le azioni in circolazione dell'azienda. Calcolata moltiplicando il prezzo attuale dell'azione per il numero totale di azioni. Riflette come il mercato valuta l'azienda in questo momento.",
+  "modal.market_cap_price": "Prezzo",
+  "modal.market_cap_shares": "Azioni",
+
   "modal.pl10_explain": "Il {label} (CAPE) \u00e8 il rapporto prezzo/utili calcolato sulla media degli utili reali (corretti per l'inflazione) degli ultimi 10 anni. Attenua le fluttuazioni cicliche e mostra quanto il mercato paga per unit\u00e0 di utile in modo pi\u00f9 stabile.",
   "modal.pl10_high_low": "Valori elevati suggeriscono un asset costoso; valori bassi possono indicare opportunit\u00e0. Per aziende in forte crescita o declino, la media a 10 anni potrebbe non riflettere la traiettoria recente.",
   "modal.pl10_how_title": "Come viene calcolato",
@@ -364,6 +368,7 @@ export const it: TranslationDictionary = {
   "modal.title.liab_equity": "Passivit\u00e0 / Patrimonio Netto",
   "modal.title.debt_earnings": "Debito Lordo / Utili Medi",
   "modal.title.debt_fcf": "Debito Lordo / FCF Medio",
+  "modal.title.market_cap": "Capitalizzazione di Mercato",
   "modal.title.peg": "PEG",
   "modal.title.cagr_earnings": "CAGR Utili",
   "modal.title.pfclg": "PFCLG",

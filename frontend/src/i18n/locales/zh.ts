@@ -321,6 +321,10 @@ export const zh: TranslationDictionary = {
   "modal.debt_earnings_note": "10年均值可平滑经济周期和非典型结果。N/A 表示该期间平均盈利为负。",
   "modal.debt_fcf_explain": "总债务 / 平均自由现金流表示需要多少年的平均自由现金流（经通胀调整，取最近10年均值）才能偿还总债务。由于自由现金流代表实际流入公司的现金，该指标通常比基于盈利的指标更为保守。",
 
+  "modal.market_cap_explain": "市值是公司所有流通股的总价值。通过将当前股价乘以总股数计算得出。它反映了市场当前对公司的估值。",
+  "modal.market_cap_price": "价格",
+  "modal.market_cap_shares": "股数",
+
   "modal.pl10_explain": "{label}（CAPE）是基于最近10年实际盈利（经通胀调整）均值计算的市盈率。它平滑了周期性波动，更稳定地反映市场为每单位盈利支付的价格。",
   "modal.pl10_high_low": "高值表明资产可能偏贵；低值可能意味着机会。对于强劲增长或衰退中的公司，10年均值可能无法反映近期的盈利走势。",
   "modal.pl10_how_title": "计算方法",
@@ -364,6 +368,7 @@ export const zh: TranslationDictionary = {
   "modal.title.liab_equity": "总负债 / 股东权益",
   "modal.title.debt_earnings": "总债务 / 平均盈利",
   "modal.title.debt_fcf": "总债务 / 平均自由现金流",
+  "modal.title.market_cap": "市值",
   "modal.title.peg": "PEG",
   "modal.title.cagr_earnings": "CAGR 盈利",
   "modal.title.pfclg": "PFCLG",

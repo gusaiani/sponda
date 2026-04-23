@@ -487,6 +487,22 @@
   color: var(--color-ink);
 }
 
+.modal-video {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+}
+
+.modal-video iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 8px;
+}
+
 .modal-note {
   @apply text-sm leading-relaxed;
   font-family: 'Inter', system-ui, sans-serif;
