@@ -321,6 +321,10 @@ export const es: TranslationDictionary = {
   "modal.debt_earnings_note": "El promedio de 10 a\u00f1os suaviza ciclos econ\u00f3micos y resultados at\u00edpicos. N/A indica beneficio promedio negativo en el per\u00edodo.",
   "modal.debt_fcf_explain": "Deuda Bruta / FCL Prom. indica cu\u00e1ntos a\u00f1os de flujo de caja libre promedio (ajustado por inflaci\u00f3n, \u00faltimos 10 a\u00f1os) ser\u00edan necesarios para saldar la deuda bruta. Como el FCL representa dinero que efectivamente ingresa a la caja, tiende a ser m\u00e1s conservador que el indicador basado en beneficios.",
 
+  "modal.market_cap_explain": "La capitalización de mercado es el valor total de todas las acciones en circulación de la empresa. Se calcula multiplicando el precio actual de la acción por el número total de acciones. Refleja cómo el mercado valora la empresa en este momento.",
+  "modal.market_cap_price": "Precio",
+  "modal.market_cap_shares": "Acciones",
+
   "modal.pl10_explain": "El {label} (CAPE) es el precio/beneficio calculado sobre el promedio de beneficios reales (ajustados por inflaci\u00f3n) de los \u00faltimos 10 a\u00f1os. Suaviza fluctuaciones c\u00edclicas y muestra cu\u00e1nto paga el mercado por unidad de beneficio de forma m\u00e1s estable.",
   "modal.pl10_high_low": "Valores elevados sugieren un activo caro; valores bajos pueden indicar oportunidades. Para empresas en fuerte crecimiento o declive, el promedio de 10 a\u00f1os puede no reflejar la trayectoria reciente.",
   "modal.pl10_how_title": "C\u00f3mo se calcula",
@@ -364,6 +368,7 @@ export const es: TranslationDictionary = {
   "modal.title.liab_equity": "Pasivo / Patr.",
   "modal.title.debt_earnings": "Deuda Bruta / Beneficios Prom.",
   "modal.title.debt_fcf": "Deuda Bruta / FCL Prom.",
+  "modal.title.market_cap": "Capitalización de Mercado",
   "modal.title.peg": "PEG",
   "modal.title.cagr_earnings": "CAGR Beneficios",
   "modal.title.pfclg": "PFCLG",

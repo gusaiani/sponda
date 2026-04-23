@@ -321,6 +321,10 @@ export const en: TranslationDictionary = {
   "modal.debt_earnings_note": "The 10-year average smooths economic cycles and atypical results. N/A indicates negative average earnings in the period.",
   "modal.debt_fcf_explain": "Gross Debt / Avg FCF indicates how many years of average free cash flow (inflation-adjusted, last 10 years) would be needed to pay off gross debt. Since FCF represents actual cash entering the company, it tends to be more conservative than the earnings-based indicator.",
 
+  "modal.market_cap_explain": "Market cap is the total value of all outstanding shares of the company. Calculated by multiplying the current share price by the total number of shares. It reflects how the market values the company right now.",
+  "modal.market_cap_price": "Price",
+  "modal.market_cap_shares": "Shares",
+
   "modal.pl10_explain": "The {label} (CAPE) is the price/earnings ratio calculated on the average of real earnings (inflation-adjusted) over the last 10 years. It smooths cyclical fluctuations and shows how much the market pays per unit of earnings more stably.",
   "modal.pl10_high_low": "High values suggest an expensive asset; low values may indicate opportunities. For companies in strong growth or decline, the 10-year average may not reflect the recent trajectory.",
   "modal.pl10_how_title": "How it is calculated",
@@ -364,6 +368,7 @@ export const en: TranslationDictionary = {
   "modal.title.liab_equity": "Liabilities / Equity",
   "modal.title.debt_earnings": "Gross Debt / Avg Earnings",
   "modal.title.debt_fcf": "Gross Debt / Avg FCF",
+  "modal.title.market_cap": "Market Cap",
   "modal.title.peg": "PEG",
   "modal.title.cagr_earnings": "CAGR Earnings",
   "modal.title.pfclg": "PFCLG",

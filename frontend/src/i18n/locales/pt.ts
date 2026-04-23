@@ -321,6 +321,10 @@ export const pt: TranslationDictionary = {
   "modal.debt_earnings_note": "A m\u00e9dia de 10 anos suaviza ciclos econ\u00f4micos e resultados at\u00edpicos. N/A indica lucro m\u00e9dio negativo no per\u00edodo.",
   "modal.debt_fcf_explain": "D\u00edv. Bruta / FCL M\u00e9dio indica quantos anos de fluxo de caixa livre m\u00e9dio (ajustado pela infla\u00e7\u00e3o, \u00faltimos 10 anos) seriam necess\u00e1rios para quitar a d\u00edvida bruta. Como o FCL representa dinheiro que de fato entra no caixa, tende a ser mais conservador que o indicador baseado em lucro.",
 
+  "modal.market_cap_explain": "Valor de mercado é o valor total de todas as ações da empresa em circulação. Calculado multiplicando o preço atual da ação pelo número total de ações. Reflete quanto o mercado avalia a empresa neste momento.",
+  "modal.market_cap_price": "Preço",
+  "modal.market_cap_shares": "Ações",
+
   "modal.pl10_explain": "O {label} (CAPE) \u00e9 o pre\u00e7o/lucro calculado sobre a m\u00e9dia dos lucros reais (ajustados pela infla\u00e7\u00e3o) dos \u00faltimos 10 anos. Suaviza oscila\u00e7\u00f5es c\u00edclicas e mostra quanto o mercado paga por real de lucro de forma mais est\u00e1vel.",
   "modal.pl10_high_low": "Valores elevados sugerem ativo caro; valores baixos podem indicar oportunidades. Para empresas em forte crescimento ou decl\u00ednio, a m\u00e9dia de 10 anos pode n\u00e3o refletir a trajet\u00f3ria recente.",
   "modal.pl10_how_title": "Como \u00e9 feito o c\u00e1lculo",
@@ -364,6 +368,7 @@ export const pt: TranslationDictionary = {
   "modal.title.liab_equity": "Passivo / PL",
   "modal.title.debt_earnings": "D\u00edv. Bruta / Lucro M\u00e9dio",
   "modal.title.debt_fcf": "D\u00edv. Bruta / FCL M\u00e9dio",
+  "modal.title.market_cap": "Valor de Mercado",
   "modal.title.peg": "PEG",
   "modal.title.cagr_earnings": "CAGR Lucros",
   "modal.title.pfclg": "PFCLG",

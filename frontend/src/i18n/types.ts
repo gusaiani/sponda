@@ -321,6 +321,10 @@ export interface TranslationDictionary {
   "modal.debt_earnings_note": string;
   "modal.debt_fcf_explain": string;
 
+  "modal.market_cap_explain": string;
+  "modal.market_cap_price": string;
+  "modal.market_cap_shares": string;
+
   "modal.pl10_explain": string;
   "modal.pl10_high_low": string;
   "modal.pl10_how_title": string;
@@ -364,6 +368,7 @@ export interface TranslationDictionary {
   "modal.title.liab_equity": string;
   "modal.title.debt_earnings": string;
   "modal.title.debt_fcf": string;
+  "modal.title.market_cap": string;
   "modal.title.peg": string;
   "modal.title.cagr_earnings": string;
   "modal.title.pfclg": string;

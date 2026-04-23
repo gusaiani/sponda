@@ -321,6 +321,10 @@ export const de: TranslationDictionary = {
   "modal.debt_earnings_note": "Der 10-Jahres-Durchschnitt glättet Konjunkturzyklen und atypische Ergebnisse. k. A. bedeutet negative Durchschnittsgewinne im Zeitraum.",
   "modal.debt_fcf_explain": "Bruttoschuld / Durchschn. FCF gibt an, wie viele Jahre durchschnittlicher Freier Cashflow (inflationsbereinigt, letzte 10 Jahre) benötigt würden, um die Bruttoschuld zu tilgen. Da FCF den tatsächlichen Geldeingang im Unternehmen darstellt, ist dieser Wert tendenziell konservativer als der gewinnbasierte Indikator.",
 
+  "modal.market_cap_explain": "Die Marktkapitalisierung ist der Gesamtwert aller ausstehenden Aktien des Unternehmens. Berechnet durch Multiplikation des aktuellen Aktienkurses mit der Gesamtzahl der Aktien. Sie spiegelt wider, wie der Markt das Unternehmen aktuell bewertet.",
+  "modal.market_cap_price": "Kurs",
+  "modal.market_cap_shares": "Aktien",
+
   "modal.pl10_explain": "Der {label} (CAPE) ist das Kurs-Gewinn-Verhältnis, berechnet auf Basis des Durchschnitts der realen Gewinne (inflationsbereinigt) der letzten 10 Jahre. Er glättet zyklische Schwankungen und zeigt stabiler, wie viel der Markt pro Gewinneinheit zahlt.",
   "modal.pl10_high_low": "Hohe Werte deuten auf ein teures Asset hin; niedrige Werte können Chancen anzeigen. Bei Unternehmen mit starkem Wachstum oder Rückgang spiegelt der 10-Jahres-Durchschnitt möglicherweise nicht die jüngste Entwicklung wider.",
   "modal.pl10_how_title": "Berechnungsmethode",
@@ -364,6 +368,7 @@ export const de: TranslationDictionary = {
   "modal.title.liab_equity": "Verbindl. / Eigenkapital",
   "modal.title.debt_earnings": "Bruttoschuld / Durchschn. Gewinne",
   "modal.title.debt_fcf": "Bruttoschuld / Durchschn. FCF",
+  "modal.title.market_cap": "Marktkapitalisierung",
   "modal.title.peg": "PEG",
   "modal.title.cagr_earnings": "CAGR Gewinne",
   "modal.title.pfclg": "PFCLG",
