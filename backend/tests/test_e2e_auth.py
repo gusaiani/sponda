@@ -214,7 +214,12 @@ class TestSignupPage:
         page.fill("input#confirm-password", "securepass123")
         submit_page_form(page)
 
-        # Should redirect to homepage
+        # Should show email verification prompt
+        expect(page.locator(".auth-signup-success")).to_be_visible(timeout=10000)
+        expect(page.locator("text=Confirme seu email")).to_be_visible()
+
+        # Click continue to go to homepage
+        page.locator("text=Ir para a página inicial").click()
         page.wait_for_url(_home_url_pattern(url), timeout=10000)
 
         # Should be logged in (sees "Minha conta", not "Entrar")
@@ -263,7 +268,11 @@ class TestSignupPage:
         # Checkbox is checked by default — leave it
         submit_page_form(page)
 
-        # Should redirect to homepage after signup
+        # Should show email verification prompt
+        expect(page.locator(".auth-signup-success")).to_be_visible(timeout=10000)
+
+        # Click continue to go to homepage
+        page.locator("text=Ir para a página inicial").click()
         page.wait_for_url(_home_url_pattern(url), timeout=10000)
 
         user = User.objects.get(email="contact@example.com")
