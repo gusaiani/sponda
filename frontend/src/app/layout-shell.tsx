@@ -34,14 +34,23 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     router.push(`/${locale}/${newTicker}`);
   }
 
+  const brand = (
+    <Link href={`/${locale}`} className="app-header-brand">
+      <span className="app-header-logo">SPONDA</span>
+      <span className="app-header-tagline">{t("header.tagline")}</span>
+    </Link>
+  );
+
   return (
     <div className="app-container">
-      {!isOnAuthPage && (
+      {isOnAuthPage ? (
+        <header className="app-header app-header-auth">
+          {brand}
+          <AuthHeader />
+        </header>
+      ) : (
         <header className="app-header">
-          <Link href={`/${locale}`} className="app-header-brand">
-            <span className="app-header-logo">SPONDA</span>
-            <span className="app-header-tagline">{t("header.tagline")}</span>
-          </Link>
+          {brand}
           <SearchBar onSearch={handleSearch} isLoading={false} />
           <Link href={`/${locale}/screener`} className="app-header-filter-link">
             {t("screener.link_label")}
@@ -49,7 +58,6 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           <AuthHeader />
         </header>
       )}
-      {isOnAuthPage && <AuthHeader />}
       <FeedbackButton />
       <main className="app-main">
         {children}
