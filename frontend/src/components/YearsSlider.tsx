@@ -7,7 +7,7 @@ interface YearsSliderProps {
 }
 
 const TERM_LABEL: Record<string, string> = {
-  pt: "PRAZO:", en: "TERM:", es: "PLAZO:", zh: "期限:", fr: "DURÉE\u00a0:", de: "ZEITRAUM:", it: "PERIODO:",
+  pt: "PRAZO:", en: "TERM:", es: "PLAZO:", zh: "期限:", fr: "DURÉE:", de: "ZEITRAUM:", it: "PERIODO:",
 };
 
 const YEARS_LABEL: Record<string, string> = {
