@@ -670,6 +670,14 @@ class PE10View(APIView):
         market_cap = quote.get("marketCap")
 
         if not market_cap or not current_price:
+            snapshot = IndicatorSnapshot.objects.filter(ticker=ticker).first()
+            if snapshot:
+                if not market_cap and snapshot.market_cap:
+                    market_cap = int(snapshot.market_cap)
+                if not current_price and snapshot.current_price:
+                    current_price = Decimal(str(snapshot.current_price))
+
+        if not market_cap or not current_price:
             return Response(
                 {"error": "Dados de mercado indisponíveis para este ticker."},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -826,6 +834,14 @@ class MultiplesHistoryView(APIView):
         market_cap = quote.get("marketCap")
 
         if not market_cap or not current_price:
+            snapshot = IndicatorSnapshot.objects.filter(ticker=ticker).first()
+            if snapshot:
+                if not market_cap and snapshot.market_cap:
+                    market_cap = int(snapshot.market_cap)
+                if not current_price and snapshot.current_price:
+                    current_price = float(snapshot.current_price)
+
+        if not market_cap or not current_price:
             return Response(
                 {"error": "Dados de mercado indisponíveis para este ticker."},
                 status=status.HTTP_502_BAD_GATEWAY,
@@ -883,6 +899,14 @@ class FundamentalsView(APIView):
 
         market_cap = quote.get("marketCap")
         current_price = quote.get("regularMarketPrice")
+
+        if not market_cap or not current_price:
+            snapshot = IndicatorSnapshot.objects.filter(ticker=ticker).first()
+            if snapshot:
+                if not market_cap and snapshot.market_cap:
+                    market_cap = int(snapshot.market_cap)
+                if not current_price and snapshot.current_price:
+                    current_price = float(snapshot.current_price)
 
         try:
             historical_prices = fetch_historical_prices(ticker)

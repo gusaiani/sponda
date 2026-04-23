@@ -757,6 +757,34 @@ class TestFundamentalsEndpoint:
         assert mock_quote.call_count == 1
 
 
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_falls_back_to_snapshot_when_price_missing(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_cash_flows, sample_balance_sheet, sample_ipca, db
+    ):
+        """When BRAPI returns None for regularMarketPrice, fall back to IndicatorSnapshot."""
+        from quotes.models import IndicatorSnapshot
+        IndicatorSnapshot.objects.create(
+            ticker="PETR4",
+            market_cap=585000000000,
+            current_price=45.0,
+        )
+        mock_quote.return_value = {
+            "symbol": "PETR4",
+            "longName": "Petroleo Brasileiro SA Pfd",
+            "regularMarketPrice": None,
+            "marketCap": None,
+        }
+        response = api_client.get("/api/quote/PETR4/fundamentals/")
+        assert response.status_code == 200
+        data = response.json()["years"]
+        assert len(data) > 0
+        assert data[0]["marketCap"] is not None
+
+
 MOCK_HISTORICAL_PRICES = [
     {"date": 1704067200, "adjustedClose": 30.0},  # 2024-01-01
     {"date": 1706745600, "adjustedClose": 32.0},  # 2024-02-01
