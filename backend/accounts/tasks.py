@@ -145,22 +145,21 @@ def _build_alert_email(alert, indicator_value):
 def check_indicator_alerts():
     """Evaluate every active alert against the latest indicator snapshot.
 
-    For alerts whose condition flips from false → true, set ``triggered_at``
-    and email the user. For alerts whose condition flips true → false, clear
-    ``triggered_at`` so the next crossing fires fresh. Alerts without a
-    matching snapshot (or whose indicator is NULL) are left untouched.
+    One-shot behaviour: when a condition is met the task emails the user,
+    creates an in-app AlertNotification, and deletes the IndicatorAlert.
+    Alerts whose condition is *not* met are left untouched.
 
-    Returns a dict with ``triggered``, ``cleared``, ``emails_sent`` counts so
-    the management command can surface them.
+    Returns a dict with ``triggered``, ``emails_sent`` counts so the
+    management command can surface them.
     """
     from quotes.models import IndicatorSnapshot
 
-    from .models import IndicatorAlert
+    from .models import AlertNotification, IndicatorAlert
 
-    active_alerts = IndicatorAlert.objects.filter(active=True).select_related("user")
+    active_alerts = list(
+        IndicatorAlert.objects.filter(active=True).select_related("user"),
+    )
 
-    # Batch-fetch snapshots for all tickers referenced by active alerts so we
-    # don't hit the DB once per alert.
     tickers = {alert.ticker for alert in active_alerts}
     snapshots = {
         snapshot.ticker: snapshot
@@ -168,40 +167,44 @@ def check_indicator_alerts():
     }
 
     triggered_count = 0
-    cleared_count = 0
     emails_sent = 0
-    now = timezone.now()
+    triggered_ids = []
 
     for alert in active_alerts:
         snapshot = snapshots.get(alert.ticker)
         if snapshot is None:
             continue
         indicator_value = getattr(snapshot, alert.indicator, None)
-        currently_triggered = alert.is_triggered_by(indicator_value)
-        was_triggered = alert.triggered_at is not None
+        if not alert.is_triggered_by(indicator_value):
+            continue
 
-        if currently_triggered and not was_triggered:
-            alert.triggered_at = now
-            alert.save(update_fields=["triggered_at", "updated_at"])
-            triggered_count += 1
-            if alert.user.email:
-                subject, plain_body, html_body = _build_alert_email(alert, indicator_value)
-                send_mail(
-                    subject=subject,
-                    message=plain_body,
-                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@sponda.capital"),
-                    recipient_list=[alert.user.email],
-                    html_message=html_body,
-                    fail_silently=True,
-                )
-                emails_sent += 1
-        elif not currently_triggered and was_triggered:
-            alert.triggered_at = None
-            alert.save(update_fields=["triggered_at", "updated_at"])
-            cleared_count += 1
+        AlertNotification.objects.create(
+            user=alert.user,
+            ticker=alert.ticker,
+            indicator=alert.indicator,
+            comparison=alert.comparison,
+            threshold=alert.threshold,
+            indicator_value=indicator_value,
+        )
+        triggered_count += 1
+        triggered_ids.append(alert.pk)
+
+        if alert.user.email:
+            subject, plain_body, html_body = _build_alert_email(alert, indicator_value)
+            send_mail(
+                subject=subject,
+                message=plain_body,
+                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "noreply@sponda.capital"),
+                recipient_list=[alert.user.email],
+                html_message=html_body,
+                fail_silently=True,
+            )
+            emails_sent += 1
+
+    if triggered_ids:
+        IndicatorAlert.objects.filter(pk__in=triggered_ids).delete()
 
     return {
         "triggered": triggered_count,
-        "cleared": cleared_count,
         "emails_sent": emails_sent,
     }

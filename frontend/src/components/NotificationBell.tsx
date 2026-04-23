@@ -3,16 +3,38 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "../hooks/useAuth";
+import { useAlertNotifications } from "../hooks/useAlertNotifications";
 import { usePendingReminders } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
-import { localToday } from "../utils/format";
+import { localToday, logoUrl } from "../utils/format";
 import "../styles/notification-bell.css";
+
+const ALERT_INDICATOR_LABELS: Record<string, string> = {
+  pe10: "PE10",
+  pfcf10: "PFCF10",
+  peg: "PEG",
+  pfcf_peg: "P/FCF PEG",
+  debt_to_equity: "Debt / Equity",
+  debt_ex_lease_to_equity: "Debt (ex-lease) / Eq.",
+  liabilities_to_equity: "Liab / Equity",
+  current_ratio: "Current Ratio",
+  debt_to_avg_earnings: "Debt / Avg Earnings",
+  debt_to_avg_fcf: "Debt / Avg FCF",
+  market_cap: "Market Cap",
+};
 
 const DROPDOWN_LIMIT = 10;
 
 export function NotificationBell() {
   const { isAuthenticated } = useAuth();
-  const { count, schedules, dismissReminder, dismissAllReminders } = usePendingReminders();
+  const {
+    count: alertCount,
+    notifications: alertNotifications,
+    dismissNotification,
+    dismissAllNotifications,
+  } = useAlertNotifications();
+  const { count: reminderCount, schedules, dismissReminder, dismissAllReminders } =
+    usePendingReminders();
   const { t, locale } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -27,9 +49,16 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isOpen]);
 
-  if (!isAuthenticated || count === 0) return null;
+  const totalCount = alertCount + reminderCount;
 
-  const hasMore = count > DROPDOWN_LIMIT;
+  if (!isAuthenticated || totalCount === 0) return null;
+
+  const hasMore = totalCount > DROPDOWN_LIMIT;
+
+  function handleDismissAll() {
+    if (alertCount > 0) dismissAllNotifications.mutate();
+    if (reminderCount > 0) dismissAllReminders.mutate();
+  }
 
   return (
     <div className="notification-bell" ref={menuRef}>
@@ -43,7 +72,7 @@ export function NotificationBell() {
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
-        <span className="notification-bell-badge">{count}</span>
+        <span className="notification-bell-badge">{totalCount}</span>
       </button>
 
       {isOpen && (
@@ -53,17 +82,54 @@ export function NotificationBell() {
             <button
               className="notification-bell-mark-all"
               type="button"
-              onClick={() => dismissAllReminders.mutate()}
-              disabled={dismissAllReminders.isPending}
+              onClick={handleDismissAll}
+              disabled={dismissAllNotifications.isPending || dismissAllReminders.isPending}
             >
               {t("notifications.mark_all_seen")}
             </button>
           </div>
+
+          {alertNotifications.map((notification) => {
+            const indicatorLabel =
+              ALERT_INDICATOR_LABELS[notification.indicator] ?? notification.indicator;
+            const operator = notification.comparison === "lte" ? "≤" : "≥";
+            return (
+              <div key={`alert-${notification.id}`} className="notification-bell-item">
+                <Link
+                  href={`/${locale}/${notification.ticker}`}
+                  className="notification-bell-item-link"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <span className="notification-bell-ticker">{notification.ticker}</span>
+                  <span className="notification-bell-status notification-bell-status-overdue">
+                    {t("notifications.triggered_alert_text", {
+                      indicator: indicatorLabel,
+                      operator,
+                      threshold: notification.threshold,
+                    })}
+                  </span>
+                </Link>
+                <button
+                  className="notification-bell-dismiss"
+                  type="button"
+                  aria-label={t("notifications.mark_seen")}
+                  title={t("notifications.mark_seen")}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dismissNotification.mutate(notification.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+
           {schedules.map((schedule) => {
             const today = localToday();
             const isOverdue = schedule.next_revisit < today;
             return (
-              <div key={schedule.id} className="notification-bell-item">
+              <div key={`reminder-${schedule.id}`} className="notification-bell-item">
                 <Link
                   href={`/${locale}/${schedule.ticker}`}
                   className="notification-bell-item-link"
@@ -95,7 +161,7 @@ export function NotificationBell() {
               className="notification-bell-see-all"
               onClick={() => setIsOpen(false)}
             >
-              {t("notifications.see_all", { count })}
+              {t("notifications.see_all", { count: totalCount })}
             </Link>
           )}
         </div>

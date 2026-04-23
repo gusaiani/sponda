@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import CompanyVisit, FavoriteCompany, IndicatorAlert, RevisitSchedule, SavedList, SavedScreenerFilter, SUPPORTED_LANGUAGES
+from .models import AlertNotification, CompanyVisit, FavoriteCompany, IndicatorAlert, RevisitSchedule, SavedList, SavedScreenerFilter, SUPPORTED_LANGUAGES
 
 User = get_user_model()
 
@@ -154,3 +154,13 @@ class IndicatorAlertSerializer(serializers.ModelSerializer):
 
     def validate_ticker(self, value):
         return value.upper().strip()
+
+
+class AlertNotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AlertNotification
+        fields = (
+            "id", "ticker", "indicator", "comparison", "threshold",
+            "indicator_value", "dismissed_at", "created_at",
+        )
+        read_only_fields = fields

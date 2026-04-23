@@ -1,4 +1,4 @@
-"""Tests for check_indicator_alerts — evaluates alerts against fresh snapshots."""
+"""Tests for check_indicator_alerts — one-shot alerts that create notifications."""
 from decimal import Decimal
 from io import StringIO
 
@@ -7,7 +7,7 @@ from django.core import mail
 from django.core.management import call_command
 from django.utils import timezone
 
-from accounts.models import IndicatorAlert, User
+from accounts.models import AlertNotification, IndicatorAlert, User
 from quotes.models import IndicatorSnapshot
 
 
@@ -20,7 +20,6 @@ def user(db):
 
 @pytest.fixture
 def snapshot_petr4_cheap(db):
-    # PE10 = 6.5 → triggers "pe10 <= 10"
     return IndicatorSnapshot.objects.create(
         ticker="PETR4", pe10=Decimal("6.5"),
         debt_to_equity=Decimal("1.2"), market_cap=400_000_000_000,
@@ -29,7 +28,6 @@ def snapshot_petr4_cheap(db):
 
 @pytest.fixture
 def snapshot_petr4_expensive(db):
-    # PE10 = 25 → does not trigger "pe10 <= 10"
     return IndicatorSnapshot.objects.create(
         ticker="PETR4", pe10=Decimal("25"),
         debt_to_equity=Decimal("1.2"), market_cap=400_000_000_000,
@@ -38,16 +36,33 @@ def snapshot_petr4_expensive(db):
 
 @pytest.mark.django_db
 class TestCheckIndicatorAlerts:
-    def test_triggers_alert_when_indicator_meets_threshold(
+    def test_triggers_alert_and_deletes_it(
         self, user, snapshot_petr4_cheap,
     ):
-        alert = IndicatorAlert.objects.create(
+        IndicatorAlert.objects.create(
             user=user, ticker="PETR4", indicator="pe10",
             comparison="lte", threshold=Decimal("10"),
         )
         call_command("check_indicator_alerts", stdout=StringIO())
-        alert.refresh_from_db()
-        assert alert.triggered_at is not None
+        assert IndicatorAlert.objects.count() == 0
+
+    def test_creates_notification_when_alert_triggers(
+        self, user, snapshot_petr4_cheap,
+    ):
+        IndicatorAlert.objects.create(
+            user=user, ticker="PETR4", indicator="pe10",
+            comparison="lte", threshold=Decimal("10"),
+        )
+        call_command("check_indicator_alerts", stdout=StringIO())
+        notifications = AlertNotification.objects.filter(user=user)
+        assert notifications.count() == 1
+        notification = notifications.first()
+        assert notification.ticker == "PETR4"
+        assert notification.indicator == "pe10"
+        assert notification.comparison == "lte"
+        assert notification.threshold == Decimal("10")
+        assert notification.indicator_value == Decimal("6.5")
+        assert notification.dismissed_at is None
 
     def test_sends_email_when_alert_triggers(
         self, user, snapshot_petr4_cheap,
@@ -62,7 +77,6 @@ class TestCheckIndicatorAlerts:
         message = mail.outbox[0]
         assert user.email in message.to
         assert "PETR4" in message.subject or "PETR4" in message.body
-        # Body should mention the indicator and threshold so the user knows why
         assert "PE10" in message.body.upper()
 
     def test_does_not_trigger_when_indicator_above_lte_threshold(
@@ -77,46 +91,7 @@ class TestCheckIndicatorAlerts:
         alert.refresh_from_db()
         assert alert.triggered_at is None
         assert len(mail.outbox) == 0
-
-    def test_does_not_resend_email_while_still_triggered(
-        self, user, snapshot_petr4_cheap,
-    ):
-        # First run triggers + emails. Second run finds same condition — should
-        # NOT email again (already triggered_at).
-        IndicatorAlert.objects.create(
-            user=user, ticker="PETR4", indicator="pe10",
-            comparison="lte", threshold=Decimal("10"),
-        )
-        mail.outbox = []
-        call_command("check_indicator_alerts", stdout=StringIO())
-        assert len(mail.outbox) == 1
-        mail.outbox = []
-        call_command("check_indicator_alerts", stdout=StringIO())
-        assert len(mail.outbox) == 0
-
-    def test_re_triggers_after_condition_resets(self, user):
-        """If the indicator leaves the threshold and re-enters, fire again."""
-        alert = IndicatorAlert.objects.create(
-            user=user, ticker="PETR4", indicator="pe10",
-            comparison="lte", threshold=Decimal("10"),
-            triggered_at=timezone.now(),  # previously triggered
-        )
-        # Snapshot now shows PE10 = 25 (above threshold) — should clear triggered_at
-        IndicatorSnapshot.objects.create(
-            ticker="PETR4", pe10=Decimal("25"), market_cap=400_000_000_000,
-        )
-        mail.outbox = []
-        call_command("check_indicator_alerts", stdout=StringIO())
-        alert.refresh_from_db()
-        assert alert.triggered_at is None
-        assert len(mail.outbox) == 0
-
-        # Flip back below — should re-trigger and email again
-        IndicatorSnapshot.objects.filter(ticker="PETR4").update(pe10=Decimal("5"))
-        call_command("check_indicator_alerts", stdout=StringIO())
-        alert.refresh_from_db()
-        assert alert.triggered_at is not None
-        assert len(mail.outbox) == 1
+        assert AlertNotification.objects.count() == 0
 
     def test_inactive_alerts_are_skipped(
         self, user, snapshot_petr4_cheap,
@@ -131,9 +106,9 @@ class TestCheckIndicatorAlerts:
         alert.refresh_from_db()
         assert alert.triggered_at is None
         assert len(mail.outbox) == 0
+        assert AlertNotification.objects.count() == 0
 
     def test_alert_without_matching_snapshot_is_skipped(self, user):
-        # No snapshot row exists for this ticker yet.
         alert = IndicatorAlert.objects.create(
             user=user, ticker="NEW3", indicator="pe10",
             comparison="lte", threshold=Decimal("10"),
@@ -145,7 +120,6 @@ class TestCheckIndicatorAlerts:
         assert len(mail.outbox) == 0
 
     def test_alert_on_null_indicator_is_skipped(self, user, db):
-        # Snapshot exists but this specific indicator is null.
         IndicatorSnapshot.objects.create(
             ticker="NODATA3", pe10=None, market_cap=100_000_000_000,
         )
@@ -159,18 +133,17 @@ class TestCheckIndicatorAlerts:
         assert alert.triggered_at is None
         assert len(mail.outbox) == 0
 
-    def test_gte_alert_triggers_when_indicator_meets_ceiling(
+    def test_gte_alert_triggers_and_deletes(
         self, user, snapshot_petr4_cheap,
     ):
-        # debt_to_equity = 1.2, threshold 1.0 → 1.2 >= 1.0 → triggers
-        alert = IndicatorAlert.objects.create(
+        IndicatorAlert.objects.create(
             user=user, ticker="PETR4", indicator="debt_to_equity",
             comparison="gte", threshold=Decimal("1.0"),
         )
         mail.outbox = []
         call_command("check_indicator_alerts", stdout=StringIO())
-        alert.refresh_from_db()
-        assert alert.triggered_at is not None
+        assert IndicatorAlert.objects.count() == 0
+        assert AlertNotification.objects.count() == 1
         assert len(mail.outbox) == 1
 
     def test_reports_counts_in_stdout(
@@ -183,4 +156,4 @@ class TestCheckIndicatorAlerts:
         output = StringIO()
         call_command("check_indicator_alerts", stdout=output)
         text = output.getvalue()
-        assert "1" in text  # at least one count is printed
+        assert "1" in text

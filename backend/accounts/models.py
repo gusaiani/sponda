@@ -330,6 +330,45 @@ class IndicatorAlert(models.Model):
         return False
 
 
+class AlertNotification(models.Model):
+    """Record of a triggered indicator alert, kept for in-app display.
+
+    Created when an IndicatorAlert fires. The original alert is deleted
+    (one-shot), but this notification persists until the user dismisses it.
+    """
+
+    COMPARISON_LTE = "lte"
+    COMPARISON_GTE = "gte"
+    COMPARISON_CHOICES = [
+        (COMPARISON_LTE, "Less than or equal to"),
+        (COMPARISON_GTE, "Greater than or equal to"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name="alert_notifications",
+    )
+    ticker = models.CharField(max_length=10)
+    indicator = models.CharField(max_length=40)
+    comparison = models.CharField(max_length=3, choices=COMPARISON_CHOICES)
+    threshold = models.DecimalField(max_digits=20, decimal_places=6)
+    indicator_value = models.DecimalField(
+        max_digits=20, decimal_places=6, null=True, blank=True,
+    )
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"]),
+        ]
+
+    def __str__(self):
+        operator = "<=" if self.comparison == self.COMPARISON_LTE else ">="
+        return f"{self.user.email} {self.ticker} {self.indicator} {operator} {self.threshold}"
+
+
 class PageView(models.Model):
     """Lightweight page view tracking. IPs are SHA-256 hashed for privacy."""
 
