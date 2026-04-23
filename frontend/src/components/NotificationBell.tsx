@@ -10,6 +10,7 @@ import { localToday, logoUrl } from "../utils/format";
 import "../styles/notification-bell.css";
 
 const ALERT_INDICATOR_LABELS: Record<string, string> = {
+  current_price: "Price",
   pe10: "PE10",
   pfcf10: "PFCF10",
   peg: "PEG",
@@ -22,6 +23,21 @@ const ALERT_INDICATOR_LABELS: Record<string, string> = {
   debt_to_avg_fcf: "Debt / Avg FCF",
   market_cap: "Market Cap",
 };
+
+const CURRENCY_INDICATORS = new Set(["current_price", "market_cap"]);
+const RATIO_INDICATORS = new Set([
+  "pe10", "pfcf10", "peg", "pfcf_peg",
+  "debt_to_equity", "debt_ex_lease_to_equity", "liabilities_to_equity",
+  "current_ratio", "debt_to_avg_earnings", "debt_to_avg_fcf",
+]);
+
+function formatAlertValue(indicator: string, value: string): string {
+  const number = parseFloat(value);
+  if (isNaN(number)) return value;
+  if (CURRENCY_INDICATORS.has(indicator)) return `R$ ${number.toFixed(2)}`;
+  if (RATIO_INDICATORS.has(indicator)) return `${number.toFixed(2)}×`;
+  return number.toFixed(2);
+}
 
 const DROPDOWN_LIMIT = 10;
 
@@ -105,7 +121,7 @@ export function NotificationBell() {
                     {t("notifications.triggered_alert_text", {
                       indicator: indicatorLabel,
                       operator,
-                      threshold: notification.threshold,
+                      threshold: formatAlertValue(notification.indicator, notification.threshold),
                     })}
                   </span>
                 </Link>
