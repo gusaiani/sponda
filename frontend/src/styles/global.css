@@ -9,7 +9,7 @@
 }
 
 @theme {
-  --color-ink: #0c1829;
+  --color-ink: #333;
   --color-accent: #1e40af;
   --color-muted: #5570a0;
   --color-border: #d0daea;
@@ -303,7 +303,7 @@
 .homepage-header-name {
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-ink);
   min-width: 0;
   overflow: hidden;

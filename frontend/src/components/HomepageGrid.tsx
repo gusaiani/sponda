@@ -412,7 +412,7 @@ export function HomepageGrid() {
   useEffect(() => {
     if (!headerRef.current) return;
     const rect = headerRef.current.getBoundingClientRect();
-    setSliderFixedTop(rect.top);
+    setSliderFixedTop(rect.top + 12);
   }, []);
 
   const handleDragStart = useCallback((event: DragEvent, index: number) => {

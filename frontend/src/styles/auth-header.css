@@ -15,8 +15,8 @@
   font-family: 'Inter', system-ui, sans-serif;
   @apply no-underline transition-all whitespace-nowrap;
   font-size: 13px;
-  font-weight: 500;
-  color: var(--color-muted);
+  font-weight: 600;
+  color: var(--color-accent);
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -33,16 +33,6 @@
 .auth-header-link:hover {
   color: var(--color-accent);
   background: #e9ebee;
-}
-
-.auth-header-signup {
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.auth-header-admin {
-  color: var(--color-accent);
-  font-weight: 600;
 }
 
 .auth-header-warning {
@@ -179,7 +169,7 @@
 .auth-header-hamburger {
   font-family: 'Inter', system-ui, sans-serif;
   @apply flex items-center justify-center cursor-pointer;
-  color: var(--color-muted);
+  color: var(--color-accent);
   background: transparent;
   border: none;
   border-radius: 6px;
@@ -221,7 +211,7 @@
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 14px;
   font-weight: 500;
-  color: var(--color-muted);
+  color: var(--color-accent);
   text-decoration: none;
   padding: 10px 16px;
   transition: background 0.15s, color 0.15s;
@@ -248,7 +238,7 @@
   font-family: 'Inter', system-ui, sans-serif;
   @apply flex items-center gap-1.5 transition-all whitespace-nowrap cursor-pointer;
   font-size: 13px;
-  color: var(--color-muted);
+  color: var(--color-accent);
   background: transparent;
   border: none;
   border-radius: 6px;

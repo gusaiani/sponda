@@ -11,8 +11,8 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  font-weight: 500;
-  color: var(--color-muted);
+  font-weight: 600;
+  color: var(--color-accent);
   background: transparent;
   border: none;
   border-radius: 6px;
