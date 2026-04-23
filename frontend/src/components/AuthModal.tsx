@@ -1,7 +1,6 @@
 import { useState, FormEvent } from "react";
 import { useTranslation } from "../i18n";
 import { setEmailVerificationPromptVisible } from "../utils/emailVerificationPrompt";
-import { SignupVerificationContent } from "./SignupVerificationContent";
 import "../styles/auth.css";
 import "../styles/feedback.css";
 
@@ -22,7 +21,6 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
   const [allowContact, setAllowContact] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [signupSuccess, setSignupSuccess] = useState(false);
 
   function switchMode(newMode: AuthMode) {
     setMode(newMode);
@@ -67,11 +65,6 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
       }
 
       setEmailVerificationPromptVisible(false);
-      if (mode === "signup") {
-        setSignupSuccess(true);
-        return;
-      }
-
       onSuccess();
     } catch {
       setError(t("auth.connection_error"));
@@ -85,102 +78,94 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
   return (
     <div className="feedback-overlay" onClick={onClose}>
       <div className="feedback-panel" onClick={(event) => event.stopPropagation()} style={{ maxWidth: "400px" }}>
-        {!signupSuccess && (
-          <button className="feedback-close" onClick={onClose} aria-label={t("common.close")}>
-            ×
+        <button className="feedback-close" onClick={onClose} aria-label={t("common.close")}>
+          ×
+        </button>
+
+        {message && (
+          <p className="auth-modal-message">{message}</p>
+        )}
+
+        <div className="auth-mode-toggle" style={{ marginTop: "20px", marginBottom: "1.5rem" }}>
+          <button
+            type="button"
+            className={`auth-mode-button ${isLogin ? "auth-mode-active" : ""}`}
+            onClick={() => switchMode("login")}
+          >
+            {t("auth.login")}
           </button>
-        )}
+          <button
+            type="button"
+            className={`auth-mode-button ${!isLogin ? "auth-mode-active" : ""}`}
+            onClick={() => switchMode("signup")}
+          >
+            {t("auth.signup")}
+          </button>
+        </div>
 
-        {signupSuccess ? (
-          <SignupVerificationContent onContinue={onSuccess} />
-        ) : (
-          <>
-            {message && (
-              <p className="auth-modal-message">{message}</p>
-            )}
-
-            <div className="auth-mode-toggle" style={{ marginTop: "20px", marginBottom: "1.5rem" }}>
-              <button
-                type="button"
-                className={`auth-mode-button ${isLogin ? "auth-mode-active" : ""}`}
-                onClick={() => switchMode("login")}
-              >
-                {t("auth.login")}
-              </button>
-              <button
-                type="button"
-                className={`auth-mode-button ${!isLogin ? "auth-mode-active" : ""}`}
-                onClick={() => switchMode("signup")}
-              >
-                {t("auth.signup")}
-              </button>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <div>
+            <label className="auth-label" htmlFor="modal-email">{t("auth.email")}</label>
+            <input
+              id="modal-email"
+              type="email"
+              className="auth-input"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="auth-label" htmlFor="modal-password">{t("auth.password")}</label>
+            <input
+              id="modal-password"
+              type="password"
+              className="auth-input"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={mode === "signup" ? 8 : undefined}
+              required
+            />
+            {!isLogin && <span className="auth-hint">{t("auth.min_8_chars")}</span>}
+          </div>
+          {!isLogin && (
+            <div>
+              <label className="auth-label" htmlFor="modal-confirm-password">{t("auth.confirm_password")}</label>
+              <input
+                id="modal-confirm-password"
+                type="password"
+                className="auth-input"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                minLength={8}
+                required
+              />
             </div>
+          )}
+          {!isLogin && (
+            <label className="auth-checkbox-label">
+              <input
+                type="checkbox"
+                checked={allowContact}
+                onChange={(event) => setAllowContact(event.target.checked)}
+                className="auth-checkbox"
+              />
+              {t("auth.allow_contact")}
+            </label>
+          )}
+          {error && <p className="auth-error">{error}</p>}
+          <button type="submit" className="auth-button" disabled={loading}>
+            {loading
+              ? (isLogin ? t("auth.logging_in") : t("auth.creating"))
+              : (isLogin ? t("auth.login") : t("auth.create_account"))}
+          </button>
+        </form>
 
-            <form className="auth-form" onSubmit={handleSubmit}>
-              <div>
-                <label className="auth-label" htmlFor="modal-email">{t("auth.email")}</label>
-                <input
-                  id="modal-email"
-                  type="email"
-                  className="auth-input"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="auth-label" htmlFor="modal-password">{t("auth.password")}</label>
-                <input
-                  id="modal-password"
-                  type="password"
-                  className="auth-input"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  minLength={mode === "signup" ? 8 : undefined}
-                  required
-                />
-                {!isLogin && <span className="auth-hint">{t("auth.min_8_chars")}</span>}
-              </div>
-              {!isLogin && (
-                <div>
-                  <label className="auth-label" htmlFor="modal-confirm-password">{t("auth.confirm_password")}</label>
-                  <input
-                    id="modal-confirm-password"
-                    type="password"
-                    className="auth-input"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    minLength={8}
-                    required
-                  />
-                </div>
-              )}
-              {!isLogin && (
-                <label className="auth-checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={allowContact}
-                    onChange={(event) => setAllowContact(event.target.checked)}
-                    className="auth-checkbox"
-                  />
-                  {t("auth.allow_contact")}
-                </label>
-              )}
-              {error && <p className="auth-error">{error}</p>}
-              <button type="submit" className="auth-button" disabled={loading}>
-                {loading
-                  ? (isLogin ? t("auth.logging_in") : t("auth.creating"))
-                  : (isLogin ? t("auth.login") : t("auth.create_account"))}
-              </button>
-            </form>
-
-            <div className="auth-divider">
-              <span className="auth-divider-text">{t("common.or")}</span>
-            </div>
-            <GoogleSignInButton />
-          </>
-        )}
+        <div className="auth-divider">
+          <span className="auth-divider-text">{t("common.or")}</span>
+        </div>
+        <GoogleSignInButton />
       </div>
     </div>
   );
