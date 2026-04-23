@@ -8,6 +8,7 @@ from django.utils import timezone
 # Human-readable labels for indicator names. Used in alert email subjects and
 # bodies so users see "Debt / Equity ≤ 1.0" instead of "debt_to_equity lte 1.0".
 INDICATOR_LABELS = {
+    "current_price": "Current Price",
     "pe10": "PE10",
     "pfcf10": "P/FCF10",
     "peg": "PEG",

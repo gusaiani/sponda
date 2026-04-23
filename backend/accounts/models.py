@@ -261,10 +261,8 @@ class IndicatorAlert(models.Model):
         (COMPARISON_GTE, "Greater than or equal to"),
     ]
 
-    # Kept in sync with :class:`quotes.models.IndicatorSnapshot.INDICATOR_FIELDS`
-    # minus the pure metadata fields (current_price isn't worth alerting on —
-    # users watch prices elsewhere). If the snapshot model grows a new numeric
-    # indicator, add it here as well.
+    # Kept in sync with :class:`quotes.models.IndicatorSnapshot.INDICATOR_FIELDS`.
+    # If the snapshot model grows a new numeric indicator, add it here as well.
     ALLOWED_INDICATORS = (
         "current_price",
         "pe10",
