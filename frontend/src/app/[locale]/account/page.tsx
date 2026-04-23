@@ -99,15 +99,11 @@ export default function AccountPage() {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <Link href={`/${locale}`} className="auth-logo-link">
-          <span className="auth-logo">SPONDA</span>
-        </Link>
         <h1 className="auth-title">{t("auth.my_account")}</h1>
 
         <p className="account-membership">
-          {t("auth.member_since")}{" "}
-          <strong>{formatDate(user.date_joined, locale)}</strong>
-          {" "}— {formatTimeSince(user.date_joined, pluralize)}.
+          {t("auth.member_since")}<br/>
+          <strong>{formatDate(user.date_joined, locale)}.</strong>
         </p>
 
         <div className="account-actions">

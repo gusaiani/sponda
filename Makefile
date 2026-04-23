@@ -1,4 +1,6 @@
 dev:
+	-lsof -ti :8710 | xargs kill -9 2>/dev/null
+	-lsof -ti :3000 | xargs kill -9 2>/dev/null
 	cd backend && source .venv/bin/activate && python manage.py runserver 8710 & \
 	cd frontend && npx next dev --turbopack & \
 	sleep 2 && open http://localhost:3000 & \

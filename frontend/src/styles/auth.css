@@ -212,7 +212,7 @@
 .account-membership {
   font-family: 'Inter', system-ui, sans-serif;
   @apply text-sm text-center mb-6;
-  color: var(--color-muted);
+  color: var(--color-ink);
   line-height: 1.6;
 }
 
