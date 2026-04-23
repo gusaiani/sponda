@@ -4,12 +4,31 @@ import { getPopularSymbols } from "../utils/suggestedCompanies";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 
 const BASE_URL = "https://sponda.capital";
+const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
 const REGIONS = ["brazil", "us", "europe", "asia"] as const;
 const TAB_KEYS: readonly TabKey[] = ["charts", "fundamentals", "compare"];
+const SITEMAP_LOCALES = ["pt", "en"] as const;
 
 const CURATED_TICKERS = [...new Set(
   REGIONS.flatMap((region) => getPopularSymbols(region)),
 )];
+
+async function fetchLastUpdated(): Promise<string> {
+  try {
+    const response = await fetch(`${DJANGO_API_URL}/api/health/`, {
+      next: { revalidate: 900 },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.tickers?.last_updated) {
+        return data.tickers.last_updated;
+      }
+    }
+  } catch {
+    // fall through
+  }
+  return new Date().toISOString();
+}
 
 function buildAlternates(pathBuilder: (locale: string) => string): Record<string, string> {
   const languages: Record<string, string> = {};
@@ -29,7 +48,7 @@ function buildLocalizedEntries(
   changeFrequency: "daily" | "weekly",
   lastModified: string,
 ): MetadataRoute.Sitemap {
-  return SUPPORTED_LOCALES.map((locale) => ({
+  return SITEMAP_LOCALES.map((locale) => ({
     url: `${BASE_URL}${pathBuilder(locale)}`,
     lastModified,
     alternates: {
@@ -64,7 +83,7 @@ function buildCompanyEntries(lastModified: string): MetadataRoute.Sitemap {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const lastModified = new Date().toISOString();
+  const lastModified = await fetchLastUpdated();
 
   return [
     ...buildLocalizedEntries((locale) => `/${locale}`, 1.0, "weekly", lastModified),

@@ -24,5 +24,6 @@ Disallow: /*/listas
 Disallow: /*/alertas
 Disallow: /*/notificacoes
 Disallow: /*/visitas
+Disallow: /*/shared
 
 Sitemap: https://sponda.capital/sitemap.xml

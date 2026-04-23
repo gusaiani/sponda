@@ -52,6 +52,12 @@ const CANONICAL_TO_LOCALE_SLUG: Record<string, Record<string, string>> = {
   it: { charts: "grafici", fundamentals: "fondamentali", compare: "confronta" },
 };
 
+const KNOWN_LOCALE_ROUTES = new Set([
+  "screener", "shared", "login", "signup", "forgot-password",
+  "reset-password", "verify-email", "account", "admin-dashboard",
+  "admin", "listas", "alertas", "notificacoes", "visitas",
+]);
+
 function correctSlugForLocale(locale: string, slug: string): string | null {
   const canonical = SLUG_TO_CANONICAL[slug];
   if (!canonical) return null;
@@ -86,6 +92,19 @@ export function middleware(request: NextRequest) {
 
   if (firstSegment && isSupportedLocale(firstSegment)) {
     const locale = firstSegment;
+
+    // Normalize ticker case: /en/petr4 → /en/PETR4 (301)
+    if (segments.length >= 2 && !KNOWN_LOCALE_ROUTES.has(segments[1])) {
+      const tickerSegment = segments[1];
+      const upperTicker = tickerSegment.toUpperCase();
+      if (tickerSegment !== upperTicker) {
+        const url = request.nextUrl.clone();
+        segments[1] = upperTicker;
+        url.pathname = `/${segments.join("/")}`;
+        return persistLocaleCookie(NextResponse.redirect(url, 301), locale);
+      }
+    }
+
     // Check if a tab slug needs cross-locale redirect
     // Pattern: /{locale}/{ticker}/{tabSlug}
     if (segments.length === 3) {
@@ -109,15 +128,20 @@ export function middleware(request: NextRequest) {
     ? cookieLocale
     : detectLocaleFromHeader(request.headers.get("accept-language"));
 
-  // Translate tab slugs when redirecting to a different locale
+  // Normalize ticker case and translate tab slugs when redirecting
   let newPathname = pathname;
+  if (segments.length >= 1 && !KNOWN_LOCALE_ROUTES.has(segments[0])) {
+    segments[0] = segments[0].toUpperCase();
+  }
   if (segments.length >= 2) {
     const lastSegment = segments[segments.length - 1];
     const corrected = correctSlugForLocale(locale, lastSegment);
     if (corrected) {
       segments[segments.length - 1] = corrected;
-      newPathname = "/" + segments.join("/");
     }
+  }
+  if (segments.length >= 1) {
+    newPathname = "/" + segments.join("/");
   }
 
   const url = request.nextUrl.clone();

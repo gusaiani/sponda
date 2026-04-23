@@ -117,3 +117,55 @@ describe("middleware locale persistence", () => {
     expect(cookieValue(response, LANGUAGE_COOKIE_NAME)).toBe("fr");
   });
 });
+
+describe("middleware ticker case normalization", () => {
+  it("301 redirects lowercase ticker to uppercase when locale-prefixed", async () => {
+    const response = await middleware(buildRequest("/en/petr4"));
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toContain("/en/PETR4");
+  });
+
+  it("301 redirects mixed-case ticker to uppercase", async () => {
+    const response = await middleware(buildRequest("/pt/PeTr4"));
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toContain("/pt/PETR4");
+  });
+
+  it("301 redirects lowercase ticker with tab slug", async () => {
+    const response = await middleware(buildRequest("/en/petr4/charts"));
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toContain("/en/PETR4/charts");
+  });
+
+  it("does not redirect already uppercase ticker", async () => {
+    const response = await middleware(buildRequest("/en/PETR4"));
+    expect(response.status).toBe(200);
+  });
+
+  it("does not uppercase known locale routes like screener", async () => {
+    const response = await middleware(buildRequest("/en/screener"));
+    expect(response.status).toBe(200);
+  });
+
+  it("does not uppercase known locale routes like shared", async () => {
+    const response = await middleware(buildRequest("/en/shared/abc123"));
+    expect(response.status).toBe(200);
+  });
+
+  it("normalizes ticker case in bare URL redirect", async () => {
+    const response = await middleware(
+      buildRequest("/petr4", { cookies: { [LANGUAGE_COOKIE_NAME]: "en" } }),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toContain("/en/PETR4");
+  });
+
+  it("does not uppercase bare known routes", async () => {
+    const response = await middleware(
+      buildRequest("/screener", { cookies: { [LANGUAGE_COOKIE_NAME]: "en" } }),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toContain("/en/screener");
+    expect(response.headers.get("location")).not.toContain("/en/SCREENER");
+  });
+});
