@@ -4,17 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useAuth } from "../../../hooks/useAuth";
+import { useAlertNotifications } from "../../../hooks/useAlertNotifications";
 import { usePendingReminders, useRemindersList } from "../../../hooks/useVisits";
-import { useAlerts } from "../../../hooks/useAlerts";
 import { useTranslation } from "../../../i18n";
 import { localToday, logoUrl } from "../../../utils/format";
 import "../../../styles/notifications-page.css";
 
-/**
- * Human-readable labels for each alert-capable indicator.
- * Mirrors INDICATOR_LABELS on the screener page — kept local (not shared) so
- * the two pages can diverge as needed without breaking each other.
- */
 const ALERT_INDICATOR_LABELS: Record<string, string> = {
   pe10: "PE10",
   pfcf10: "PFCF10",
@@ -39,8 +34,12 @@ export default function NotificationsPage() {
   const [page, setPage] = useState(1);
   const { data, isLoading } = useRemindersList(page);
   const { dismissReminder, dismissAllReminders } = usePendingReminders();
-  const { alerts, deleteAlert } = useAlerts();
-  const triggeredAlerts = alerts.filter((alert) => alert.triggered_at !== null);
+  const {
+    count: alertNotificationCount,
+    notifications: alertNotifications,
+    dismissNotification,
+    dismissAllNotifications,
+  } = useAlertNotifications();
 
   if (authLoading) {
     return <div className="notifications-page" />;
@@ -56,21 +55,28 @@ export default function NotificationsPage() {
     );
   }
 
-  const count = data?.count ?? 0;
+  const reminderCount = data?.count ?? 0;
   const schedules = data?.schedules ?? [];
-  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(reminderCount / PAGE_SIZE));
   const today = localToday();
+
+  function handleMarkAllSeen() {
+    if (alertNotificationCount > 0) dismissAllNotifications.mutate();
+    if (reminderCount > 0) dismissAllReminders.mutate();
+  }
+
+  const hasAnything = alertNotificationCount > 0 || reminderCount > 0;
 
   return (
     <div className="notifications-page">
       <div className="notifications-header">
         <h1 className="notifications-title">{t("notifications.page_title")}</h1>
-        {count > 0 && (
+        {hasAnything && (
           <button
             className="notifications-mark-all"
             type="button"
-            onClick={() => dismissAllReminders.mutate()}
-            disabled={dismissAllReminders.isPending}
+            onClick={handleMarkAllSeen}
+            disabled={dismissAllNotifications.isPending || dismissAllReminders.isPending}
           >
             {t("notifications.mark_all_seen")}
           </button>
@@ -81,44 +87,44 @@ export default function NotificationsPage() {
         <h2 className="notifications-section-title">
           {t("notifications.triggered_alerts_title")}
         </h2>
-        {triggeredAlerts.length === 0 ? (
+        {alertNotifications.length === 0 ? (
           <p className="notifications-empty">{t("notifications.no_triggered_alerts")}</p>
         ) : (
           <ul className="notifications-list">
-            {triggeredAlerts.map((alert) => {
+            {alertNotifications.map((notification) => {
               const indicatorLabel =
-                ALERT_INDICATOR_LABELS[alert.indicator] ?? alert.indicator;
-              const operator = alert.comparison === "lte" ? "≤" : "≥";
+                ALERT_INDICATOR_LABELS[notification.indicator] ?? notification.indicator;
+              const operator = notification.comparison === "lte" ? "≤" : "≥";
               return (
-                <li key={alert.id} className="notifications-item">
+                <li key={notification.id} className="notifications-item">
                   <Link
-                    href={`/${currentLocale}/${alert.ticker}`}
+                    href={`/${currentLocale}/${notification.ticker}`}
                     className="notifications-item-link"
                   >
                     <img
                       className="notifications-item-logo"
-                      src={logoUrl(alert.ticker)}
+                      src={logoUrl(notification.ticker)}
                       alt=""
                       loading="lazy"
                       onError={(event) => {
                         (event.target as HTMLImageElement).style.display = "none";
                       }}
                     />
-                    <span className="notifications-item-ticker">{alert.ticker}</span>
+                    <span className="notifications-item-ticker">{notification.ticker}</span>
                     <span className="notifications-item-status notifications-item-status-overdue">
                       {t("notifications.triggered_alert_text", {
                         indicator: indicatorLabel,
                         operator,
-                        threshold: alert.threshold,
+                        threshold: notification.threshold,
                       })}
                     </span>
                   </Link>
                   <button
                     className="notifications-item-dismiss"
                     type="button"
-                    aria-label={t("alerts.delete")}
-                    title={t("alerts.delete")}
-                    onClick={() => deleteAlert.mutate(alert.id)}
+                    aria-label={t("notifications.mark_seen")}
+                    title={t("notifications.mark_seen")}
+                    onClick={() => dismissNotification.mutate(notification.id)}
                   >
                     ×
                   </button>
@@ -135,7 +141,7 @@ export default function NotificationsPage() {
         </h2>
       {isLoading && <p className="notifications-empty">{t("common.loading")}</p>}
 
-      {!isLoading && count === 0 && (
+      {!isLoading && reminderCount === 0 && (
         <p className="notifications-empty">{t("notifications.no_pending")}</p>
       )}
 

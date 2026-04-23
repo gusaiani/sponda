@@ -1,9 +1,8 @@
 """Evaluate every active :class:`IndicatorAlert` against the latest snapshots.
 
 Runs from a systemd timer right after ``refresh_indicator_snapshots`` so the
-alerts always compare against fresh numbers. Alerts that newly meet their
-threshold trigger an email to the user; alerts whose condition clears are
-reset so the next crossing fires again.
+alerts always compare against fresh numbers. One-shot: triggered alerts are
+emailed, saved as notifications, and deleted.
 """
 from accounts.tasks import check_indicator_alerts
 from config.monitored_command import MonitoredCommand
@@ -18,6 +17,6 @@ class Command(MonitoredCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Alert check complete — triggered: {summary['triggered']}, "
-                f"cleared: {summary['cleared']}, emails sent: {summary['emails_sent']}."
+                f"emails sent: {summary['emails_sent']}."
             )
         )

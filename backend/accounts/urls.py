@@ -3,9 +3,12 @@ from django.urls import path
 from .views import (
     AdminDashboardView,
     AdminTopPagesView,
+    AlertNotificationListView,
     ChangeEmailView,
     ChangePasswordView,
     DeleteAccountView,
+    DismissAlertNotificationView,
+    DismissAllAlertNotificationsView,
     DismissAllRemindersView,
     DismissReminderView,
     FavoriteDetailView,
@@ -84,4 +87,7 @@ urlpatterns = [
     path("admin/top-pages/", AdminTopPagesView.as_view(), name="admin-top-pages"),
     path("alerts/", IndicatorAlertListView.as_view(), name="indicator-alert-list"),
     path("alerts/<int:pk>/", IndicatorAlertDetailView.as_view(), name="indicator-alert-detail"),
+    path("alert-notifications/", AlertNotificationListView.as_view(), name="alert-notification-list"),
+    path("alert-notifications/<int:pk>/dismiss/", DismissAlertNotificationView.as_view(), name="dismiss-alert-notification"),
+    path("alert-notifications/dismiss-all/", DismissAllAlertNotificationsView.as_view(), name="dismiss-all-alert-notifications"),
 ]

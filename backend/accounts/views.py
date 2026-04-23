@@ -18,7 +18,7 @@ from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
 from .email_subjects import VERIFICATION_SUBJECTS, WELCOME_SUBJECTS, share_strings
 from datetime import date, timedelta
 
-from .models import CompanyVisit, EmailVerificationToken, FavoriteCompany, IndicatorAlert, PageView, PasswordResetToken, RevisitSchedule, SavedList, SavedScreenerFilter, SUPPORTED_LANGUAGES, UserOperation
+from .models import AlertNotification, CompanyVisit, EmailVerificationToken, FavoriteCompany, IndicatorAlert, PageView, PasswordResetToken, RevisitSchedule, SavedList, SavedScreenerFilter, SUPPORTED_LANGUAGES, UserOperation
 from .serializers import (
     ChangeEmailSerializer,
     ChangePasswordSerializer,
@@ -27,6 +27,7 @@ from .serializers import (
     FavoriteCompanySerializer,
     FeedbackSerializer,
     ForgotPasswordSerializer,
+    AlertNotificationSerializer,
     IndicatorAlertSerializer,
     LoginSerializer,
     MarkVisitedSerializer,
@@ -1446,3 +1447,50 @@ class IndicatorAlertDetailView(APIView):
         if not deleted:
             return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+ALERT_NOTIFICATION_DROPDOWN_LIMIT = 10
+
+
+def _pending_alert_notifications_queryset(user):
+    return AlertNotification.objects.filter(user=user, dismissed_at__isnull=True)
+
+
+class AlertNotificationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        pending = _pending_alert_notifications_queryset(request.user)
+        total = pending.count()
+        notifications = pending[:ALERT_NOTIFICATION_DROPDOWN_LIMIT]
+        serializer = AlertNotificationSerializer(notifications, many=True)
+        return Response({
+            "count": total,
+            "notifications": serializer.data,
+        })
+
+
+class DismissAlertNotificationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            notification = AlertNotification.objects.get(pk=pk, user=request.user)
+        except AlertNotification.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        notification.dismissed_at = timezone.now()
+        notification.save(update_fields=["dismissed_at"])
+        return Response(AlertNotificationSerializer(notification).data)
+
+
+class DismissAllAlertNotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        pending_ids = list(
+            _pending_alert_notifications_queryset(request.user).values_list("id", flat=True),
+        )
+        AlertNotification.objects.filter(id__in=pending_ids).update(
+            dismissed_at=timezone.now(),
+        )
+        return Response({"dismissed": len(pending_ids)})
