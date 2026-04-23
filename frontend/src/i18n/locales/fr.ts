@@ -93,7 +93,7 @@ export const fr: TranslationDictionary = {
   "auth.email_not_verified_tooltip_features": "d'autres fonctionnalités du système",
   "auth.resend_verification": "Renvoyer l'email de vérification",
   "auth.resend_verification_sending": "Envoi…",
-  "auth.resend_verification_sent": "Email de vérification envoyé. Vérifiez votre boîte de réception.",
+  "auth.resend_verification_sent": "Email de vérification envoyé.",
   "auth.resend_verification_error": "Échec de l'envoi. Réessayez.",
   "auth.change_email_verification_sent": "Email mis \u00e0 jour. Nous avons envoy\u00e9 un lien de v\u00e9rification \u00e0 la nouvelle adresse \u00b7 cliquez dessus pour confirmer.",
   "auth.preferences_update_error": "Erreur lors de l'enregistrement des pr\u00e9f\u00e9rences",
@@ -129,8 +129,8 @@ export const fr: TranslationDictionary = {
   "verify.invalid_token": "Lien invalide \u2014 jeton introuvable.",
   "verify.error": "Erreur lors de la v\u00e9rification de l'e-mail",
   "verify.expired_text": "Le lien a peut-\u00eatre expir\u00e9. Demandez-en un nouveau depuis votre compte.",
-  "verify.pending_title": "Vérifiez votre email",
-  "verify.pending_text": "Consultez votre boîte de réception pour le lien de vérification. Si vous ne l'avez pas reçu, renvoyez-le ci-dessous.",
+  "verify.pending_title": "Confirmez votre email",
+  "verify.pending_text": "Consultez votre boîte de réception. Si vous ne l'avez pas reçu, renvoyez-le ci-dessous.",
 
   /* ── Feedback ── */
   "feedback.trigger": "Que pensez-vous de Sponda jusqu'\u00e0 pr\u00e9sent\u00a0?",

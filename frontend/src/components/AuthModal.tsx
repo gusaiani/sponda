@@ -1,5 +1,6 @@
 import { useState, FormEvent } from "react";
 import { useTranslation } from "../i18n";
+import { setEmailVerificationPromptVisible } from "../utils/emailVerificationPrompt";
 import "../styles/auth.css";
 import "../styles/feedback.css";
 
@@ -63,6 +64,7 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
         return;
       }
 
+      setEmailVerificationPromptVisible(false);
       onSuccess();
     } catch {
       setError(t("auth.connection_error"));

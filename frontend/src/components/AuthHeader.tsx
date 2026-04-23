@@ -10,7 +10,7 @@ import "../styles/auth-header.css";
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
 export function AuthHeader() {
-  const { user, isAuthenticated, isSuperuser, isLoading } = useAuth();
+  const { user, isAuthenticated, isSuperuser, isLoading, showEmailVerificationPrompt } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const { t, locale } = useTranslation();
@@ -44,13 +44,16 @@ export function AuthHeader() {
     setIsMenuOpen(false);
   }
 
+  const shouldShowEmailVerificationPrompt =
+    isAuthenticated && !user?.email_verified && showEmailVerificationPrompt;
+
   return (
     <div className="auth-header">
       <NotificationBell />
 
       {/* Inline items — visible on desktop, hidden on mobile */}
       <div className="auth-header-inline">
-        {isAuthenticated && !user?.email_verified && (
+        {shouldShowEmailVerificationPrompt && (
           <div className="auth-header-tooltip-group">
             <Link href={`/${locale}/verify-email`} className="auth-header-link auth-header-warning-pill">
               {t("auth.email_not_verified_link")}
@@ -122,7 +125,7 @@ export function AuthHeader() {
         </button>
         {isMenuOpen && (
           <div className="auth-header-menu" role="menu">
-            {isAuthenticated && !user?.email_verified && (
+            {shouldShowEmailVerificationPrompt && (
               <Link
                 href={`/${locale}/verify-email`}
                 className="auth-header-menu-link auth-header-warning"

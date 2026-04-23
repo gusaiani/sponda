@@ -5,6 +5,14 @@ import { AuthModal } from "./AuthModal";
 
 afterEach(cleanup);
 
+const { setEmailVerificationPromptVisible } = vi.hoisted(() => ({
+  setEmailVerificationPromptVisible: vi.fn(),
+}));
+
+vi.mock("../utils/emailVerificationPrompt", () => ({
+  setEmailVerificationPromptVisible,
+}));
+
 describe("AuthModal", () => {
   const defaultProps = {
     onSuccess: vi.fn(),

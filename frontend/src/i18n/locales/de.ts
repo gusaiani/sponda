@@ -93,7 +93,7 @@ export const de: TranslationDictionary = {
   "auth.email_not_verified_tooltip_features": "weitere Systemfunktionen",
   "auth.resend_verification": "Bestätigungs-E-Mail erneut senden",
   "auth.resend_verification_sending": "Senden…",
-  "auth.resend_verification_sent": "Bestätigungs-E-Mail gesendet. Prüfen Sie Ihren Posteingang.",
+  "auth.resend_verification_sent": "Bestätigungs-E-Mail gesendet.",
   "auth.resend_verification_error": "Senden fehlgeschlagen. Bitte erneut versuchen.",
   "auth.change_email_verification_sent": "E-Mail aktualisiert. Wir haben einen Bestätigungslink an die neue Adresse gesendet · bitte klicken Sie darauf.",
   "auth.preferences_update_error": "Fehler beim Speichern der Einstellungen",
@@ -130,7 +130,7 @@ export const de: TranslationDictionary = {
   "verify.error": "Fehler bei der E-Mail-Verifizierung",
   "verify.expired_text": "Der Link ist möglicherweise abgelaufen. Fordern Sie einen neuen in Ihrem Konto an.",
   "verify.pending_title": "Bestätigen Sie Ihre E-Mail",
-  "verify.pending_text": "Prüfen Sie Ihren Posteingang auf den Bestätigungslink. Wenn Sie ihn nicht erhalten haben, senden Sie ihn unten erneut.",
+  "verify.pending_text": "Prüfen Sie Ihren Posteingang. Wenn Sie sie nicht erhalten haben, senden Sie sie unten erneut.",
 
   /* ── Feedback ── */
   "feedback.trigger": "Was halten Sie bisher von Sponda?",

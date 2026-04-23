@@ -137,6 +137,7 @@ describe("AuthHeader mobile hamburger menu", () => {
       user: { email_verified: false },
       isAuthenticated: true,
       isSuperuser: false,
+      showEmailVerificationPrompt: true,
       isLoading: false,
     });
 
@@ -153,6 +154,20 @@ describe("AuthHeader mobile hamburger menu", () => {
       user: { email_verified: true },
       isAuthenticated: true,
       isSuperuser: false,
+      showEmailVerificationPrompt: true,
+      isLoading: false,
+    });
+
+    render(<AuthHeader />);
+    expect(document.body.textContent).not.toContain("auth.email_not_verified_link");
+  });
+
+  it("does not show an email verification link before the unverified gate is hit", () => {
+    mockUseAuth.mockReturnValue({
+      user: { email_verified: false },
+      isAuthenticated: true,
+      isSuperuser: false,
+      showEmailVerificationPrompt: false,
       isLoading: false,
     });
 

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
+import { buildApiError } from "../utils/emailVerificationPrompt";
 
 export interface SavedListEntry {
   id: number;
@@ -36,21 +37,7 @@ export function useSavedLists() {
         credentials: "include",
         body: JSON.stringify(params),
       });
-      if (!response.ok) {
-        // Surface the backend's error message (e.g. quota / CSRF / validation)
-        // so the UI can show something more useful than a generic failure.
-        const bodyText = await response.text().catch(() => "");
-        let detail = `HTTP ${response.status}`;
-        try {
-          const parsed = bodyText ? JSON.parse(bodyText) : null;
-          if (parsed?.error) detail = String(parsed.error);
-          else if (parsed?.detail) detail = String(parsed.detail);
-          else if (bodyText) detail = bodyText.slice(0, 200);
-        } catch {
-          if (bodyText) detail = bodyText.slice(0, 200);
-        }
-        throw new Error(detail);
-      }
+      if (!response.ok) throw await buildApiError(response, `HTTP ${response.status}`);
       return response.json() as Promise<SavedListEntry>;
     },
     onSuccess: () => {
@@ -67,7 +54,7 @@ export function useSavedLists() {
         credentials: "include",
         body: JSON.stringify(body),
       });
-      if (!response.ok) throw new Error("Failed to update list");
+      if (!response.ok) throw await buildApiError(response, "Failed to update list");
       return response.json() as Promise<SavedListEntry>;
     },
     onSuccess: () => {
@@ -82,7 +69,7 @@ export function useSavedLists() {
         headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to delete list");
+      if (!response.ok) throw await buildApiError(response, "Failed to delete list");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-lists"] });
@@ -97,7 +84,7 @@ export function useSavedLists() {
         credentials: "include",
         body: JSON.stringify({ ordered_ids: orderedIds }),
       });
-      if (!response.ok) throw new Error("Failed to reorder lists");
+      if (!response.ok) throw await buildApiError(response, "Failed to reorder lists");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-lists"] });

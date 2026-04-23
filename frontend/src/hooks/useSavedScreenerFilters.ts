@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
 import type { ScreenerFilters } from "./useScreener";
+import { buildApiError } from "../utils/emailVerificationPrompt";
 
 export interface SavedScreenerFilterEntry {
   id: number;
@@ -40,7 +41,7 @@ export function useSavedScreenerFilters() {
         credentials: "include",
         body: JSON.stringify(params),
       });
-      if (!response.ok) throw new Error("Failed to save filter");
+      if (!response.ok) throw await buildApiError(response, "Failed to save filter");
       return response.json() as Promise<SavedScreenerFilterEntry>;
     },
     onSuccess: () => {
@@ -62,7 +63,7 @@ export function useSavedScreenerFilters() {
         credentials: "include",
         body: JSON.stringify(body),
       });
-      if (!response.ok) throw new Error("Failed to update filter");
+      if (!response.ok) throw await buildApiError(response, "Failed to update filter");
       return response.json() as Promise<SavedScreenerFilterEntry>;
     },
     onSuccess: () => {
@@ -77,7 +78,7 @@ export function useSavedScreenerFilters() {
         headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
         credentials: "include",
       });
-      if (!response.ok) throw new Error("Failed to delete filter");
+      if (!response.ok) throw await buildApiError(response, "Failed to delete filter");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["saved-screener-filters"] });
