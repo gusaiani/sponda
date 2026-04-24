@@ -78,7 +78,7 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
   return (
     <div className="feedback-overlay" onClick={onClose}>
       <div className="feedback-panel" onClick={(event) => event.stopPropagation()} style={{ maxWidth: "400px" }}>
-        <button className="feedback-close" onClick={onClose} aria-label={t("common.close")}>
+        <button type="button" className="feedback-close" onClick={onClose} aria-label={t("common.close")}>
           ×
         </button>
 

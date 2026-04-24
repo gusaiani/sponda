@@ -226,6 +226,32 @@ describe("RevisitBanner", () => {
     expect(deleteScheduleMock).toHaveBeenCalledWith(1);
   });
 
+  it("deletes the schedule when saving settings as don't repeat", async () => {
+    const deleteScheduleMock = vi.fn();
+    const updateScheduleMock = vi.fn();
+
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule({ recurrence_days: 90 }),
+      updateSchedule: { mutate: updateScheduleMock },
+      deleteSchedule: { mutate: deleteScheduleMock },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+    const changeSettingsButton = document.querySelector(".revisit-banner-change-settings") as HTMLButtonElement;
+    fireEvent.click(changeSettingsButton);
+
+    const recurrenceSelect = document.querySelector(".revisit-banner-recurrence-select") as HTMLSelectElement;
+    fireEvent.change(recurrenceSelect, { target: { value: "" } });
+
+    const saveButton = document.querySelector(".revisit-banner-save") as HTMLButtonElement;
+    fireEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(deleteScheduleMock).toHaveBeenCalledWith(1);
+    });
+    expect(updateScheduleMock).not.toHaveBeenCalled();
+  });
+
   it("shows overdue message for past due dates", () => {
     const past = new Date();
     past.setDate(past.getDate() - 5);

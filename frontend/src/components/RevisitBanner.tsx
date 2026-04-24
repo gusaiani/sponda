@@ -93,7 +93,11 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
   }
 
   function handleSaveSettings() {
-    updateSchedule.mutate({ id: schedule!.id, recurrence_days: recurrenceDays ? parseInt(recurrenceDays, 10) : null });
+    if (!recurrenceDays) {
+      deleteSchedule.mutate(schedule!.id);
+    } else {
+      updateSchedule.mutate({ id: schedule!.id, recurrence_days: parseInt(recurrenceDays, 10) });
+    }
     setExpanded(false);
   }
 

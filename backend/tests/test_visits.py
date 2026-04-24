@@ -118,6 +118,23 @@ class TestMarkVisited:
         schedule = RevisitSchedule.objects.get(user=user, ticker="BBDC4")
         assert schedule.next_revisit == today + timedelta(days=30)
 
+    def test_mark_visited_consumes_one_time_schedule(self, authenticated_client, user):
+        RevisitSchedule.objects.create(
+            user=user,
+            ticker="B3SA3",
+            next_revisit=date.today(),
+            recurrence_days=None,
+            share_token=RevisitSchedule.generate_share_token(),
+        )
+        response = authenticated_client.post(
+            "/api/auth/visits/mark/",
+            {"ticker": "B3SA3"},
+            content_type="application/json",
+        )
+        assert response.status_code == 201
+        assert response.json()["schedule"] is None
+        assert not RevisitSchedule.objects.filter(user=user, ticker="B3SA3").exists()
+
     def test_mark_visited_same_day_is_idempotent(self, authenticated_client, user):
         authenticated_client.post(
             "/api/auth/visits/mark/",
