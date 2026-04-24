@@ -600,14 +600,17 @@ class MarkVisitedView(APIView):
             )
             result["schedule"] = RevisitScheduleSerializer(schedule).data
         else:
-            # If a recurring schedule exists, bump it forward
+            # Completing a recurring schedule bumps it forward; a one-time
+            # schedule is consumed and should stop reminding.
             try:
                 schedule = RevisitSchedule.objects.get(user=request.user, ticker=ticker)
                 if schedule.recurrence_days:
                     schedule.next_revisit = today + timedelta(days=schedule.recurrence_days)
                     schedule.notified_at = None
                     schedule.save(update_fields=["next_revisit", "notified_at"])
-                result["schedule"] = RevisitScheduleSerializer(schedule).data
+                    result["schedule"] = RevisitScheduleSerializer(schedule).data
+                else:
+                    schedule.delete()
             except RevisitSchedule.DoesNotExist:
                 pass
 
