@@ -668,6 +668,14 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
       <div className="modal-explainer">
         <p>{t("modal.debt_earnings_explain")}</p>
         <p>{t("modal.debt_earnings_note")}</p>
+        <div className="modal-video">
+          <iframe
+            src="https://www.youtube.com/embed/iEVxqV-pBjU"
+            title="Debt / Earnings"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
       </div>
       {data.totalDebt !== null && data.debtToAvgEarnings !== null && data.avgAdjustedNetIncome !== null && (
         <div className="pe10-calc-details">
@@ -699,6 +707,14 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
     <>
       <div className="modal-explainer">
         <p>{t("modal.debt_fcf_explain")}</p>
+        <div className="modal-video">
+          <iframe
+            src="https://www.youtube.com/embed/i5kq79jnk1U"
+            title="Debt / Free Cash Flow"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
       </div>
       {data.totalDebt !== null && data.debtToAvgFCF !== null && data.avgAdjustedFCF !== null && (
         <div className="pe10-calc-details">
