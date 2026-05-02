@@ -63,6 +63,7 @@ import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl, currencyCode } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
 import { YearsSlider } from "../../../components/YearsSlider";
+import { InflationToggle, type InflationMode } from "../../../components/InflationToggle";
 import { TabPills } from "../../../components/TabPills";
 
 const STALE_TIME = 30 * 60 * 1000;
@@ -107,6 +108,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const activeTab = resolveTab(pathname);
   const tabBarRef = useRef<HTMLDivElement>(null);
   const [sliderFixedTop, setSliderFixedTop] = useState<number | null>(null);
+  const [inflationMode, setInflationMode] = useState<InflationMode>("nominal");
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
   const { data: currentTicker } = useTickerDetail(upperTicker);
@@ -252,6 +254,13 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
           {(activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && (
             <div className="years-slider-inline years-slider-inline--mobile">
               <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
+              {activeTab === "fundamentals" && (
+                <InflationToggle
+                  mode={inflationMode}
+                  onModeChange={setInflationMode}
+                  reportedCurrency={fundamentalsData?.reportedCurrency}
+                />
+              )}
             </div>
           )}
         </>
@@ -261,6 +270,13 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       {!isLoading && !error && (activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && sliderFixedTop !== null && (
         <div className="years-slider-fixed" style={{ top: sliderFixedTop }}>
           <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
+          {activeTab === "fundamentals" && (
+            <InflationToggle
+              mode={inflationMode}
+              onModeChange={setInflationMode}
+              reportedCurrency={fundamentalsData?.reportedCurrency}
+            />
+          )}
         </div>
       )}
 
@@ -305,7 +321,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
       {/* Fundamentals tab */}
       {activeTab === "fundamentals" && (
-        <FundamentalsTab ticker={upperTicker} years={effectiveYears} />
+        <FundamentalsTab ticker={upperTicker} years={effectiveYears} valueMode={inflationMode} />
       )}
 
       {/* Compare tab */}

@@ -1,49 +1,10 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { useFundamentals, type FundamentalsYear } from "../hooks/useFundamentals";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n";
 import { formatNumber } from "../utils/format";
+import type { InflationMode } from "./InflationToggle";
 import "../styles/fundamentals.css";
-
-/** Human-readable name of the inflation series we apply to "Adjusted"
- * mode, keyed by reporting currency. Mirrors the FRED series mapping in
- * `quotes/fred.py::CURRENCY_TO_SERIES_ID`, plus the two we source
- * elsewhere (BRL → IPCA via BCB, USD → BLS CPI via FMP).
- *
- * Currencies not in this map fall through to nominal averages on the
- * backend; we surface that explicitly in the tooltip.
- */
-const INFLATION_SERIES_BY_CURRENCY: Record<string, string> = {
-  BRL: "IPCA (Brazil)",
-  USD: "US CPI",
-  EUR: "Eurozone HICP",
-  DKK: "Denmark CPI",
-  JPY: "Japan CPI",
-  GBP: "UK CPI",
-  CNY: "China CPI",
-  CHF: "Switzerland CPI",
-  CAD: "Canada CPI",
-  AUD: "Australia CPI",
-  MXN: "Mexico CPI",
-  INR: "India CPI",
-  KRW: "Korea CPI",
-  NOK: "Norway CPI",
-  SEK: "Sweden CPI",
-  ZAR: "South Africa CPI",
-  ILS: "Israel CPI",
-  TRY: "Turkey CPI",
-  IDR: "Indonesia CPI",
-  PLN: "Poland CPI",
-  CZK: "Czechia CPI",
-  HUF: "Hungary CPI",
-  NZD: "New Zealand CPI",
-  CLP: "Chile CPI",
-};
-
-function inflationSeriesLabel(reportedCurrency: string | undefined): string {
-  if (!reportedCurrency) return "no inflation series";
-  return INFLATION_SERIES_BY_CURRENCY[reportedCurrency.toUpperCase()] ?? "no inflation series";
-}
 
 /* ── Augmented row with Shiller PE ratios for a given window ── */
 
@@ -114,7 +75,7 @@ export function augmentWithPERatios(
 
 /* ── Column definitions ── */
 
-type ValueMode = "nominal" | "adjusted";
+type ValueMode = InflationMode;
 
 interface ColumnDef {
   key: string;
@@ -226,13 +187,13 @@ const GROUP_START_INDICES = new Set([
 interface Props {
   ticker: string;
   years: number;
+  valueMode: ValueMode;
 }
 
-export function FundamentalsTab({ ticker, years }: Props) {
+export function FundamentalsTab({ ticker, years, valueMode }: Props) {
   const { data: response, isLoading, error } = useFundamentals(ticker, true);
   const rawData = response?.years;
   const { t, locale } = useTranslation();
-  const [valueMode, setValueMode] = useState<ValueMode>("nominal");
   const columns = useMemo(() => getTranslatedColumns(t, years, locale), [t, years, locale]);
   const data = useMemo(
     () => (rawData ? augmentWithPERatios(rawData, years) : null),
@@ -255,30 +216,8 @@ export function FundamentalsTab({ ticker, years }: Props) {
     );
   }
 
-  const inflationLabel = inflationSeriesLabel(response?.reportedCurrency);
-  const adjustedTooltip = t("fundamentals.adjustedTooltip").replace("{series}", inflationLabel);
-
   return (
     <div className="fundamentals-container">
-      <aside className="fundamentals-inflation-toggle" aria-label={t("fundamentals.inflationLabel")}>
-        <span className="fundamentals-inflation-toggle-label">{t("fundamentals.inflationLabel")}</span>
-        <div className="fundamentals-inflation-toggle-pills">
-          <button
-            className={`fundamentals-toggle-pill ${valueMode === "nominal" ? "fundamentals-toggle-pill-active" : ""}`}
-            onClick={() => setValueMode("nominal")}
-          >
-            {t("fundamentals.nominal")}
-          </button>
-          <button
-            className={`fundamentals-toggle-pill ${valueMode === "adjusted" ? "fundamentals-toggle-pill-active" : ""}`}
-            onClick={() => setValueMode("adjusted")}
-            title={adjustedTooltip}
-          >
-            {t("fundamentals.adjusted")}
-          </button>
-        </div>
-      </aside>
-
       <div className="fundamentals-scroll-wrapper">
         <table className="fundamentals-table">
           <thead>
