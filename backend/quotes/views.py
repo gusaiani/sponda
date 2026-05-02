@@ -685,10 +685,13 @@ class PE10View(APIView):
 
         market_cap_decimal = Decimal(str(market_cap))
 
-        # Get logo from Ticker table
+        # Get logo + reported currency from Ticker table.
         logo = ""
+        reported_currency = ""
         try:
-            logo = Ticker.objects.values_list("logo", flat=True).get(symbol=ticker)
+            ticker_row = Ticker.objects.values("logo", "reported_currency").get(symbol=ticker)
+            logo = ticker_row["logo"]
+            reported_currency = ticker_row["reported_currency"]
         except Ticker.DoesNotExist:
             pass
 
@@ -716,12 +719,15 @@ class PE10View(APIView):
         # Log the lookup
         self._log_lookup(request, ticker)
 
+        listing_currency = "BRL" if is_brazilian_ticker(ticker) else "USD"
         result = {
             "ticker": ticker,
             "name": name,
             "logo": logo,
             "currentPrice": float(current_price),
             "marketCap": market_cap,
+            "listingCurrency": listing_currency,
+            "reportedCurrency": reported_currency or listing_currency,
             "maxYearsAvailable": max_years_available,
             # PE10
             "pe10": pe10_result["pe10"],
@@ -938,9 +944,15 @@ class FundamentalsView(APIView):
         )
         quarterly_ratios = compute_quarterly_balance_ratios(ticker)
 
+        listing_currency = "BRL" if is_brazilian_ticker(ticker) else "USD"
+        reported_currency = (
+            Ticker.objects.filter(symbol=ticker).values_list("reported_currency", flat=True).first() or ""
+        )
         result = {
             "years": fundamentals,
             "quarterlyRatios": quarterly_ratios,
+            "listingCurrency": listing_currency,
+            "reportedCurrency": reported_currency or listing_currency,
         }
         cache.set(cache_key, result, FUNDAMENTALS_CACHE_TTL)
         response = Response(result)

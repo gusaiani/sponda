@@ -36,6 +36,13 @@ interface QuoteResult {
   logo: string;
   currentPrice: number;
   marketCap: number | null;
+  /** ISO 4217 of the currency the quote/marketCap is denominated in (USD or BRL).
+   * Optional only because legacy fixtures may omit it. */
+  listingCurrency?: string;
+  /** ISO 4217 of the currency the company files financials in (USD, BRL, DKK,
+   * EUR, JPY, ...). When this differs from listingCurrency, market-cap-based
+   * indicators are translated server-side via the FX rate. */
+  reportedCurrency?: string;
   maxYearsAvailable: number;
   // PE10
   pe10: number | null;

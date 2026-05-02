@@ -118,6 +118,9 @@ BRAPI_BASE_URL = "https://brapi.dev/api"
 FMP_API_KEY = env("FMP_API_KEY", default="")
 FMP_BASE_URL = "https://financialmodelingprep.com"
 
+FRED_API_KEY = env("FRED_API_KEY", default="")
+FRED_BASE_URL = "https://api.stlouisfed.org/fred"
+
 SPONDA_FREE_LOOKUPS_PER_DAY = 3
 
 # Redis cache (production override can change LOCATION via env)

@@ -123,6 +123,19 @@
   @apply mb-6;
 }
 
+/* Banner shown when historical FX rates fell back to the current rate
+ * because per-year history was unavailable. */
+.chart-fx-warning {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
 .chart-panel:last-child {
   @apply mb-0;
 }

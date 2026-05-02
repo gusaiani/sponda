@@ -5,7 +5,7 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
-from .models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings, USCPIIndex
+from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings, Ticker, USCPIIndex
 
 
 class FMPError(Exception):
@@ -106,6 +106,54 @@ def fetch_historical_prices(ticker: str) -> list[dict]:
     return data
 
 
+def fetch_historical_fx(currency: str) -> list[dict]:
+    """Fetch daily USD↔<currency> close rates from 2010-01-01 onward.
+
+    FMP exposes FX as a regular EOD price symbol like ``USDDKK``. Without
+    the explicit `from` param, FMP truncates to ~4 years; we request 2010
+    so the multiples-history chart can attach a year-end FX rate to every
+    annual data point.
+    """
+    symbol = f"USD{currency.upper()}"
+    data = _get("/stable/historical-price-eod/full", params={"symbol": symbol, "from": "2010-01-01"})
+    if not isinstance(data, list):
+        return []
+    return data
+
+
+def sync_fx_rates(currencies: list[str]) -> int:
+    """Persist USD→<currency> daily rates for each requested currency.
+
+    Returns the total number of rows written/updated. Idempotent: re-running
+    overwrites the close rate for any (date, base, quote) tuple but does not
+    create duplicates.
+    """
+    total = 0
+    for currency in currencies:
+        rows = fetch_historical_fx(currency)
+        objects: list[FxRate] = []
+        for row in rows:
+            close = row.get("close")
+            row_date_string = (row.get("date") or "")[:10]
+            if close is None or not row_date_string:
+                continue
+            objects.append(FxRate(
+                base_currency="USD",
+                quote_currency=currency.upper(),
+                date=date.fromisoformat(row_date_string),
+                rate=Decimal(str(close)),
+            ))
+        if objects:
+            FxRate.objects.bulk_create(
+                objects,
+                update_conflicts=True,
+                unique_fields=["date", "base_currency", "quote_currency"],
+                update_fields=["rate", "fetched_at"],
+            )
+            total += len(objects)
+    return total
+
+
 def fetch_profile(ticker: str) -> dict | None:
     """Fetch company profile (sector, industry) for a US ticker.
 
@@ -126,13 +174,20 @@ def fetch_dividends(ticker: str) -> list[dict]:
 
 
 def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
-    """Fetch and store earnings for a US ticker from FMP."""
+    """Fetch and store earnings for a US ticker from FMP.
+
+    Side-effect: backfills ``Ticker.reported_currency`` from the most recent
+    statement's ``reportedCurrency`` so cross-currency-aware indicators can
+    translate market cap into the right currency. No-op when the Ticker row
+    does not yet exist (the ticker-list sync has not run).
+    """
     statements = fetch_income_statements(ticker)
     upper_ticker = ticker.upper()
     # Providers occasionally return duplicate end_dates (amended filings).
     # Keep the last, matching the prior update_or_create loop semantics,
     # and avoid Postgres ON CONFLICT rejecting the whole batch.
     by_end_date: dict[date, QuarterlyEarnings] = {}
+    reported_currency_by_end_date: dict[date, str] = {}
 
     for statement in statements:
         end_date_string = (statement.get("date") or "")[:10]
@@ -157,9 +212,18 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
             net_income=net_income_value,
             revenue=revenue_value,
         )
+        reported_currency = statement.get("reportedCurrency")
+        if reported_currency:
+            reported_currency_by_end_date[end_date] = reported_currency
 
     if not by_end_date:
         return []
+
+    if reported_currency_by_end_date:
+        latest_end_date = max(reported_currency_by_end_date)
+        Ticker.objects.filter(symbol=upper_ticker).update(
+            reported_currency=reported_currency_by_end_date[latest_end_date],
+        )
 
     return QuarterlyEarnings.objects.bulk_create(
         list(by_end_date.values()),

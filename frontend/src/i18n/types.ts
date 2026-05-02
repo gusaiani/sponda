@@ -29,6 +29,8 @@ export interface TranslationDictionary {
   "header.tagline": string;
   "header.menu": string;
   "header.currency": string;
+  "header.reportsIn": string;
+  "fundamentals.fxWarning": string;
 
   /* ── Footer ── */
   "footer.tool_by": string;

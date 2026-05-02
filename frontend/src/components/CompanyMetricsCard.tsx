@@ -389,6 +389,11 @@ interface QuoteData {
   logo: string;
   currentPrice: number;
   marketCap: number | null;
+  /** ISO 4217 of the listing-currency (the price/marketCap currency). */
+  listingCurrency?: string;
+  /** ISO 4217 of the reporting (statement) currency. Drives the symbol used
+   * for absolute values like revenue, FCF, equity. */
+  reportedCurrency?: string;
   pe10: number | null;
   avgAdjustedNetIncome: number | null;
   pe10YearsOfData: number;
@@ -517,16 +522,20 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
   );
 }
 
-/** formatLargeNumber bound to a specific ticker's currency and locale */
-function makeFormatAmount(ticker: string, locale: string) {
-  return (value: number) => formatLargeNumber(value, ticker, locale);
+/** formatLargeNumber bound to a specific ticker's currency and locale.
+ * When `reportedCurrency` is provided (foreign-listed companies that file in
+ * a different currency than they trade in), the displayed values use that
+ * currency's symbol — keeps the Fundamentos tab honest about what currency
+ * the underlying numbers are in. */
+function makeFormatAmount(ticker: string, locale: string, reportedCurrency?: string) {
+  return (value: number) => formatLargeNumber(value, ticker, locale, reportedCurrency);
 }
 
 /* ── Balance sheet components helper ── */
 
 function BalanceSheetComponents({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   if (data.stockholdersEquity === null) return null;
   return (
     <div className="pe10-calc-details">
@@ -572,7 +581,7 @@ function BalanceSheetComponents({ data }: { data: QuoteData }) {
 
 function DebtToEquityInfo({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   return (
     <>
       <div className="modal-explainer">
@@ -605,7 +614,7 @@ function DebtToEquityInfo({ data }: { data: QuoteData }) {
 
 function DebtExLeaseInfo({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   return (
     <>
       <div className="modal-explainer">
@@ -629,7 +638,7 @@ function DebtExLeaseInfo({ data }: { data: QuoteData }) {
 
 function LiabToEquityInfo({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   return (
     <>
       <div className="modal-explainer">
@@ -662,7 +671,7 @@ function LiabToEquityInfo({ data }: { data: QuoteData }) {
 
 function DebtToEarningsInfo({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   return (
     <>
       <div className="modal-explainer">
@@ -702,7 +711,7 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
 
 function DebtToFCFInfo({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   return (
     <>
       <div className="modal-explainer">
@@ -741,7 +750,7 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
 
 function MarketCapInfo({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   return (
     <>
       <div className="modal-explainer">
@@ -773,7 +782,7 @@ function MarketCapInfo({ data }: { data: QuoteData }) {
 function PL10Info({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   const label = localizeLabel(data.pe10Label, locale);
   const hasCalc = data.pe10CalculationDetails.length > 0;
   const total = hasCalc
@@ -872,7 +881,7 @@ function PL10Info({ data }: { data: QuoteData }) {
 function PFCL10Info({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
   const [expandedYear, setExpandedYear] = useState<number | null>(null);
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   const label = localizeLabel(data.pfcf10Label, locale);
   const hasCalc = data.pfcf10CalculationDetails.length > 0;
   const total = hasCalc
@@ -1112,7 +1121,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const [activeModal, setActiveModal] = useState<ModalKey>(null);
   const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
   const showGraphs = true;
-  const formatAmount = makeFormatAmount(data.ticker, locale);
+  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   const chartValueFormatters = getChartValueFormatters(locale);
 
   const pl10Label = localizeLabel(data.pe10Label, locale);

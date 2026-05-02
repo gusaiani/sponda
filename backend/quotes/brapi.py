@@ -530,6 +530,7 @@ def sync_tickers() -> int:
             sector=stock.get("sector") or "",
             type=stock.get("type") or "",
             logo=logo_url,
+            reported_currency="BRL",
         ))
 
     if objects:
@@ -537,7 +538,7 @@ def sync_tickers() -> int:
             objects,
             update_conflicts=True,
             unique_fields=["symbol"],
-            update_fields=["name", "display_name", "sector", "type", "logo"],
+            update_fields=["name", "display_name", "sector", "type", "logo", "reported_currency"],
         )
         synced_symbols = {ticker.symbol for ticker in objects}
         Ticker.objects.exclude(symbol__in=synced_symbols).delete()

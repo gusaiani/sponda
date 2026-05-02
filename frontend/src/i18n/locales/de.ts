@@ -29,6 +29,8 @@ export const de: TranslationDictionary = {
   "header.tagline": "Für Value-Investoren",
   "header.menu": "Menü",
   "header.currency": "Währung",
+  "header.reportsIn": "berichtet in",
+  "fundamentals.fxWarning": "Historische Multiples in diesem Diagramm verwenden den aktuellen Wechselkurs. Wir haben noch keine jahrgenaue Wechselkurs-Historie für alle gezeigten Punkte; ältere Jahre sind daher eine Näherung.",
 
   /* ── Footer ── */
   "footer.tool_by": "Ein Werkzeug von",

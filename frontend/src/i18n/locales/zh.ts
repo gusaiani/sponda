@@ -29,6 +29,8 @@ export const zh: TranslationDictionary = {
   "header.tagline": "为价值投资者而设",
   "header.menu": "菜单",
   "header.currency": "货币",
+  "header.reportsIn": "财报币种",
+  "fundamentals.fxWarning": "本图中的历史倍数使用当前汇率。我们尚无所有年份的逐年汇率数据，因此较早年份为近似值。",
 
   /* ── Footer ── */
   "footer.tool_by": "工具开发者",

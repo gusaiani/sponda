@@ -208,12 +208,15 @@ jobs:
             cp /opt/sponda/systemd/sponda-refresh-fundamentals.timer /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-check-alerts.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-check-alerts.timer /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-refresh-fx.service /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-refresh-fx.timer /etc/systemd/system/
             systemctl daemon-reload
             systemctl enable --now sponda-refresh.timer
             systemctl enable --now sponda-revisit-reminders.timer
             systemctl enable --now sponda-refresh-snapshots.timer
             systemctl enable --now sponda-refresh-fundamentals.timer
             systemctl enable --now sponda-check-alerts.timer
+            systemctl enable --now sponda-refresh-fx.timer
 
             # Update Nginx config and reload
             cp /opt/sponda/nginx/gzip.conf /etc/nginx/conf.d/gzip.conf

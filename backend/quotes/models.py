@@ -112,6 +112,60 @@ class USCPIIndex(models.Model):
         return f"US CPI {self.date}: {self.annual_rate}%"
 
 
+class FxRate(models.Model):
+    """Daily foreign-exchange close rate. Stored as base→quote so 1 unit of
+    `base_currency` equals `rate` units of `quote_currency`. We store every
+    pair as USD-pivoted (base=USD); cross-rates are computed at lookup time
+    by `get_fx_rate` via the USD pivot.
+    """
+    date = models.DateField()
+    base_currency = models.CharField(max_length=3)
+    quote_currency = models.CharField(max_length=3)
+    rate = models.DecimalField(max_digits=20, decimal_places=8)
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("date", "base_currency", "quote_currency")
+        ordering = ["-date"]
+        indexes = [
+            models.Index(fields=["base_currency", "quote_currency", "-date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.base_currency}/{self.quote_currency} {self.date}: {self.rate}"
+
+
+class CountryCPIIndex(models.Model):
+    """Monthly CPI year-over-year rate (%) for a given currency, sourced
+    from FRED. Used to compute inflation-adjustment factors for non-USD/
+    non-BRL statement currencies, mirroring `IPCAIndex` (BRL) and
+    `USCPIIndex` (USD).
+
+    `currency` is the ISO 4217 code this CPI applies to (DKK→Denmark,
+    JPY→Japan, EUR→Eurozone HICP, etc.). The mapping from currency to
+    FRED series id lives in `quotes/fred.py`. We store the YoY rate
+    (computed from FRED's absolute index levels at sync time) so the
+    inflation module can compound rates uniformly across all sources.
+    """
+    currency = models.CharField(max_length=3, db_index=True)
+    date = models.DateField()
+    annual_rate = models.DecimalField(
+        max_digits=10, decimal_places=4,
+        help_text="Year-over-year CPI rate (%) for the corresponding currency.",
+    )
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("currency", "date")
+        ordering = ["-date"]
+        indexes = [
+            models.Index(fields=["currency", "-date"]),
+        ]
+
+    def __str__(self):
+        return f"CPI {self.currency} {self.date}: {self.annual_rate}%"
+
+
 class Ticker(models.Model):
     symbol = models.CharField(max_length=20, unique=True, db_index=True)
     name = models.CharField(max_length=200, blank=True, default="")
@@ -124,6 +178,18 @@ class Ticker(models.Model):
         blank=True,
         default="",
         help_text="Newline-separated former or alternate names used for search (e.g. 'General Electric' for GE after the 2024 rebrand).",
+    )
+    reported_currency = models.CharField(
+        max_length=3,
+        blank=True,
+        default="",
+        help_text=(
+            "ISO 4217 code of the currency the company files financial "
+            "statements in (BRL for B3 tickers, USD/EUR/JPY/etc. for FMP). "
+            "Empty until the first income-statement sync populates it for "
+            "FMP-sourced tickers. Used to translate market cap into the "
+            "statement currency before computing PE10/PFCF10/etc."
+        ),
     )
     updated_at = models.DateTimeField(auto_now=True)
 

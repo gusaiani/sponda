@@ -29,6 +29,8 @@ export const en: TranslationDictionary = {
   "header.tagline": "For value investors",
   "header.menu": "Menu",
   "header.currency": "Currency",
+  "header.reportsIn": "reports in",
+  "fundamentals.fxWarning": "Historical multiples on this chart use today's exchange rate. We do not yet have year-by-year FX history for every year shown, so older points are an approximation.",
 
   /* ── Footer ── */
   "footer.tool_by": "A tool by",

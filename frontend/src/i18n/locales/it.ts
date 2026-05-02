@@ -29,6 +29,8 @@ export const it: TranslationDictionary = {
   "header.tagline": "Per investitori value",
   "header.menu": "Menu",
   "header.currency": "Valuta",
+  "header.reportsIn": "rendiconta in",
+  "fundamentals.fxWarning": "I multipli storici in questo grafico usano il tasso di cambio attuale. Non disponiamo ancora dello storico dei tassi anno per anno per tutti i punti mostrati; gli anni più vecchi sono quindi un'approssimazione.",
 
   /* ── Footer ── */
   "footer.tool_by": "Uno strumento di",

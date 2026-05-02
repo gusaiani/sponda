@@ -2,6 +2,7 @@
 from collections import defaultdict
 from decimal import Decimal
 
+from .fx import market_cap_in_reported_currency
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyEarnings
 
@@ -111,7 +112,16 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
             "error": "lucro médio negativo",
         }
 
-    pe10 = market_cap / avg_adjusted
+    market_cap_reported = market_cap_in_reported_currency(market_cap, ticker)
+    if market_cap_reported is None:
+        return {
+            **base_result,
+            "pe10": None,
+            "avg_adjusted_net_income": float(avg_adjusted),
+            "error": "Câmbio indisponível para a moeda de relatório",
+        }
+
+    pe10 = market_cap_reported / avg_adjusted
 
     return {
         **base_result,

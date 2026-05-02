@@ -141,3 +141,57 @@ class TestCalculatePE10:
         assert "ipcaFactor" in details[0]
         assert "adjustedNetIncome" in details[0]
         assert "quarterlyDetail" in details[0]
+
+
+class TestPe10CrossCurrency:
+    """When a ticker lists in USD but reports in another currency (e.g.
+    NVO listed on NYSE, files in DKK), PE10 must translate the market cap
+    into the statement currency before dividing by earnings."""
+
+    def test_translates_market_cap_to_reported_currency(self, db):
+        from quotes.models import FxRate, Ticker
+
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk", reported_currency="DKK")
+        FxRate.objects.create(
+            base_currency="USD", quote_currency="DKK",
+            date=date(2025, 12, 31), rate=Decimal("6.85"),
+        )
+        # 4 quarters of DKK earnings, 25B DKK each (≈ 3.65B USD)
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker="NVO", end_date=date(2025, month, day),
+                net_income=25_000_000_000,
+            )
+        # Market cap in USD (the listing currency for NVO)
+        market_cap_usd = Decimal("195_000_000_000")
+        result = calculate_pe10("NVO", market_cap_usd)
+        # Translated cap: $195B * 6.85 = 1335.75B DKK
+        # Annual earnings: 100B DKK
+        # PE = 1335.75 / 100 = 13.36 (a real-world ballpark, not 1.95)
+        assert result["pe10"] is not None
+        assert 12 < result["pe10"] < 15
+
+    def test_returns_none_when_fx_unavailable(self, db):
+        """No FX data for DKK → cannot compute. Return pe10=None with a
+        clear error so the screener degrades gracefully."""
+        from quotes.models import Ticker
+
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk", reported_currency="DKK")
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker="NVO", end_date=date(2025, month, day),
+                net_income=25_000_000_000,
+            )
+        result = calculate_pe10("NVO", Decimal("195_000_000_000"))
+        assert result["pe10"] is None
+        assert "moeda" in result["error"].lower() or "currency" in result["error"].lower()
+
+    def test_same_currency_passes_through_unchanged(self, sample_earnings, sample_ipca):
+        """Brazilian ticker with BRL market cap and BRL statements: behaviour
+        identical to before the FX path was added."""
+        from quotes.models import Ticker
+
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", reported_currency="BRL")
+        market_cap = Decimal("585_000_000_000")
+        result = calculate_pe10("PETR4", market_cap)
+        assert result["pe10"] is not None
