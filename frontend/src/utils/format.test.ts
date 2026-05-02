@@ -6,6 +6,7 @@ import {
   formatLargeNumber,
   formatQuarterLabel,
   currencyCode,
+  currencySymbolForCode,
   localToday,
 } from "./format";
 
@@ -20,6 +21,32 @@ describe("currencyCode", () => {
     expect(currencyCode("AAPL")).toBe("USD");
     expect(currencyCode("MSFT")).toBe("USD");
     expect(currencyCode("SCCO")).toBe("USD");
+  });
+
+  it("returns the explicit reportedCurrency when provided", () => {
+    expect(currencyCode("NVO", "DKK")).toBe("DKK");
+    expect(currencyCode("ASML", "EUR")).toBe("EUR");
+    expect(currencyCode("TM", "JPY")).toBe("JPY");
+  });
+});
+
+describe("currencySymbolForCode", () => {
+  it("maps majors to localised symbols", () => {
+    expect(currencySymbolForCode("USD")).toBe("$");
+    expect(currencySymbolForCode("BRL")).toBe("R$");
+    expect(currencySymbolForCode("EUR")).toBe("€");
+    expect(currencySymbolForCode("GBP")).toBe("£");
+    expect(currencySymbolForCode("JPY")).toBe("¥");
+    expect(currencySymbolForCode("DKK")).toBe("kr.");
+    expect(currencySymbolForCode("TWD")).toBe("NT$");
+  });
+
+  it("falls back to the ISO code for unmapped currencies", () => {
+    expect(currencySymbolForCode("ZZZ")).toBe("ZZZ");
+  });
+
+  it("is case-insensitive", () => {
+    expect(currencySymbolForCode("usd")).toBe("$");
   });
 });
 
@@ -186,6 +213,12 @@ describe("formatLargeNumber", () => {
   it("uses $ prefix for US tickers regardless of locale", () => {
     expect(formatLargeNumber(1_000_000, "AAPL", "en")).toMatch(/^\$ /);
     expect(formatLargeNumber(1_000_000, "AAPL", "pt")).toMatch(/^\$ /);
+  });
+
+  it("respects an explicit reportedCurrency for foreign reporters", () => {
+    expect(formatLargeNumber(1_000_000_000, "NVO", "en", "DKK")).toMatch(/^kr\. /);
+    expect(formatLargeNumber(1_000_000_000, "ASML", "en", "EUR")).toMatch(/^€ /);
+    expect(formatLargeNumber(1_000_000_000, "TM", "en", "JPY")).toMatch(/^¥ /);
   });
 });
 

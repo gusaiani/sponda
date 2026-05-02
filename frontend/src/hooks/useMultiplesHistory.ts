@@ -16,6 +16,10 @@ interface MultiplesHistoryResult {
     pl: MultiplePoint[];
     pfcl: MultiplePoint[];
   };
+  /** Set when historical FX rates were unavailable for at least one year on
+   * the chart, so the helper fell back to the latest FX rate uniformly. The
+   * UI should warn the user that older points are an approximation. */
+  currency_warning?: boolean;
 }
 
 export async function fetchMultiplesHistory(

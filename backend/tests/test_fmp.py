@@ -281,6 +281,51 @@ class TestSyncEarnings:
         earnings = sync_earnings("AAPL")
         assert len(earnings) == 0
 
+    @patch("quotes.fmp.fetch_income_statements")
+    def test_writes_reported_currency_to_ticker(self, mock_fetch, db):
+        """sync_earnings should backfill the Ticker's reported_currency from
+        the income statement so cross-currency-aware indicators (PR 3) can
+        translate market cap into the right currency."""
+        from quotes.models import Ticker
+
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk A/S")
+        mock_fetch.return_value = [
+            {"date": "2025-09-30", "symbol": "NVO", "reportedCurrency": "DKK",
+             "revenue": 100, "netIncome": 50, "eps": 1.0, "epsdiluted": 1.0},
+        ]
+        sync_earnings("NVO")
+        assert Ticker.objects.get(symbol="NVO").reported_currency == "DKK"
+
+    @patch("quotes.fmp.fetch_income_statements")
+    def test_uses_latest_statement_currency_when_multiple(self, mock_fetch, db):
+        """If a company changes reporting currency mid-history (rare but real),
+        the most recent statement wins."""
+        from quotes.models import Ticker
+
+        Ticker.objects.create(symbol="XYZ", name="Hypothetical Co")
+        mock_fetch.return_value = [
+            {"date": "2025-09-30", "symbol": "XYZ", "reportedCurrency": "EUR",
+             "revenue": 200, "netIncome": 50, "eps": 1.0, "epsdiluted": 1.0},
+            {"date": "2020-09-30", "symbol": "XYZ", "reportedCurrency": "GBP",
+             "revenue": 100, "netIncome": 30, "eps": 0.6, "epsdiluted": 0.6},
+        ]
+        sync_earnings("XYZ")
+        assert Ticker.objects.get(symbol="XYZ").reported_currency == "EUR"
+
+    @patch("quotes.fmp.fetch_income_statements")
+    def test_does_not_crash_when_ticker_row_missing(self, mock_fetch, db):
+        """sync_earnings runs before the ticker-list sync has populated the
+        Ticker row (e.g. during fixture setup or for a brand-new symbol).
+        It must be a no-op for the Ticker side, not a crash."""
+        from quotes.models import Ticker
+
+        mock_fetch.return_value = [
+            {"date": "2025-09-30", "symbol": "NEWCO", "reportedCurrency": "USD",
+             "revenue": 100, "netIncome": 50, "eps": 1.0, "epsdiluted": 1.0},
+        ]
+        sync_earnings("NEWCO")
+        assert not Ticker.objects.filter(symbol="NEWCO").exists()
+
 
 class TestSyncCashFlows:
     @patch("quotes.fmp.fetch_cash_flow_statements")

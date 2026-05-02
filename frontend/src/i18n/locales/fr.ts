@@ -29,6 +29,8 @@ export const fr: TranslationDictionary = {
   "header.tagline": "Pour les investisseurs value",
   "header.menu": "Menu",
   "header.currency": "Devise",
+  "header.reportsIn": "publie en",
+  "fundamentals.fxWarning": "Les multiples historiques de ce graphique utilisent le taux de change actuel. Nous n'avons pas encore d'historique de taux de change année par année pour tous les points affichés ; les années anciennes sont donc une approximation.",
 
   /* ── Footer ── */
   "footer.tool_by": "Un outil de",

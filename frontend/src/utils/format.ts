@@ -1,13 +1,53 @@
 import { LOCALE_TO_HTML_LANG, isSupportedLocale } from "../lib/i18n-config";
 import { isBrazilianTicker } from "./ticker";
 
-/** Return the currency symbol for a given ticker. */
-export function currencySymbol(ticker: string): string {
+/** ISO 4217 → display symbol. Long tail falls back to the code itself. */
+const ISO_TO_SYMBOL: Record<string, string> = {
+  USD: "$",
+  BRL: "R$",
+  EUR: "€",
+  GBP: "£",
+  JPY: "¥",
+  CNY: "¥",
+  DKK: "kr.",
+  SEK: "kr.",
+  NOK: "kr.",
+  CHF: "Fr.",
+  CAD: "$",
+  AUD: "$",
+  TWD: "NT$",
+  HKD: "HK$",
+  KRW: "₩",
+  INR: "₹",
+  MXN: "$",
+  SGD: "S$",
+};
+
+/** Look up an ISO 4217 currency code's display symbol. */
+export function currencySymbolForCode(code: string): string {
+  const upper = code.toUpperCase();
+  return ISO_TO_SYMBOL[upper] ?? upper;
+}
+
+/** Return the currency symbol for a given ticker.
+ * If `reportedCurrency` is supplied, that takes precedence (foreign-listed
+ * companies that file in a different currency than they trade in). Without
+ * it, falls back to the listing-currency guess from the symbol pattern.
+ */
+export function currencySymbol(ticker: string, reportedCurrency?: string): string {
+  if (reportedCurrency) {
+    return currencySymbolForCode(reportedCurrency);
+  }
   return isBrazilianTicker(ticker) ? "R$" : "$";
 }
 
-/** Return the ISO 4217 currency code for a given ticker. */
-export function currencyCode(ticker: string): string {
+/** Return the ISO 4217 currency code for a given ticker.
+ * If `reportedCurrency` is supplied, that takes precedence.
+ */
+export function currencyCode(ticker: string, reportedCurrency?: string): string {
+  if (reportedCurrency) {
+    return reportedCurrency.toUpperCase();
+  }
   return isBrazilianTicker(ticker) ? "BRL" : "USD";
 }
 
@@ -44,11 +84,18 @@ export function formatNumber(n: number, digits: number, locale: string): string 
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
     })
-    .replace("-", "\u2013");
+    .replace("-", "–");
 }
 
-export function formatLargeNumber(value: number, ticker: string = "", locale: string = "en"): string {
-  const currency = ticker ? currencySymbol(ticker) : "R$";
+export function formatLargeNumber(
+  value: number,
+  ticker: string = "",
+  locale: string = "en",
+  reportedCurrency?: string,
+): string {
+  const currency = ticker || reportedCurrency
+    ? currencySymbol(ticker, reportedCurrency)
+    : "R$";
   const abs = Math.abs(value);
   if (abs >= 1e9) return `${currency} ${formatNumber(value / 1e9, 2, locale)}B`;
   if (abs >= 1e6) return `${currency} ${formatNumber(value / 1e6, 2, locale)}M`;

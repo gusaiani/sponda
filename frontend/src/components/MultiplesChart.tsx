@@ -158,6 +158,11 @@ export function MultiplesChart({ data }: Props) {
 
   return (
     <div className="chart-container">
+      {data.currency_warning && (
+        <div className="chart-fx-warning" role="note">
+          {t("fundamentals.fxWarning")}
+        </div>
+      )}
       {/* Price panel */}
       <div className="chart-panel">
         <div className="chart-panel-title">

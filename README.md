@@ -159,7 +159,8 @@ The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
 |---|---|
 | `DJANGO_SECRET_KEY` | Django secret key |
 | `BRAPI_API_KEY` | BRAPI pro API key (Brazilian tickers) |
-| `FMP_API_KEY` | FMP API key (US tickers) |
+| `FMP_API_KEY` | FMP API key (US tickers + FX rates) |
+| `FRED_API_KEY` | FRED API key (per-country CPI; free at fred.stlouisfed.org) |
 | `DATABASE_URL` | PostgreSQL connection string (production only) |
 | `ALLOWED_HOSTS` | Comma-separated allowed hosts |
 | `DEBUG` | `True` for development, `False` for production |
@@ -255,8 +256,27 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `refresh_snapshot_fundamentals` | `sponda-refresh-fundamentals.timer` | Full refresh: resyncs quarterly earnings, cash flows, balance sheets, then recomputes the entire `IndicatorSnapshot` row. Four API calls per ticker. | Weekly Sun 06:00 UTC |
 | `check_indicator_alerts` | `sponda-check-alerts.timer` | Daily safety-net pass over user alerts (the in-market 15-min run already covers weekday hours) | Daily 07:30 UTC |
 | `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
+| `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
+
+## Cross-currency indicators
+
+Foreign-domiciled companies (NVO, ASML, TM, BABA, ...) trade in USD on US exchanges but file their financials in their home currency (DKK, EUR, JPY, CNY, ...). Any market-cap-based indicator (PE10, PFCF10, PEG, P/FCF PEG, multiples-history chart) translates the market cap into the **statement currency** before dividing by earnings/FCF, so the ratio is dimensionally coherent.
+
+**Pipeline:**
+
+- `Ticker.reported_currency` is populated by `fmp.sync_earnings` from each statement's `reportedCurrency` (BRL hardcoded for Brazilian tickers).
+- `FxRate` stores daily USD↔X close rates from FMP, back to 2010. Refreshed daily by `sync_fx_rates` (timer: `sponda-refresh-fx.timer`).
+- `CountryCPIIndex` stores monthly per-country CPI YoY rates from FRED for inflation-adjusting historical fundamentals in non-USD/non-BRL currencies. Currency→FRED-series mapping in `quotes/fred.py::CURRENCY_TO_SERIES_ID`.
+- `quotes/fx.py::market_cap_in_reported_currency` is the bridge used by every indicator calculator.
+- `quotes/inflation.py::get_inflation_adjustment_factors` dispatches: BRL → IPCA, USD → USCPI, everything else → CountryCPIIndex.
+
+**Coverage audit:** `python manage.py audit_currencies` lists every (listing, reported) pair, flags reporting currencies missing FX history, and flags currencies missing a FRED series mapping.
+
+**Multiples-history chart:** when historical FX is unavailable for any year on the chart, falls back to the latest FX rate uniformly and surfaces `currency_warning=true` in the API; the frontend renders a banner explaining the approximation.
+
+Full design rationale, scope, and the bug it fixes: `docs/cross-currency-fix-plan.md`.
 
 ## Observability
 

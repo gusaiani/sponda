@@ -29,6 +29,8 @@ export const pt: TranslationDictionary = {
   "header.tagline": "Para investidores em valor",
   "header.menu": "Menu",
   "header.currency": "Moeda",
+  "header.reportsIn": "relatórios em",
+  "fundamentals.fxWarning": "Os múltiplos históricos neste gráfico usam o câmbio atual. Ainda não temos histórico de câmbio ano a ano para todos os pontos exibidos, portanto os anos mais antigos são uma aproximação.",
 
   /* ── Footer ── */
   "footer.tool_by": "Uma ferramenta da",

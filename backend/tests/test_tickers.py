@@ -87,6 +87,16 @@ class TestSyncTickers:
         assert Ticker.objects.count() == 3
 
     @patch("quotes.brapi.fetch_ticker_list")
+    def test_brapi_tickers_default_to_brl(self, mock_fetch, db):
+        """All BRAPI-sourced tickers report in BRL; the field should be set
+        eagerly on creation so the cross-currency calculator (PR 3) can rely
+        on it without a second sync pass."""
+        mock_fetch.return_value = MOCK_TICKER_LIST_PAGE_1["stocks"]
+        sync_tickers()
+        for ticker in Ticker.objects.all():
+            assert ticker.reported_currency == "BRL"
+
+    @patch("quotes.brapi.fetch_ticker_list")
     def test_updates_existing_records(self, mock_fetch, db):
         mock_fetch.return_value = MOCK_TICKER_LIST_PAGE_1["stocks"]
         sync_tickers()

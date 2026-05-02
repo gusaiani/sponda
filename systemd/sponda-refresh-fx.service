@@ -1,0 +1,12 @@
+[Unit]
+Description=Sponda FX-rates + per-country CPI refresh
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/sponda/backend
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py sync_fx_rates
+ExecStart=/opt/sponda/venv/bin/python manage.py sync_country_cpi
+User=root

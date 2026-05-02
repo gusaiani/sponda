@@ -60,11 +60,17 @@ class TestRollingAvg:
 class TestComputeMultiplesHistory:
     def test_returns_empty_when_price_zero(self, db):
         result = compute_multiples_history("FAKE3", [], 1000.0, 0)
-        assert result == {"prices": [], "multiples": {"pl": [], "pfcl": []}}
+        assert result == {
+            "prices": [], "multiples": {"pl": [], "pfcl": []},
+            "currency_warning": False,
+        }
 
     def test_returns_empty_when_price_negative(self, db):
         result = compute_multiples_history("FAKE3", [], 1000.0, -10.0)
-        assert result == {"prices": [], "multiples": {"pl": [], "pfcl": []}}
+        assert result == {
+            "prices": [], "multiples": {"pl": [], "pfcl": []},
+            "currency_warning": False,
+        }
 
     def test_converts_unix_timestamps_to_iso_dates(self, db):
         # 2020-06-30 00:00:00 UTC
@@ -173,3 +179,82 @@ class TestComputeMultiplesHistory:
         result = compute_multiples_history("PETR4", prices, 585_000_000_000.0, 45.0)
         years = [p["year"] for p in result["multiples"]["pl"]]
         assert years == sorted(years)
+
+
+class TestMultiplesHistoryCrossCurrency:
+    """For ADRs that report in a non-USD currency, the year-end market cap
+    must be translated to the reporting currency using the year-end FX
+    rate, otherwise multiples for older years are off by the FX factor."""
+
+    def test_translates_year_end_market_cap_with_per_year_fx(self, db):
+        from datetime import date as date_type
+        from decimal import Decimal
+        from quotes.models import FxRate, QuarterlyEarnings, Ticker
+
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk", reported_currency="DKK")
+        # Three years of FX rates (year-end)
+        for fx_date, rate in [
+            (date_type(2023, 12, 29), Decimal("6.80")),
+            (date_type(2024, 12, 31), Decimal("7.10")),
+            (date_type(2025, 12, 31), Decimal("6.85")),
+        ]:
+            FxRate.objects.create(
+                base_currency="USD", quote_currency="DKK", date=fx_date, rate=rate,
+            )
+        # 4 quarters per year of DKK earnings (25B DKK each = 100B/year)
+        for year in (2023, 2024, 2025):
+            for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="NVO", end_date=date_type(year, month, day),
+                    net_income=25_000_000_000,
+                )
+
+        prices = _make_monthly_prices({2023: 100.0, 2024: 110.0, 2025: 120.0})
+        # Market cap (USD) and current price (USD): 1.95B / $120 = ~16.25M shares
+        result = compute_multiples_history("NVO", prices, market_cap=1_950_000_000.0, current_price=120.0)
+
+        pl_2025 = next(p for p in result["multiples"]["pl"] if p["year"] == 2025)
+        # shares ≈ 16.25M; year-end USD market cap = $120 × 16.25M ≈ $1.95B
+        # Translated to DKK: $1.95B × 6.85 ≈ 13.36B DKK
+        # Annual earnings: 100B DKK; with no inflation data, factor=1
+        # Rolling 10y avg = 100B (only 3 years of data, all 100B)
+        # PL = 13.36B / 100B ≈ 0.13
+        assert pl_2025["value"] is not None
+        assert 0.10 < pl_2025["value"] < 0.20
+
+    def test_falls_back_to_latest_fx_when_year_specific_missing(self, db):
+        """If we only have FX data for 2025 but not 2015, the chart applies
+        the latest FX uniformly across all historical years and sets
+        ``currency_warning`` so the frontend can show a banner."""
+        from datetime import date as date_type
+        from decimal import Decimal
+        from quotes.models import FxRate, QuarterlyEarnings, Ticker
+
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk", reported_currency="DKK")
+        FxRate.objects.create(
+            base_currency="USD", quote_currency="DKK",
+            date=date_type(2025, 12, 31), rate=Decimal("6.85"),
+        )
+        for year in (2015, 2020, 2025):
+            for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="NVO", end_date=date_type(year, month, day),
+                    net_income=25_000_000_000,
+                )
+        prices = _make_monthly_prices({2015: 50.0, 2020: 80.0, 2025: 120.0})
+        result = compute_multiples_history("NVO", prices, market_cap=1_950_000_000.0, current_price=120.0)
+
+        # All multiples computed; no nulls from FX gaps
+        pl_with_data = [p for p in result["multiples"]["pl"] if p["value"] is not None]
+        assert len(pl_with_data) >= 1
+        # And the warning flag is set
+        assert result.get("currency_warning") is True
+
+    def test_no_currency_warning_for_native_usd_reporters(self, sample_earnings):
+        """A US-listed company that also reports in USD has no FX gap and no warning."""
+        from quotes.models import Ticker
+
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", reported_currency="BRL")
+        prices = _make_monthly_prices({y: 30.0 for y in range(2020, 2026)})
+        result = compute_multiples_history("PETR4", prices, 585_000_000_000.0, 45.0)
+        assert result.get("currency_warning") is False

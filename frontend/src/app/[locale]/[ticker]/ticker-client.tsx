@@ -211,7 +211,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             )}
-            <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker} · {t("header.currency")}: {currencyCode(upperTicker)}</span></h2>
+            <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker} · {t("header.currency")}: {
+              fullData.reportedCurrency && fullData.listingCurrency &&
+              fullData.reportedCurrency !== fullData.listingCurrency
+                ? `${fullData.listingCurrency} (${t("header.reportsIn")} ${fullData.reportedCurrency})`
+                : currencyCode(upperTicker, fullData.reportedCurrency)
+            }</span></h2>
           </div>
           <div className="company-header-actions">
             <VisitedButton ticker={upperTicker} />
