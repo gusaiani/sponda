@@ -1,6 +1,8 @@
 # Sponda
 
-Financial indicators and analytics for global public companies. Over 23,000 companies listed across the U.S. and Brazil. Live at [sponda.capital](https://sponda.capital).
+Financial indicators and analytics for global public companies. Over 23,000 companies listed across the U.S. and Brazil. Live at
+<a href="https://sponda.capital" target="_blank" rel="noopener noreferrer">sponda.capital</a>.
+.
 
 ![Sponda homepage](docs/screenshot.png)
 
