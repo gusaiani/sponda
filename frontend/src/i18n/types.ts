@@ -221,6 +221,9 @@ export interface TranslationDictionary {
 
   /* ── Fundamentals ── */
   "fundamentals.nominal": string;
+  "fundamentals.adjusted": string;
+  "fundamentals.adjustedTooltip": string;
+  "fundamentals.inflationLabel": string;
   "fundamentals.ipca": string;
   "fundamentals.cpi": string;
   "fundamentals.balance": string;

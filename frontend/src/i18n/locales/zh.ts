@@ -221,6 +221,9 @@ export const zh: TranslationDictionary = {
 
   /* ── Fundamentals ── */
   "fundamentals.nominal": "名义值",
+  "fundamentals.adjusted": "调整后",
+  "fundamentals.adjustedTooltip": "已使用 {series} 调整",
+  "fundamentals.inflationLabel": "通胀",
   "fundamentals.ipca": "IPCA",
   "fundamentals.cpi": "CPI",
   "fundamentals.balance": "资产负债表",

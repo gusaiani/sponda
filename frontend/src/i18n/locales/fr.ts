@@ -221,6 +221,9 @@ export const fr: TranslationDictionary = {
 
   /* ── Fundamentals ── */
   "fundamentals.nominal": "Nominal",
+  "fundamentals.adjusted": "Ajusté",
+  "fundamentals.adjustedTooltip": "Ajusté avec {series}",
+  "fundamentals.inflationLabel": "Inflation",
   "fundamentals.ipca": "IPCA",
   "fundamentals.cpi": "IPC",
   "fundamentals.balance": "Bilan",
