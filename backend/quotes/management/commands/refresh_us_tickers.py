@@ -47,17 +47,30 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Failed to sync US tickers: {error}"))
 
     def _fetch_companies(self) -> list[dict]:
-        """Fetch the stock list from FMP, keeping only actual companies.
+        """Fetch the actively-traded stock list from FMP.
+
+        Uses ``/stable/actively-trading-list`` (≈26K entries) rather than
+        ``/stable/stock-list`` (≈38K) — the broader list includes ~12K
+        delisted/historical tickers that pollute search, sitemaps, and
+        cron sweeps without ever appearing in indicators (since
+        IndicatorSnapshot filters by market cap).
 
         Excludes ETFs (via FMP's ETF list), funds, trusts, and other
         non-company instruments (via name patterns). Also skips tickers
         with dots (preferred shares like BRK.B) and Brazilian-format
         tickers (letters + digits) since those come from BRAPI.
+
+        Note: ``actively-trading-list`` returns ``{symbol, name}``, while
+        the legacy ``stock-list`` used ``companyName``. The mapping below
+        normalises both shapes.
         """
-        url = f"{settings.FMP_BASE_URL}/stable/stock-list"
+        url = f"{settings.FMP_BASE_URL}/stable/actively-trading-list"
         response = requests.get(url, params={"apikey": settings.FMP_API_KEY}, timeout=60)
         response.raise_for_status()
-        all_stocks = response.json()
+        all_stocks = [
+            {"symbol": entry.get("symbol"), "companyName": entry.get("name") or entry.get("companyName")}
+            for entry in response.json()
+        ]
 
         self.stdout.write("Fetching ETF list for exclusion...")
         etf_symbols = fetch_etf_symbols()

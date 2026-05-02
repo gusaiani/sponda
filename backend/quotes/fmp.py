@@ -154,6 +154,32 @@ def sync_fx_rates(currencies: list[str]) -> int:
     return total
 
 
+def fetch_currency_map() -> dict[str, dict[str, str]]:
+    """Return ``{symbol: {"trading": ..., "reporting": ...}}`` for every
+    FMP-known company in one shot.
+
+    Uses ``/stable/financial-statement-symbol-list``, which exposes both
+    the trading currency (the listing-exchange currency, e.g. USD for
+    NYSE-listed ADRs) and the reporting currency (the home-currency the
+    company files in, e.g. DKK for NVO). Lets us backfill the entire
+    universe's ``Ticker.reported_currency`` with one API call instead of
+    one ``sync_earnings`` call per ticker.
+    """
+    payload = _get("/stable/financial-statement-symbol-list")
+    if not isinstance(payload, list):
+        return {}
+    result: dict[str, dict[str, str]] = {}
+    for row in payload:
+        symbol = (row.get("symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        result[symbol] = {
+            "trading": (row.get("tradingCurrency") or "").upper(),
+            "reporting": (row.get("reportingCurrency") or "").upper(),
+        }
+    return result
+
+
 def fetch_profile(ticker: str) -> dict | None:
     """Fetch company profile (sector, industry) for a US ticker.
 
