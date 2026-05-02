@@ -36,6 +36,10 @@ interface QuoteResult {
   logo: string;
   currentPrice: number;
   marketCap: number | null;
+  /** Market cap translated into the reporting currency (USD × USDDKK for
+   * NVO, etc.). Used by the slider-driven PE/PFCF recompute on the
+   * frontend. Null when FX is unavailable. */
+  marketCapInReportedCurrency?: number | null;
   /** ISO 4217 of the currency the quote/marketCap is denominated in (USD or BRL).
    * Optional only because legacy fixtures may omit it. */
   listingCurrency?: string;

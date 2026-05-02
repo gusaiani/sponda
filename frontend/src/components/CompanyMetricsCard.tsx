@@ -770,7 +770,7 @@ function MarketCapInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
             <div className="pe10-calc-formula">
               <span>{t("modal.market_cap_price")} × {t("modal.market_cap_shares")}</span>
-              <span className="pe10-calc-formula-val">= {formatAmount(data.marketCap)}</span>
+              <span className="pe10-calc-formula-val">= {formatLargeNumber(data.marketCap as number, data.ticker, locale)}</span>
             </div>
           </div>
         </div>
@@ -860,7 +860,7 @@ function PL10Info({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">{t("modal.pl10_step3", { label })}</div>
               <div className="pe10-calc-formula">
                 <span>{t("modal.pl10_market_cap")}</span>
-                <span className="pe10-calc-formula-val">{formatAmount(data.marketCap)}</span>
+                <span className="pe10-calc-formula-val">{formatLargeNumber(data.marketCap as number, data.ticker, locale)}</span>
               </div>
               <div className="pe10-calc-formula">
                 <span>÷ {t("modal.pl10_divided_by")}</span>
@@ -963,7 +963,7 @@ function PFCL10Info({ data }: { data: QuoteData }) {
               <div className="pe10-calc-section-title">{t("modal.pl10_step3", { label })}</div>
               <div className="pe10-calc-formula">
                 <span>{t("modal.pl10_market_cap")}</span>
-                <span className="pe10-calc-formula-val">{formatAmount(data.marketCap)}</span>
+                <span className="pe10-calc-formula-val">{formatLargeNumber(data.marketCap as number, data.ticker, locale)}</span>
               </div>
               <div className="pe10-calc-formula">
                 <span>÷ {t("modal.pfcl10_divided_by")}</span>
@@ -1363,7 +1363,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
           <div className="metric-value-container">
             <div className="pe10-label">{t("metrics.market_cap")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("marketCap")} /></div>
             <div className="pe10-value">
-              {data.marketCap !== null ? formatAmount(data.marketCap) : "N/A"}
+              {data.marketCap !== null ? formatLargeNumber(data.marketCap as number, data.ticker, locale) : "N/A"}
             </div>
           </div>
           {renderChart(METRIC_IDS.marketCap)}

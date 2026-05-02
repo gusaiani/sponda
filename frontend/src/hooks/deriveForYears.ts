@@ -77,6 +77,14 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   const earningsSlice = hasEnoughEarnings ? full.pe10CalculationDetails.slice(0, years) : [];
   const fcfSlice = hasEnoughFCF ? full.pfcf10CalculationDetails.slice(0, years) : [];
 
+  // Market-cap-based ratios divide by reporting-currency averages, so use
+  // the FX-translated market cap from the backend (in reporting currency).
+  // Fall back to the raw listing-currency market cap when the backend did
+  // not send the translated value — same-currency reporters yield identical
+  // numbers either way.
+  const marketCapForRatios =
+    full.marketCapInReportedCurrency ?? full.marketCap;
+
   // PE
   let pe10: number | null = null;
   let avgAdjustedNetIncome: number | null = null;
@@ -85,8 +93,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   if (hasEnoughEarnings) {
     const total = earningsSlice.reduce((s, y) => s + y.adjustedNetIncome, 0);
     avgAdjustedNetIncome = total / years;
-    if (avgAdjustedNetIncome !== 0 && full.marketCap) {
-      pe10 = Math.round((full.marketCap / avgAdjustedNetIncome) * 100) / 100;
+    if (avgAdjustedNetIncome !== 0 && marketCapForRatios) {
+      pe10 = Math.round((marketCapForRatios / avgAdjustedNetIncome) * 100) / 100;
     }
   } else {
     pe10Error = "no_earnings_data";
@@ -100,8 +108,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   if (hasEnoughFCF) {
     const total = fcfSlice.reduce((s, y) => s + y.adjustedFCF, 0);
     avgAdjustedFCF = total / years;
-    if (avgAdjustedFCF !== 0 && full.marketCap) {
-      pfcf10 = Math.round((full.marketCap / avgAdjustedFCF) * 100) / 100;
+    if (avgAdjustedFCF !== 0 && marketCapForRatios) {
+      pfcf10 = Math.round((marketCapForRatios / avgAdjustedFCF) * 100) / 100;
     }
   } else {
     pfcf10Error = "no_cashflow_data";
