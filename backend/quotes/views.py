@@ -604,13 +604,28 @@ def _persist_snapshot_from_view(
 
 
 def _ensure_fresh_data(ticker: str) -> None:
-    """Sync earnings, cash flows, and balance sheets if older than 24h."""
+    """Sync earnings, cash flows, and balance sheets if older than 24h.
+
+    Backfill nudge: when the Ticker row exists, has a non-Brazilian symbol,
+    and is missing ``reported_currency``, force ``sync_earnings`` even if
+    earnings are otherwise fresh. The cross-currency rollout introduced the
+    field as a side-effect of ``fmp.sync_earnings``; tickers whose earnings
+    were cached pre-rollout would otherwise wait until the weekly
+    fundamentals cron (or natural cache rotation) to get stamped, and any
+    market-cap-based indicator silently produces the broken cross-currency
+    ratio in the meantime.
+    """
     cutoff = timezone.now() - timedelta(hours=24)
+
+    needs_currency_backfill = (
+        not is_brazilian_ticker(ticker)
+        and Ticker.objects.filter(symbol=ticker, reported_currency="").exists()
+    )
 
     has_fresh_earnings = QuarterlyEarnings.objects.filter(
         ticker=ticker, fetched_at__gte=cutoff
     ).exists()
-    if not has_fresh_earnings:
+    if needs_currency_backfill or not has_fresh_earnings:
         try:
             sync_earnings(ticker)
         except ProviderError:
