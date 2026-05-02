@@ -46,6 +46,10 @@ export interface QuarterlyBalanceRatio {
 export interface FundamentalsResponse {
   years: FundamentalsYear[];
   quarterlyRatios: QuarterlyBalanceRatio[];
+  /** ISO 4217 of the listing-currency (USD or BRL). */
+  listingCurrency?: string;
+  /** ISO 4217 of the reporting (statement) currency. */
+  reportedCurrency?: string;
 }
 
 export async function fetchFundamentals(ticker: string): Promise<FundamentalsResponse> {
