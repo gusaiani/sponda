@@ -152,6 +152,59 @@ class TestComputeFundamentals:
         # 500M * 4 = 2B
         assert year_2024["dividendsPaid"] == 2_000_000_000
 
+    def test_fcf_prefers_provider_free_cash_flow_when_present(self, db, ipca_entries):
+        """When the provider stores an explicit `free_cash_flow` (e.g. FMP),
+        sum those values instead of approximating with OCF + investing CF."""
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyCashFlow.objects.create(
+                ticker="AAPL", end_date=date(2024, month, day),
+                operating_cash_flow=10_000_000_000,
+                # Investing line is dominated by securities trades (-9B), so
+                # the OCF + investing approximation would give 1B per quarter.
+                investment_cash_flow=-9_000_000_000,
+                free_cash_flow=8_000_000_000,
+            )
+        result = compute_fundamentals("AAPL", market_cap=None, current_price=None)
+        year_2024 = result[0]
+        # 8B * 4 quarters = 32B (using freeCashFlow), not 4B (the OCF+investing approximation).
+        assert year_2024["fcf"] == 32_000_000_000
+
+    def test_fcf_falls_back_to_ocf_plus_investing_when_free_cash_flow_missing(
+        self, multi_year_cash_flows, ipca_entries
+    ):
+        """BRAPI rows have free_cash_flow=None; behavior must be unchanged."""
+        result = compute_fundamentals("WEGE3", market_cap=None, current_price=None)
+        year_2024 = result[0]
+        # (2B - 0.8B) * 4 = 4.8B — the legacy fallback formula.
+        assert year_2024["fcf"] == 4_800_000_000
+
+    def test_fcf_mixed_quarters_uses_each_quarters_best_signal(
+        self, db, ipca_entries
+    ):
+        """If some quarters have free_cash_flow and others don't, each
+        quarter contributes via its own best-available signal."""
+        # Q1, Q2: explicit FCF
+        for month, day in [(3, 31), (6, 30)]:
+            QuarterlyCashFlow.objects.create(
+                ticker="MIX1", end_date=date(2024, month, day),
+                operating_cash_flow=5_000_000_000,
+                investment_cash_flow=-2_000_000_000,
+                free_cash_flow=4_000_000_000,
+            )
+        # Q3, Q4: no explicit FCF — must fall back to OCF + investing
+        for month, day in [(9, 30), (12, 31)]:
+            QuarterlyCashFlow.objects.create(
+                ticker="MIX1", end_date=date(2024, month, day),
+                operating_cash_flow=5_000_000_000,
+                investment_cash_flow=-2_000_000_000,
+            )
+        result = compute_fundamentals("MIX1", market_cap=None, current_price=None)
+        year_2024 = result[0]
+        # Q1+Q2 from free_cash_flow: 4B + 4B = 8B
+        # Q3+Q4 from fallback (5B - 2B each): 3B + 3B = 6B
+        # Total: 14B
+        assert year_2024["fcf"] == 14_000_000_000
+
     def test_dividends_reported_as_positive(
         self, multi_year_cash_flows, ipca_entries
     ):

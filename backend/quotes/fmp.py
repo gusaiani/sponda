@@ -190,6 +190,10 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         if investing_cash_flow is not None:
             investing_cash_flow = int(investing_cash_flow)
 
+        free_cash_flow = statement.get("freeCashFlow")
+        if free_cash_flow is not None:
+            free_cash_flow = int(free_cash_flow)
+
         dividends_paid = statement.get("commonDividendsPaid")
         if dividends_paid is not None:
             dividends_paid = int(dividends_paid)
@@ -199,6 +203,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
             end_date=end_date,
             operating_cash_flow=operating_cash_flow,
             investment_cash_flow=investing_cash_flow,
+            free_cash_flow=free_cash_flow,
             dividends_paid=dividends_paid,
         )
 
@@ -212,6 +217,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         update_fields=[
             "operating_cash_flow",
             "investment_cash_flow",
+            "free_cash_flow",
             "dividends_paid",
             "fetched_at",
         ],
