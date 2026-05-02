@@ -1,65 +1,14 @@
 # Sponda
 
-Financial indicators and analytics for global public companies. Live at [sponda.capital](https://sponda.capital).
+Financial indicators and analytics for global public companies. Over 23,000 companies listed across the U.S. and Brazil. Live at [sponda.capital](https://sponda.capital).
 
 ![Sponda homepage](docs/screenshot.png)
-
-## Indicators
-
-### PE10 (Shiller P/E)
-
-Smooths earnings volatility by averaging 10 years of inflation-adjusted net income. More reliable than single-year P/E for identifying overvalued or undervalued companies.
-
-```
-PE10 = Market Cap / Average Inflation-Adjusted Annual Net Income (10 years)
-```
-
-### PFCF10 (Price/Free Cash Flow 10-year)
-
-Same 10-year averaging approach, but using free cash flow instead of earnings. Reveals whether reported profits translate into real cash generation.
-
-```
-PFCF10 = Market Cap / Average Inflation-Adjusted Annual FCF (10 years)
-FCF = Operating Cash Flow + Investing Cash Flow
-```
-
-### Dívida Bruta / PL (Gross Debt to Equity)
-
-Point-in-time ratio measuring how much of the company's capital structure is financed by debt relative to shareholders' equity. Uses the most recent balance sheet.
-
-```
-Dívida Bruta / PL = Total Debt / Stockholders' Equity
-```
-
-**Debt source (Brazilian tickers):** historical debt per balance sheet comes from BRAPI's `balanceSheetHistory` (`loansAndFinancing + longTermLoansAndFinancing`). For the most recent quarter, we additionally query BRAPI's `financialData.totalDebt` — a broader figure that also includes debentures, financial leases, and other interest-bearing obligations. When `financialData.totalDebt` is larger (or when balance-sheet loans are zero because BRAPI's raw fields are incomplete, as happens on many mid/small caps and banks), we override the latest row's `total_debt` with it. We never downgrade. If `financialData` reports `totalDebt=None` (typical of banks, whose liabilities are deposits rather than loans) the leverage card shows "not available" instead of a misleading zero.
-
-### Passivo / PL (Liabilities to Equity)
-
-Broader measure that considers all obligations (not just financial debt) relative to equity. Includes suppliers, taxes, provisions, etc.
-
-```
-Passivo / PL = Total Liabilities / Stockholders' Equity
-```
-
-### Multiples History Chart
-
-Dual-panel chart showing historical adjusted prices alongside year-end P/L (Price/Earnings) and P/FCL (Price/Free Cash Flow) multiples. Helps visualize how a company's valuation has evolved over time relative to its stock price.
-
-**How it works:**
-- Fetches monthly historical prices from BRAPI (`range=max&interval=1mo`)
-- Approximates shares outstanding as `market_cap / current_price`
-- For each year with earnings/FCF data, calculates the year-end multiple: `(year_end_price × shares) / net_income` (or FCF)
-- Years with negative earnings or FCF show as gaps in the chart
-- Top panel shows adjusted prices (monthly); bottom panel shows the selected multiple (annual)
-- Toggle between P/L and P/FCL with pill buttons
-
-**API endpoint:** `GET /api/quote/<ticker>/multiples-history/`
 
 ## Performance
 
 ### Database
 
-- **Trigram indexes** (pg_trgm) on `Ticker.display_name` and `symbol` for sub-millisecond ILIKE search across 27K+ tickers
+- **Trigram indexes** (pg_trgm) on `Ticker.display_name` and `symbol` for sub-millisecond ILIKE search across 23K+ tickers
 - **Composite indexes** on `CompanyAnalysis(ticker, -generated_at)`, `LookupLog(user, timestamp)`, `LookupLog(session_key, timestamp)`
 - **PostgreSQL tuning** for SSD + 2 GB RAM: `shared_buffers=512MB`, `work_mem=8MB`, `random_page_cost=1.1`
 - **pg_stat_statements** enabled for query performance monitoring
@@ -127,11 +76,6 @@ Two sitemaps are emitted; both advertise every URL in all 7 locales with full `x
 
 Both use shared constants: canonical tab keys (`charts`, `fundamentals`, `compare`) map to localized slugs in `SITEMAP_TAB_SLUGS` (backend) and `tabSlugForLocale` (frontend). Keep these in sync when adding a new locale.
 
-### Query optimization
-
-- **N+1 fix** in AdminDashboard: replaced per-user loops with `annotate(Count(...))` (1,200+ queries down to 1)
-- **CompanyAnalysisView**: 3 queries reduced to 1 with `.values()`
-
 ## Peer comparison
 
 The Compare tab on each company page lists up to 10 peer tickers ranked by how close they are to the source company. Ranking uses four tiers of signal, applied in order:
@@ -176,7 +120,8 @@ Real logos are cached to disk at `LOGO_CACHE_DIR` for 30 days. When all sources 
 
 - Python 3.12+
 - Node.js 20+
-- A [BRAPI](https://brapi.dev) API key
+- A [BRAPI](https://brapi.dev) API key (Brazilian tickers)
+- An [FMP](https://site.financialmodelingprep.com) API key (US tickers)
 
 ### Backend Setup
 
@@ -211,7 +156,8 @@ The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
 | Variable | Purpose |
 |---|---|
 | `DJANGO_SECRET_KEY` | Django secret key |
-| `BRAPI_API_KEY` | BRAPI pro API key |
+| `BRAPI_API_KEY` | BRAPI pro API key (Brazilian tickers) |
+| `FMP_API_KEY` | FMP API key (US tickers) |
 | `DATABASE_URL` | PostgreSQL connection string (production only) |
 | `ALLOWED_HOSTS` | Comma-separated allowed hosts |
 | `DEBUG` | `True` for development, `False` for production |
@@ -302,10 +248,10 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 
 | Command | Timer | Purpose | Frequency |
 |---|---|---|---|
-| `refresh_ipca` + `refresh_tickers` | `sponda-refresh.timer` | Sync IPCA inflation index and B3 ticker list (~2,300 stocks) from BRAPI | Daily 06:00 UTC |
-| `refresh_snapshot_prices` | `sponda-refresh-snapshots.timer` | Quote-only refresh: updates market cap + current price + recomputes PE10 / PFCF10 / PEG / P/FCF PEG against existing fundamentals. One API call per ticker. | Daily 07:00 UTC |
+| `refresh_ipca` + `refresh_tickers` | `sponda-refresh.timer` | Sync IPCA inflation index and the B3 + US ticker lists from BRAPI / FMP | Daily 06:00 UTC |
+| `refresh_snapshot_prices` (+ `check_indicator_alerts` post-run) | `sponda-refresh-snapshots.timer` | Rolling 15-minute refresh while either B3 or NYSE is open. Updates market cap + current price and recomputes PE10 / PFCF10 / PEG / P/FCF PEG against existing fundamentals, then re-evaluates alert thresholds. The command short-circuits with "No exchange open" outside market hours, so off-hours ticks are cheap no-ops. | Every 15 min Mon-Fri |
 | `refresh_snapshot_fundamentals` | `sponda-refresh-fundamentals.timer` | Full refresh: resyncs quarterly earnings, cash flows, balance sheets, then recomputes the entire `IndicatorSnapshot` row. Four API calls per ticker. | Weekly Sun 06:00 UTC |
-| `check_indicator_alerts` | `sponda-check-alerts.timer` | Evaluate user alerts against the latest snapshots; email on threshold crossings | Daily 07:30 UTC |
+| `check_indicator_alerts` | `sponda-check-alerts.timer` | Daily safety-net pass over user alerts (the in-market 15-min run already covers weekday hours) | Daily 07:30 UTC |
 | `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
@@ -410,10 +356,6 @@ Signed-in users can save thresholds on any screened indicator per ticker. When a
 | `DELETE` | `/api/auth/alerts/<id>/` | Delete. Scoped to owner — other users get 404. |
 
 Tickers are uppercased on write; thresholds are `DecimalField(max_digits=20, decimal_places=6)` so precision matches the snapshot fields. Auth is session-based with CSRF (`frontend/src/utils/csrf.ts::csrfHeaders`).
-
-## Rate Limiting
-
-Free tier allows 3 lookups per day, tracked by session cookie. After the limit, users are prompted to create an account.
 
 ## Favorites
 
