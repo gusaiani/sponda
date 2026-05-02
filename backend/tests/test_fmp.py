@@ -300,6 +300,27 @@ class TestSyncCashFlows:
         assert record.dividends_paid == -3800000000
 
     @patch("quotes.fmp.fetch_cash_flow_statements")
+    def test_persists_free_cash_flow_from_fmp(self, mock_fetch, db):
+        mock_fetch.return_value = MOCK_CASH_FLOW_STATEMENTS
+        sync_cash_flows("AAPL")
+        record = QuarterlyCashFlow.objects.get(ticker="AAPL", end_date=date(2025, 9, 30))
+        assert record.free_cash_flow == 24100000000
+
+    @patch("quotes.fmp.fetch_cash_flow_statements")
+    def test_free_cash_flow_is_none_when_missing_from_payload(self, mock_fetch, db):
+        mock_fetch.return_value = [
+            {
+                "date": "2025-09-30",
+                "symbol": "AAPL",
+                "operatingCashFlow": 1000,
+                "netCashProvidedByInvestingActivities": -200,
+            }
+        ]
+        sync_cash_flows("AAPL")
+        record = QuarterlyCashFlow.objects.get(ticker="AAPL", end_date=date(2025, 9, 30))
+        assert record.free_cash_flow is None
+
+    @patch("quotes.fmp.fetch_cash_flow_statements")
     def test_updates_existing_records(self, mock_fetch, db):
         mock_fetch.return_value = MOCK_CASH_FLOW_STATEMENTS
         sync_cash_flows("AAPL")

@@ -43,6 +43,10 @@ class QuarterlyCashFlow(models.Model):
     end_date = models.DateField()
     operating_cash_flow = models.BigIntegerField(null=True, blank=True)
     investment_cash_flow = models.BigIntegerField(null=True, blank=True)
+    free_cash_flow = models.BigIntegerField(
+        null=True, blank=True,
+        help_text="Provider-reported FCF (FMP `freeCashFlow` ≈ OCF − CapEx). None when the provider does not expose it (e.g. BRAPI).",
+    )
     dividends_paid = models.BigIntegerField(
         null=True, blank=True,
         help_text="Dividendos pagos (dividendsPaid from BRAPI, negative value)",

@@ -56,6 +56,15 @@ def _aggregate_earnings(ticker: str) -> dict[int, dict]:
 def _aggregate_cash_flows(ticker: str) -> dict[int, dict]:
     """Sum quarterly cash flows per year: operating CF, FCF, dividends.
 
+    FCF resolution per quarter:
+      1. If the provider stored an explicit `free_cash_flow` (FMP exposes
+         `freeCashFlow` ≈ OCF − CapEx), use it directly. This is the
+         standard definition and avoids the marketable-securities
+         distortion that hits the OCF + investing approximation for
+         companies like AAPL with large treasury portfolios.
+      2. Otherwise, fall back to OCF + investingCashFlow (the only
+         signal available from BRAPI today).
+
     Dividends paid are stored as negative values in the cash flow statement
     (cash outflow convention from both BRAPI and FMP). They are surfaced as
     positive amounts here so downstream consumers see the amount distributed.
@@ -65,16 +74,23 @@ def _aggregate_cash_flows(ticker: str) -> dict[int, dict]:
     yearly: dict[int, dict] = defaultdict(
         lambda: {"operatingCashFlow": Decimal("0"), "fcf": Decimal("0"),
                  "dividendsPaid": Decimal("0"), "quarters": 0,
-                 "hasOperatingCF": False, "hasDividends": False}
+                 "hasOperatingCF": False, "hasFcf": False, "hasDividends": False}
     )
     for quarter in quarters:
         year = quarter.end_date.year
         if quarter.operating_cash_flow is not None:
+            yearly[year]["operatingCashFlow"] += Decimal(str(quarter.operating_cash_flow))
+            yearly[year]["hasOperatingCF"] = True
+
+        if quarter.free_cash_flow is not None:
+            yearly[year]["fcf"] += Decimal(str(quarter.free_cash_flow))
+            yearly[year]["hasFcf"] = True
+        elif quarter.operating_cash_flow is not None:
             operating = Decimal(str(quarter.operating_cash_flow))
             investment = Decimal(str(quarter.investment_cash_flow or 0))
-            yearly[year]["operatingCashFlow"] += operating
             yearly[year]["fcf"] += operating + investment
-            yearly[year]["hasOperatingCF"] = True
+            yearly[year]["hasFcf"] = True
+
         if quarter.dividends_paid is not None:
             yearly[year]["dividendsPaid"] += abs(quarter.dividends_paid)
             yearly[year]["hasDividends"] = True
@@ -264,7 +280,7 @@ def compute_fundamentals(
         revenue = earnings.get("revenue") if earnings.get("hasRevenue") else None
 
         # Cash flow values
-        fcf = cash_flow.get("fcf") if cash_flow.get("hasOperatingCF") else None
+        fcf = cash_flow.get("fcf") if cash_flow.get("hasFcf") else None
         operating_cf = cash_flow.get("operatingCashFlow") if cash_flow.get("hasOperatingCF") else None
 
         # Proventos: prefer BRAPI dividends endpoint over cash flow statement
