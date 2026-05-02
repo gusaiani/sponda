@@ -135,14 +135,66 @@ class TestRefreshSnapshotPrices:
         "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
         return_value=True,
     )
-    def test_does_not_call_any_sync_functions(
+    def test_does_not_call_any_sync_functions_for_brazilian_tickers(
         self, _mock_hours, mock_batch, mock_sync_bs, mock_sync_cf, mock_sync_e, seeded_universe,
     ):
+        """BR tickers have BRL hardcoded by sync_tickers; the snapshot
+        cron never needs to re-sync earnings just to learn the currency."""
         mock_batch.return_value = {"PETR4": PETR4_QUOTE}
         _run()
         assert mock_sync_e.call_count == 0
         assert mock_sync_cf.call_count == 0
         assert mock_sync_bs.call_count == 0
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.sync_earnings")
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_backfills_reported_currency_for_foreign_tickers(
+        self, _mock_hours, mock_batch, mock_sync_e, db, ipca_zero,
+    ):
+        """Snapshot cron must trigger sync_earnings for FMP tickers whose
+        reported_currency is still empty (a holdover from pre-rollout
+        cached data). Otherwise calculate_pe10 silently falls back to
+        listing-currency assumption and the screener stores broken values."""
+        Ticker.objects.create(
+            symbol="NVO", name="Novo Nordisk", type="stock",
+            market_cap=195_000_000_000, reported_currency="",
+        )
+        for year in range(2016, 2026):
+            for month_day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="NVO", end_date=date(year, *month_day),
+                    net_income=25_000_000_000,
+                )
+        mock_batch.return_value = {"NVO": {"marketCap": 195_000_000_000, "regularMarketPrice": 43.88}}
+        _run()
+        mock_sync_e.assert_called_once_with("NVO")
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.sync_earnings")
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_does_not_backfill_when_reported_currency_already_set(
+        self, _mock_hours, mock_batch, mock_sync_e, db, ipca_zero,
+    ):
+        Ticker.objects.create(
+            symbol="NVO", name="Novo Nordisk", type="stock",
+            market_cap=195_000_000_000, reported_currency="DKK",
+        )
+        for year in range(2016, 2026):
+            for month_day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="NVO", end_date=date(year, *month_day),
+                    net_income=25_000_000_000,
+                )
+        mock_batch.return_value = {"NVO": {"marketCap": 195_000_000_000, "regularMarketPrice": 43.88}}
+        _run()
+        mock_sync_e.assert_not_called()
 
     @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
     @patch(

@@ -1,10 +1,16 @@
 """Per-year fundamentals aggregation for the Fundamentos tab."""
 from collections import defaultdict
+from datetime import date as date_type
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from .fx import (
+    _resolve_listing_currency,
+    _resolve_reported_currency,
+    get_fx_rate,
+)
 from .inflation import get_inflation_adjustment_factors
-from .models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
+from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings
 
 
 def _aggregate_balance_sheets(ticker: str) -> dict[int, dict]:
@@ -251,6 +257,25 @@ def compute_fundamentals(
 
     year_end_prices = _extract_year_end_prices(historical_prices or [])
 
+    # FX translation context. Per-year market cap below is computed in the
+    # listing currency (year-end price × shares); for foreign reporters we
+    # translate it into the reporting currency so the Fundamentos table
+    # numbers — and any frontend-side ratio (computeShillerPERatios) — stay
+    # in a single currency. Mirrors the same fallback semantics as
+    # multiples_history.
+    listing_currency = _resolve_listing_currency(ticker)
+    reported_currency = _resolve_reported_currency(ticker)
+    needs_fx = listing_currency != reported_currency
+    latest_fx: Decimal | None = None
+    if needs_fx:
+        latest_row = (
+            FxRate.objects
+            .filter(base_currency="USD", quote_currency=reported_currency)
+            .order_by("-date")
+            .first()
+        )
+        latest_fx = latest_row.rate if latest_row else None
+
     results = []
     for year in all_years:
         balance = balance_by_year.get(year, {})
@@ -306,13 +331,28 @@ def compute_fundamentals(
         liabilities_to_equity = _safe_ratio(total_liabilities, equity)
         current_ratio = _safe_ratio(current_assets, current_liabilities)
 
-        # Market cap: current snapshot for latest year, historical estimate for others
+        # Market cap: current snapshot for latest year, historical estimate
+        # for others. Computed in listing currency, then translated into the
+        # reporting currency so it lines up with revenue/income/FCF below.
         if year == all_years[0]:
-            year_market_cap = market_cap
+            year_market_cap_listing = market_cap
         elif shares_outstanding and year in year_end_prices:
-            year_market_cap = round(year_end_prices[year] * shares_outstanding, 2)
+            year_market_cap_listing = round(year_end_prices[year] * shares_outstanding, 2)
         else:
+            year_market_cap_listing = None
+
+        if year_market_cap_listing is None:
             year_market_cap = None
+        elif not needs_fx:
+            year_market_cap = year_market_cap_listing
+        else:
+            fx_rate = get_fx_rate(date_type(year, 12, 31), listing_currency, reported_currency)
+            if fx_rate is None:
+                fx_rate = latest_fx  # fallback to current FX (better than dropping the data point)
+            if fx_rate is None:
+                year_market_cap = None
+            else:
+                year_market_cap = float(Decimal(str(year_market_cap_listing)) * fx_rate)
 
         market_cap_adjusted = float(year_market_cap * float(ipca_factor)) if year_market_cap is not None else None
 

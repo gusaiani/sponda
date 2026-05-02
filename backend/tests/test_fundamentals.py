@@ -473,3 +473,77 @@ class TestComputeQuarterlyBalanceRatios:
     def test_ticker_case_insensitive(self, multi_year_balance_sheets):
         result = compute_quarterly_balance_ratios("wege3")
         assert len(result) == 8
+
+
+class TestComputeFundamentalsCrossCurrency:
+    """For tickers whose listing currency differs from their reporting
+    currency, every per-year `marketCap` value must be FX-translated into
+    the reporting currency. Otherwise the frontend's `computeShillerPERatios`
+    divides USD market cap by reporting-currency earnings, producing the
+    same dimensional bug as on the Metrics tab."""
+
+    def test_year_market_cap_translated_to_reporting_currency(self, db):
+        from datetime import date as date_type
+        from decimal import Decimal as Dec
+        from quotes.models import (
+            BalanceSheet, FxRate, QuarterlyEarnings, Ticker,
+        )
+
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk", reported_currency="DKK")
+        for fx_date, rate in [
+            (date_type(2024, 12, 31), Dec("7.10")),
+            (date_type(2025, 12, 31), Dec("6.85")),
+        ]:
+            FxRate.objects.create(
+                base_currency="USD", quote_currency="DKK",
+                date=fx_date, rate=rate,
+            )
+        BalanceSheet.objects.create(
+            ticker="NVO", end_date=date_type(2025, 12, 31),
+            total_debt=100_000_000_000, total_lease=0,
+            total_liabilities=200_000_000_000, stockholders_equity=100_000_000_000,
+            current_assets=80_000_000_000, current_liabilities=60_000_000_000,
+        )
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker="NVO", end_date=date_type(2025, month, day),
+                net_income=25_000_000_000,
+            )
+        result = compute_fundamentals(
+            "NVO", market_cap=195_000_000_000.0, current_price=43.88,
+            historical_prices=[],
+        )
+        latest = result[0]
+        # Live $195B × USD/DKK 6.85 ≈ 1,335.75B DKK
+        assert abs(latest["marketCap"] - 1_335_750_000_000) < 100_000_000
+
+    def test_year_market_cap_passthrough_for_same_currency(
+        self, multi_year_balance_sheets, multi_year_earnings, ipca_entries,
+    ):
+        """Brazilian ticker with BRL listing + BRL reporting: no translation."""
+        from quotes.models import Ticker
+        Ticker.objects.create(symbol="WEGE3", name="WEG", reported_currency="BRL")
+        result = compute_fundamentals(
+            "WEGE3", market_cap=1_000_000_000.0, current_price=10.0,
+        )
+        assert result[0]["marketCap"] == 1_000_000_000.0
+
+    def test_no_fx_no_market_cap(self, db):
+        """Foreign reporter without FX data: per-year marketCap is None
+        rather than the wrong-currency value."""
+        from datetime import date as date_type
+        from quotes.models import BalanceSheet, QuarterlyEarnings, Ticker
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk", reported_currency="DKK")
+        BalanceSheet.objects.create(
+            ticker="NVO", end_date=date_type(2025, 12, 31),
+            total_debt=100, total_lease=0, total_liabilities=200,
+            stockholders_equity=100, current_assets=80, current_liabilities=60,
+        )
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker="NVO", end_date=date_type(2025, month, day), net_income=10,
+            )
+        result = compute_fundamentals(
+            "NVO", market_cap=100.0, current_price=1.0, historical_prices=[],
+        )
+        assert result[0]["marketCap"] is None
