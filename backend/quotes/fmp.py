@@ -189,6 +189,12 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
     by_end_date: dict[date, QuarterlyEarnings] = {}
     reported_currency_by_end_date: dict[date, str] = {}
 
+    # QuarterlyEarnings.eps is DecimalField(max_digits=20, decimal_places=6),
+    # so the integer portion must fit in <10^14. FMP occasionally returns
+    # absurd EPS values (data-entry errors, mis-calibrated stock splits);
+    # treat those as missing rather than crashing the whole bulk_create.
+    _EPS_MAX_ABS = Decimal("99999999999999")  # 10^14 − 1
+
     for statement in statements:
         end_date_string = (statement.get("date") or "")[:10]
         if not end_date_string:
@@ -198,6 +204,8 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
 
         eps_raw = statement.get("eps")
         eps_value = Decimal(str(eps_raw)) if eps_raw is not None else None
+        if eps_value is not None and abs(eps_value) >= _EPS_MAX_ABS:
+            eps_value = None
 
         net_income_raw = statement.get("netIncome")
         net_income_value = int(net_income_raw) if net_income_raw is not None else None

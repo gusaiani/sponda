@@ -313,6 +313,27 @@ class TestSyncEarnings:
         assert Ticker.objects.get(symbol="XYZ").reported_currency == "EUR"
 
     @patch("quotes.fmp.fetch_income_statements")
+    def test_eps_overflow_is_treated_as_missing(self, mock_fetch, db):
+        """FMP occasionally returns absurd EPS values that would overflow
+        Decimal(20,6). Silently treat as missing rather than crashing the
+        whole bulk_create — the prod backfill hit this once."""
+        from quotes.models import Ticker
+
+        Ticker.objects.create(symbol="WEIRD", name="Weird Co")
+        mock_fetch.return_value = [
+            {
+                "date": "2025-09-30", "symbol": "WEIRD", "reportedCurrency": "USD",
+                # Larger than 10^14 — would overflow Decimal(20,6).
+                "eps": 1_500_000_000_000_000.0,
+                "revenue": 100, "netIncome": 50,
+            },
+        ]
+        sync_earnings("WEIRD")
+        record = QuarterlyEarnings.objects.get(ticker="WEIRD", end_date=date(2025, 9, 30))
+        assert record.eps is None
+        assert record.net_income == 50
+
+    @patch("quotes.fmp.fetch_income_statements")
     def test_does_not_crash_when_ticker_row_missing(self, mock_fetch, db):
         """sync_earnings runs before the ticker-list sync has populated the
         Ticker row (e.g. during fixture setup or for a brand-new symbol).
