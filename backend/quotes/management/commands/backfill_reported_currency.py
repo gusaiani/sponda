@@ -55,7 +55,10 @@ class Command(BaseCommand):
             try:
                 sync_earnings(symbol)
                 success += 1
-            except ProviderError as error:
+            except Exception as error:
+                # Catch broadly: ProviderError (network/API), DataError
+                # (corrupt FMP rows that overflow numeric fields), and
+                # anything else. One bad ticker should never abort the run.
                 failure += 1
                 self.stderr.write(self.style.WARNING(f"{symbol}: {error}"))
             if index % 100 == 0:
