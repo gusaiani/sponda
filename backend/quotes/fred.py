@@ -41,17 +41,17 @@ CURRENCY_TO_SERIES_ID: dict[str, str] = {
     "EUR": "CP0000EZ19M086NEST",  # Eurozone HICP
     "GBP": "GBRCPIALLMINMEI",
     "CNY": "CHNCPIALLMINMEI",
-    "TWD": "CPALTT01TWQ659N",     # quarterly
     "CHF": "CHECPIALLMINMEI",
     "CAD": "CANCPIALLMINMEI",
     "AUD": "AUSCPIALLQINMEI",     # quarterly
     "MXN": "MEXCPIALLMINMEI",
     "INR": "INDCPIALLMINMEI",
     "KRW": "KORCPIALLMINMEI",
-    "SGD": "SGPCPIALLMINMEI",
-    "HKD": "HKGCPIALLMINMEI",
     "NOK": "NORCPIALLMINMEI",
     "SEK": "SWECPIALLMINMEI",
+    # TWD / SGD / HKD: FRED only exposes a "% Chg." (pre-computed YoY)
+    # series for these. Adding a separate ingest path for that shape is a
+    # follow-up; for now those tickers fall back to nominal averages.
 }
 
 
@@ -89,11 +89,21 @@ def sync_country_cpi(currencies: list[str]) -> int:
     each month with the same month one year earlier, and stores the
     percent change as `CountryCPIIndex.annual_rate`. Skips months whose
     YoY anchor is missing.
+
+    Per-currency failures (404 from FRED, network errors, etc.) are caught
+    and logged so a single bad series id doesn't take down the whole run —
+    the operator can fix the mapping and re-run.
     """
+    import logging
+    log = logging.getLogger(__name__)
     total = 0
     for currency in currencies:
         ccy = currency.upper()
-        observations = fetch_cpi_observations(ccy)
+        try:
+            observations = fetch_cpi_observations(ccy)
+        except FREDError as error:
+            log.warning("sync_country_cpi: skipping %s — %s", ccy, error)
+            continue
 
         index_by_date: dict[tuple[int, int], Decimal] = {}
         for obs in observations:

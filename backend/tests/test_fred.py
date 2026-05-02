@@ -28,7 +28,7 @@ MOCK_DKK_OBSERVATIONS = {
 
 class TestCurrencyToSeriesIdMapping:
     def test_covers_at_least_the_majors(self):
-        for ccy in ("DKK", "JPY", "EUR", "GBP", "CNY", "TWD", "CHF", "CAD"):
+        for ccy in ("DKK", "JPY", "EUR", "GBP", "CNY", "CHF", "CAD"):
             assert ccy in CURRENCY_TO_SERIES_ID, f"missing FRED series for {ccy}"
             assert isinstance(CURRENCY_TO_SERIES_ID[ccy], str)
             assert len(CURRENCY_TO_SERIES_ID[ccy]) > 0
