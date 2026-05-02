@@ -26,6 +26,7 @@ from quotes.providers import (
     PROVIDER_QUOTE_CACHE_TTL,
     ProviderError,
     fetch_quotes_batch,
+    is_brazilian_ticker,
     sync_balance_sheets,  # imported for test isolation; never called here
     sync_cash_flows,
     sync_earnings,
@@ -117,6 +118,21 @@ class Command(MonitoredCommand):
                 current_price = quote.get("regularMarketPrice")
                 if not market_cap:
                     continue
+
+                # Backfill nudge: foreign-reporting tickers cached pre-rollout
+                # have an empty Ticker.reported_currency, which makes
+                # calculate_pe10 silently fall back to listing-currency
+                # passthrough. One sync_earnings call stamps the field; from
+                # then on the standard freshness gate suffices.
+                if (
+                    not is_brazilian_ticker(symbol)
+                    and not (ticker_row.reported_currency or "").strip()
+                ):
+                    try:
+                        sync_earnings(symbol)
+                        ticker_row.refresh_from_db(fields=["reported_currency"])
+                    except ProviderError as error:
+                        logger.warning("backfill sync_earnings failed for %s: %s", symbol, error)
 
                 market_cap_decimal = Decimal(str(market_cap))
 
