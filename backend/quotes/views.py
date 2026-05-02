@@ -735,12 +735,15 @@ class PE10View(APIView):
         self._log_lookup(request, ticker)
 
         listing_currency = "BRL" if is_brazilian_ticker(ticker) else "USD"
+        from .fx import market_cap_in_reported_currency  # noqa: PLC0415 — local to avoid import cycle
+        market_cap_reported = market_cap_in_reported_currency(market_cap_decimal, ticker)
         result = {
             "ticker": ticker,
             "name": name,
             "logo": logo,
             "currentPrice": float(current_price),
             "marketCap": market_cap,
+            "marketCapInReportedCurrency": float(market_cap_reported) if market_cap_reported is not None else None,
             "listingCurrency": listing_currency,
             "reportedCurrency": reported_currency or listing_currency,
             "maxYearsAvailable": max_years_available,
