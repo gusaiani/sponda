@@ -312,6 +312,21 @@ class TestSyncEarnings:
         sync_earnings("XYZ")
         assert Ticker.objects.get(symbol="XYZ").reported_currency == "EUR"
 
+    @patch("quotes.fmp._get")
+    def test_fetch_currency_map_returns_per_symbol_pair(self, mock_get):
+        from quotes.fmp import fetch_currency_map
+
+        mock_get.return_value = [
+            {"symbol": "NVO", "companyName": "Novo Nordisk", "tradingCurrency": "USD", "reportingCurrency": "DKK"},
+            {"symbol": "AAPL", "companyName": "Apple", "tradingCurrency": "USD", "reportingCurrency": "USD"},
+            {"symbol": "", "tradingCurrency": "USD", "reportingCurrency": "USD"},  # skipped: empty symbol
+        ]
+        result = fetch_currency_map()
+        assert result["NVO"] == {"trading": "USD", "reporting": "DKK"}
+        assert result["AAPL"] == {"trading": "USD", "reporting": "USD"}
+        assert "" not in result
+        mock_get.assert_called_once_with("/stable/financial-statement-symbol-list")
+
     @patch("quotes.fmp.fetch_income_statements")
     def test_eps_overflow_is_treated_as_missing(self, mock_fetch, db):
         """FMP occasionally returns absurd EPS values that would overflow
