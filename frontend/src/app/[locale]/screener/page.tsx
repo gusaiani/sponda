@@ -651,6 +651,7 @@ export default function ScreenerPage() {
                         : undefined}
                       locale={locale}
                       onChange={(value) => handleSliderChange(indicator, value)}
+                      onCommit={commitSliders}
                     />
                   </div>
                 );
