@@ -171,6 +171,18 @@ class Ticker(models.Model):
     name = models.CharField(max_length=200, blank=True, default="")
     display_name = models.CharField(max_length=200, blank=True, default="")
     sector = models.CharField(max_length=100, blank=True, default="")
+    country = models.CharField(
+        max_length=2,
+        blank=True,
+        default="",
+        help_text=(
+            "ISO 3166-1 alpha-2 country code of the company's incorporation "
+            "(e.g. BR for Brazilian B3 listings, US for US-domiciled, TW for "
+            "Taiwan Semiconductor ADR). Backfilled from FMP's company profile "
+            "for non-Brazilian tickers; deterministically set to BR for "
+            "anything matching the Brazilian symbol pattern."
+        ),
+    )
     type = models.CharField(max_length=50, blank=True, default="")
     logo = models.URLField(max_length=500, blank=True, default="")
     market_cap = models.BigIntegerField(null=True, blank=True, default=None)

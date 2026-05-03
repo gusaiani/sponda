@@ -13,11 +13,16 @@ import { useParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useScreener,
+  useScreenerSectors,
+  useScreenerCountries,
   SCREENER_INDICATORS,
   ScreenerFilters,
   ScreenerIndicator,
 } from "../../../hooks/useScreener";
 import { DualRangeSlider } from "../../../components/DualRangeSlider";
+import { MultiSelectFilter } from "../../../components/MultiSelectFilter";
+import { translateSector } from "../../../utils/sectorLabels";
+import { translateCountry } from "../../../utils/countryLabels";
 import {
   CURRENT_RATIO_SCALE,
   LEVERAGE_SCALE,
@@ -221,12 +226,18 @@ export default function ScreenerPage() {
   const locale = params?.locale || "pt";
 
   const [draftBounds, setDraftBounds] = useState<ScreenerFilters["bounds"]>(emptyBounds);
+  const [draftSectors, setDraftSectors] = useState<string[]>([]);
+  const [draftCountries, setDraftCountries] = useState<string[]>([]);
   const [appliedFilters, setAppliedFilters] = useState<ScreenerFilters>({
     bounds: {},
+    sectors: [],
+    countries: [],
     sort: "-market_cap",
     limit: PAGE_SIZE,
     offset: 0,
   });
+  const { data: availableSectors = [] } = useScreenerSectors();
+  const { data: availableCountries = [] } = useScreenerCountries();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [showSavePresetModal, setShowSavePresetModal] = useState(false);
   const [showSaveListModal, setShowSaveListModal] = useState(false);
@@ -371,6 +382,8 @@ export default function ScreenerPage() {
     setAppliedFilters((previous) => ({
       ...previous,
       bounds: draftBounds,
+      sectors: draftSectors,
+      countries: draftCountries,
       limit: PAGE_SIZE,
       offset: 0,
     }));
@@ -379,9 +392,33 @@ export default function ScreenerPage() {
 
   function clearFilters() {
     setDraftBounds(emptyBounds());
+    setDraftSectors([]);
+    setDraftCountries([]);
     setAppliedFilters((previous) => ({
       ...previous,
       bounds: {},
+      sectors: [],
+      countries: [],
+      limit: PAGE_SIZE,
+      offset: 0,
+    }));
+  }
+
+  function handleSectorChange(next: string[]) {
+    setDraftSectors(next);
+    setAppliedFilters((previous) => ({
+      ...previous,
+      sectors: next,
+      limit: PAGE_SIZE,
+      offset: 0,
+    }));
+  }
+
+  function handleCountryChange(next: string[]) {
+    setDraftCountries(next);
+    setAppliedFilters((previous) => ({
+      ...previous,
+      countries: next,
       limit: PAGE_SIZE,
       offset: 0,
     }));
@@ -505,6 +542,40 @@ export default function ScreenerPage() {
         </div>
 
         <div className="screener-header-inline-filters" ref={inlineStripRef}>
+          <div
+            className="screener-inline-filter screener-inline-filter-sector"
+            data-inline-indicator="sector"
+          >
+            <label className="screener-inline-label">
+              {t("screener.sector")}
+            </label>
+            <MultiSelectFilter
+              options={availableSectors}
+              selected={draftSectors}
+              onChange={handleSectorChange}
+              labelFor={(sector) => translateSector(sector, locale)}
+              locale={locale}
+              allLabel={t("screener.sector_all")}
+              multiLabel={t("screener.sector")}
+            />
+          </div>
+          <div
+            className="screener-inline-filter screener-inline-filter-country"
+            data-inline-indicator="country"
+          >
+            <label className="screener-inline-label">
+              {t("screener.country")}
+            </label>
+            <MultiSelectFilter
+              options={availableCountries}
+              selected={draftCountries}
+              onChange={handleCountryChange}
+              labelFor={(country) => translateCountry(country, locale)}
+              locale={locale}
+              allLabel={t("screener.country_all")}
+              multiLabel={t("screener.country")}
+            />
+          </div>
           {INLINE_INDICATORS.map((indicator) => {
             const bound = draftBounds[indicator] ?? {};
             const sliderBounds = INDICATOR_BOUNDS[indicator];
