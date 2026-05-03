@@ -494,7 +494,6 @@ export const zh: TranslationDictionary = {
 
   "screener.page_title": "筛选公司",
   "screener.page_hint": "Filter companies by the indicators on their main page.",
-  "screener.filters_title": "Filters",
   "screener.more_filters": "\u66f4\u591a\u7b5b\u9009",
   "screener.min": "Min",
   "screener.max": "Max",

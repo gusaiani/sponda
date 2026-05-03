@@ -494,7 +494,6 @@ export const en: TranslationDictionary = {
 
   "screener.page_title": "Filter Companies",
   "screener.page_hint": "Filter companies by the indicators on their main page.",
-  "screener.filters_title": "Filters",
   "screener.more_filters": "more filters",
   "screener.min": "Min",
   "screener.max": "Max",
