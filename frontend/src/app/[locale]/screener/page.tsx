@@ -18,6 +18,7 @@ import {
   ScreenerIndicator,
 } from "../../../hooks/useScreener";
 import { DualRangeSlider } from "../../../components/DualRangeSlider";
+import { LEVERAGE_SCALE, formatLeverageValue, type SliderScale } from "../../../utils/sliderScale";
 import {
   ScreenerFilterPresets,
   SaveFilterPresetModal,
@@ -85,12 +86,17 @@ const INDICATOR_LABELS: Record<ScreenerIndicator, string> = {
 /** Slider track bounds for each indicator. All start at 0 — the value
  * investor screener isn't meant to surface companies with negative
  * multiples or negative leverage. Max values are picked to cover the
- * realistic B3 range with a bit of headroom. */
+ * realistic B3 range with a bit of headroom.
+ *
+ * Leverage ratios opt into a non-linear scale so the 0..1 band — where
+ * most companies sit — gets generous resolution while distressed-balance
+ * outliers (D/E up to ~100) still fit on the same track. */
 interface IndicatorBounds {
   trackMin: number;
   trackMax: number;
   step: number;
-  format?: (value: number) => string;
+  scale?: SliderScale;
+  format?: (value: number, locale: string) => string;
 }
 
 const INDICATOR_BOUNDS: Record<FilterIndicator, IndicatorBounds> = {
@@ -98,9 +104,27 @@ const INDICATOR_BOUNDS: Record<FilterIndicator, IndicatorBounds> = {
   pfcf10: { trackMin: 0, trackMax: 50, step: 1 },
   peg: { trackMin: 0, trackMax: 5, step: 0.1 },
   pfcf_peg: { trackMin: 0, trackMax: 5, step: 0.1 },
-  debt_to_equity: { trackMin: 0, trackMax: 5, step: 0.1 },
-  debt_ex_lease_to_equity: { trackMin: 0, trackMax: 5, step: 0.1 },
-  liabilities_to_equity: { trackMin: 0, trackMax: 5, step: 0.1 },
+  debt_to_equity: {
+    trackMin: 0,
+    trackMax: 100,
+    step: 0.05,
+    scale: LEVERAGE_SCALE,
+    format: formatLeverageValue,
+  },
+  debt_ex_lease_to_equity: {
+    trackMin: 0,
+    trackMax: 100,
+    step: 0.05,
+    scale: LEVERAGE_SCALE,
+    format: formatLeverageValue,
+  },
+  liabilities_to_equity: {
+    trackMin: 0,
+    trackMax: 100,
+    step: 0.05,
+    scale: LEVERAGE_SCALE,
+    format: formatLeverageValue,
+  },
   current_ratio: { trackMin: 0, trackMax: 10, step: 0.1 },
   debt_to_avg_earnings: { trackMin: 0, trackMax: 20, step: 0.5 },
   debt_to_avg_fcf: { trackMin: 0, trackMax: 20, step: 0.5 },
@@ -485,9 +509,12 @@ export default function ScreenerPage() {
                   trackMin={sliderBounds.trackMin}
                   trackMax={sliderBounds.trackMax}
                   step={sliderBounds.step}
+                  scale={sliderBounds.scale}
                   minValue={bound.min ?? null}
                   maxValue={bound.max ?? null}
-                  format={sliderBounds.format}
+                  format={sliderBounds.format
+                    ? (value) => sliderBounds.format!(value, locale)
+                    : undefined}
                   locale={locale}
                   onChange={(value) => handleSliderChange(indicator, value)}
                 />
@@ -555,9 +582,13 @@ export default function ScreenerPage() {
                       trackMin={sliderBounds.trackMin}
                       trackMax={sliderBounds.trackMax}
                       step={sliderBounds.step}
+                      scale={sliderBounds.scale}
                       minValue={bound.min ?? null}
                       maxValue={bound.max ?? null}
-                      format={sliderBounds.format}
+                      format={sliderBounds.format
+                        ? (value) => sliderBounds.format!(value, locale)
+                        : undefined}
+                      locale={locale}
                       onChange={(value) => handleSliderChange(indicator, value)}
                     />
                   </div>

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, fireEvent } from "@testing-library/react";
-import { DualRangeSlider } from "./DualRangeSlider";
+import { DualRangeSlider, SLIDER_SCALE_RESOLUTION } from "./DualRangeSlider";
+import { LEVERAGE_SCALE } from "../utils/sliderScale";
 
 afterEach(cleanup);
 
@@ -110,6 +111,95 @@ describe("DualRangeSlider", () => {
     const [, maxInput] = container.querySelectorAll("input[type='range']");
     fireEvent.change(maxInput, { target: { value: "10" } });
     expect(onChange).toHaveBeenCalledWith({ min: "20", max: "20" });
+  });
+
+  describe("with a non-linear scale", () => {
+    it("drives the underlying inputs in normalized position space", () => {
+      const { container } = render(
+        <DualRangeSlider
+          trackMin={0}
+          trackMax={100}
+          step={0.05}
+          scale={LEVERAGE_SCALE}
+          minValue={null}
+          maxValue={null}
+          onChange={() => {}}
+        />,
+      );
+      const inputs = container.querySelectorAll("input[type='range']");
+      for (const input of inputs) {
+        expect(input.getAttribute("min")).toBe("0");
+        expect(input.getAttribute("max")).toBe(String(SLIDER_SCALE_RESOLUTION));
+        expect(input.getAttribute("step")).toBe("1");
+      }
+      const [minInput, maxInput] = inputs;
+      expect((minInput as HTMLInputElement).value).toBe("0");
+      expect((maxInput as HTMLInputElement).value).toBe(
+        String(SLIDER_SCALE_RESOLUTION),
+      );
+    });
+
+    it("places handles at the scaled position for the current value", () => {
+      const { container } = render(
+        <DualRangeSlider
+          trackMin={0}
+          trackMax={100}
+          step={0.05}
+          scale={LEVERAGE_SCALE}
+          minValue="1"
+          maxValue={null}
+          onChange={() => {}}
+        />,
+      );
+      const [minInput] = container.querySelectorAll("input[type='range']");
+      // value 1 sits at the boundary between bands → position 0.55.
+      expect((minInput as HTMLInputElement).value).toBe(
+        String(Math.round(0.55 * SLIDER_SCALE_RESOLUTION)),
+      );
+    });
+
+    it("converts handle motion through the scale before storing the value", () => {
+      const onChange = vi.fn();
+      const { container } = render(
+        <DualRangeSlider
+          trackMin={0}
+          trackMax={100}
+          step={0.05}
+          scale={LEVERAGE_SCALE}
+          minValue={null}
+          maxValue={null}
+          onChange={onChange}
+        />,
+      );
+      const [minInput] = container.querySelectorAll("input[type='range']");
+      // Position 0.55 of the track → value 1 after snapping.
+      fireEvent.change(minInput, {
+        target: { value: String(Math.round(0.55 * SLIDER_SCALE_RESOLUTION)) },
+      });
+      expect(onChange).toHaveBeenCalledWith({ min: "1", max: null });
+    });
+
+    it("snaps high-band values to the nearest 5 increment", () => {
+      const onChange = vi.fn();
+      const { container } = render(
+        <DualRangeSlider
+          trackMin={0}
+          trackMax={100}
+          step={0.05}
+          scale={LEVERAGE_SCALE}
+          minValue={null}
+          maxValue={null}
+          onChange={onChange}
+        />,
+      );
+      const [, maxInput] = container.querySelectorAll("input[type='range']");
+      // Position for value 47 → ~0.927; after snap should land on 45.
+      const position = LEVERAGE_SCALE.toPosition(47);
+      fireEvent.change(maxInput, {
+        target: { value: String(Math.round(position * SLIDER_SCALE_RESOLUTION)) },
+      });
+      expect(onChange).toHaveBeenCalledWith({ min: null, max: "45" });
+    });
   });
 
   it("uses provided format function for the value labels", () => {

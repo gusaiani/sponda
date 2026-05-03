@@ -345,6 +345,15 @@ All are numeric `min` / `max` bounds (either side optional):
 
 **Example:** `GET /api/screener/?pe10_max=10&debt_to_equity_max=1&sort=-market_cap&limit=50` returns the 50 largest Brazilian companies with PE10 ≤ 10 and D/E ≤ 1.
 
+### Slider scales
+
+Most screener sliders are linear — track position maps directly to value. The leverage filters (`debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`) instead use a piecewise log-like scale defined in `frontend/src/utils/sliderScale.ts` (`LEVERAGE_SCALE`):
+
+- Range `0..100`. The `0..1` band — where most companies sit — gets the first 55% of the track. The `1..100` tail is log-compressed across the remaining 45%, so a few distressed-balance outliers (D/E up to ~100) don't squash the useful resolution out of the slider.
+- Snap precision is band-aware: `0.05` below 1, `0.5` between 1 and 20, `5` at 20+. Handle labels track that precision (two decimals below 1, one decimal up to 10, integer above).
+
+`DualRangeSlider` accepts an optional `scale: SliderScale` prop with `toValue` / `toPosition` / `snap`. When supplied, the underlying `<input type="range">` runs in normalized position space (integer stops 0..1000) and the component converts on every change. Without `scale`, behavior is unchanged.
+
 ## Indicator Alerts
 
 Signed-in users can save thresholds on any screened indicator per ticker. When an indicator crosses a threshold, they get an email plus an on-screen entry at `/[locale]/notificacoes`.
