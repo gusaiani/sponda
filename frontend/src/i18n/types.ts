@@ -495,7 +495,6 @@ export interface TranslationDictionary {
   /* ── Screener ── */
   "screener.page_title": string;
   "screener.page_hint": string;
-  "screener.filters_title": string;
   "screener.more_filters": string;
   "screener.min": string;
   "screener.max": string;

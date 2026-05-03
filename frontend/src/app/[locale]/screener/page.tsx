@@ -18,7 +18,13 @@ import {
   ScreenerIndicator,
 } from "../../../hooks/useScreener";
 import { DualRangeSlider } from "../../../components/DualRangeSlider";
-import { LEVERAGE_SCALE, formatLeverageValue, type SliderScale } from "../../../utils/sliderScale";
+import {
+  CURRENT_RATIO_SCALE,
+  LEVERAGE_SCALE,
+  formatCurrentRatioValue,
+  formatLeverageValue,
+  type SliderScale,
+} from "../../../utils/sliderScale";
 import {
   ScreenerFilterPresets,
   SaveFilterPresetModal,
@@ -125,7 +131,13 @@ const INDICATOR_BOUNDS: Record<FilterIndicator, IndicatorBounds> = {
     scale: LEVERAGE_SCALE,
     format: formatLeverageValue,
   },
-  current_ratio: { trackMin: 0, trackMax: 10, step: 0.1 },
+  current_ratio: {
+    trackMin: 0,
+    trackMax: 20,
+    step: 0.05,
+    scale: CURRENT_RATIO_SCALE,
+    format: formatCurrentRatioValue,
+  },
   debt_to_avg_earnings: { trackMin: 0, trackMax: 20, step: 0.5 },
   debt_to_avg_fcf: { trackMin: 0, trackMax: 20, step: 0.5 },
 };
@@ -619,12 +631,6 @@ export default function ScreenerPage() {
         <div className="compare-scroll-wrapper">
           <table className="compare-table screener-compare-table">
             <thead>
-              <tr className="compare-group-row">
-                <th className="compare-sticky-col" />
-                <th colSpan={SCREENER_INDICATORS.length}>
-                  {t("screener.filters_title")}
-                </th>
-              </tr>
               <tr>
                 <th className="compare-sticky-col">{t("compare.company")}</th>
                 {SCREENER_INDICATORS.map((indicator) => (
