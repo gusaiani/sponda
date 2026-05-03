@@ -13,7 +13,13 @@ interface Props {
   step: number;
   minValue: string | null;
   maxValue: string | null;
+  /** Fires on every drag tick + keystroke — use for live visual state
+   * (handle position, value labels). */
   onChange: (value: DualRangeValue) => void;
+  /** Fires once when the user releases the handle (pointerup) or
+   * finishes a keyboard adjustment (keyup). Use for expensive side
+   * effects like network requests so we don't fire one per drag tick. */
+  onCommit?: () => void;
   format?: (value: number) => string;
   locale?: string;
   scale?: SliderScale;
@@ -52,10 +58,12 @@ export function DualRangeSlider({
   minValue,
   maxValue,
   onChange,
+  onCommit,
   format,
   locale = "en",
   scale,
 }: Props) {
+  const handleCommit = onCommit ? () => onCommit() : undefined;
   const minNumeric = minValue !== null ? Number(minValue) : trackMin;
   const maxNumeric = maxValue !== null ? Number(maxValue) : trackMax;
 
@@ -126,6 +134,8 @@ export function DualRangeSlider({
           step={inputStep}
           value={minInputValue}
           onChange={handleMinChange}
+          onPointerUp={handleCommit}
+          onKeyUp={handleCommit}
           className="dual-range-input dual-range-input-min"
           aria-label="Minimum"
         />
@@ -136,6 +146,8 @@ export function DualRangeSlider({
           step={inputStep}
           value={maxInputValue}
           onChange={handleMaxChange}
+          onPointerUp={handleCommit}
+          onKeyUp={handleCommit}
           className="dual-range-input dual-range-input-max"
           aria-label="Maximum"
         />

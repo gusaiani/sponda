@@ -502,7 +502,6 @@ export const pt: TranslationDictionary = {
   "screener.min": "M\u00edn",
   "screener.max": "M\u00e1x",
   "screener.clear_filters": "Limpar filtros",
-  "screener.apply_filters": "Filtrar",
   "screener.no_results": "Nenhuma empresa corresponde aos filtros.",
   "screener.loading": "Carregando\u2026",
   "screener.results_count": "{count} empresas",

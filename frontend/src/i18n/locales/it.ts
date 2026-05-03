@@ -502,7 +502,6 @@ export const it: TranslationDictionary = {
   "screener.min": "Min",
   "screener.max": "Max",
   "screener.clear_filters": "Clear filters",
-  "screener.apply_filters": "Filtra",
   "screener.no_results": "No companies match these filters.",
   "screener.loading": "Loading\u2026",
   "screener.results_count": "{count} companies",
