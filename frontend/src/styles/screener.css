@@ -172,37 +172,6 @@
   flex-shrink: 0;
 }
 
-/* Compact circular apply button sitting to the right of "mais filtros".
- * Mirrors .search-button (blue disc with magnifier) to visually tie the
- * filter action to the search pattern users already know. */
-.screener-filter-apply {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 9999px;
-  background: #1b347e;
-  color: #ffffff;
-  border: none;
-  cursor: pointer;
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  transition: background-color 0.15s;
-}
-
-.screener-filter-apply:hover {
-  background: #0f1d42;
-}
-
-.screener-filter-apply:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .screener-filter-toggle {
   display: inline-flex;
   align-items: center;
@@ -441,17 +410,15 @@
 .screener-multiselect-popover {
   position: fixed;
   z-index: 50;
-  min-width: 220px;
-  max-height: 320px;
-  overflow-y: auto;
+  min-width: 420px;
+  max-width: 520px;
   background: #ffffff;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   box-shadow: 0 6px 24px rgba(12, 24, 41, 0.12);
   padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  column-count: 2;
+  column-gap: 12px;
 }
 
 .screener-multiselect-option {
@@ -464,6 +431,7 @@
   font-size: 13px;
   color: var(--color-ink);
   cursor: pointer;
+  break-inside: avoid;
 }
 
 .screener-multiselect-option:hover {

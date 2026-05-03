@@ -113,7 +113,11 @@
   letter-spacing: 0;
   text-transform: none;
   white-space: nowrap;
-  min-width: 18px;
+  /* Fixed width sized for the widest formatted value across our sliders
+   * (e.g. "100", "20,0", "0,00") so the track doesn't shift left/right
+   * as the number of digits or decimals changes mid-drag. */
+  width: 38px;
+  flex-shrink: 0;
 }
 
 .dual-range-label-min {

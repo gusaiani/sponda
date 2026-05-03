@@ -503,7 +503,6 @@ export interface TranslationDictionary {
   "screener.min": string;
   "screener.max": string;
   "screener.clear_filters": string;
-  "screener.apply_filters": string;
   "screener.no_results": string;
   "screener.loading": string;
   "screener.results_count": string;

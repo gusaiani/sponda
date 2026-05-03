@@ -378,16 +378,17 @@ export default function ScreenerPage() {
     });
   }
 
-  function applyFilters() {
+  /** Flush the latest slider draft into the live-fetched filter set.
+   * Wired to DualRangeSlider's onCommit (pointerup / keyup) so we issue
+   * one request per gesture instead of one per drag tick. Sector/country
+   * selects don't need this — each change is already one deliberate click. */
+  function commitSliders() {
     setAppliedFilters((previous) => ({
       ...previous,
       bounds: draftBounds,
-      sectors: draftSectors,
-      countries: draftCountries,
       limit: PAGE_SIZE,
       offset: 0,
     }));
-    setFiltersOpen(false);
   }
 
   function clearFilters() {
@@ -600,6 +601,7 @@ export default function ScreenerPage() {
                     : undefined}
                   locale={locale}
                   onChange={(value) => handleSliderChange(indicator, value)}
+                  onCommit={commitSliders}
                 />
               </div>
             );
@@ -621,29 +623,6 @@ export default function ScreenerPage() {
             <ChevronDownIcon flipped={filtersOpen} />
           </button>
         </div>
-
-        <button
-          type="button"
-          className="screener-filter-apply"
-          onClick={applyFilters}
-          disabled={isFetching}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <span>{t("screener.apply_filters")}</span>
-        </button>
 
         {filtersOpen && (
           <div

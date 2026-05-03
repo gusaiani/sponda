@@ -502,7 +502,6 @@ export const zh: TranslationDictionary = {
   "screener.min": "Min",
   "screener.max": "Max",
   "screener.clear_filters": "Clear filters",
-  "screener.apply_filters": "\u7b5b\u9009",
   "screener.no_results": "No companies match these filters.",
   "screener.loading": "Loading\u2026",
   "screener.results_count": "{count} companies",
