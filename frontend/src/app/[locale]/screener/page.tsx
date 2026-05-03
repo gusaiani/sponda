@@ -34,6 +34,7 @@ import {
   ScreenerFilterPresets,
   SaveFilterPresetModal,
 } from "../../../components/ScreenerFilterPresets";
+import { boundFromSliderChange } from "../../../utils/screenerBounds";
 import { useSavedScreenerFilters } from "../../../hooks/useSavedScreenerFilters";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { useAuth } from "../../../hooks/useAuth";
@@ -366,13 +367,11 @@ export default function ScreenerPage() {
   ) {
     setDraftBounds((previous) => {
       const updated = { ...previous };
-      if (next.min === null && next.max === null) {
+      const filled = boundFromSliderChange(next, INDICATOR_BOUNDS[indicator]);
+      if (filled === null) {
         delete updated[indicator];
       } else {
-        updated[indicator] = {
-          ...(next.min !== null ? { min: next.min } : {}),
-          ...(next.max !== null ? { max: next.max } : {}),
-        };
+        updated[indicator] = filled;
       }
       return updated;
     });
