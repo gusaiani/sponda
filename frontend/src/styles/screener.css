@@ -96,7 +96,12 @@
   gap: 8px 16px;
   align-items: center;
   min-width: 0;
-  max-height: 18px;
+  /* Row 1 items are 18px tall; row 2 items land at offsetTop ≥ 26px
+   * (18 + 8 row-gap). Capping at 24px gives the slider thumb's hover/
+   * active halo a few px of breathing room while still clipping any
+   * wrapped row-2 items, which the wrap-eviction hook surfaces in the
+   * popover instead. */
+  max-height: 24px;
   overflow: hidden;
 }
 
@@ -397,4 +402,75 @@
   display: flex;
   justify-content: flex-end;
   padding-top: 16px;
+}
+
+/* ── Multi-select filter (sector, country, …) ───────────────────────
+ * Replaces a slider in the inline strip with a categorical pill +
+ * checkbox popover. Trigger height matches the slider track so the row
+ * stays visually consistent; the popover renders position:fixed with
+ * coords computed from the trigger rect to escape the strip's
+ * overflow:hidden clip. */
+.screener-multiselect-trigger {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 12px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-ink);
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+
+.screener-multiselect-trigger:hover {
+  background: #f1f5f9;
+  border-color: var(--color-muted);
+}
+
+/* Fixed-positioned so it escapes the inline-filters strip's
+ * overflow:hidden clip. Coords are computed in JS from the trigger's
+ * bounding rect each time the popover opens or the page scrolls. */
+.screener-multiselect-popover {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(12, 24, 41, 0.12);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.screener-multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.screener-multiselect-option:hover {
+  background: #f1f5f9;
+}
+
+.screener-multiselect-option input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
 }

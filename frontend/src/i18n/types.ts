@@ -496,6 +496,10 @@ export interface TranslationDictionary {
   "screener.page_title": string;
   "screener.page_hint": string;
   "screener.more_filters": string;
+  "screener.sector": string;
+  "screener.sector_all": string;
+  "screener.country": string;
+  "screener.country_all": string;
   "screener.min": string;
   "screener.max": string;
   "screener.clear_filters": string;

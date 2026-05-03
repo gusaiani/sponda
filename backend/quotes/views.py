@@ -1336,6 +1336,24 @@ class ScreenerView(APIView):
     def get(self, request):
         queryset = IndicatorSnapshot.objects.all()
 
+        # Sector + country filters (categorical, multi-select). Comma-separated
+        # list of Ticker.sector / Ticker.country values. Empty / missing param
+        # means "all". Implemented as one Ticker query with the filters AND'd
+        # together, then narrows the snapshot queryset by symbol — keeps the
+        # IndicatorSnapshot model free of denormalized columns.
+        sector_param = request.query_params.get("sector") or ""
+        sector_values = [s.strip() for s in sector_param.split(",") if s.strip()]
+        country_param = request.query_params.get("country") or ""
+        country_values = [c.strip() for c in country_param.split(",") if c.strip()]
+        if sector_values or country_values:
+            ticker_filter = Ticker.objects.all()
+            if sector_values:
+                ticker_filter = ticker_filter.filter(sector__in=sector_values)
+            if country_values:
+                ticker_filter = ticker_filter.filter(country__in=country_values)
+            allowed_symbols = list(ticker_filter.values_list("symbol", flat=True))
+            queryset = queryset.filter(ticker__in=allowed_symbols)
+
         # Apply numeric min/max filters ---------------------------------------
         for field in SCREENER_FILTERABLE_FIELDS:
             for suffix, lookup in (("_min", "gte"), ("_max", "lte")):
@@ -1414,3 +1432,40 @@ class ScreenerView(APIView):
             })
 
         return Response({"count": total_count, "results": results})
+
+
+class ScreenerSectorsView(APIView):
+    """List the distinct sectors present in the Ticker table.
+
+    Source-of-truth for the screener's sector multi-select so the dropdown
+    stays in sync with whatever sectors actually exist in the data — no
+    hardcoded list to maintain as US/BR coverage grows.
+    """
+
+    def get(self, request):
+        sectors = list(
+            Ticker.objects.exclude(sector="")
+            .values_list("sector", flat=True)
+            .distinct()
+            .order_by("sector"),
+        )
+        return Response({"sectors": sectors})
+
+
+class ScreenerCountriesView(APIView):
+    """List the distinct ISO country codes present in the Ticker table.
+
+    Same source-of-truth pattern as :class:`ScreenerSectorsView`. The
+    universe grows over time as ``manage.py sync_country`` backfills more
+    tickers from FMP profiles, so the list is queried live each request
+    rather than cached.
+    """
+
+    def get(self, request):
+        countries = list(
+            Ticker.objects.exclude(country="")
+            .values_list("country", flat=True)
+            .distinct()
+            .order_by("country"),
+        )
+        return Response({"countries": countries})

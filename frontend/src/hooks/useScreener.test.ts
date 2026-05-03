@@ -60,4 +60,38 @@ describe("buildScreenerQuery", () => {
     const params = new URLSearchParams(query);
     expect(params.get("sort")).toBe("-pe10");
   });
+
+  it("encodes selected countries as a comma-separated list", () => {
+    const query = buildScreenerQuery(
+      makeFilters({ countries: ["BR", "US", "TW"] }),
+    );
+    const params = new URLSearchParams(query);
+    expect(params.get("country")).toBe("BR,US,TW");
+  });
+
+  it("omits the country param when no countries are selected", () => {
+    const query = buildScreenerQuery(makeFilters({ countries: [] }));
+    const params = new URLSearchParams(query);
+    expect(params.get("country")).toBeNull();
+  });
+
+  it("encodes selected sectors as a comma-separated list", () => {
+    const query = buildScreenerQuery(
+      makeFilters({ sectors: ["Technology", "Healthcare"] }),
+    );
+    const params = new URLSearchParams(query);
+    expect(params.get("sector")).toBe("Technology,Healthcare");
+  });
+
+  it("omits the sector param when no sectors are selected", () => {
+    const query = buildScreenerQuery(makeFilters({ sectors: [] }));
+    const params = new URLSearchParams(query);
+    expect(params.get("sector")).toBeNull();
+  });
+
+  it("omits the sector param when sectors is undefined", () => {
+    const query = buildScreenerQuery(makeFilters());
+    const params = new URLSearchParams(query);
+    expect(params.get("sector")).toBeNull();
+  });
 });

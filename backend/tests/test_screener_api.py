@@ -19,7 +19,7 @@ def snapshot_universe(db):
     Ticker.objects.create(
         symbol="PETR4", name="Petrobras", display_name="Petrobras",
         sector="Oil", type="stock", logo="https://example.com/petr4.png",
-        market_cap=400_000_000_000,
+        market_cap=400_000_000_000, country="BR",
     )
     IndicatorSnapshot.objects.create(
         ticker="PETR4",
@@ -34,7 +34,7 @@ def snapshot_universe(db):
     Ticker.objects.create(
         symbol="WEGE3", name="Weg", display_name="WEG",
         sector="Industrial", type="stock", logo="https://example.com/wege3.png",
-        market_cap=200_000_000_000,
+        market_cap=200_000_000_000, country="BR",
     )
     IndicatorSnapshot.objects.create(
         ticker="WEGE3",
@@ -49,7 +49,7 @@ def snapshot_universe(db):
     Ticker.objects.create(
         symbol="MICRO3", name="Micro", display_name="Micro",
         sector="Retail", type="stock", logo="",
-        market_cap=1_000_000_000,
+        market_cap=1_000_000_000, country="US",
     )
     IndicatorSnapshot.objects.create(
         ticker="MICRO3",
@@ -174,3 +174,115 @@ class TestScreenerAPI:
         response = api_client.get("/api/screener/?pe10_max=100&bogus_field_max=1")
         assert response.status_code == 200
         assert response.json()["count"] == 3
+
+    def test_filter_by_single_sector(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?sector=Oil")
+        tickers = {r["ticker"] for r in response.json()["results"]}
+        assert tickers == {"PETR4"}
+
+    def test_filter_by_multiple_sectors(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?sector=Oil,Industrial")
+        tickers = {r["ticker"] for r in response.json()["results"]}
+        assert tickers == {"PETR4", "WEGE3"}
+
+    def test_blank_sector_param_is_ignored(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?sector=")
+        tickers = {r["ticker"] for r in response.json()["results"]}
+        assert tickers == {"PETR4", "WEGE3", "MICRO3"}
+
+    def test_sector_filter_combines_with_indicator_filters(
+        self, api_client, snapshot_universe,
+    ):
+        # MICRO3 has PE10 = 12, sector = Retail. Filtering Retail + PE10 <= 10
+        # should yield no rows.
+        response = api_client.get("/api/screener/?sector=Retail&pe10_max=10")
+        assert response.json()["results"] == []
+
+    def test_unknown_sector_yields_no_rows(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?sector=NoSuchSector")
+        body = response.json()
+        assert body["count"] == 0
+        assert body["results"] == []
+
+
+@pytest.mark.django_db
+class TestScreenerCountryFilter:
+    def test_filter_by_single_country(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?country=BR")
+        tickers = {r["ticker"] for r in response.json()["results"]}
+        assert tickers == {"PETR4", "WEGE3"}
+
+    def test_filter_by_multiple_countries(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?country=BR,US")
+        tickers = {r["ticker"] for r in response.json()["results"]}
+        assert tickers == {"PETR4", "WEGE3", "MICRO3"}
+
+    def test_blank_country_param_is_ignored(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?country=")
+        tickers = {r["ticker"] for r in response.json()["results"]}
+        assert tickers == {"PETR4", "WEGE3", "MICRO3"}
+
+    def test_country_filter_combines_with_indicator_filters(
+        self, api_client, snapshot_universe,
+    ):
+        # Only MICRO3 is US, and has PE10 = 12. Filtering US + PE10 <= 10 → none.
+        response = api_client.get("/api/screener/?country=US&pe10_max=10")
+        assert response.json()["results"] == []
+
+    def test_unknown_country_yields_no_rows(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?country=XX")
+        assert response.json() == {"count": 0, "results": []}
+
+    def test_country_combines_with_sector(self, api_client, snapshot_universe):
+        # Two BR tickers with different sectors; filter narrows to one.
+        response = api_client.get("/api/screener/?country=BR&sector=Oil")
+        tickers = {r["ticker"] for r in response.json()["results"]}
+        assert tickers == {"PETR4"}
+
+
+@pytest.mark.django_db
+class TestScreenerCountriesAPI:
+    def test_returns_distinct_countries_present_in_data(
+        self, api_client, snapshot_universe,
+    ):
+        response = api_client.get("/api/screener/countries/")
+        assert response.status_code == 200
+        body = response.json()
+        assert sorted(body["countries"]) == ["BR", "US"]
+
+    def test_excludes_blank_countries(self, api_client, db):
+        Ticker.objects.create(symbol="WITH", name="With", country="BR")
+        Ticker.objects.create(symbol="BLANK", name="Blank", country="")
+        response = api_client.get("/api/screener/countries/")
+        assert response.json()["countries"] == ["BR"]
+
+    def test_countries_are_unique(self, api_client, db):
+        Ticker.objects.create(symbol="A", name="A", country="BR")
+        Ticker.objects.create(symbol="B", name="B", country="BR")
+        Ticker.objects.create(symbol="C", name="C", country="US")
+        response = api_client.get("/api/screener/countries/")
+        assert sorted(response.json()["countries"]) == ["BR", "US"]
+
+
+@pytest.mark.django_db
+class TestScreenerSectorsAPI:
+    def test_returns_distinct_sectors_present_in_data(
+        self, api_client, snapshot_universe,
+    ):
+        response = api_client.get("/api/screener/sectors/")
+        assert response.status_code == 200
+        body = response.json()
+        assert sorted(body["sectors"]) == ["Industrial", "Oil", "Retail"]
+
+    def test_excludes_blank_sectors(self, api_client, db):
+        Ticker.objects.create(symbol="WITH", name="With", sector="Tech")
+        Ticker.objects.create(symbol="EMPTY", name="Empty", sector="")
+        response = api_client.get("/api/screener/sectors/")
+        assert response.json()["sectors"] == ["Tech"]
+
+    def test_sectors_are_unique(self, api_client, db):
+        Ticker.objects.create(symbol="A", name="A", sector="Tech")
+        Ticker.objects.create(symbol="B", name="B", sector="Tech")
+        Ticker.objects.create(symbol="C", name="C", sector="Health")
+        response = api_client.get("/api/screener/sectors/")
+        assert sorted(response.json()["sectors"]) == ["Health", "Tech"]
