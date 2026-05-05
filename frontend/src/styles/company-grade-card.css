@@ -1,0 +1,64 @@
+.company-grade-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border, #d0daea);
+  background-color: #ffffff;
+  color: var(--color-ink, #333);
+}
+
+.company-grade-card-numeral {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.company-grade-card-tier-1 .company-grade-card-numeral { background-color: var(--color-rating-1, #b91c1c); }
+.company-grade-card-tier-2 .company-grade-card-numeral { background-color: var(--color-rating-2, #ea580c); }
+.company-grade-card-tier-3 .company-grade-card-numeral { background-color: var(--color-rating-3, #a16207); }
+.company-grade-card-tier-4 .company-grade-card-numeral { background-color: var(--color-rating-4, #65a30d); }
+.company-grade-card-tier-5 .company-grade-card-numeral { background-color: var(--color-rating-5, #15803d); }
+
+.company-grade-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.company-grade-card-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted, #5570a0);
+}
+
+.company-grade-card-tier-label {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.company-grade-card-caption {
+  font-size: 12px;
+  color: var(--color-muted, #5570a0);
+}
+
+.company-grade-card-empty {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--color-muted, #5570a0);
+}
+
+.company-grade-card-empty-text {
+  display: inline-block;
+}

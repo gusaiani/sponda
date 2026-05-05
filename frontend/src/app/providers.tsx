@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { LanguageProvider } from "../i18n";
+import { LearningModeProvider } from "../learning";
 import type { Locale } from "../i18n/types";
 
 interface ProvidersProps {
@@ -16,7 +17,9 @@ export function Providers({ children, locale }: ProvidersProps) {
   return (
     <LanguageProvider initialLocale={locale}>
       <QueryClientProvider client={queryClient}>
-        {children}
+        <LearningModeProvider>
+          {children}
+        </LearningModeProvider>
       </QueryClientProvider>
     </LanguageProvider>
   );

@@ -13,6 +13,12 @@
   --color-accent: #1e40af;
   --color-muted: #5570a0;
   --color-border: #d0daea;
+  /* Learning Mode rating tiers (1=worst → 5=best) */
+  --color-rating-1: #b91c1c;
+  --color-rating-2: #ea580c;
+  --color-rating-3: #a16207;
+  --color-rating-4: #65a30d;
+  --color-rating-5: #15803d;
 }
 
 .app-container {

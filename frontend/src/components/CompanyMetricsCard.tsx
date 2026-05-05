@@ -4,9 +4,25 @@ import "../styles/card.css";
 import "../styles/share-dropdown.css";
 import { MiniChart, type DataPoint } from "./MiniChart";
 import { AlertButton } from "./AlertButton";
+import { RatingChip } from "./RatingChip";
+import { CompanyGradeCard } from "./CompanyGradeCard";
 import { useTranslation, type TranslationKey } from "../i18n";
 import { isBrazilianTicker } from "../utils/ticker";
 import { getSubsector } from "../utils/subsector";
+
+/** Map a UI metric DOM id to the QuoteResult.ratings key + the indicator
+ *  translation prefix. Used to attach Learning Mode chips to each metric. */
+const RATING_KEY_BY_METRIC_ID: Record<string, { ratingKey: string; indicator: string }> = {
+  "pe10": { ratingKey: "pe10", indicator: "pe10" },
+  "pfcf10": { ratingKey: "pfcf10", indicator: "pfcf10" },
+  "peg": { ratingKey: "peg", indicator: "peg" },
+  "pfcfg": { ratingKey: "pfcfPeg", indicator: "pfcfPeg" },
+  "gross-debt-eq": { ratingKey: "debtToEquity", indicator: "debtToEquity" },
+  "debt-ex-lease-eq": { ratingKey: "debtExLeaseToEquity", indicator: "debtExLeaseToEquity" },
+  "liab-eq": { ratingKey: "liabilitiesToEquity", indicator: "liabilitiesToEquity" },
+  "gross-debt-earnings": { ratingKey: "debtToAvgEarnings", indicator: "debtToAvgEarnings" },
+  "gross-debt-fcf": { ratingKey: "debtToAvgFCF", indicator: "debtToAvgFCF" },
+};
 
 /* ── Exported helpers (tested in CompanyMetricsCard.test.ts) ── */
 
@@ -434,6 +450,22 @@ interface QuoteData {
   pfcfPegError: string | null;
   fcfCAGRMethod: "endpoint" | "regression" | null;
   fcfCAGRExcludedYears: number[];
+  // Learning Mode tiers (1=worst, 5=best). Optional — only present when
+  // the backend computed ratings for this quote.
+  ratings?: {
+    pe10: number | null;
+    pfcf10: number | null;
+    peg: number | null;
+    pfcfPeg: number | null;
+    debtToEquity: number | null;
+    debtExLeaseToEquity: number | null;
+    liabilitiesToEquity: number | null;
+    currentRatio: number | null;
+    debtToAvgEarnings: number | null;
+    debtToAvgFCF: number | null;
+    overall: number | null;
+    methodologyVersion: string;
+  };
 }
 
 interface CompanyMetricsCardProps {
@@ -1342,8 +1374,16 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     );
   };
 
+  const renderRatingChip = (metricId: string) => {
+    const mapping = RATING_KEY_BY_METRIC_ID[metricId];
+    if (!mapping || !data.ratings) return null;
+    const tier = (data.ratings as unknown as Record<string, number | null>)[mapping.ratingKey];
+    return <RatingChip rating={tier ?? null} indicator={mapping.indicator} />;
+  };
+
   return (
     <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
+      <CompanyGradeCard overall={data.ratings?.overall ?? null} />
       {/* ── Key stats ── */}
       <div className="metrics-row">
         <div id={METRIC_IDS.currentPrice} {...metricBlockProps(METRIC_IDS.currentPrice)}>
@@ -1397,7 +1437,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.debtToEquity, t("metrics.gross_debt_equity"))}
             <ShareButton metricId={METRIC_IDS.debtToEquity} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEquity")} />{renderRatingChip(METRIC_IDS.debtToEquity)}</div>
               {data.debtToEquity !== null ? (
                 <div className="pe10-value">{formatNumber(data.debtToEquity, 2, locale)}</div>
               ) : (
@@ -1411,7 +1451,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               {renderAlertButton(METRIC_IDS.debtExLease, t("metrics.debt_ex_lease_equity"))}
               <ShareButton metricId={METRIC_IDS.debtExLease} years={years} />
               <div className="metric-value-container">
-                <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} /></div>
+                <div className="pe10-label">{t("metrics.debt_ex_lease_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtExLease")} />{renderRatingChip(METRIC_IDS.debtExLease)}</div>
                 <div className="pe10-value">{formatNumber(data.debtExLeaseToEquity, 2, locale)}</div>
               </div>
               {renderChart(METRIC_IDS.debtExLease)}
@@ -1421,7 +1461,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.liabToEquity, t("metrics.liab_equity"))}
             <ShareButton metricId={METRIC_IDS.liabToEquity} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} /></div>
+              <div className="pe10-label">{t("metrics.liab_equity")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("liabToEquity")} />{renderRatingChip(METRIC_IDS.liabToEquity)}</div>
               {data.liabilitiesToEquity !== null ? (
                 <div className="pe10-value">{formatNumber(data.liabilitiesToEquity, 2, locale)}</div>
               ) : (
@@ -1434,7 +1474,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.debtToEarnings, t("metrics.gross_debt_earnings"))}
             <ShareButton metricId={METRIC_IDS.debtToEarnings} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_earnings")} <span className="pe10-label-note">{t("metrics.average")} {data.pe10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToEarnings")} />{renderRatingChip(METRIC_IDS.debtToEarnings)}</div>
               {data.debtToAvgEarnings !== null ? (
                 <div className="pe10-value">{formatNumber(data.debtToAvgEarnings, 1, locale)}</div>
               ) : (
@@ -1447,7 +1487,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.debtToFCF, t("metrics.gross_debt_fcf"))}
             <ShareButton metricId={METRIC_IDS.debtToFCF} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} /></div>
+              <div className="pe10-label">{t("metrics.gross_debt_fcf")} <span className="pe10-label-note">{t("metrics.average")} {data.pfcf10YearsOfData}{t("common.year_abbrev")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("debtToFCF")} />{renderRatingChip(METRIC_IDS.debtToFCF)}</div>
               {data.debtToAvgFCF !== null ? (
                 <div className="pe10-value">{formatNumber(data.debtToAvgFCF, 1, locale)}</div>
               ) : (
@@ -1470,7 +1510,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.pe10, pl10Label)}
             <ShareButton metricId={METRIC_IDS.pe10} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} /></div>
+              <div className="pe10-label">{pl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pl10")} />{renderRatingChip(METRIC_IDS.pe10)}</div>
               {data.pe10 !== null ? (
                 <div className="pe10-value">{formatNumber(data.pe10, 1, locale)}</div>
               ) : (
@@ -1483,7 +1523,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.peg, "PEG")}
             <ShareButton metricId={METRIC_IDS.peg} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} /></div>
+              <div className="pe10-label">PEG <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("peg")} />{renderRatingChip(METRIC_IDS.peg)}</div>
               {data.peg !== null ? (
                 <div className="pe10-value">{formatNumber(data.peg, 2, locale)}</div>
               ) : (
@@ -1508,7 +1548,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.pfcf10, pfcl10Label)}
             <ShareButton metricId={METRIC_IDS.pfcf10} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} /></div>
+              <div className="pe10-label">{pfcl10Label} <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfcl10")} />{renderRatingChip(METRIC_IDS.pfcf10)}</div>
               {data.pfcf10 !== null ? (
                 <div className="pe10-value">{formatNumber(data.pfcf10, 1, locale)}</div>
               ) : (
@@ -1521,7 +1561,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
             {renderAlertButton(METRIC_IDS.pfcfg, t("metrics.pfcfg_label"))}
             <ShareButton metricId={METRIC_IDS.pfcfg} years={years} />
             <div className="metric-value-container">
-              <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} /></div>
+              <div className="pe10-label">{t("metrics.pfcfg_label")} <span className="pe10-label-note">{t("metrics.lynch")}</span> <InfoBtn ariaLabel={moreInfo} onClick={() => open("pfclg")} />{renderRatingChip(METRIC_IDS.pfcfg)}</div>
               {data.pfcfPeg !== null ? (
                 <div className="pe10-value">{formatNumber(data.pfcfPeg, 2, locale)}</div>
               ) : (

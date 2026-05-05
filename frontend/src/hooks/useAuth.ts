@@ -12,6 +12,10 @@ export interface AuthUser {
   email_verified: boolean;
   date_joined: string;
   allow_contact: boolean;
+  /** Server-side preference for Learning Mode. Only present when the
+   *  current user is a superuser (the feature is gated to superusers
+   *  while methodology v1 stabilizes). */
+  learning_mode_enabled?: boolean;
 }
 
 async function fetchMe(): Promise<AuthUser | null> {

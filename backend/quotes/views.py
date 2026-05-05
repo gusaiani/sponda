@@ -28,6 +28,7 @@ from .pe10 import calculate_pe10
 from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
+from .ratings import rate_company
 
 PE10_CACHE_TTL = 24 * 60 * 60  # 24 hours
 FUNDAMENTALS_CACHE_TTL = 24 * 60 * 60  # 24 hours
@@ -650,6 +651,39 @@ def _ensure_fresh_data(ticker: str) -> None:
             pass
 
 
+# Maps internal snake_case indicator names (rate_company) to the camelCase
+# keys used by the API response. Indicators not in this map are not part of
+# Learning Mode v1 (e.g. market_cap, current_price).
+_RATING_KEY_TO_RESPONSE_KEY = {
+    "pe10": "pe10",
+    "pfcf10": "pfcf10",
+    "peg": "peg",
+    "pfcf_peg": "pfcfPeg",
+    "debt_to_equity": "debtToEquity",
+    "debt_ex_lease_to_equity": "debtExLeaseToEquity",
+    "liabilities_to_equity": "liabilitiesToEquity",
+    "current_ratio": "currentRatio",
+    "debt_to_avg_earnings": "debtToAvgEarnings",
+    "debt_to_avg_fcf": "debtToAvgFCF",
+}
+
+
+def _build_ratings_block(quote_result: dict, sector: str | None) -> dict:
+    """Compute Learning Mode tiers + overall grade from a /api/quote response."""
+    indicator_values = {
+        snake_key: quote_result.get(camel_key)
+        for snake_key, camel_key in _RATING_KEY_TO_RESPONSE_KEY.items()
+    }
+    rated = rate_company(indicator_values, sector=sector)
+    block: dict = {
+        camel_key: rated["ratings"].get(snake_key)
+        for snake_key, camel_key in _RATING_KEY_TO_RESPONSE_KEY.items()
+    }
+    block["overall"] = rated["overall"]
+    block["methodologyVersion"] = rated["methodology_version"]
+    return block
+
+
 class PE10View(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
@@ -700,13 +734,15 @@ class PE10View(APIView):
 
         market_cap_decimal = Decimal(str(market_cap))
 
-        # Get logo + reported currency from Ticker table.
+        # Get logo + reported currency + sector from Ticker table.
         logo = ""
         reported_currency = ""
+        sector = ""
         try:
-            ticker_row = Ticker.objects.values("logo", "reported_currency").get(symbol=ticker)
+            ticker_row = Ticker.objects.values("logo", "reported_currency", "sector").get(symbol=ticker)
             logo = ticker_row["logo"]
             reported_currency = ticker_row["reported_currency"]
+            sector = ticker_row["sector"] or ""
         except Ticker.DoesNotExist:
             pass
 
@@ -790,6 +826,8 @@ class PE10View(APIView):
             "fcfCAGRMethod": pfcf_peg_result["fcfCAGRMethod"],
             "fcfCAGRExcludedYears": pfcf_peg_result["fcfCAGRExcludedYears"],
         }
+
+        result["ratings"] = _build_ratings_block(result, sector=sector or None)
 
         # Warm the screener snapshot + refresh Ticker.market_cap as a side-effect
         # of the user view. Wrapped in a broad try/except so any bug in the
@@ -1412,11 +1450,8 @@ class ScreenerView(APIView):
         results = []
         for snapshot in page:
             metadata = ticker_metadata.get(snapshot.ticker, {})
-            results.append({
-                "ticker": snapshot.ticker,
-                "name": metadata.get("display_name") or metadata.get("name") or "",
-                "sector": metadata.get("sector") or "",
-                "logo": metadata.get("logo") or "",
+            sector = metadata.get("sector") or ""
+            indicator_values = {
                 "pe10": snapshot.pe10,
                 "pfcf10": snapshot.pfcf10,
                 "peg": snapshot.peg,
@@ -1427,8 +1462,21 @@ class ScreenerView(APIView):
                 "current_ratio": snapshot.current_ratio,
                 "debt_to_avg_earnings": snapshot.debt_to_avg_earnings,
                 "debt_to_avg_fcf": snapshot.debt_to_avg_fcf,
+            }
+            rated = rate_company(indicator_values, sector=sector or None)
+            results.append({
+                "ticker": snapshot.ticker,
+                "name": metadata.get("display_name") or metadata.get("name") or "",
+                "sector": sector,
+                "logo": metadata.get("logo") or "",
+                **indicator_values,
                 "market_cap": snapshot.market_cap,
                 "current_price": snapshot.current_price,
+                "ratings": {
+                    **rated["ratings"],
+                    "overall": rated["overall"],
+                    "methodology_version": rated["methodology_version"],
+                },
             })
 
         return Response({"count": total_count, "results": results})

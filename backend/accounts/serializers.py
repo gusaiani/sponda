@@ -68,7 +68,8 @@ class ChangeEmailSerializer(serializers.Serializer):
 
 
 class UpdatePreferencesSerializer(serializers.Serializer):
-    allow_contact = serializers.BooleanField()
+    allow_contact = serializers.BooleanField(required=False)
+    learning_mode_enabled = serializers.BooleanField(required=False)
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
