@@ -24,7 +24,7 @@ class User(AbstractUser):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     homepage_layout = models.JSONField(default=list, blank=True)
-    learning_mode_enabled = models.BooleanField(default=False)
+    learning_mode_enabled = models.BooleanField(default=True)
 
     def __str__(self):
         return self.email

@@ -1,9 +1,8 @@
-"""Tests for the superuser-gated ``learning_mode_enabled`` preference.
+"""Tests for the ``learning_mode_enabled`` user preference.
 
-Until Learning Mode rolls out broadly, the preference is writable only by
-superusers. Non-superuser PATCHes are rejected with 403; non-superuser
-``/api/auth/me/`` responses do not expose the flag at all so the
-frontend never tries to render the toggle for them.
+Available to every authenticated user. Anonymous visitors persist the
+preference client-side via localStorage; the backend endpoint requires
+auth as usual.
 """
 import pytest
 from django.contrib.auth import get_user_model
@@ -61,26 +60,26 @@ class TestLearningModePreferenceWrite:
         super_user.refresh_from_db()
         assert super_user.learning_mode_enabled is True
 
-    def test_superuser_can_disable_learning_mode(self, super_client, super_user):
-        super_user.learning_mode_enabled = True
-        super_user.save(update_fields=["learning_mode_enabled"])
-
-        response = super_client.patch(
-            "/api/auth/preferences/",
-            {"learning_mode_enabled": False},
-            content_type="application/json",
-        )
-        assert response.status_code == 200
-        super_user.refresh_from_db()
-        assert super_user.learning_mode_enabled is False
-
-    def test_regular_user_cannot_enable_learning_mode(self, regular_client, regular_user):
+    def test_regular_user_can_enable_learning_mode(self, regular_client, regular_user):
         response = regular_client.patch(
             "/api/auth/preferences/",
             {"learning_mode_enabled": True},
             content_type="application/json",
         )
-        assert response.status_code == 403
+        assert response.status_code == 200
+        regular_user.refresh_from_db()
+        assert regular_user.learning_mode_enabled is True
+
+    def test_regular_user_can_disable_learning_mode(self, regular_client, regular_user):
+        regular_user.learning_mode_enabled = True
+        regular_user.save(update_fields=["learning_mode_enabled"])
+
+        response = regular_client.patch(
+            "/api/auth/preferences/",
+            {"learning_mode_enabled": False},
+            content_type="application/json",
+        )
+        assert response.status_code == 200
         regular_user.refresh_from_db()
         assert regular_user.learning_mode_enabled is False
 
@@ -93,7 +92,6 @@ class TestLearningModePreferenceWrite:
         assert response.status_code == 403
 
     def test_existing_allow_contact_path_still_works(self, regular_client, regular_user):
-        # Don't break the original preferences endpoint when adding the new field.
         response = regular_client.patch(
             "/api/auth/preferences/",
             {"allow_contact": True},
@@ -114,7 +112,10 @@ class TestLearningModePreferenceMeView:
         assert response.status_code == 200
         assert response.json().get("learning_mode_enabled") is True
 
-    def test_regular_user_me_does_not_expose_learning_mode(self, regular_client):
+    def test_regular_user_me_includes_learning_mode_enabled(self, regular_client, regular_user):
+        regular_user.learning_mode_enabled = True
+        regular_user.save(update_fields=["learning_mode_enabled"])
+
         response = regular_client.get("/api/auth/me/")
         assert response.status_code == 200
-        assert "learning_mode_enabled" not in response.json()
+        assert response.json().get("learning_mode_enabled") is True

@@ -1,26 +1,32 @@
 .company-grade-card {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  margin-bottom: 16px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border, #d0daea);
-  background-color: #ffffff;
-  color: var(--color-ink, #333);
+  display: inline;
+  font-size: 14px;
+  line-height: 1;
+  position: relative;
+  top: -1px;
+  cursor: default;
+}
+
+.company-grade-card-prefix {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-muted, #5570a0);
 }
 
 .company-grade-card-numeral {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
-  font-size: 28px;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  border-radius: 4px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1;
   color: #ffffff;
+  vertical-align: middle;
 }
 
 .company-grade-card-tier-1 .company-grade-card-numeral { background-color: var(--color-rating-1, #b91c1c); }
@@ -29,36 +35,115 @@
 .company-grade-card-tier-4 .company-grade-card-numeral { background-color: var(--color-rating-4, #65a30d); }
 .company-grade-card-tier-5 .company-grade-card-numeral { background-color: var(--color-rating-5, #15803d); }
 
-.company-grade-card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.company-grade-card-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-muted, #5570a0);
-}
-
 .company-grade-card-tier-label {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.company-grade-card-caption {
-  font-size: 12px;
+  position: relative;
+  top: 0.5px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
   color: var(--color-muted, #5570a0);
 }
 
 .company-grade-card-empty {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 400;
   font-style: italic;
   color: var(--color-muted, #5570a0);
 }
 
-.company-grade-card-empty-text {
-  display: inline-block;
+/* ── Tooltip (portal-rendered to document.body, position: fixed) ───── */
+
+.company-grade-card-tooltip {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: calc(100vw - 16px);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: #1f2937;
+  color: #f9fafb;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
+}
+
+.company-grade-card-tooltip-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.company-grade-card-tooltip-intro {
+  font-size: 12px;
+  color: rgba(249, 250, 251, 0.75);
+}
+
+.company-grade-card-tooltip-beta {
+  font-size: 11px;
+  color: rgba(255, 215, 130, 0.95);
+}
+
+.company-grade-card-tooltip-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.company-grade-card-tooltip-row {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.company-grade-card-tooltip-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.company-grade-card-tooltip-marker-tier-1 { background-color: var(--color-rating-1, #b91c1c); }
+.company-grade-card-tooltip-marker-tier-2 { background-color: var(--color-rating-2, #ea580c); }
+.company-grade-card-tooltip-marker-tier-3 { background-color: var(--color-rating-3, #a16207); }
+.company-grade-card-tooltip-marker-tier-4 { background-color: var(--color-rating-4, #65a30d); }
+.company-grade-card-tooltip-marker-tier-5 { background-color: var(--color-rating-5, #15803d); }
+
+.company-grade-card-tooltip-indicator {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.company-grade-card-tooltip-divider {
+  display: block;
+  height: 1px;
+  margin: 4px 0 2px;
+  background-color: rgba(249, 250, 251, 0.18);
+}
+
+.company-grade-card-tooltip-disclaimer {
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 400;
+  color: rgba(249, 250, 251, 0.65);
 }

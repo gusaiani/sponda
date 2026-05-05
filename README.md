@@ -358,7 +358,7 @@ Most screener sliders are linear — track position maps directly to value. The 
 
 A toggleable view that attaches a 1–5 color-coded rating to every fundamental indicator on a company page (P/E10, P/FCF10, PEG, P/FCF-PEG, the four leverage ratios, current ratio, debt/avg-earnings, debt/avg-FCF) plus an overall company grade. Designed for newcomers who can't yet calibrate "is debt/equity of 1 good?". Off by default — when off, pages render exactly as before.
 
-**Currently superuser-gated.** While methodology v1 stabilizes, only Django superusers see the toggle and the chips. The `learning_mode_enabled` preference is rejected with 403 for non-superusers and is omitted from `/api/auth/me/` for them.
+**Available to every visitor.** Authenticated users persist the preference server-side via `/api/auth/preferences/`; anonymous visitors persist it locally via the `sponda-learning-mode` localStorage key.
 
 ### How it works
 
@@ -375,11 +375,10 @@ The shipped thresholds are placeholders. Edit `RATING_THRESHOLDS` in `backend/qu
 
 ### Local testing
 
-1. Create a superuser: `python manage.py createsuperuser`.
-2. Sign in, look for the **Learn** pill in the header (next to the language toggle). It does not appear for non-superusers.
-3. Click it. Each rated indicator on a company page gains a colored numeral chip; the metrics tab gains an overall grade card. Hover any chip to read the indicator description.
-4. Open the screener — every rated cell shows a chip too.
-5. Reload the page. The toggle state persists via `/api/auth/preferences/`.
+1. Open any `/<locale>/<ticker>` page; the **Learn** pill sits next to the language toggle in the header.
+2. Click it. Each rated indicator gains a colored numeral chip; the company header gains an `Avaliação: [N] Tier` summary. Hover any chip to read the criteria for tiers 1–5.
+3. Open the screener — every rated cell shows a chip too.
+4. Reload the page. Logged-in users persist via `/api/auth/preferences/`; guests persist via the `sponda-learning-mode` localStorage key.
 
 ## Indicator Alerts
 

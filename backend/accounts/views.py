@@ -235,19 +235,15 @@ class MeView(APIView):
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         language = _resolve_language(request.user)
-        body = {
+        return Response({
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
             "email_verified": request.user.email_verified,
             "date_joined": request.user.date_joined,
             "allow_contact": request.user.allow_contact,
+            "learning_mode_enabled": request.user.learning_mode_enabled,
             "language": language,
-        }
-        # Only superusers see Learning Mode state; other users won't render
-        # the toggle and shouldn't even know the flag exists.
-        if request.user.is_superuser:
-            body["learning_mode_enabled"] = request.user.learning_mode_enabled
-        return Response(body)
+        })
 
 
 class VerifyEmailView(APIView):
@@ -369,14 +365,6 @@ class UpdatePreferencesView(APIView):
         serializer.is_valid(raise_exception=True)
         validated = serializer.validated_data
 
-        # Learning Mode is currently superuser-gated. Reject the field for
-        # everyone else so we never silently store a flag we won't honor.
-        if "learning_mode_enabled" in validated and not request.user.is_superuser:
-            return Response(
-                {"error": "learning_mode_enabled is restricted to superusers"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         update_fields = []
         if "allow_contact" in validated:
             request.user.allow_contact = validated["allow_contact"]
@@ -388,10 +376,10 @@ class UpdatePreferencesView(APIView):
         if update_fields:
             request.user.save(update_fields=update_fields)
 
-        response_body: dict = {"allow_contact": request.user.allow_contact}
-        if request.user.is_superuser:
-            response_body["learning_mode_enabled"] = request.user.learning_mode_enabled
-        return Response(response_body)
+        return Response({
+            "allow_contact": request.user.allow_contact,
+            "learning_mode_enabled": request.user.learning_mode_enabled,
+        })
 
 
 class UpdateLanguageView(APIView):

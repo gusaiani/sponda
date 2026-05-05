@@ -11,42 +11,70 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { csrfHeaders } from "../utils/csrf";
 
+const STORAGE_KEY = "sponda-learning-mode";
+
 interface LearningModeContextValue {
+  /** Currently on for this visitor. */
   enabled: boolean;
+  /** Always true: Learning Mode is available to every user. Kept on the
+   *  context so call sites can stay forward-compatible if we ever gate
+   *  it again (e.g. behind a paid tier). */
   available: boolean;
   setEnabled: (enabled: boolean) => void;
 }
 
 export const LearningModeContext = createContext<LearningModeContextValue>({
   enabled: false,
-  available: false,
+  available: true,
   setEnabled: () => {},
 });
+
+function readLocalStorageFlag(): boolean {
+  // Default to ON when no preference is stored — Learning Mode ships
+  // turned on; the flag only flips to false once a user has explicitly
+  // disabled it (which we then persist as "0").
+  if (typeof window === "undefined") return true;
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEY);
+    if (value === null) return true;
+    return value === "1";
+  } catch {
+    return true;
+  }
+}
+
+function writeLocalStorageFlag(value: boolean) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(STORAGE_KEY, value ? "1" : "0");
+  } catch {
+    /* private browsing / quota — silently ignore */
+  }
+}
 
 interface LearningModeProviderProps {
   children: ReactNode;
 }
 
 export function LearningModeProvider({ children }: LearningModeProviderProps) {
-  const { user } = useAuth();
-  const available = !!user?.is_superuser;
-  const serverEnabled = user?.learning_mode_enabled ?? false;
+  const { user, isAuthenticated } = useAuth();
   const [enabled, setEnabledState] = useState(false);
 
-  // When auth resolves, sync the local state to the server-side preference.
-  // For non-superusers `available` is false, so `enabled` stays false.
+  // Resolve the initial value once auth resolves. Authenticated users:
+  // server-side preference. Guests: localStorage.
   useEffect(() => {
-    if (available) {
-      setEnabledState(serverEnabled);
+    if (isAuthenticated) {
+      setEnabledState(user?.learning_mode_enabled ?? false);
     } else {
-      setEnabledState(false);
+      setEnabledState(readLocalStorageFlag());
     }
-  }, [available, serverEnabled]);
+  }, [isAuthenticated, user?.learning_mode_enabled]);
 
   const setEnabled = useCallback(
     (next: boolean) => {
-      if (!available) return;
       setEnabledState(next);
+      writeLocalStorageFlag(next);
+      if (!isAuthenticated) return;
       fetch("/api/auth/preferences/", {
         method: "PATCH",
         headers: csrfHeaders(),
@@ -54,11 +82,11 @@ export function LearningModeProvider({ children }: LearningModeProviderProps) {
         body: JSON.stringify({ learning_mode_enabled: next }),
       }).catch(() => {});
     },
-    [available],
+    [isAuthenticated],
   );
 
   return (
-    <LearningModeContext.Provider value={{ enabled, available, setEnabled }}>
+    <LearningModeContext.Provider value={{ enabled, available: true, setEnabled }}>
       {children}
     </LearningModeContext.Provider>
   );
