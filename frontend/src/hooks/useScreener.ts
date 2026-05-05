@@ -23,6 +23,21 @@ export interface ScreenerRow {
   debt_to_avg_fcf: string | null;
   market_cap: number | null;
   current_price: string | null;
+  /** Learning Mode tiers. Optional so older fixtures still typecheck. */
+  ratings?: {
+    pe10: number | null;
+    pfcf10: number | null;
+    peg: number | null;
+    pfcf_peg: number | null;
+    debt_to_equity: number | null;
+    debt_ex_lease_to_equity: number | null;
+    liabilities_to_equity: number | null;
+    current_ratio: number | null;
+    debt_to_avg_earnings: number | null;
+    debt_to_avg_fcf: number | null;
+    overall: number | null;
+    methodology_version: string;
+  };
 }
 
 export interface ScreenerResponse {

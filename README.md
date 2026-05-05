@@ -354,6 +354,33 @@ Most screener sliders are linear — track position maps directly to value. The 
 
 `DualRangeSlider` accepts an optional `scale: SliderScale` prop with `toValue` / `toPosition` / `snap`. When supplied, the underlying `<input type="range">` runs in normalized position space (integer stops 0..1000) and the component converts on every change. Without `scale`, behavior is unchanged.
 
+## Learning Mode
+
+A toggleable view that attaches a 1–5 color-coded rating to every fundamental indicator on a company page (P/E10, P/FCF10, PEG, P/FCF-PEG, the four leverage ratios, current ratio, debt/avg-earnings, debt/avg-FCF) plus an overall company grade. Designed for newcomers who can't yet calibrate "is debt/equity of 1 good?". Off by default — when off, pages render exactly as before.
+
+**Currently superuser-gated.** While methodology v1 stabilizes, only Django superusers see the toggle and the chips. The `learning_mode_enabled` preference is rejected with 403 for non-superusers and is omitted from `/api/auth/me/` for them.
+
+### How it works
+
+1. **Rating engine** — `backend/quotes/ratings.py` defines `RATING_THRESHOLDS` (per-indicator, optional per-sector overrides) and a `BETTER` direction flag (`lower` for valuation/leverage, `higher` for current ratio). Four cuts produce five tiers. `rate_indicator(indicator, value, sector)` is a pure function; `rate_company({...})` returns `{ ratings, overall, methodology_version }`. An overall grade is only emitted when at least 4 indicators rated (`MIN_INDICATORS_FOR_GRADE`).
+2. **API surface** — `PE10View` adds a camelCase `ratings` block to the `/api/quote/<ticker>/` response; `ScreenerView` adds a snake_case `ratings` block to each `/api/screener/` row. Sector lookup feeds into the threshold table. Computed at serialization time (microsecond cost), no migration.
+3. **Frontend** — `LearningModeContext` (`frontend/src/learning/LearningModeContext.tsx`) reads `useAuth().user.learning_mode_enabled`, exposes `{ enabled, available, setEnabled }`. `setEnabled` PATCHes `/api/auth/preferences/`. `LearningModeToggle` (header pill, hides itself when `available` is false), `RatingChip` (per-indicator), `CompanyGradeCard` (top of metrics tab) all return `null` when learning mode is off.
+4. **Pages affected** — `CompanyMetricsCard` (chips + grade card), `ScreenerView` (chips per cell). The `usePE10` `QuoteResult` and `useScreener` `ScreenerRow` types carry the `ratings` block as an optional field.
+5. **i18n** — 35 keys per locale, all 7 supported locales (`pt`, `en`, `es`, `zh`, `fr`, `de`, `it`). Tier labels (`learning.tier.1..5`), per-indicator titles + one-line descriptions, toggle copy, grade card copy.
+6. **Color tokens** — `--color-rating-1..5` in `frontend/src/styles/global.css`. Chips use a numeral inside a colored block so the signal is not color-only (works under color-blindness and grayscale).
+
+### Tuning thresholds (follow-up work)
+
+The shipped thresholds are placeholders. Edit `RATING_THRESHOLDS` in `backend/quotes/ratings.py` to adjust cuts; add a sector key under any indicator (e.g. `"Utilities": { "direction": "lower", "cuts": [2.0, 3.0, 4.0, 5.0] }`) to override per sector. `INDICATOR_WEIGHTS` is currently equal-weighted; tune for the overall grade. No migration is needed for any of this — changes ship by deploying.
+
+### Local testing
+
+1. Create a superuser: `python manage.py createsuperuser`.
+2. Sign in, look for the **Learn** pill in the header (next to the language toggle). It does not appear for non-superusers.
+3. Click it. Each rated indicator on a company page gains a colored numeral chip; the metrics tab gains an overall grade card. Hover any chip to read the indicator description.
+4. Open the screener — every rated cell shows a chip too.
+5. Reload the page. The toggle state persists via `/api/auth/preferences/`.
+
 ## Indicator Alerts
 
 Signed-in users can save thresholds on any screened indicator per ticker. When an indicator crosses a threshold, they get an email plus an on-screen entry at `/[locale]/notificacoes`.

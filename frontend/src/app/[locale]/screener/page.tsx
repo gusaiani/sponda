@@ -41,8 +41,22 @@ import { useAuth } from "../../../hooks/useAuth";
 import { AuthModal } from "../../../components/AuthModal";
 import { useTranslation } from "../../../i18n";
 import { formatLargeNumber, logoUrl, formatNumber } from "../../../utils/format";
+import { RatingChip } from "../../../components/RatingChip";
 import "../../../styles/compare.css";
 import "../../../styles/screener.css";
+
+const RATING_INDICATOR_KEY: Partial<Record<ScreenerIndicator, string>> = {
+  pe10: "pe10",
+  pfcf10: "pfcf10",
+  peg: "peg",
+  pfcf_peg: "pfcfPeg",
+  debt_to_equity: "debtToEquity",
+  debt_ex_lease_to_equity: "debtExLeaseToEquity",
+  liabilities_to_equity: "liabilitiesToEquity",
+  current_ratio: "currentRatio",
+  debt_to_avg_earnings: "debtToAvgEarnings",
+  debt_to_avg_fcf: "debtToAvgFCF",
+};
 
 const PAGE_SIZE = 20;
 
@@ -735,10 +749,19 @@ export default function ScreenerPage() {
                       row.ticker,
                       locale,
                     );
+                    const ratingIndicator = RATING_INDICATOR_KEY[indicator];
+                    const tier = ratingIndicator && row.ratings
+                      ? row.ratings[indicator as keyof typeof row.ratings] as number | null
+                      : null;
                     return (
                       <td key={indicator}>
                         {formatted !== null ? (
-                          formatted
+                          <>
+                            {formatted}
+                            {ratingIndicator && (
+                              <RatingChip rating={tier ?? null} indicator={ratingIndicator} />
+                            )}
+                          </>
                         ) : (
                           <span className="compare-null">—</span>
                         )}

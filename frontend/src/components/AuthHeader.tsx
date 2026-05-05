@@ -5,6 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useTranslation, LanguageToggle } from "../i18n";
 import { ShareDropdown } from "./ShareDropdown";
 import { NotificationBell } from "./NotificationBell";
+import { LearningModeToggle } from "./LearningModeToggle";
 import "../styles/auth-header.css";
 
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
@@ -87,6 +88,7 @@ export function AuthHeader() {
             )}
           </>
         )}
+        <LearningModeToggle />
         <LanguageToggle />
         {isAuthenticated && (
           <Link href={`/${locale}/account`} className="auth-header-link">
@@ -136,6 +138,7 @@ export function AuthHeader() {
             )}
             <div className="auth-header-menu-row auth-header-menu-row--controls">
               <ShareDropdown />
+              <LearningModeToggle />
               <LanguageToggle />
             </div>
             <a

@@ -545,6 +545,39 @@ export interface TranslationDictionary {
   /* ── Header Links ── */
   "header.screener": string;
   "header.alerts": string;
+
+  /* ── Learning Mode ── */
+  "learning.toggle.label": string;
+  "learning.toggle.title": string;
+  "learning.toggle.aria_label": string;
+  "learning.tier.1": string;
+  "learning.tier.2": string;
+  "learning.tier.3": string;
+  "learning.tier.4": string;
+  "learning.tier.5": string;
+  "learning.grade.title": string;
+  "learning.grade.caption": string;
+  "learning.grade.not_enough_data": string;
+  "learning.indicator.pe10.title": string;
+  "learning.indicator.pe10.description": string;
+  "learning.indicator.pfcf10.title": string;
+  "learning.indicator.pfcf10.description": string;
+  "learning.indicator.peg.title": string;
+  "learning.indicator.peg.description": string;
+  "learning.indicator.pfcfPeg.title": string;
+  "learning.indicator.pfcfPeg.description": string;
+  "learning.indicator.debtToEquity.title": string;
+  "learning.indicator.debtToEquity.description": string;
+  "learning.indicator.debtExLeaseToEquity.title": string;
+  "learning.indicator.debtExLeaseToEquity.description": string;
+  "learning.indicator.liabilitiesToEquity.title": string;
+  "learning.indicator.liabilitiesToEquity.description": string;
+  "learning.indicator.currentRatio.title": string;
+  "learning.indicator.currentRatio.description": string;
+  "learning.indicator.debtToAvgEarnings.title": string;
+  "learning.indicator.debtToAvgEarnings.description": string;
+  "learning.indicator.debtToAvgFCF.title": string;
+  "learning.indicator.debtToAvgFCF.description": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

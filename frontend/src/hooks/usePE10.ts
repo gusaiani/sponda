@@ -93,6 +93,24 @@ interface QuoteResult {
   // Profitability (computed client-side)
   roe: number | null;
   priceToBook: number | null;
+  // Learning Mode tiers (1 = worst, 5 = best). Null when an indicator
+  // could not be rated (missing source data) or for non-graded fields.
+  ratings?: QuoteRatings;
+}
+
+export interface QuoteRatings {
+  pe10: number | null;
+  pfcf10: number | null;
+  peg: number | null;
+  pfcfPeg: number | null;
+  debtToEquity: number | null;
+  debtExLeaseToEquity: number | null;
+  liabilitiesToEquity: number | null;
+  currentRatio: number | null;
+  debtToAvgEarnings: number | null;
+  debtToAvgFCF: number | null;
+  overall: number | null;
+  methodologyVersion: string;
 }
 
 interface QuoteError {
@@ -149,6 +167,7 @@ export async function fetchQuote(ticker: string): Promise<QuoteResult> {
 }
 
 export type { QuoteResult };
+export type { QuoteRatings as QuoteRatingsType };
 
 export function usePE10(ticker: string | null, initialData?: QuoteResult) {
   return useQuery({

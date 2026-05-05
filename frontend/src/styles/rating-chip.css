@@ -1,0 +1,75 @@
+.rating-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: #ffffff;
+  vertical-align: middle;
+  cursor: help;
+  outline: none;
+}
+
+.rating-chip-numeral {
+  display: inline-block;
+  pointer-events: none;
+}
+
+.rating-chip-tier-1 { background-color: var(--color-rating-1, #b91c1c); border-color: var(--color-rating-1, #b91c1c); }
+.rating-chip-tier-2 { background-color: var(--color-rating-2, #ea580c); border-color: var(--color-rating-2, #ea580c); }
+.rating-chip-tier-3 { background-color: var(--color-rating-3, #a16207); border-color: var(--color-rating-3, #a16207); }
+.rating-chip-tier-4 { background-color: var(--color-rating-4, #65a30d); border-color: var(--color-rating-4, #65a30d); }
+.rating-chip-tier-5 { background-color: var(--color-rating-5, #15803d); border-color: var(--color-rating-5, #15803d); }
+
+.rating-chip-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 220px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background-color: #1f2937;
+  color: #f9fafb;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease;
+  z-index: 50;
+}
+
+.rating-chip:hover .rating-chip-tooltip,
+.rating-chip:focus .rating-chip-tooltip,
+.rating-chip:focus-visible .rating-chip-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.rating-chip-tooltip-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.rating-chip-tooltip-tier {
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.rating-chip-tooltip-description {
+  opacity: 0.8;
+}

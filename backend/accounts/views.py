@@ -235,14 +235,19 @@ class MeView(APIView):
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
         language = _resolve_language(request.user)
-        return Response({
+        body = {
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
             "email_verified": request.user.email_verified,
             "date_joined": request.user.date_joined,
             "allow_contact": request.user.allow_contact,
             "language": language,
-        })
+        }
+        # Only superusers see Learning Mode state; other users won't render
+        # the toggle and shouldn't even know the flag exists.
+        if request.user.is_superuser:
+            body["learning_mode_enabled"] = request.user.learning_mode_enabled
+        return Response(body)
 
 
 class VerifyEmailView(APIView):
@@ -362,11 +367,31 @@ class UpdatePreferencesView(APIView):
     def patch(self, request):
         serializer = UpdatePreferencesSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
 
-        request.user.allow_contact = serializer.validated_data["allow_contact"]
-        request.user.save(update_fields=["allow_contact"])
+        # Learning Mode is currently superuser-gated. Reject the field for
+        # everyone else so we never silently store a flag we won't honor.
+        if "learning_mode_enabled" in validated and not request.user.is_superuser:
+            return Response(
+                {"error": "learning_mode_enabled is restricted to superusers"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
-        return Response({"allow_contact": request.user.allow_contact})
+        update_fields = []
+        if "allow_contact" in validated:
+            request.user.allow_contact = validated["allow_contact"]
+            update_fields.append("allow_contact")
+        if "learning_mode_enabled" in validated:
+            request.user.learning_mode_enabled = validated["learning_mode_enabled"]
+            update_fields.append("learning_mode_enabled")
+
+        if update_fields:
+            request.user.save(update_fields=update_fields)
+
+        response_body: dict = {"allow_contact": request.user.allow_contact}
+        if request.user.is_superuser:
+            response_body["learning_mode_enabled"] = request.user.learning_mode_enabled
+        return Response(response_body)
 
 
 class UpdateLanguageView(APIView):
