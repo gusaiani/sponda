@@ -16,7 +16,6 @@ export function LearningModeToggle() {
       className={`learning-mode-toggle${enabled ? " learning-mode-toggle--on" : ""}`}
       aria-pressed={enabled}
       aria-label={t("learning.toggle.aria_label" as never)}
-      title={t("learning.toggle.title" as never)}
       onClick={() => setEnabled(!enabled)}
     >
       <span className="learning-mode-toggle-dots" aria-hidden="true">
@@ -25,6 +24,9 @@ export function LearningModeToggle() {
         <span className="learning-mode-toggle-dot learning-mode-toggle-dot--5" />
       </span>
       <span className="learning-mode-toggle-label">{t("learning.toggle.label" as never)}</span>
+      <span className="learning-mode-toggle-tooltip" role="tooltip">
+        {t("learning.toggle.tooltip" as never)}
+      </span>
     </button>
   );
 }

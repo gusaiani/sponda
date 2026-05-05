@@ -550,6 +550,7 @@ export interface TranslationDictionary {
   "learning.toggle.label": string;
   "learning.toggle.title": string;
   "learning.toggle.aria_label": string;
+  "learning.toggle.tooltip": string;
   "learning.tier.1": string;
   "learning.tier.2": string;
   "learning.tier.3": string;
@@ -558,6 +559,10 @@ export interface TranslationDictionary {
   "learning.grade.title": string;
   "learning.grade.caption": string;
   "learning.grade.not_enough_data": string;
+  "learning.grade.tooltip.title": string;
+  "learning.grade.tooltip.intro": string;
+  "learning.grade.tooltip.beta": string;
+  "learning.tooltip.disclaimer": string;
   "learning.indicator.pe10.title": string;
   "learning.indicator.pe10.description": string;
   "learning.indicator.pfcf10.title": string;

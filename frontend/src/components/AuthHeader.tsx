@@ -69,6 +69,7 @@ export function AuthHeader() {
             </div>
           </div>
         )}
+        <LearningModeToggle />
         <ShareDropdown />
         <a href="https://blog.sponda.capital" className="auth-header-link" target="_blank" rel="noopener noreferrer">
           Blog
@@ -88,7 +89,6 @@ export function AuthHeader() {
             )}
           </>
         )}
-        <LearningModeToggle />
         <LanguageToggle />
         {isAuthenticated && (
           <Link href={`/${locale}/account`} className="auth-header-link">
@@ -137,8 +137,8 @@ export function AuthHeader() {
               </Link>
             )}
             <div className="auth-header-menu-row auth-header-menu-row--controls">
-              <ShareDropdown />
               <LearningModeToggle />
+              <ShareDropdown />
               <LanguageToggle />
             </div>
             <a

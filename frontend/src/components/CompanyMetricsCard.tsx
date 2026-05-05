@@ -5,7 +5,6 @@ import "../styles/share-dropdown.css";
 import { MiniChart, type DataPoint } from "./MiniChart";
 import { AlertButton } from "./AlertButton";
 import { RatingChip } from "./RatingChip";
-import { CompanyGradeCard } from "./CompanyGradeCard";
 import { useTranslation, type TranslationKey } from "../i18n";
 import { isBrazilianTicker } from "../utils/ticker";
 import { getSubsector } from "../utils/subsector";
@@ -1383,7 +1382,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
   return (
     <article className="pe10-card" aria-label={`${data.name} (${data.ticker})`}>
-      <CompanyGradeCard overall={data.ratings?.overall ?? null} />
       {/* ── Key stats ── */}
       <div className="metrics-row">
         <div id={METRIC_IDS.currentPrice} {...metricBlockProps(METRIC_IDS.currentPrice)}>

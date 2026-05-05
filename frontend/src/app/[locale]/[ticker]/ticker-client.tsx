@@ -53,6 +53,8 @@ import { FavoriteButton } from "../../../components/FavoriteButton";
 import { VisitedButton } from "../../../components/VisitedButton";
 import { RevisitBanner } from "../../../components/RevisitBanner";
 import { ShareButtons } from "../../../components/ShareButtons";
+import { CompanyGradeCard } from "../../../components/CompanyGradeCard";
+import { useLearningMode } from "../../../learning";
 import { usePE10, fetchQuote, type QuoteResult } from "../../../hooks/usePE10";
 import { useTickerDetail } from "../../../hooks/useTickerDetail";
 import { usePeers } from "../../../hooks/usePeers";
@@ -78,6 +80,7 @@ interface TickerPageClientProps {
 
 export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const { t, locale } = useTranslation();
+  const { enabled: learningModeEnabled } = useLearningMode();
   const { ticker: rawTicker } = useParams<{ ticker: string }>();
   const upperTicker = (rawTicker || "").toUpperCase();
   const queryClient = useQueryClient();
@@ -218,7 +221,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               fullData.reportedCurrency !== fullData.listingCurrency
                 ? `${fullData.listingCurrency} (${t("header.reportsIn")} ${fullData.reportedCurrency})`
                 : currencyCode(upperTicker, fullData.reportedCurrency)
-            }</span></h2>
+            }{learningModeEnabled && fullData.ratings?.overall != null ? " · " : ""}</span><CompanyGradeCard ratings={fullData.ratings ?? null} /></h2>
           </div>
           <div className="company-header-actions">
             <VisitedButton ticker={upperTicker} />
