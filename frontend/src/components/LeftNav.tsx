@@ -2,13 +2,25 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useTranslation, LanguageToggle } from "../i18n";
+import { usePathname, useRouter } from "next/navigation";
+import { useTranslation } from "../i18n";
+import { translateTabSlug } from "../utils/tabs";
+import type { Locale } from "../i18n/types";
 import { useAuth } from "../hooks/useAuth";
 import { useLearningMode } from "../learning";
 import { useFeedback } from "./FeedbackButton";
 import { useLeftNav } from "./LeftNavContext";
 import "../styles/left-nav.css";
+
+const LANGUAGE_OPTIONS: { locale: Locale; flag: string; label: string }[] = [
+  { locale: "pt", flag: "🇧🇷", label: "Português" },
+  { locale: "en", flag: "🇺🇸", label: "English" },
+  { locale: "es", flag: "🇪🇸", label: "Español" },
+  { locale: "zh", flag: "🇨🇳", label: "中文" },
+  { locale: "fr", flag: "🇫🇷", label: "Français" },
+  { locale: "de", flag: "🇩🇪", label: "Deutsch" },
+  { locale: "it", flag: "🇮🇹", label: "Italiano" },
+];
 
 /**
  * YouTube-style fixed left rail. When `open` is true the nav is 240px and
@@ -121,6 +133,10 @@ export function LeftNav() {
           )}
 
           <li>
+            <LanguageNavItem onSelect={close} />
+          </li>
+
+          <li>
             <ShareNavItem onSelect={close} />
           </li>
 
@@ -138,12 +154,6 @@ export function LeftNav() {
             </button>
           </li>
         </ul>
-
-        <div className="left-nav-section">
-          <div className="left-nav-section-row">
-            <LanguageToggle />
-          </div>
-        </div>
       </nav>
     </>
   );
@@ -255,6 +265,97 @@ const shareSubItemStyle: React.CSSProperties = {
   padding: "4px 8px",
   borderRadius: "6px",
 };
+
+
+/**
+ * Language picker styled like the other nav rows: flag in the icon
+ * column, current language name as the label. Clicking expands an
+ * accordion of all 7 supported locales below the row. Selecting one
+ * navigates to the equivalent URL in the new locale (translating
+ * ticker tab slugs where needed) — same logic as the standalone
+ * LanguageToggle we replaced.
+ */
+function LanguageNavItem({ onSelect }: { onSelect: () => void }) {
+  const { locale, setLocale } = useTranslation();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function clickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", clickOutside);
+    return () => document.removeEventListener("mousedown", clickOutside);
+  }, [open]);
+
+  const current = LANGUAGE_OPTIONS.find((option) => option.locale === locale)
+    ?? LANGUAGE_OPTIONS[0];
+
+  function handleSelect(selected: Locale) {
+    setLocale(selected);
+    setOpen(false);
+    onSelect();
+
+    const segments = pathname.split("/").filter(Boolean);
+    const supported = new Set(LANGUAGE_OPTIONS.map((option) => option.locale));
+    if (segments.length > 0 && supported.has(segments[0] as Locale)) {
+      segments[0] = selected;
+      if (segments.length === 3) {
+        segments[2] = translateTabSlug(segments[2], selected);
+      }
+    } else {
+      segments.unshift(selected);
+    }
+    router.push("/" + segments.join("/"));
+  }
+
+  return (
+    <div ref={ref}>
+      <button
+        type="button"
+        className={navItemClass(false)}
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+      >
+        <span className="left-nav-icon" aria-hidden style={{ fontSize: "18px" }}>
+          {current.flag}
+        </span>
+        <span className="left-nav-label">{current.label}</span>
+      </button>
+      {open && (
+        <div style={{ padding: "4px 12px 8px 64px", display: "flex", flexDirection: "column", gap: "2px" }}>
+          {LANGUAGE_OPTIONS.map((option) => (
+            <button
+              key={option.locale}
+              type="button"
+              onClick={() => handleSelect(option.locale)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "13px",
+                color: option.locale === locale ? "#1b347e" : "#222",
+                fontWeight: option.locale === locale ? 600 : 400,
+                padding: "4px 8px",
+                borderRadius: "6px",
+                textAlign: "left",
+                fontFamily: "inherit",
+              }}
+            >
+              <span aria-hidden>{option.flag}</span>
+              <span>{option.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 /* ── Icons ────────────────────────────────────────────────────────────── */
