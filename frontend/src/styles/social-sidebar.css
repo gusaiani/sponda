@@ -1,0 +1,29 @@
+/* YouTube-style collapsible right column for the social feed.
+ *
+ * Hidden entirely below 1100px so the centered main content keeps the
+ * full viewport on tablet/mobile. The actual size, colors and structure
+ * live as inline styles inside SocialSidebar.tsx — this file only owns
+ * the responsive breakpoint and the body-padding adjustment that pushes
+ * page content off the sidebar's footprint on wide screens.
+ */
+
+@media (max-width: 1100px) {
+  .social-sidebar,
+  .social-sidebar-rail {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1101px) {
+  /* Reserve room on the right so fixed-position sidebar doesn't overlap
+   * the centered main column at common widths. The full-bleed homepage
+   * grid is already centered with max-width, so this just nudges the
+   * footer + any wide content. */
+  .app-main {
+    padding-right: 380px;
+  }
+  .social-sidebar-rail ~ .app-main,
+  body:has(.social-sidebar-rail) .app-main {
+    padding-right: 36px;
+  }
+}

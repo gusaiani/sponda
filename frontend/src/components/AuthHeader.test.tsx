@@ -33,6 +33,14 @@ vi.mock("./NotificationBell", () => ({
   NotificationBell: () => <div data-testid="notification-bell" />,
 }));
 
+vi.mock("./social/SocialNotificationBell", () => ({
+  SocialNotificationBell: () => <div data-testid="social-notification-bell" />,
+}));
+
+vi.mock("./social/ProfileEditModal", () => ({
+  ProfileEditModal: () => null,
+}));
+
 describe("AuthHeader mobile hamburger menu", () => {
   beforeEach(() => {
     mockPathname.mockReturnValue("/en/PETR4");

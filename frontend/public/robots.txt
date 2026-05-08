@@ -26,4 +26,13 @@ Disallow: /*/notificacoes
 Disallow: /*/visitas
 Disallow: /*/shared
 
+# Social: anonymous browsing works, but we keep crawlers out until
+# moderation tooling matures. Profile and Spond permalink pages
+# additionally emit <meta name="robots" content="noindex,follow">.
+Disallow: /user
+Disallow: /spond
+Disallow: /*/user
+Disallow: /*/spond
+Disallow: /api/social/
+
 Sitemap: https://sponda.capital/sitemap.xml

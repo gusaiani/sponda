@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "quotes",
     "accounts",
+    "social",
 ]
 
 MIDDLEWARE = [
@@ -115,6 +116,26 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "accounts.authentication.CsrfExemptSessionAuthentication",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Social write actions — limits are intentionally tight (5× more
+        # stringent than typical defaults). See backend/social/throttles.py.
+        "spond_write_minute": "4/min",
+        "spond_write_hour": "24/hour",
+        "spond_write_day": "80/day",
+        "spond_like_minute": "12/min",
+        "spond_like_hour": "120/hour",
+        "spond_like_day": "600/day",
+        "follow_write_minute": "6/min",
+        "follow_write_hour": "20/hour",
+        "follow_write_day": "60/day",
+        "relation_write_minute": "8/min",
+        "relation_write_hour": "20/hour",
+        "profile_write_hour": "6/hour",
+        "notif_write_minute": "24/min",
+        # Social read actions.
+        "social_anon": "60/min",
+        "social_user": "300/min",
+    },
 }
 
 BRAPI_API_KEY = env("BRAPI_API_KEY")

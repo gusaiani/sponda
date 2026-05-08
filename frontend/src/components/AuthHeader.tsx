@@ -6,6 +6,9 @@ import { useTranslation, LanguageToggle } from "../i18n";
 import { ShareDropdown } from "./ShareDropdown";
 import { NotificationBell } from "./NotificationBell";
 import { LearningModeToggle } from "./LearningModeToggle";
+import { UserAvatar } from "./social/UserAvatar";
+import { ProfileEditModal } from "./social/ProfileEditModal";
+import { SocialNotificationBell } from "./social/SocialNotificationBell";
 import "../styles/auth-header.css";
 
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
@@ -16,6 +19,7 @@ export function AuthHeader() {
   const router = useRouter();
   const { t, locale } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isProfileEditOpen, setIsProfileEditOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Strip locale prefix (e.g. `/pt/login` → `/login`) before matching,
@@ -50,6 +54,10 @@ export function AuthHeader() {
 
   return (
     <div className="auth-header">
+      {isAuthenticated && isProfileEditOpen && (
+        <ProfileEditModal open={true} onClose={() => setIsProfileEditOpen(false)} />
+      )}
+      {isAuthenticated && <SocialNotificationBell />}
       <NotificationBell />
 
       {/* Inline items — visible on desktop, hidden on mobile */}
@@ -90,6 +98,18 @@ export function AuthHeader() {
           </>
         )}
         <LanguageToggle />
+        {isAuthenticated && user?.handle && (
+          <button
+            type="button"
+            className="auth-header-link"
+            onClick={() => setIsProfileEditOpen(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+            aria-label={t("social.profile.my_profile")}
+          >
+            <UserAvatar handle={user.handle} displayName={user.display_name} size="sm" />
+            <span>@{user.handle}</span>
+          </button>
+        )}
         {isAuthenticated && (
           <Link href={`/${locale}/account`} className="auth-header-link">
             {t("auth.my_account")}

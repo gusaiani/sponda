@@ -43,6 +43,12 @@ vi.mock("../components/FeedbackButton", () => ({
   FeedbackButton: () => <div data-testid="feedback-button" />,
 }));
 
+vi.mock("../components/social/SocialSidebar", () => ({
+  SocialSidebar: () => <div data-testid="social-sidebar" />,
+}));
+
+vi.mock("../styles/social-sidebar.css", () => ({}));
+
 vi.mock("../i18n", () => ({
   useTranslation: () => ({
     t: (key: string) => key,

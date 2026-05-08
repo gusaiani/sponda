@@ -24,7 +24,7 @@ describe("TabPills", () => {
   it("renders all four tabs as anchor links so cmd-click opens in a new tab", () => {
     const { container } = render(<TabPills ticker="PETR4" activeTab="metrics" />);
     const links = container.querySelectorAll("a.tab-pill");
-    expect(links).toHaveLength(4);
+    expect(links).toHaveLength(5);
     for (const link of links) {
       expect(link.tagName).toBe("A");
       expect(link.getAttribute("href")).toMatch(/^\/pt\/PETR4/);

@@ -117,10 +117,11 @@ describe("buildOwnerSwapUrl", () => {
 
 describe("TAB_LABELS", () => {
   it("has a label for every tab", () => {
-    expect(Object.keys(TAB_LABELS)).toHaveLength(4);
+    expect(Object.keys(TAB_LABELS)).toHaveLength(5);
     expect(TAB_LABELS.metrics).toBe("Indicadores");
     expect(TAB_LABELS.fundamentals).toBe("Fundamentos");
     expect(TAB_LABELS.compare).toBe("Comparar");
     expect(TAB_LABELS.charts).toBe("Gráficos");
+    expect(TAB_LABELS.sponds).toBe("Sponds");
   });
 });

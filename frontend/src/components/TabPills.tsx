@@ -16,6 +16,7 @@ const TABS: { key: TabKey; labelKey: TranslationKey; prefetchable: boolean }[] =
   { key: "fundamentals", labelKey: "tabs.fundamentals", prefetchable: true },
   { key: "compare", labelKey: "tabs.compare", prefetchable: false },
   { key: "charts", labelKey: "tabs.charts", prefetchable: true },
+  { key: "sponds", labelKey: "tabs.sponds", prefetchable: false },
 ];
 
 export function TabPills({ ticker, activeTab, onPrefetch }: TabPillsProps) {

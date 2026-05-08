@@ -7,6 +7,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { SearchBar } from "../components/SearchBar";
 import { AuthHeader } from "../components/AuthHeader";
 import { FeedbackButton } from "../components/FeedbackButton";
+import { SocialSidebar } from "../components/social/SocialSidebar";
+import "../styles/social-sidebar.css";
 import { usePageTracking } from "../hooks/usePageTracking";
 import { POEMA_RETURN, IBOVESPA_RETURN, POEMA_PERIOD } from "../utils/branding";
 import { useTranslation } from "../i18n";
@@ -62,6 +64,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       <main className="app-main">
         {children}
       </main>
+      {!isOnAuthPage && <SocialSidebar />}
       <footer className="app-footer">
         <a href="https://poe.ma" target="_blank" rel="noopener noreferrer" className="app-footer-logo-link">
           <Image src="/poema-logo.jpg" alt="Poema" className="app-footer-logo" width={42} height={42} />

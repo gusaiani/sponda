@@ -74,6 +74,7 @@ import { useTranslation } from "../../../i18n";
 import { YearsSlider } from "../../../components/YearsSlider";
 import { InflationToggle, type InflationMode } from "../../../components/InflationToggle";
 import { TabPills } from "../../../components/TabPills";
+import { SpondsTab } from "../../../components/social/SpondsTab";
 
 const STALE_TIME = 30 * 60 * 1000;
 
@@ -270,12 +271,13 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
             <select
               className="tabs-dropdown"
               value={activeTab}
-              onChange={(e) => switchTab(e.target.value as "metrics" | "fundamentals" | "compare" | "charts")}
+              onChange={(e) => switchTab(e.target.value as TabKey)}
             >
               <option value="metrics">{t("tabs.metrics")}</option>
               <option value="fundamentals">{t("tabs.fundamentals")}</option>
               <option value="compare">{t("tabs.compare")}</option>
               <option value="charts">{t("tabs.charts")}</option>
+              <option value="sponds">{t("tabs.sponds")}</option>
             </select>
           </div>
           {(activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && (
@@ -368,6 +370,11 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
           onExtraTickersChange={setCompareTickers}
           savedListId={activeListId}
         />
+      )}
+
+      {/* Sponds tab */}
+      {activeTab === "sponds" && (
+        <SpondsTab ticker={upperTicker} />
       )}
 
       {/* AI Analysis */}

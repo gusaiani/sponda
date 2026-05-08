@@ -1,14 +1,14 @@
-export type TabKey = "metrics" | "charts" | "fundamentals" | "compare";
+export type TabKey = "metrics" | "charts" | "fundamentals" | "compare" | "sponds";
 
 /** Locale-indexed tab URL slugs (no leading slash). */
 const TAB_SLUGS: Record<string, Record<TabKey, string>> = {
-  pt: { metrics: "", charts: "graficos", fundamentals: "fundamentos", compare: "comparar" },
-  en: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare" },
-  es: { metrics: "", charts: "graficos", fundamentals: "fundamentos", compare: "comparar" },
-  zh: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare" },
-  fr: { metrics: "", charts: "graphiques", fundamentals: "fondamentaux", compare: "comparer" },
-  de: { metrics: "", charts: "diagramme", fundamentals: "fundamentaldaten", compare: "vergleich" },
-  it: { metrics: "", charts: "grafici", fundamentals: "fondamentali", compare: "confronta" },
+  pt: { metrics: "", charts: "graficos", fundamentals: "fundamentos", compare: "comparar", sponds: "sponds" },
+  en: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare", sponds: "sponds" },
+  es: { metrics: "", charts: "graficos", fundamentals: "fundamentos", compare: "comparar", sponds: "sponds" },
+  zh: { metrics: "", charts: "charts", fundamentals: "fundamentals", compare: "compare", sponds: "sponds" },
+  fr: { metrics: "", charts: "graphiques", fundamentals: "fondamentaux", compare: "comparer", sponds: "sponds" },
+  de: { metrics: "", charts: "diagramme", fundamentals: "fundamentaldaten", compare: "vergleich", sponds: "sponds" },
+  it: { metrics: "", charts: "grafici", fundamentals: "fondamentali", compare: "confronta", sponds: "sponds" },
 };
 
 /** Reverse mapping: slug → TabKey (accepts all locale slugs). */
@@ -28,6 +28,7 @@ const SLUG_TO_TAB: Record<string, TabKey> = {
   grafici: "charts",
   fondamentali: "fundamentals",
   confronta: "compare",
+  sponds: "sponds",
 };
 
 /** Legacy Portuguese labels (used by some tests). */
@@ -36,6 +37,7 @@ export const TAB_LABELS: Record<TabKey, string> = {
   fundamentals: "Fundamentos",
   compare: "Comparar",
   charts: "Gráficos",
+  sponds: "Sponds",
 };
 
 /** Return the URL slug for a tab in a given locale (e.g. "graficos" for pt/charts). */
