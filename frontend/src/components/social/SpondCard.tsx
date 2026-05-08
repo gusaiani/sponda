@@ -79,12 +79,19 @@ export function SpondCard({ spond }: Props) {
   const likeSpond = useLikeSpond();
   const deleteSpond = useDeleteSpond();
   const { requireVerification } = useEmailVerification();
+  // Single piece of optimistic state — the user's *intended* like state.
+  // The displayed count is derived from this plus the server's baseline.
+  // When the server catches up (refetch matches our intent), the diff
+  // collapses to zero automatically — no separate delta to reset.
   const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
-  const [optimisticLikeDelta, setOptimisticLikeDelta] = useState(0);
 
   const isMine = user?.handle && user.handle === spond.author.handle;
   const liked = optimisticLiked ?? spond.viewer_has_liked;
-  const likeCount = spond.like_count + optimisticLikeDelta;
+  const likeCount = spond.like_count + (
+    optimisticLiked !== null && optimisticLiked !== spond.viewer_has_liked
+      ? (optimisticLiked ? 1 : -1)
+      : 0
+  );
 
   function handleLikeToggle() {
     if (!user) return;
@@ -93,14 +100,13 @@ export function SpondCard({ spond }: Props) {
     // when verification is pending. The actual mutation only fires once
     // the user is verified — requireVerification replays it then.
     setOptimisticLiked(next);
-    setOptimisticLikeDelta((prev) => prev + (next ? 1 : -1));
     requireVerification(() => {
       likeSpond.mutate(
         { id: spond.id, like: next },
         {
           onError: () => {
-            setOptimisticLiked((prev) => (prev === null ? null : !prev));
-            setOptimisticLikeDelta((prev) => prev + (next ? -1 : 1));
+            // Roll back the optimistic toggle.
+            setOptimisticLiked(null);
           },
         },
       );
