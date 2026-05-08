@@ -127,9 +127,12 @@ export function SpondCard({ spond }: Props) {
           >
             {spond.author.display_name || spond.author.handle}
           </Link>
-          <span style={{ color: "#888", fontSize: "12px", whiteSpace: "nowrap" }}>
+          <Link
+            href={`/${locale}/user/${spond.author.handle}`}
+            style={{ color: "#888", fontSize: "12px", whiteSpace: "nowrap", textDecoration: "none" }}
+          >
             @{spond.author.handle}
-          </span>
+          </Link>
         </div>
         <Link
           href={`/${locale}/spond/${spond.id}`}
