@@ -8,7 +8,6 @@ import { NotificationBell } from "./NotificationBell";
 import { LearningModeToggle } from "./LearningModeToggle";
 import { UserAvatar } from "./social/UserAvatar";
 import { ProfileEditModal } from "./social/ProfileEditModal";
-import { SocialNotificationBell } from "./social/SocialNotificationBell";
 import "../styles/auth-header.css";
 
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password", "/reset-password"];
@@ -57,7 +56,6 @@ export function AuthHeader() {
       {isAuthenticated && isProfileEditOpen && (
         <ProfileEditModal open={true} onClose={() => setIsProfileEditOpen(false)} />
       )}
-      {isAuthenticated && <SocialNotificationBell />}
       <NotificationBell />
 
       {/* Inline items — visible on desktop, hidden on mobile */}
