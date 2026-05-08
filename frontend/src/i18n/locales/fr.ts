@@ -666,6 +666,8 @@ export const fr: TranslationDictionary = {
   "social.errors.too_many_mentions": "Vous ne pouvez mentionner que 8 personnes maximum par Spond.",
   "social.sidebar.collapse": "Réduire",
   "social.sidebar.expand": "Ouvrir les Sponds",
+  "social.card.open_sponds": "Sponds sur {ticker}",
+  "social.card.popover_title": "Sponds · {ticker}",
 
   /* ── Left navigation ── */
   "nav.toggle_open": "Ouvrir le menu",

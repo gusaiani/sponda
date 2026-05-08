@@ -373,6 +373,29 @@
   padding: 0;
 }
 
+/* Sponds-balloon button in the company-card actions row. Matches the
+ * favorite handle's resting hidden state (opacity: 0) so it appears on
+ * hover alongside the star and share icons. */
+.homepage-grid-sponds-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #1b347e;
+  cursor: pointer;
+  opacity: 0;
+  padding: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.homepage-grid-sponds-button:hover {
+  background: rgba(27, 52, 126, 0.08);
+}
+
 .homepage-grid-favorite-handle--outlined {
   color: var(--color-muted);
 }
@@ -445,6 +468,10 @@
 }
 
 .homepage-grid-item:hover .homepage-grid-favorite-handle {
+  opacity: 1;
+}
+
+.homepage-grid-item:hover .homepage-grid-sponds-button {
   opacity: 1;
 }
 

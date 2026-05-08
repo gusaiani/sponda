@@ -666,6 +666,8 @@ export const zh: TranslationDictionary = {
   "social.errors.too_many_mentions": "每个 Spond 最多提及 8 个用户。",
   "social.sidebar.collapse": "收起",
   "social.sidebar.expand": "展开 Sponds",
+  "social.card.open_sponds": "{ticker} 的 Sponds",
+  "social.card.popover_title": "Sponds · {ticker}",
 
   /* ── Left navigation ── */
   "nav.toggle_open": "打开菜单",

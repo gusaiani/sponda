@@ -670,6 +670,8 @@ export interface TranslationDictionary {
   "social.errors.too_many_mentions": string;
   "social.sidebar.collapse": string;
   "social.sidebar.expand": string;
+  "social.card.open_sponds": string;
+  "social.card.popover_title": string;
 
   /* ── Left navigation ── */
   "nav.toggle_open": string;
