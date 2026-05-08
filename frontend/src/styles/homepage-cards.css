@@ -18,22 +18,11 @@
   box-sizing: border-box;
 }
 
-/* Column count tracks the available content width, not the viewport.
- * The minimum card width is set so that the typical "both sidebars
- * open on a wide monitor" layout (≈1800px content area) lands on 2
- * columns, mirroring the visual rhythm of the main branch cards.
- *
- * minmax(min(600px, 100%), 1fr) gives, with a 16px gap:
- *   container <600    → 1 col   (track shrinks to fit; mobile/phone)
- *   1216 – 1831       → 2 cols  (e.g. 1920–2560 viewport, both sidebars open)
- *   1832 – 2447       → 3 cols  (e.g. 1920 viewport, no sidebars)
- *   ≥ 2448            → 4 cols  (ultra-wide displays only)
- *
- * Reflows on sidebar open/close because the grid sees its own width,
- * not the viewport's. */
+/* Same auto-fit logic as .homepage-grid (see below) so the Popular
+ * Companies section reflows on sidebar open/close in the same way. */
 .hcc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(600px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -293,30 +282,27 @@
   background: #0f1d42;
 }
 
-/* ===== Homepage Unified Grid ===== */
-
+/* ===== Homepage Unified Grid =====
+ *
+ * Column count tracks the available content width. Driven by the grid's
+ * own size, not the viewport, so opening or closing the LeftNav and
+ * Sponds rail reflows the cards without a viewport resize.
+ *
+ * minmax(min(420px, 100%), 1fr) with a 16px gap gives:
+ *   container <420   → 1 col   (mobile / very narrow)
+ *   872  – 1307      → 2 cols  (typical 14" MBP with both sidebars open)
+ *   1308 – 1743      → 3 cols
+ *   ≥ 1744           → 4 cols  (no sidebars on a wide monitor)
+ */
 .homepage-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 16px;
 }
 
-@media (min-width: 550px) {
+@media (max-width: 480px) {
   .homepage-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 768px) {
-  .homepage-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .homepage-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
   }
 }
 
