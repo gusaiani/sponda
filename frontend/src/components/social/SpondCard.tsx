@@ -6,6 +6,7 @@ import { useTranslation } from "../../i18n";
 import { useAuth } from "../../hooks/useAuth";
 import { useDeleteSpond, useLikeSpond } from "../../hooks/useSocialFeed";
 import type { SpondPayload } from "../../hooks/useProfile";
+import { useEmailVerification } from "../EmailVerificationGate";
 import { UserAvatar } from "./UserAvatar";
 
 interface Props {
@@ -77,6 +78,7 @@ export function SpondCard({ spond }: Props) {
   const { user } = useAuth();
   const likeSpond = useLikeSpond();
   const deleteSpond = useDeleteSpond();
+  const { requireVerification } = useEmailVerification();
   const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
   const [optimisticLikeDelta, setOptimisticLikeDelta] = useState(0);
 
@@ -87,17 +89,22 @@ export function SpondCard({ spond }: Props) {
   function handleLikeToggle() {
     if (!user) return;
     const next = !liked;
+    // Optimistic UI runs immediately so the click feels responsive even
+    // when verification is pending. The actual mutation only fires once
+    // the user is verified — requireVerification replays it then.
     setOptimisticLiked(next);
     setOptimisticLikeDelta((prev) => prev + (next ? 1 : -1));
-    likeSpond.mutate(
-      { id: spond.id, like: next },
-      {
-        onError: () => {
-          setOptimisticLiked((prev) => (prev === null ? null : !prev));
-          setOptimisticLikeDelta((prev) => prev + (next ? -1 : 1));
+    requireVerification(() => {
+      likeSpond.mutate(
+        { id: spond.id, like: next },
+        {
+          onError: () => {
+            setOptimisticLiked((prev) => (prev === null ? null : !prev));
+            setOptimisticLikeDelta((prev) => prev + (next ? -1 : 1));
+          },
         },
-      },
-    );
+      );
+    });
   }
 
   function handleDelete() {

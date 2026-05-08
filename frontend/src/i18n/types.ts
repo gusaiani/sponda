@@ -654,6 +654,12 @@ export interface TranslationDictionary {
   "social.notifications.mark_all_read": string;
   "social.notifications.unread_count": string;
   "social.errors.email_verification_required": string;
+  "social.verification_modal.title": string;
+  "social.verification_modal.body": string;
+  "social.verification_modal.help": string;
+  "social.verification_modal.waiting": string;
+  "social.verification_modal.resend": string;
+  "social.verification_modal.resent": string;
   "social.errors.throttled": string;
   "social.errors.handle_taken": string;
   "social.errors.invalid_handle": string;

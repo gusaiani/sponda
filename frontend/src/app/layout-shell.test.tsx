@@ -44,6 +44,11 @@ vi.mock("../components/FeedbackButton", () => ({
   useFeedback: () => ({ open: () => {} }),
 }));
 
+vi.mock("../components/EmailVerificationGate", () => ({
+  EmailVerificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useEmailVerification: () => ({ requireVerification: (action: () => void) => action() }),
+}));
+
 vi.mock("../components/social/SocialSidebar", () => ({
   SocialSidebar: () => <div data-testid="social-sidebar" />,
 }));

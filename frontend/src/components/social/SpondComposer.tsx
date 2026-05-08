@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslation } from "../../i18n";
 import { useAuth } from "../../hooks/useAuth";
 import { useCreateSpond } from "../../hooks/useSocialFeed";
+import { useEmailVerification } from "../EmailVerificationGate";
 import { UserAvatar } from "./UserAvatar";
 
 const SPOND_MAX_LENGTH = 500;
@@ -21,18 +22,21 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitte
   const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const createSpond = useCreateSpond();
+  const { requireVerification } = useEmailVerification();
 
   const [body, setBody] = useState("");
   const [ticker, setTicker] = useState(lockedTicker ?? "");
   const [error, setError] = useState<string | null>(null);
 
-  if (!isAuthenticated || !user?.email_verified) {
+  // Signed-out users still see a small CTA — they can't compose at all.
+  // Unverified signed-in users see the full composer; the verification
+  // modal kicks in only when they hit Submit (and replays the post on
+  // verification, via EmailVerificationProvider).
+  if (!isAuthenticated) {
     return (
       <div style={composerCardStyle}>
         <p style={{ margin: 0, color: "#666" }}>
-          {!isAuthenticated
-            ? t("social.feed.login_to_post")
-            : t("social.errors.email_verification_required")}
+          {t("social.feed.login_to_post")}
         </p>
       </div>
     );
@@ -49,16 +53,10 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitte
       ? t("social.compose.placeholder_company", { ticker: lockedTicker })
       : t("social.compose.placeholder");
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    if (isEmpty || isOver) return;
+  async function submitNow(payload: { body: string; ticker?: string; parent?: string }) {
     setError(null);
     try {
-      await createSpond.mutateAsync({
-        body: body.trim(),
-        ticker: ticker.trim() || undefined,
-        parent: parentId,
-      });
+      await createSpond.mutateAsync(payload);
       setBody("");
       if (!lockedTicker) setTicker("");
       onSubmitted?.();
@@ -76,10 +74,24 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitte
     }
   }
 
+  function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (isEmpty || isOver) return;
+    const payload = {
+      body: body.trim(),
+      ticker: ticker.trim() || undefined,
+      parent: parentId,
+    };
+    // Unverified users get the verification modal; once they verify
+    // (auth poll picks it up), the post submits automatically with the
+    // body they had typed.
+    requireVerification(() => submitNow(payload));
+  }
+
   return (
     <form onSubmit={handleSubmit} style={composerCardStyle}>
       <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-        <UserAvatar handle={user.handle} displayName={user.display_name} size="md" />
+        <UserAvatar handle={user?.handle ?? null} displayName={user?.display_name} size="md" />
         <div style={{ flex: 1, minWidth: 0 }}>
           {parentHandle && (
             <div style={{ marginBottom: "6px", fontSize: "13px", color: "#666" }}>

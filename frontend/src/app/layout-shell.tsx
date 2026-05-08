@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { SearchBar } from "../components/SearchBar";
 import { AuthHeader } from "../components/AuthHeader";
 import { FeedbackProvider } from "../components/FeedbackButton";
+import { EmailVerificationProvider } from "../components/EmailVerificationGate";
 import { LeftNav } from "../components/LeftNav";
 import { LeftNavProvider, useLeftNav } from "../components/LeftNavContext";
 import { SocialSidebar } from "../components/social/SocialSidebar";
@@ -118,7 +119,9 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   return (
     <LeftNavProvider>
       <FeedbackProvider>
-        <LayoutShellInner>{children}</LayoutShellInner>
+        <EmailVerificationProvider>
+          <LayoutShellInner>{children}</LayoutShellInner>
+        </EmailVerificationProvider>
       </FeedbackProvider>
     </LeftNavProvider>
   );
