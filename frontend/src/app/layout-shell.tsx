@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { SearchBar } from "../components/SearchBar";
 import { AuthHeader } from "../components/AuthHeader";
-import { FeedbackButton } from "../components/FeedbackButton";
+import { FeedbackProvider } from "../components/FeedbackButton";
 import { LeftNav } from "../components/LeftNav";
 import { LeftNavProvider, useLeftNav } from "../components/LeftNavContext";
 import { SocialSidebar } from "../components/social/SocialSidebar";
@@ -85,7 +85,6 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
         </header>
       )}
       {!isOnAuthPage && <LeftNav />}
-      <FeedbackButton />
       <div className="app-body">
         <main className="app-main">
           {children}
@@ -118,7 +117,9 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
 export function LayoutShell({ children }: { children: React.ReactNode }) {
   return (
     <LeftNavProvider>
-      <LayoutShellInner>{children}</LayoutShellInner>
+      <FeedbackProvider>
+        <LayoutShellInner>{children}</LayoutShellInner>
+      </FeedbackProvider>
     </LeftNavProvider>
   );
 }

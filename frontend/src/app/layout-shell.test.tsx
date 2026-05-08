@@ -40,7 +40,8 @@ vi.mock("../components/AuthHeader", () => ({
 }));
 
 vi.mock("../components/FeedbackButton", () => ({
-  FeedbackButton: () => <div data-testid="feedback-button" />,
+  FeedbackProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useFeedback: () => ({ open: () => {} }),
 }));
 
 vi.mock("../components/social/SocialSidebar", () => ({

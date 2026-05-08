@@ -2,24 +2,20 @@
 
 /* Homepage Company Cards */
 
-/* Break out of .app-main max-width to use full viewport.
-   Padding matches .app-header: px-4 mobile, px-6 at 640px+ */
+/* The grid lives inside .app-main; .app-main is laid out within .app-body
+ * which already reserves the LeftNav and SocialSidebar widths via
+ * --left-nav-width / --right-rail-width padding. So the grid just needs
+ * to fill its parent — no viewport-spanning breakout, which would push
+ * cards under the sidebars (cropping them).
+ *
+ * Trade-off: on a viewport much larger than .app-main's max-width
+ * (currently 880px) the cards no longer expand to the full viewport
+ * width. A wider main column on big monitors is a follow-up. */
 .hcc-section {
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
-  padding: 0 16px;
+  width: 100%;
+  padding: 0;
   margin-bottom: 64px;
   box-sizing: border-box;
-  max-width: 100vw;
-  overflow: hidden;
-}
-
-@media (min-width: 640px) {
-  .hcc-section {
-    padding: 0 24px;
-  }
 }
 
 .hcc-grid {
