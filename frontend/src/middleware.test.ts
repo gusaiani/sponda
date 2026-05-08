@@ -119,21 +119,21 @@ describe("middleware locale persistence", () => {
 });
 
 describe("middleware ticker case normalization", () => {
-  it("301 redirects lowercase ticker to uppercase when locale-prefixed", async () => {
+  it("redirects lowercase ticker to uppercase when locale-prefixed", async () => {
     const response = await middleware(buildRequest("/en/petr4"));
-    expect(response.status).toBe(301);
+    expect(response.status).toBe(302);
     expect(response.headers.get("location")).toContain("/en/PETR4");
   });
 
-  it("301 redirects mixed-case ticker to uppercase", async () => {
+  it("redirects mixed-case ticker to uppercase", async () => {
     const response = await middleware(buildRequest("/pt/PeTr4"));
-    expect(response.status).toBe(301);
+    expect(response.status).toBe(302);
     expect(response.headers.get("location")).toContain("/pt/PETR4");
   });
 
-  it("301 redirects lowercase ticker with tab slug", async () => {
+  it("redirects lowercase ticker with tab slug", async () => {
     const response = await middleware(buildRequest("/en/petr4/charts"));
-    expect(response.status).toBe(301);
+    expect(response.status).toBe(302);
     expect(response.headers.get("location")).toContain("/en/PETR4/charts");
   });
 

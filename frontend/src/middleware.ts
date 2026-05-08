@@ -96,7 +96,12 @@ export function middleware(request: NextRequest) {
   if (firstSegment && isSupportedLocale(firstSegment)) {
     const locale = firstSegment;
 
-    // Normalize ticker case: /en/petr4 → /en/PETR4 (301)
+    // Normalize ticker case: /en/petr4 → /en/PETR4. Uses 302 (not 301)
+    // so browsers don't permanently cache the redirect. Adding a new
+    // entry to KNOWN_LOCALE_ROUTES (e.g. /user, /spond) used to poison
+    // browser caches forever — every previous visitor to /pt/user/x had
+    // it cached as a 301 to /pt/USER/x and would never reach the new
+    // route. With 302, the next refresh re-checks with the server.
     if (segments.length >= 2 && !KNOWN_LOCALE_ROUTES.has(segments[1])) {
       const tickerSegment = segments[1];
       const upperTicker = tickerSegment.toUpperCase();
@@ -104,7 +109,7 @@ export function middleware(request: NextRequest) {
         const url = request.nextUrl.clone();
         segments[1] = upperTicker;
         url.pathname = `/${segments.join("/")}`;
-        return persistLocaleCookie(NextResponse.redirect(url, 301), locale);
+        return persistLocaleCookie(NextResponse.redirect(url, 302), locale);
       }
     }
 
@@ -116,7 +121,7 @@ export function middleware(request: NextRequest) {
       if (corrected) {
         const url = request.nextUrl.clone();
         url.pathname = `/${locale}/${segments[1]}/${corrected}`;
-        return persistLocaleCookie(NextResponse.redirect(url, 301), locale);
+        return persistLocaleCookie(NextResponse.redirect(url, 302), locale);
       }
     }
 
