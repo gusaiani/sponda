@@ -664,6 +664,16 @@ export interface TranslationDictionary {
   "social.errors.too_many_mentions": string;
   "social.sidebar.collapse": string;
   "social.sidebar.expand": string;
+
+  /* ── Left navigation ── */
+  "nav.toggle_open": string;
+  "nav.toggle_close": string;
+  "nav.home": string;
+  "nav.blog": string;
+  "nav.account_menu_label": string;
+  "nav.account_login": string;
+  "nav.account_settings": string;
+  "nav.account_sign_out": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

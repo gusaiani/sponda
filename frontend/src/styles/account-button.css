@@ -1,0 +1,114 @@
+/* Single account control in the top header. Replaces the prior pair
+ * of "Minha conta" link + "@handle" button.
+ */
+
+.account-button-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.account-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid #d0d4dc;
+  border-radius: 999px;
+  background: #ffffff;
+  cursor: pointer;
+  color: #222;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.account-button:hover {
+  background: #f0f2f5;
+  border-color: #b0b6c0;
+}
+
+.account-button-handle {
+  font-weight: 600;
+  color: #1b347e;
+  white-space: nowrap;
+}
+
+.account-button--login {
+  padding: 6px 14px;
+}
+
+.account-button-placeholder {
+  width: 80px;
+  height: 32px;
+}
+
+.account-button-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 200;
+  min-width: 240px;
+  background: #ffffff;
+  border: 1px solid #d0d4dc;
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.account-button-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 4px;
+}
+
+.account-button-menu-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.account-button-menu-identity strong {
+  font-size: 14px;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.account-button-menu-identity span {
+  font-size: 12px;
+  color: #666;
+}
+
+.account-button-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: #222;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.account-button-menu-item:hover {
+  background: #f0f2f5;
+}
+
+.account-button-menu-item--danger {
+  color: #a13a4a;
+}

@@ -660,4 +660,14 @@ export const zh: TranslationDictionary = {
   "social.errors.too_many_mentions": "每个 Spond 最多提及 8 个用户。",
   "social.sidebar.collapse": "收起",
   "social.sidebar.expand": "展开 Sponds",
+
+  /* ── Left navigation ── */
+  "nav.toggle_open": "打开菜单",
+  "nav.toggle_close": "关闭菜单",
+  "nav.home": "首页",
+  "nav.blog": "博客",
+  "nav.account_menu_label": "账号",
+  "nav.account_login": "登录",
+  "nav.account_settings": "设置",
+  "nav.account_sign_out": "退出",
 };

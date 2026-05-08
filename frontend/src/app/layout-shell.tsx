@@ -7,11 +7,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { SearchBar } from "../components/SearchBar";
 import { AuthHeader } from "../components/AuthHeader";
 import { FeedbackButton } from "../components/FeedbackButton";
+import { LeftNav } from "../components/LeftNav";
+import { LeftNavProvider, useLeftNav } from "../components/LeftNavContext";
 import { SocialSidebar } from "../components/social/SocialSidebar";
-import "../styles/social-sidebar.css";
 import { usePageTracking } from "../hooks/usePageTracking";
 import { POEMA_RETURN, IBOVESPA_RETURN, POEMA_PERIOD } from "../utils/branding";
 import { useTranslation } from "../i18n";
+import "../styles/social-sidebar.css";
+import "../styles/left-nav.css";
 
 const AUTH_SUFFIXES = ["/login", "/signup", "/forgot-password", "/reset-password"];
 
@@ -21,7 +24,27 @@ function stripLocale(pathname: string): string {
   return match ? (match[2] || "/") : pathname;
 }
 
-export function LayoutShell({ children }: { children: React.ReactNode }) {
+function HamburgerToggle() {
+  const { t } = useTranslation();
+  const { open, toggle } = useLeftNav();
+  return (
+    <button
+      type="button"
+      className="app-hamburger"
+      onClick={toggle}
+      aria-label={open ? t("nav.toggle_close") : t("nav.toggle_open")}
+      aria-expanded={open}
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </button>
+  );
+}
+
+function LayoutShellInner({ children }: { children: React.ReactNode }) {
   const { t, locale } = useTranslation();
   usePageTracking();
   const router = useRouter();
@@ -52,6 +75,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         </header>
       ) : (
         <header className="app-header">
+          <HamburgerToggle />
           {brand}
           <SearchBar onSearch={handleSearch} isLoading={false} />
           <Link href={`/${locale}/screener`} className="app-header-filter-link">
@@ -60,6 +84,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           <AuthHeader />
         </header>
       )}
+      {!isOnAuthPage && <LeftNav />}
       <FeedbackButton />
       <main className="app-main">
         {children}
@@ -85,5 +110,13 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
         </a>
       </footer>
     </div>
+  );
+}
+
+export function LayoutShell({ children }: { children: React.ReactNode }) {
+  return (
+    <LeftNavProvider>
+      <LayoutShellInner>{children}</LayoutShellInner>
+    </LeftNavProvider>
   );
 }

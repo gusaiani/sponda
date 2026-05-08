@@ -1,11 +1,27 @@
-/* YouTube-style collapsible right column for the social feed.
+/* Layout adjustments for the two fixed sidebars (left nav + Sponds rail).
+ * Both sidebars are position: fixed at the viewport edges; we shift the
+ * main content via margin/padding so it doesn't get hidden behind them.
  *
- * Hidden entirely below 1100px so the centered main content keeps the
- * full viewport on tablet/mobile. The actual size, colors and structure
- * live as inline styles inside SocialSidebar.tsx — this file only owns
- * the responsive breakpoint and the body-padding adjustment that pushes
- * page content off the sidebar's footprint on wide screens.
+ * The left nav width is exposed as the --left-nav-width CSS variable on
+ * the <html> root by LeftNavContext (0px when closed, 240px when open).
+ * The right rail uses fixed media queries for now — it has only two
+ * states (expanded / collapsed) and a hard breakpoint where it hides.
+ *
+ * Task E will replace this margin/padding hack with a proper CSS grid
+ * so the main column can stay centered between both sidebars instead
+ * of getting left-anchored when the nav opens.
  */
+
+/* ── Left nav offset ──────────────────────────────────────────────────── */
+
+@media (min-width: 901px) {
+  html.left-nav-open .app-main {
+    margin-left: var(--left-nav-width, 240px);
+    transition: margin-left 0.18s ease;
+  }
+}
+
+/* ── Right Sponds rail ────────────────────────────────────────────────── */
 
 @media (max-width: 1100px) {
   .social-sidebar,
@@ -15,14 +31,13 @@
 }
 
 @media (min-width: 1101px) {
-  /* Reserve room on the right so fixed-position sidebar doesn't overlap
-   * the centered main column at common widths. The full-bleed homepage
-   * grid is already centered with max-width, so this just nudges the
-   * footer + any wide content. */
   .app-main {
     padding-right: 380px;
+    transition: padding-right 0.18s ease;
   }
-  .social-sidebar-rail ~ .app-main,
+  /* When the rail is collapsed, free up most of that space. The
+   * `:has` pseudo-class is supported in evergreen browsers; older
+   * Safari falls back to the expanded padding which is still safe. */
   body:has(.social-sidebar-rail) .app-main {
     padding-right: 36px;
   }

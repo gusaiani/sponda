@@ -47,7 +47,21 @@ vi.mock("../components/social/SocialSidebar", () => ({
   SocialSidebar: () => <div data-testid="social-sidebar" />,
 }));
 
+vi.mock("../components/LeftNav", () => ({
+  LeftNav: () => <div data-testid="left-nav" />,
+}));
+
+vi.mock("../components/LeftNavContext", () => ({
+  LeftNavProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useLeftNav: () => ({ open: false, toggle: () => {}, setOpen: () => {} }),
+}));
+
+vi.mock("../hooks/usePageTracking", () => ({
+  usePageTracking: () => {},
+}));
+
 vi.mock("../styles/social-sidebar.css", () => ({}));
+vi.mock("../styles/left-nav.css", () => ({}));
 
 vi.mock("../i18n", () => ({
   useTranslation: () => ({

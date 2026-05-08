@@ -660,4 +660,14 @@ export const pt: TranslationDictionary = {
   "social.errors.too_many_mentions": "Você só pode mencionar até 8 pessoas por Spond.",
   "social.sidebar.collapse": "Recolher",
   "social.sidebar.expand": "Expandir Sponds",
+
+  /* ── Left navigation ── */
+  "nav.toggle_open": "Abrir menu",
+  "nav.toggle_close": "Fechar menu",
+  "nav.home": "Início",
+  "nav.blog": "Blog",
+  "nav.account_menu_label": "Conta",
+  "nav.account_login": "Entrar",
+  "nav.account_settings": "Configurações",
+  "nav.account_sign_out": "Sair",
 };
