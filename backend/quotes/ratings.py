@@ -25,10 +25,10 @@ METHODOLOGY_VERSION = "v1"
 # values into five tiers; see :func:`rate_indicator` for the exact mapping.
 RATING_THRESHOLDS: dict[str, dict[str, dict]] = {
     "pe10": {
-        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [10, 15, 20, 30]},
+        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [7, 10, 15, 20]},
     },
     "pfcf10": {
-        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [12, 18, 25, 35]},
+        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [7, 10, 15, 20]},
     },
     "peg": {
         DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [0.5, 1.0, 1.5, 2.5]},
@@ -36,23 +36,20 @@ RATING_THRESHOLDS: dict[str, dict[str, dict]] = {
     "pfcf_peg": {
         DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [0.5, 1.0, 1.5, 2.5]},
     },
-    "debt_to_equity": {
-        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [0.3, 0.7, 1.5, 3.0]},
-    },
     "debt_ex_lease_to_equity": {
-        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [0.2, 0.5, 1.0, 2.0]},
+        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [0.3, 0.5, 1.0, 2.0]},
     },
     "liabilities_to_equity": {
-        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [0.5, 1.5, 3.0, 5.0]},
+        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [0.7, 1.0, 3.0, 5.0]},
     },
     "current_ratio": {
         DEFAULT_SECTOR_KEY: {"direction": "higher", "cuts": [0.8, 1.2, 1.6, 2.5]},
     },
     "debt_to_avg_earnings": {
-        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [2, 4, 6, 10]},
+        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [1, 3, 5, 7]},
     },
     "debt_to_avg_fcf": {
-        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [3, 5, 8, 12]},
+        DEFAULT_SECTOR_KEY: {"direction": "lower", "cuts": [1, 3, 5, 7]},
     },
 }
 
@@ -60,6 +57,16 @@ RATING_THRESHOLDS: dict[str, dict[str, dict]] = {
 # (e.g. PE10 vs PFCF10 measure similar things) once we have data on which
 # combinations correlate with realized returns.
 INDICATOR_WEIGHTS: dict[str, float] = {indicator: 1.0 for indicator in RATING_THRESHOLDS}
+
+# When a rated indicator's primary value is missing, rate_company falls back
+# to the value of another indicator (and rates it against the *primary*
+# indicator's thresholds). Used to consolidate near-equivalent metrics into
+# a single Learning Mode rating: leverage rolls up under
+# debt_ex_lease_to_equity, with debt_to_equity as the fallback when the
+# ex-lease figure isn't available.
+INDICATOR_VALUE_FALLBACKS: dict[str, str] = {
+    "debt_ex_lease_to_equity": "debt_to_equity",
+}
 
 
 def _to_float(value) -> Optional[float]:
@@ -151,15 +158,22 @@ def rate_company(
     """Rate every indicator we know how to rate, then compute the overall grade.
 
     Indicators not in :data:`RATING_THRESHOLDS` (e.g. ``market_cap``,
-    ``current_price``) are silently skipped — they are stored in the
-    snapshot but are not part of Learning Mode.
+    ``current_price``, ``debt_to_equity``) are silently skipped — they are
+    stored in the snapshot but are not part of Learning Mode. Some of those
+    skipped indicators feed a primary indicator's rating as a fallback value
+    via :data:`INDICATOR_VALUE_FALLBACKS`.
     """
     ratings: dict[str, Optional[int]] = {}
     for indicator in RATING_THRESHOLDS:
-        if indicator in indicator_values:
-            ratings[indicator] = rate_indicator(
-                indicator, indicator_values[indicator], sector=sector,
-            )
+        fallback_key = INDICATOR_VALUE_FALLBACKS.get(indicator)
+        primary_present = indicator in indicator_values
+        fallback_present = fallback_key is not None and fallback_key in indicator_values
+        if not primary_present and not fallback_present:
+            continue
+        value = indicator_values.get(indicator)
+        if value is None and fallback_key is not None:
+            value = indicator_values.get(fallback_key)
+        ratings[indicator] = rate_indicator(indicator, value, sector=sector)
     overall = compute_overall_grade(ratings)
     return {
         "ratings": ratings,

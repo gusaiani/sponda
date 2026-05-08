@@ -10,17 +10,19 @@ import { isBrazilianTicker } from "../utils/ticker";
 import { getSubsector } from "../utils/subsector";
 
 /** Map a UI metric DOM id to the QuoteResult.ratings key + the indicator
- *  translation prefix. Used to attach Learning Mode chips to each metric. */
+ *  translation prefix. Used to attach Learning Mode chips to each metric.
+ *  Gross D/E intentionally has no entry — leverage is rated once, on
+ *  D-Lease/E, with D/E acting only as a fallback value on the backend. */
 const RATING_KEY_BY_METRIC_ID: Record<string, { ratingKey: string; indicator: string }> = {
   "pe10": { ratingKey: "pe10", indicator: "pe10" },
   "pfcf10": { ratingKey: "pfcf10", indicator: "pfcf10" },
   "peg": { ratingKey: "peg", indicator: "peg" },
   "pfcfg": { ratingKey: "pfcfPeg", indicator: "pfcfPeg" },
-  "gross-debt-eq": { ratingKey: "debtToEquity", indicator: "debtToEquity" },
   "debt-ex-lease-eq": { ratingKey: "debtExLeaseToEquity", indicator: "debtExLeaseToEquity" },
   "liab-eq": { ratingKey: "liabilitiesToEquity", indicator: "liabilitiesToEquity" },
   "gross-debt-earnings": { ratingKey: "debtToAvgEarnings", indicator: "debtToAvgEarnings" },
   "gross-debt-fcf": { ratingKey: "debtToAvgFCF", indicator: "debtToAvgFCF" },
+  "current-ratio": { ratingKey: "currentRatio", indicator: "currentRatio" },
 };
 
 /* ── Exported helpers (tested in CompanyMetricsCard.test.ts) ── */
@@ -156,8 +158,13 @@ export function buildDebtToRollingAvgSeries(
 }
 
 export function buildQuarterlyRatioSeries(
-  quarterlyRatios: { date: string; debtToEquity: number | null; liabilitiesToEquity: number | null }[],
-  field: "debtToEquity" | "liabilitiesToEquity",
+  quarterlyRatios: {
+    date: string;
+    debtToEquity: number | null;
+    liabilitiesToEquity: number | null;
+    currentRatio: number | null;
+  }[],
+  field: "debtToEquity" | "liabilitiesToEquity" | "currentRatio",
   years: number,
 ): DataPoint[] {
   if (!quarterlyRatios.length) return [];
@@ -189,6 +196,7 @@ const METRIC_IDS = {
   liabToEquity: "liab-eq",
   debtToEarnings: "gross-debt-earnings",
   debtToFCF: "gross-debt-fcf",
+  currentRatio: "current-ratio",
   currentPrice: "current-price",
   marketCap: "market-cap",
   yearsOfData: "years-of-data",
@@ -222,6 +230,7 @@ const ALERT_INDICATOR_BY_METRIC_ID: Record<string, string> = {
   "liab-eq": "liabilities_to_equity",
   "gross-debt-earnings": "debt_to_avg_earnings",
   "gross-debt-fcf": "debt_to_avg_fcf",
+  "current-ratio": "current_ratio",
 };
 
 /** Per-metric chart value formatter — multiples show "×", ratios show 2 decimals. */
@@ -236,6 +245,7 @@ function getChartValueFormatters(locale: string): Record<string, (value: number)
     [METRIC_IDS.liabToEquity]: (value) => formatNumber(value, 2, locale),
     [METRIC_IDS.debtToEarnings]: (value) => formatNumber(value, 1, locale),
     [METRIC_IDS.debtToFCF]: (value) => formatNumber(value, 1, locale),
+    [METRIC_IDS.currentRatio]: (value) => formatNumber(value, 2, locale),
   };
 }
 
@@ -428,6 +438,7 @@ interface QuoteData {
   debtToEquity: number | null;
   debtExLeaseToEquity: number | null;
   liabilitiesToEquity: number | null;
+  currentRatio: number | null;
   leverageError: string | null;
   leverageDate: string | null;
   totalDebt: number | null;
@@ -488,7 +499,7 @@ function isFinancialInstitution(name: string, sector: string): boolean {
 
 type ModalKey =
   | "debtToEquity" | "debtExLease" | "liabToEquity"
-  | "debtToEarnings" | "debtToFCF"
+  | "debtToEarnings" | "debtToFCF" | "currentRatio"
   | "marketCap"
   | "pl10" | "peg" | "cagrEarnings"
   | "pfcl10" | "pfclg" | "cagrFCF"
@@ -732,6 +743,29 @@ function DebtToEarningsInfo({ data }: { data: QuoteData }) {
             <div className="pe10-calc-formula pe10-calc-result">
               <span>{formatAmount(data.totalDebt)} ÷ {formatAmount(data.avgAdjustedNetIncome)}</span>
               <span className="pe10-calc-formula-val">= {formatNumber(data.debtToAvgEarnings, 2, locale)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function CurrentRatioInfo({ data }: { data: QuoteData }) {
+  const { t, locale } = useTranslation();
+  return (
+    <>
+      <div className="modal-explainer">
+        <p>{t("modal.current_ratio_explain")}</p>
+        <p>{t("modal.current_ratio_note")}</p>
+      </div>
+      {data.currentRatio !== null && (
+        <div className="pe10-calc-details">
+          <div className="pe10-calc-section">
+            <div className="pe10-calc-section-title">{t("modal.calculation")}</div>
+            <div className="pe10-calc-formula">
+              <span>{t("modal.current_assets")} ÷ {t("modal.current_liabilities")}</span>
+              <span className="pe10-calc-formula-val">= {formatNumber(data.currentRatio, 2, locale)}</span>
             </div>
           </div>
         </div>
@@ -1118,6 +1152,7 @@ function ModalContent({ modalKey, data }: { modalKey: ModalKey; data: QuoteData 
     case "liabToEquity": return <LiabToEquityInfo data={data} />;
     case "debtToEarnings": return <DebtToEarningsInfo data={data} />;
     case "debtToFCF": return <DebtToFCFInfo data={data} />;
+    case "currentRatio": return <CurrentRatioInfo data={data} />;
     case "marketCap": return <MarketCapInfo data={data} />;
     case "pl10": return <PL10Info data={data} />;
     case "peg": return <PEGInfo data={data} variant="earnings" />;
@@ -1136,6 +1171,7 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: TFn, locale: string) => 
   liabToEquity: (_d, t) => t("modal.title.liab_equity"),
   debtToEarnings: (_d, t) => t("modal.title.debt_earnings"),
   debtToFCF: (_d, t) => t("modal.title.debt_fcf"),
+  currentRatio: (_d, t) => t("modal.title.current_ratio"),
   marketCap: (_d, t) => t("modal.title.market_cap"),
   pl10: (d, _t, locale) => localizeLabel(d.pe10Label, locale),
   peg: (_d, t) => t("modal.title.peg"),
@@ -1246,6 +1282,12 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       years,
     );
 
+    const currentRatioSeries: DataPoint[] = buildQuarterlyRatioSeries(
+      quarterlyRatios ?? [],
+      "currentRatio",
+      years,
+    );
+
     // Rolling N-year debt-coverage ratios — matches the main number's formula
     // at each historical year. N = slider window (same as PE10 / PFCF10 window).
     const debtToEarningsSeries: DataPoint[] = buildDebtToRollingAvgSeries(
@@ -1315,6 +1357,7 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       [METRIC_IDS.liabToEquity]: liabEquitySeries,
       [METRIC_IDS.debtToEarnings]: debtToEarningsSeries,
       [METRIC_IDS.debtToFCF]: debtToFCFSeries,
+      [METRIC_IDS.currentRatio]: currentRatioSeries,
     } as Record<string, DataPoint[]>;
   }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, data.pe10YearsOfData, data.pfcf10YearsOfData, data.marketCap, data.currentPrice, data.earningsCAGR, data.fcfCAGR, fundamentals, quarterlyRatios, priceHistory, years]);
 
@@ -1429,8 +1472,8 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
       <div className="card-section">
         <div className="card-section-heading">{t("metrics.debt_section")}</div>
 
-        {/* All 5 leverage indicators in one row */}
-        <div className="metrics-row leverage-row-5col">
+        {/* All 6 leverage indicators in one row */}
+        <div className="metrics-row leverage-row-6col">
           <div id={METRIC_IDS.debtToEquity} {...metricBlockProps(METRIC_IDS.debtToEquity)}>
             {renderAlertButton(METRIC_IDS.debtToEquity, t("metrics.gross_debt_equity"))}
             <ShareButton metricId={METRIC_IDS.debtToEquity} years={years} />
@@ -1493,6 +1536,19 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
               )}
             </div>
             {renderChart(METRIC_IDS.debtToFCF)}
+          </div>
+          <div id={METRIC_IDS.currentRatio} {...metricBlockProps(METRIC_IDS.currentRatio)}>
+            {renderAlertButton(METRIC_IDS.currentRatio, t("metrics.current_ratio"))}
+            <ShareButton metricId={METRIC_IDS.currentRatio} years={years} />
+            <div className="metric-value-container">
+              <div className="pe10-label">{t("metrics.current_ratio")} <InfoBtn ariaLabel={moreInfo} onClick={() => open("currentRatio")} />{renderRatingChip(METRIC_IDS.currentRatio)}</div>
+              {data.currentRatio !== null ? (
+                <div className="pe10-value">{formatNumber(data.currentRatio, 2, locale)}</div>
+              ) : (
+                <div className="pe10-error">N/A</div>
+              )}
+            </div>
+            {renderChart(METRIC_IDS.currentRatio)}
           </div>
         </div>
       </div>

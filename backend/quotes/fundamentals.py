@@ -191,7 +191,7 @@ def aggregate_proventos_by_year(
 
 
 def compute_quarterly_balance_ratios(ticker: str) -> list[dict]:
-    """Return quarterly debt/equity and liabilities/equity ratios.
+    """Return quarterly debt/equity, liabilities/equity, and current ratios.
 
     Each entry contains the balance sheet date and computed ratios,
     sorted chronologically (ascending).
@@ -210,11 +210,13 @@ def compute_quarterly_balance_ratios(ticker: str) -> list[dict]:
 
         debt_to_equity = _safe_ratio(debt_ex_lease, equity)
         liabilities_to_equity = _safe_ratio(total_liabilities, equity)
+        current_ratio = _safe_ratio(sheet.current_assets, sheet.current_liabilities)
 
         results.append({
             "date": sheet.end_date.isoformat(),
             "debtToEquity": debt_to_equity,
             "liabilitiesToEquity": liabilities_to_equity,
+            "currentRatio": current_ratio,
         })
     return results
 

@@ -654,7 +654,12 @@ def _ensure_fresh_data(ticker: str) -> None:
 # Maps internal snake_case indicator names (rate_company) to the camelCase
 # keys used by the API response. Indicators not in this map are not part of
 # Learning Mode v1 (e.g. market_cap, current_price).
-_RATING_KEY_TO_RESPONSE_KEY = {
+# Maps the camelCase /api/quote field names that hold raw indicator values
+# (used to seed rate_company input) to their snake_case rating keys. This is
+# a superset of the rated indicators: debt_to_equity is included so it can
+# act as a fallback value for the debt_ex_lease_to_equity rating, even
+# though it never produces a rating of its own.
+_INDICATOR_VALUE_KEYS = {
     "pe10": "pe10",
     "pfcf10": "pfcf10",
     "peg": "peg",
@@ -667,12 +672,27 @@ _RATING_KEY_TO_RESPONSE_KEY = {
     "debt_to_avg_fcf": "debtToAvgFCF",
 }
 
+# Subset of _INDICATOR_VALUE_KEYS that actually emits a rating in the
+# response payload. Indicators absent here (e.g. debt_to_equity) feed
+# fallbacks but are not surfaced as standalone Learning Mode chips.
+_RATING_KEY_TO_RESPONSE_KEY = {
+    "pe10": "pe10",
+    "pfcf10": "pfcf10",
+    "peg": "peg",
+    "pfcf_peg": "pfcfPeg",
+    "debt_ex_lease_to_equity": "debtExLeaseToEquity",
+    "liabilities_to_equity": "liabilitiesToEquity",
+    "current_ratio": "currentRatio",
+    "debt_to_avg_earnings": "debtToAvgEarnings",
+    "debt_to_avg_fcf": "debtToAvgFCF",
+}
+
 
 def _build_ratings_block(quote_result: dict, sector: str | None) -> dict:
     """Compute Learning Mode tiers + overall grade from a /api/quote response."""
     indicator_values = {
         snake_key: quote_result.get(camel_key)
-        for snake_key, camel_key in _RATING_KEY_TO_RESPONSE_KEY.items()
+        for snake_key, camel_key in _INDICATOR_VALUE_KEYS.items()
     }
     rated = rate_company(indicator_values, sector=sector)
     block: dict = {

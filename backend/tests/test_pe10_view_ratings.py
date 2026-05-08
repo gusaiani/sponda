@@ -74,10 +74,13 @@ class TestQuoteEndpointRatings:
         # the response shape.
         for key in (
             "pe10", "pfcf10", "peg", "pfcfPeg",
-            "debtToEquity", "debtExLeaseToEquity", "liabilitiesToEquity",
+            "debtExLeaseToEquity", "liabilitiesToEquity",
             "currentRatio", "debtToAvgEarnings", "debtToAvgFCF",
         ):
             assert key in ratings
+        # debt_to_equity was dropped from Learning Mode in favour of
+        # debt_ex_lease_to_equity (with D/E acting only as a fallback value).
+        assert "debtToEquity" not in ratings
 
     @patch("quotes.views.fetch_quote")
     @patch("quotes.views.sync_balance_sheets")

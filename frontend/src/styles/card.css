@@ -540,7 +540,7 @@
 }
 
 /* Leverage row value size */
-.leverage-row-5col .pe10-value {
+.leverage-row-6col .pe10-value {
   @apply text-4xl;
 }
 
