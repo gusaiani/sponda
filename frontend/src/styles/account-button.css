@@ -10,15 +10,19 @@
 .account-button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px 4px 4px;
+  gap: 10px;
+  /* Match the height of the Filtrar/Screener pill (.app-header-filter-link)
+   * so the two controls sit on the same baseline. That button is 42px
+   * tall (24 line-height + 16 vertical padding + 2 border). */
+  min-height: 42px;
+  padding: 0 18px 0 8px;
   border: 1px solid #d0d4dc;
   border-radius: 999px;
   background: #ffffff;
   cursor: pointer;
   color: #222;
   font-family: 'Inter', system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   text-decoration: none;
   transition: background 0.15s, border-color 0.15s;
@@ -36,7 +40,9 @@
 }
 
 .account-button--login {
-  padding: 6px 14px;
+  /* No avatar in the signed-out state; use symmetric horizontal padding
+   * but keep the same min-height so the button matches Filtrar. */
+  padding: 0 20px;
 }
 
 .account-button-placeholder {
