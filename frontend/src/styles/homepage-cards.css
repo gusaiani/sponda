@@ -18,23 +18,29 @@
   box-sizing: border-box;
 }
 
+/* Column count tracks the available content width, not the viewport.
+ * Both sidebars take real estate; with the LeftNav and Sponds rail
+ * open we want 2 columns; with everything closed we want 3 or 4 to
+ * fill the screen without leaving large gutters.
+ *
+ * minmax(min(440px, 100%), 1fr) gives:
+ *   container <440  → 1 col (track shrinks to 100% of container)
+ *   880–1319        → 2 cols  (the user's "narrow with sidebars" case)
+ *   1320–1759       → 3 cols
+ *   ≥1760           → 4 cols
+ *
+ * Same effect as a series of viewport @media breakpoints, but driven
+ * by the grid's own width — so opening or closing a sidebar reflows
+ * the cards correctly without a viewport resize. */
 .hcc-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
+  gap: 16px;
 }
 
-@media (min-width: 640px) {
+@media (max-width: 480px) {
   .hcc-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .hcc-grid {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
+    gap: 12px;
   }
 }
 
