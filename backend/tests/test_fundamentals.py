@@ -446,6 +446,32 @@ class TestComputeQuarterlyBalanceRatios:
         q4_2024 = [r for r in result if r["date"] == "2024-12-31"][0]
         assert q4_2024["liabilitiesToEquity"] == 1.33
 
+    def test_computes_current_ratio(self, multi_year_balance_sheets):
+        result = compute_quarterly_balance_ratios("WEGE3")
+        # 2024 Q4: current_assets = 12B, current_liabilities = 8B → 1.5
+        q4_2024 = [r for r in result if r["date"] == "2024-12-31"][0]
+        assert q4_2024["currentRatio"] == 1.5
+
+    def test_current_ratio_null_when_current_liabilities_missing(self, db):
+        BalanceSheet.objects.create(
+            ticker="NOCL3", end_date=date(2024, 12, 31),
+            total_debt=10_000, total_lease=1_000,
+            total_liabilities=20_000, stockholders_equity=15_000,
+            current_assets=12_000, current_liabilities=None,
+        )
+        result = compute_quarterly_balance_ratios("NOCL3")
+        assert result[0]["currentRatio"] is None
+
+    def test_current_ratio_null_when_current_liabilities_zero(self, db):
+        BalanceSheet.objects.create(
+            ticker="ZEROCL3", end_date=date(2024, 12, 31),
+            total_debt=10_000, total_lease=1_000,
+            total_liabilities=20_000, stockholders_equity=15_000,
+            current_assets=12_000, current_liabilities=0,
+        )
+        result = compute_quarterly_balance_ratios("ZEROCL3")
+        assert result[0]["currentRatio"] is None
+
     def test_handles_null_equity(self, db):
         BalanceSheet.objects.create(
             ticker="NULL3", end_date=date(2024, 12, 31),

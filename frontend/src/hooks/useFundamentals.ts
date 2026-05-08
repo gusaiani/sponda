@@ -41,6 +41,7 @@ export interface QuarterlyBalanceRatio {
   date: string;
   debtToEquity: number | null;
   liabilitiesToEquity: number | null;
+  currentRatio: number | null;
 }
 
 export interface FundamentalsResponse {

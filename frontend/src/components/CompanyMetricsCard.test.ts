@@ -114,14 +114,14 @@ describe("buildMarketCapSeries", () => {
 
 describe("buildQuarterlyRatioSeries", () => {
   const quarterlyRatios = [
-    { date: "2023-03-31", debtToEquity: 0.5, liabilitiesToEquity: 1.0 },
-    { date: "2023-06-30", debtToEquity: 0.6, liabilitiesToEquity: 1.1 },
-    { date: "2023-09-30", debtToEquity: 0.7, liabilitiesToEquity: 1.2 },
-    { date: "2023-12-31", debtToEquity: 0.8, liabilitiesToEquity: 1.3 },
-    { date: "2024-03-31", debtToEquity: 0.55, liabilitiesToEquity: 1.05 },
-    { date: "2024-06-30", debtToEquity: 0.65, liabilitiesToEquity: 1.15 },
-    { date: "2024-09-30", debtToEquity: null, liabilitiesToEquity: 1.25 },
-    { date: "2024-12-31", debtToEquity: 0.75, liabilitiesToEquity: 1.35 },
+    { date: "2023-03-31", debtToEquity: 0.5, liabilitiesToEquity: 1.0, currentRatio: 1.5 },
+    { date: "2023-06-30", debtToEquity: 0.6, liabilitiesToEquity: 1.1, currentRatio: 1.6 },
+    { date: "2023-09-30", debtToEquity: 0.7, liabilitiesToEquity: 1.2, currentRatio: 1.7 },
+    { date: "2023-12-31", debtToEquity: 0.8, liabilitiesToEquity: 1.3, currentRatio: 1.8 },
+    { date: "2024-03-31", debtToEquity: 0.55, liabilitiesToEquity: 1.05, currentRatio: 1.4 },
+    { date: "2024-06-30", debtToEquity: 0.65, liabilitiesToEquity: 1.15, currentRatio: 1.3 },
+    { date: "2024-09-30", debtToEquity: null, liabilitiesToEquity: 1.25, currentRatio: null },
+    { date: "2024-12-31", debtToEquity: 0.75, liabilitiesToEquity: 1.35, currentRatio: 1.2 },
   ];
 
   it("builds series for debtToEquity field", () => {
@@ -136,6 +136,14 @@ describe("buildQuarterlyRatioSeries", () => {
     const result = buildQuarterlyRatioSeries(quarterlyRatios, "liabilitiesToEquity", 10);
     expect(result.length).toBe(8);
     expect(result[7].value).toBe(1.35);
+  });
+
+  it("builds series for currentRatio field", () => {
+    const result = buildQuarterlyRatioSeries(quarterlyRatios, "currentRatio", 10);
+    // Should exclude the null entry (2024-09-30)
+    expect(result.length).toBe(7);
+    expect(result[0].value).toBe(1.5);
+    expect(result[result.length - 1].value).toBe(1.2);
   });
 
   it("filters by years parameter", () => {

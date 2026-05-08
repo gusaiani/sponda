@@ -286,6 +286,7 @@ export interface TranslationDictionary {
   "metrics.liab_equity": string;
   "metrics.gross_debt_earnings": string;
   "metrics.gross_debt_fcf": string;
+  "metrics.current_ratio": string;
   "metrics.average": string;
   "metrics.cagr_earnings": string;
   "metrics.cagr_fcf": string;
@@ -325,6 +326,10 @@ export interface TranslationDictionary {
   "modal.debt_earnings_explain": string;
   "modal.debt_earnings_note": string;
   "modal.debt_fcf_explain": string;
+  "modal.current_ratio_explain": string;
+  "modal.current_ratio_note": string;
+  "modal.current_assets": string;
+  "modal.current_liabilities": string;
 
   "modal.market_cap_explain": string;
   "modal.market_cap_price": string;
@@ -373,6 +378,7 @@ export interface TranslationDictionary {
   "modal.title.liab_equity": string;
   "modal.title.debt_earnings": string;
   "modal.title.debt_fcf": string;
+  "modal.title.current_ratio": string;
   "modal.title.market_cap": string;
   "modal.title.peg": string;
   "modal.title.cagr_earnings": string;

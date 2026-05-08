@@ -75,7 +75,8 @@ class TestScreenerRatings:
         )
         for key in (
             "pe10", "pfcf10", "peg", "pfcf_peg",
-            "debt_to_equity", "debt_ex_lease_to_equity", "liabilities_to_equity",
+            "debt_ex_lease_to_equity", "liabilities_to_equity",
             "current_ratio", "debt_to_avg_earnings", "debt_to_avg_fcf",
         ):
             assert key in ratings
+        assert "debt_to_equity" not in ratings

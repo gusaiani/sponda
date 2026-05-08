@@ -38,11 +38,17 @@ class TestRateIndicator:
         assert weak is not None and strong is not None
         assert strong > weak
 
-    def test_debt_to_equity_lower_is_better(self):
-        clean = rate_indicator("debt_to_equity", Decimal("0.1"))
-        leveraged = rate_indicator("debt_to_equity", Decimal("5.0"))
+    def test_debt_ex_lease_to_equity_lower_is_better(self):
+        clean = rate_indicator("debt_ex_lease_to_equity", Decimal("0.1"))
+        leveraged = rate_indicator("debt_ex_lease_to_equity", Decimal("5.0"))
         assert clean is not None and leveraged is not None
         assert clean > leveraged
+
+    def test_debt_to_equity_is_no_longer_rated_directly(self):
+        # debt_to_equity was dropped from Learning Mode in favour of
+        # debt_ex_lease_to_equity (with a value-level fallback handled by
+        # rate_company). Asking rate_indicator directly for D/E returns None.
+        assert rate_indicator("debt_to_equity", Decimal("0.5")) is None
 
     def test_returns_integer_in_range_one_to_five(self):
         for indicator in RATING_THRESHOLDS:
@@ -57,22 +63,24 @@ class TestRateIndicator:
         assert rate_indicator("pe10", 8.5) is not None
 
     def test_extreme_low_value_lower_is_better_caps_at_five(self):
-        assert rate_indicator("debt_to_equity", Decimal("0")) == 5
+        assert rate_indicator("debt_ex_lease_to_equity", Decimal("0")) == 5
 
     def test_extreme_high_value_lower_is_better_floors_at_one(self):
-        assert rate_indicator("debt_to_equity", Decimal("999")) == 1
+        assert rate_indicator("debt_ex_lease_to_equity", Decimal("999")) == 1
 
     def test_sector_override_used_when_available(self, monkeypatch):
         # Patch in a sector override so we know the lookup path is wired up.
-        # Default for D/E rates 1.0 as average tier; for "Utilities" we set
+        # Default for D-Lease/E rates 1.0 as average tier; for "Utilities" we set
         # the same value to count as good (utilities run leveraged by design).
         monkeypatch.setitem(
-            RATING_THRESHOLDS["debt_to_equity"],
+            RATING_THRESHOLDS["debt_ex_lease_to_equity"],
             "Utilities",
             {"direction": "lower", "cuts": [2.0, 3.0, 4.0, 5.0]},
         )
-        default_rating = rate_indicator("debt_to_equity", Decimal("1.0"))
-        utility_rating = rate_indicator("debt_to_equity", Decimal("1.0"), sector="Utilities")
+        default_rating = rate_indicator("debt_ex_lease_to_equity", Decimal("1.0"))
+        utility_rating = rate_indicator(
+            "debt_ex_lease_to_equity", Decimal("1.0"), sector="Utilities",
+        )
         assert utility_rating is not None and default_rating is not None
         assert utility_rating > default_rating
 
@@ -89,7 +97,7 @@ class TestComputeOverallGrade:
         assert compute_overall_grade(ratings) is None
 
     def test_ignores_null_indicators(self):
-        ratings = {"pe10": None, "pfcf10": None, "debt_to_equity": None}
+        ratings = {"pe10": None, "pfcf10": None, "debt_ex_lease_to_equity": None}
         assert compute_overall_grade(ratings) is None
 
     def test_average_of_uniform_ratings(self):
@@ -102,7 +110,7 @@ class TestComputeOverallGrade:
         ratings = {
             "pe10": 5,
             "pfcf10": 4,
-            "debt_to_equity": 3,
+            "debt_ex_lease_to_equity": 3,
             "current_ratio": 5,
         }
         # mean = 4.25 → 4
@@ -123,7 +131,7 @@ class TestRateCompany:
             {
                 "pe10": Decimal("12"),
                 "pfcf10": Decimal("15"),
-                "debt_to_equity": Decimal("0.5"),
+                "debt_ex_lease_to_equity": Decimal("0.5"),
                 "current_ratio": Decimal("2.0"),
                 "peg": Decimal("0.8"),
             },
@@ -142,13 +150,14 @@ class TestRateCompany:
         assert result["overall"] is None  # too few indicators
 
     def test_skips_unrated_indicators(self):
-        # market_cap and current_price are not rated even though they appear
-        # in IndicatorSnapshot.
+        # market_cap, current_price, and debt_to_equity are not rated as
+        # standalone indicators (debt_to_equity only feeds the
+        # debt_ex_lease_to_equity rating as a fallback value).
         result = rate_company(
             {
                 "pe10": Decimal("12"),
                 "pfcf10": Decimal("15"),
-                "debt_to_equity": Decimal("0.5"),
+                "debt_ex_lease_to_equity": Decimal("0.5"),
                 "current_ratio": Decimal("2.0"),
                 "market_cap": Decimal("1000000000"),
                 "current_price": Decimal("35"),
@@ -156,3 +165,33 @@ class TestRateCompany:
         )
         assert "market_cap" not in result["ratings"]
         assert "current_price" not in result["ratings"]
+        assert "debt_to_equity" not in result["ratings"]
+
+    def test_debt_to_equity_falls_back_to_rate_debt_ex_lease(self):
+        # When debt_ex_lease_to_equity is missing but debt_to_equity is
+        # present, the leverage rating is keyed at debt_ex_lease_to_equity
+        # using the D/E value (and the D-Lease/E thresholds).
+        result = rate_company(
+            {
+                "debt_ex_lease_to_equity": None,
+                "debt_to_equity": Decimal("0.4"),
+            },
+        )
+        assert "debt_to_equity" not in result["ratings"]
+        assert result["ratings"]["debt_ex_lease_to_equity"] is not None
+        assert result["ratings"]["debt_ex_lease_to_equity"] == rate_indicator(
+            "debt_ex_lease_to_equity", Decimal("0.4"),
+        )
+
+    def test_debt_ex_lease_preferred_over_debt_to_equity_fallback(self):
+        # When both values are present, the primary debt_ex_lease_to_equity
+        # value wins — the D/E fallback is ignored.
+        result = rate_company(
+            {
+                "debt_ex_lease_to_equity": Decimal("0.2"),
+                "debt_to_equity": Decimal("5.0"),  # would rate poorly
+            },
+        )
+        assert result["ratings"]["debt_ex_lease_to_equity"] == rate_indicator(
+            "debt_ex_lease_to_equity", Decimal("0.2"),
+        )
