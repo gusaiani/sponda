@@ -40,11 +40,15 @@
   line-height: 1.5;
 }
 
-/* Fixed slider container (desktop only) */
+/* Fixed slider container (desktop only). Anchored to the right edge of
+ * the main content area, NOT the viewport — adding the right rail's
+ * current width keeps it from disappearing behind the Sponds sidebar.
+ * The variable is published by SocialSidebar; defaults to 0 so the
+ * slider behaves correctly on pages without the rail. */
 .years-slider-fixed {
   display: none;
   position: fixed;
-  right: 24px;
+  right: calc(24px + var(--right-rail-width, 0px));
   z-index: 50;
   background: #f0f4fb;
   border: 1px solid #b8c8dd;

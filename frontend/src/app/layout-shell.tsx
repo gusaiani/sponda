@@ -86,9 +86,11 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
       )}
       {!isOnAuthPage && <LeftNav />}
       <FeedbackButton />
-      <main className="app-main">
-        {children}
-      </main>
+      <div className="app-body">
+        <main className="app-main">
+          {children}
+        </main>
+      </div>
       {!isOnAuthPage && <SocialSidebar />}
       <footer className="app-footer">
         <a href="https://poe.ma" target="_blank" rel="noopener noreferrer" className="app-footer-logo-link">

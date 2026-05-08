@@ -36,6 +36,31 @@ export function SocialSidebar() {
     setHydrated(true);
   }, []);
 
+  // Publish the rail's current width as a CSS variable so the rest of
+  // the layout can adjust without React knowing. The breakpoint here
+  // mirrors social-sidebar.css; below it the rail isn't rendered at all.
+  useEffect(() => {
+    if (typeof window === "undefined" || !hydrated) return;
+    const root = document.documentElement;
+    function publish() {
+      const isDesktop = window.innerWidth > 1100;
+      if (!isDesktop) {
+        root.style.setProperty("--right-rail-width", "0px");
+        return;
+      }
+      root.style.setProperty(
+        "--right-rail-width",
+        collapsed ? `${SIDEBAR_RAIL_WIDTH}px` : `${SIDEBAR_WIDTH}px`,
+      );
+    }
+    publish();
+    window.addEventListener("resize", publish);
+    return () => {
+      window.removeEventListener("resize", publish);
+      root.style.setProperty("--right-rail-width", "0px");
+    };
+  }, [collapsed, hydrated]);
+
   function toggleCollapsed() {
     setCollapsed((prev) => {
       const next = !prev;

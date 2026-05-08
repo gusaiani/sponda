@@ -1,44 +1,37 @@
 /* Layout adjustments for the two fixed sidebars (left nav + Sponds rail).
+ *
  * Both sidebars are position: fixed at the viewport edges; we shift the
- * main content via margin/padding so it doesn't get hidden behind them.
+ * .app-body wrapper via padding so .app-main can stay centered inside the
+ * remaining width. This keeps the centered max-w[880px] block visually
+ * balanced between the two rails instead of left-anchored.
  *
- * The left nav width is exposed as the --left-nav-width CSS variable on
- * the <html> root by LeftNavContext (0px when closed, 240px when open).
- * The right rail uses fixed media queries for now — it has only two
- * states (expanded / collapsed) and a hard breakpoint where it hides.
+ * Widths are exposed as CSS variables on the <html> element by the
+ * components themselves:
+ *   --left-nav-width   set by LeftNavContext (0 closed, 240 open)
+ *   --right-rail-width set by SocialSidebar (0 below 1100px, 36 collapsed,
+ *                                            380 expanded)
  *
- * Task E will replace this margin/padding hack with a proper CSS grid
- * so the main column can stay centered between both sidebars instead
- * of getting left-anchored when the nav opens.
+ * Mobile (<= 900px): the left nav is an overlay with a backdrop, so we
+ * don't want padding for it. Below 1100px the right rail is hidden, so
+ * SocialSidebar publishes 0 itself.
  */
 
-/* ── Left nav offset ──────────────────────────────────────────────────── */
-
-@media (min-width: 901px) {
-  html.left-nav-open .app-main {
-    margin-left: var(--left-nav-width, 240px);
-    transition: margin-left 0.18s ease;
-  }
+.app-body {
+  padding-left: var(--left-nav-width, 0px);
+  padding-right: var(--right-rail-width, 0px);
+  transition: padding 0.18s ease;
 }
 
-/* ── Right Sponds rail ────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  /* Left nav becomes an overlay; don't reserve space for it. */
+  .app-body {
+    padding-left: 0;
+  }
+}
 
 @media (max-width: 1100px) {
   .social-sidebar,
   .social-sidebar-rail {
     display: none !important;
-  }
-}
-
-@media (min-width: 1101px) {
-  .app-main {
-    padding-right: 380px;
-    transition: padding-right 0.18s ease;
-  }
-  /* When the rail is collapsed, free up most of that space. The
-   * `:has` pseudo-class is supported in evergreen browsers; older
-   * Safari falls back to the expanded padding which is still safe. */
-  body:has(.social-sidebar-rail) .app-main {
-    padding-right: 36px;
   }
 }
