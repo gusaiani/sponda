@@ -108,90 +108,94 @@ export function SpondCard({ spond }: Props) {
 
   return (
     <article style={cardStyle}>
-      <div style={{ display: "flex", gap: "10px" }}>
-        <Link href={`/${locale}/user/${spond.author.handle}`} aria-label={spond.author.display_name || spond.author.handle}>
-          <UserAvatar handle={spond.author.handle} displayName={spond.author.display_name} size="md" />
-        </Link>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
-            <div>
-              <Link
-                href={`/${locale}/user/${spond.author.handle}`}
-                style={{ color: "#222", fontWeight: 600, textDecoration: "none" }}
-              >
-                {spond.author.display_name || spond.author.handle}
-              </Link>
-              <span style={{ marginLeft: "6px", color: "#666", fontSize: "13px" }}>
-                @{spond.author.handle}
-              </span>
-            </div>
-            <Link
-              href={`/${locale}/spond/${spond.id}`}
-              style={{ color: "#888", fontSize: "13px", textDecoration: "none" }}
-              title={new Date(spond.created_at).toLocaleString(locale)}
-            >
-              {relativeTime(spond.created_at, locale)}
-            </Link>
-          </div>
-          <div style={{ marginTop: "4px", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-            {renderBody(spond.body, locale)}
-          </div>
-          {spond.ticker && (
-            <div style={{ marginTop: "6px" }}>
-              <Link
-                href={`/${locale}/${spond.ticker}`}
-                style={{
-                  display: "inline-block", padding: "2px 8px",
-                  borderRadius: "999px", background: "#eef1ff",
-                  color: "#1b347e", fontWeight: 600, fontSize: "12px",
-                  textDecoration: "none",
-                }}
-              >
-                ${spond.ticker}
-              </Link>
-            </div>
-          )}
-          <div style={{ display: "flex", gap: "16px", marginTop: "10px", color: "#555", fontSize: "13px" }}>
-            <Link href={`/${locale}/spond/${spond.id}`} style={{ color: "inherit", textDecoration: "none" }}>
-              {t("social.spond.reply")} {spond.reply_count > 0 && `· ${spond.reply_count}`}
-            </Link>
-            <button
-              type="button"
-              onClick={handleLikeToggle}
-              disabled={!user}
-              style={{
-                background: "none", border: "none", padding: 0,
-                cursor: user ? "pointer" : "default",
-                color: liked ? "#a13a4a" : "inherit",
-                fontWeight: liked ? 600 : 400,
-                fontSize: "13px",
-              }}
-            >
-              {liked ? t("social.spond.unlike") : t("social.spond.like")}{likeCount > 0 && ` · ${likeCount}`}
-            </button>
-            {isMine && (
-              <button
-                type="button"
-                onClick={handleDelete}
-                style={{
-                  background: "none", border: "none", padding: 0,
-                  cursor: "pointer", color: "#a00", fontSize: "13px",
-                }}
-              >
-                {t("social.spond.delete")}
-              </button>
-            )}
-          </div>
+      {/* Inline header: avatar + display name + handle + timestamp on one
+        * line. Body wraps the full card width below. Tighter than the
+        * prior layout — saves ~36px of horizontal gutter, a lot in the
+        * narrow right rail. */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0, flex: 1 }}>
+          <Link
+            href={`/${locale}/user/${spond.author.handle}`}
+            aria-label={spond.author.display_name || spond.author.handle}
+            style={{ flexShrink: 0, display: "inline-flex" }}
+          >
+            <UserAvatar handle={spond.author.handle} displayName={spond.author.display_name} size="sm" />
+          </Link>
+          <Link
+            href={`/${locale}/user/${spond.author.handle}`}
+            style={{ color: "#222", fontWeight: 600, fontSize: "13px", textDecoration: "none", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          >
+            {spond.author.display_name || spond.author.handle}
+          </Link>
+          <span style={{ color: "#888", fontSize: "12px", whiteSpace: "nowrap" }}>
+            @{spond.author.handle}
+          </span>
         </div>
+        <Link
+          href={`/${locale}/spond/${spond.id}`}
+          style={{ color: "#888", fontSize: "12px", textDecoration: "none", flexShrink: 0 }}
+          title={new Date(spond.created_at).toLocaleString(locale)}
+        >
+          {relativeTime(spond.created_at, locale)}
+        </Link>
+      </div>
+      <div style={{ fontSize: "13px", lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#222" }}>
+        {renderBody(spond.body, locale)}
+      </div>
+      {spond.ticker && (
+        <div style={{ marginTop: "6px" }}>
+          <Link
+            href={`/${locale}/${spond.ticker}`}
+            style={{
+              display: "inline-block", padding: "1px 7px",
+              borderRadius: "999px", background: "#eef1ff",
+              color: "#1b347e", fontWeight: 600, fontSize: "11px",
+              textDecoration: "none",
+            }}
+          >
+            ${spond.ticker}
+          </Link>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: "14px", marginTop: "8px", color: "#666", fontSize: "12px" }}>
+        <Link href={`/${locale}/spond/${spond.id}`} style={{ color: "inherit", textDecoration: "none" }}>
+          {t("social.spond.reply")} {spond.reply_count > 0 && `· ${spond.reply_count}`}
+        </Link>
+        <button
+          type="button"
+          onClick={handleLikeToggle}
+          disabled={!user}
+          style={{
+            background: "none", border: "none", padding: 0,
+            cursor: user ? "pointer" : "default",
+            color: liked ? "#a13a4a" : "inherit",
+            fontWeight: liked ? 600 : 400,
+            fontSize: "12px",
+          }}
+        >
+          {liked ? t("social.spond.unlike") : t("social.spond.like")}{likeCount > 0 && ` · ${likeCount}`}
+        </button>
+        {isMine && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            style={{
+              background: "none", border: "none", padding: 0,
+              cursor: "pointer", color: "#a00", fontSize: "12px",
+            }}
+          >
+            {t("social.spond.delete")}
+          </button>
+        )}
       </div>
     </article>
   );
 }
 
 const cardStyle: React.CSSProperties = {
-  padding: "12px",
+  padding: "10px 12px",
   border: "1px solid #e1e4e8",
-  borderRadius: "10px",
+  borderRadius: "8px",
   background: "#ffffff",
-  marginBottom: "10px",
+  marginBottom: "8px",
 };

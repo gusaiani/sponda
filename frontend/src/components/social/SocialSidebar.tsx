@@ -59,6 +59,7 @@ export function SocialSidebar() {
         type="button"
         onClick={toggleCollapsed}
         aria-label={t("social.sidebar.expand")}
+        title={t("social.sidebar.expand")}
         className="social-sidebar-rail"
         style={{
           position: "fixed",
@@ -74,24 +75,11 @@ export function SocialSidebar() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "flex-start",
-          paddingTop: "16px",
-          gap: "12px",
+          paddingTop: "14px",
           zIndex: 20,
         }}
       >
-        <span aria-hidden style={{ fontSize: "16px", color: "#1b347e" }}>‹</span>
-        <span
-          style={{
-            writingMode: "vertical-rl",
-            transform: "rotate(180deg)",
-            color: "#1b347e",
-            fontWeight: 600,
-            fontSize: "13px",
-            letterSpacing: "1px",
-          }}
-        >
-          {t("social.spond_noun_plural")}
-        </span>
+        <SpeechBalloonIcon size={22} color="#1b347e" />
       </button>
     );
   }
@@ -123,13 +111,17 @@ export function SocialSidebar() {
           background: "#fafbfc",
         }}
       >
-        <strong style={{ color: "#1b347e", fontSize: "15px" }}>
-          {t("social.spond_noun_plural")}
-        </strong>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+          <SpeechBalloonIcon size={18} color="#1b347e" />
+          <strong style={{ color: "#1b347e", fontSize: "15px" }}>
+            {t("social.spond_noun_plural")}
+          </strong>
+        </span>
         <button
           type="button"
           onClick={toggleCollapsed}
           aria-label={t("social.sidebar.collapse")}
+          title={t("social.sidebar.collapse")}
           style={{
             background: "none",
             border: "none",
@@ -186,6 +178,26 @@ export function SocialSidebar() {
         <SpondFeed kind={isAuthenticated && tab === "following" ? "following" : "global"} />
       </div>
     </aside>
+  );
+}
+
+/** Comic-book speech balloon — single recognizable affordance for Sponds. */
+function SpeechBalloonIcon({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* Rounded balloon */}
+      <path d="M4 5h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9l-5 4v-4H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
+    </svg>
   );
 }
 
