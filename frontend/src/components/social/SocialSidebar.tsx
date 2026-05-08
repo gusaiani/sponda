@@ -173,6 +173,14 @@ export function SocialSidebar() {
             gap: "4px",
           }}
         >
+          <button
+            role="tab"
+            aria-selected={tab === "global"}
+            onClick={() => selectTab("global")}
+            style={tabStyle(tab === "global")}
+          >
+            {t("social.feed.tab_global")}
+          </button>
           {isAuthenticated ? (
             <button
               role="tab"
@@ -190,14 +198,6 @@ export function SocialSidebar() {
               {t("social.feed.login_to_follow")}
             </Link>
           )}
-          <button
-            role="tab"
-            aria-selected={tab === "global"}
-            onClick={() => selectTab("global")}
-            style={tabStyle(tab === "global")}
-          >
-            {t("social.feed.tab_global")}
-          </button>
         </div>
 
         <SpondFeed kind={isAuthenticated && tab === "following" ? "following" : "global"} />
