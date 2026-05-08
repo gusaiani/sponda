@@ -56,6 +56,9 @@ const KNOWN_LOCALE_ROUTES = new Set([
   "screener", "shared", "login", "signup", "forgot-password",
   "reset-password", "verify-email", "account", "admin-dashboard",
   "admin", "listas", "alertas", "notificacoes", "visitas",
+  // Social routes — without these the middleware uppercases /pt/user
+  // to /pt/USER (treating it as a ticker symbol), which then 404s.
+  "user", "spond",
 ]);
 
 function correctSlugForLocale(locale: string, slug: string): string | null {
