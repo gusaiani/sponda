@@ -135,7 +135,7 @@ export const fr: TranslationDictionary = {
   "verify.pending_text": "Consultez votre boîte de réception. Si vous ne l'avez pas reçu, renvoyez-le ci-dessous.",
 
   /* ── Feedback ── */
-  "feedback.trigger": "Que pensez-vous de Sponda jusqu'\u00e0 pr\u00e9sent\u00a0?",
+  "feedback.trigger": "Nous contacter",
   "feedback.title": "Aidez-nous \u00e0 am\u00e9liorer Sponda",
   "feedback.subtitle": "Je suis Gustavo Saiani, cr\u00e9ateur de Sponda. Je le construis seul, sur la base de mes 18 ans d'exp\u00e9rience \u00e0 \u00e9tudier et pratiquer le value investing (voir www.poe.ma). Je veux savoir ce dont vous avez besoin, ce que vous aimez ou n'aimez pas, afin de rendre Sponda meilleur pour vous.",
   "feedback.email_label": "Votre e-mail",

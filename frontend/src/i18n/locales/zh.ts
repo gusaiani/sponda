@@ -135,7 +135,7 @@ export const zh: TranslationDictionary = {
   "verify.pending_text": "请检查您的收件箱。如果没有收到，可在下方重新发送。",
 
   /* ── Feedback ── */
-  "feedback.trigger": "您觉得 Sponda 到目前为止怎么样？",
+  "feedback.trigger": "联系我们",
   "feedback.title": "帮助我们改进 Sponda",
   "feedback.subtitle": "我是 Gustavo Saiani，Sponda 的创建者。我独自构建这个项目，基于我 18 年研究和实践价值投资的经验（参见 www.poe.ma）。我想知道您需要什么，喜欢或不喜欢什么，以便我能让 Sponda 对您更好。",
   "feedback.email_label": "您的邮箱",
