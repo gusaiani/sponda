@@ -49,28 +49,39 @@ beforeEach(() => {
   mutate.mockResolvedValue({});
 });
 
+// The composer is collapsed (single-line, no footer) until the textarea
+// is focused or has content. Tests that need the footer present must
+// focus the textarea first.
+function focusTextarea(): HTMLTextAreaElement {
+  const textarea = document.querySelector("textarea")! as HTMLTextAreaElement;
+  fireEvent.focus(textarea);
+  return textarea;
+}
+
 describe("SpondComposer", () => {
-  it("renders char counter starting at 500", () => {
+  it("renders char counter starting at 500 once focused", () => {
     wrap(<SpondComposer />);
+    focusTextarea();
     expect(screen.getByText("500 characters left")).toBeInTheDocument();
   });
 
   it("decrements char counter as user types", () => {
     wrap(<SpondComposer />);
-    const textarea = document.querySelector("textarea")!;
+    const textarea = focusTextarea();
     fireEvent.change(textarea, { target: { value: "hello" } });
     expect(screen.getByText("495 characters left")).toBeInTheDocument();
   });
 
   it("disables submit when body is empty", () => {
     wrap(<SpondComposer />);
+    focusTextarea();
     const button = screen.getByRole("button", { name: /Spond/i });
     expect(button).toBeDisabled();
   });
 
   it("disables submit when over 500 chars", () => {
     wrap(<SpondComposer />);
-    const textarea = document.querySelector("textarea")!;
+    const textarea = focusTextarea();
     fireEvent.change(textarea, { target: { value: "x".repeat(501) } });
     const button = screen.getByRole("button", { name: /Spond/i });
     expect(button).toBeDisabled();
@@ -78,7 +89,14 @@ describe("SpondComposer", () => {
 
   it("shows the locked ticker chip when lockedTicker is provided", () => {
     wrap(<SpondComposer lockedTicker="PETR4" />);
+    focusTextarea();
     expect(screen.getByText("$PETR4")).toBeInTheDocument();
+  });
+
+  it("starts collapsed when not focused and empty", () => {
+    wrap(<SpondComposer />);
+    expect(screen.queryByText("500 characters left")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Spond/i })).toBeNull();
   });
 
   it("calls mutateAsync when submitted with valid body", async () => {

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "../../i18n";
 import { useAuth } from "../../hooks/useAuth";
+import { useSocialFeed } from "../../hooks/useSocialFeed";
+import { useSeenSponds } from "../../hooks/useSeenSponds";
 import { SpondComposer } from "./SpondComposer";
 import { SpondFeed } from "./SpondFeed";
 
@@ -76,6 +78,22 @@ export function SocialSidebar() {
     if (typeof window !== "undefined") window.localStorage.setItem(TAB_KEY, next);
   }
 
+  // Always run the active tab's feed query — even when collapsed — so the
+  // unread badge under the rail icon has data to count.
+  const feedKind = isAuthenticated && tab === "following" ? "following" : "global";
+  const feedQuery = useSocialFeed(feedKind);
+  const { isSeen } = useSeenSponds();
+
+  const unseenCount = useMemo(() => {
+    const all = (feedQuery.data?.pages ?? []).flatMap((page) => page.results);
+    let n = 0;
+    for (const spond of all) {
+      if (!isSeen(spond.id, spond.created_at)) n += 1;
+      if (n > 99) return 100; // sentinel rendered as "99+"
+    }
+    return n;
+  }, [feedQuery.data, isSeen]);
+
   if (!hydrated) return null;
 
   if (collapsed) {
@@ -94,6 +112,7 @@ export function SocialSidebar() {
           width: `${SIDEBAR_RAIL_WIDTH}px`,
           background: "#fafbfc",
           border: "none",
+          borderTop: "1px solid #e1e4e8",
           borderLeft: "1px solid #e1e4e8",
           cursor: "pointer",
           display: "flex",
@@ -101,10 +120,25 @@ export function SocialSidebar() {
           alignItems: "center",
           justifyContent: "flex-start",
           paddingTop: "14px",
+          gap: "6px",
           zIndex: 20,
         }}
       >
         <SpeechBalloonIcon size={22} color="#1b347e" />
+        {unseenCount > 0 && (
+          <span
+            aria-label={`${unseenCount} ${t("social.spond_noun_plural")}`}
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "#1b347e",
+              fontFamily: "'Inter', system-ui, sans-serif",
+              lineHeight: 1,
+            }}
+          >
+            {unseenCount > 99 ? "99+" : unseenCount}
+          </span>
+        )}
       </button>
     );
   }
@@ -120,6 +154,7 @@ export function SocialSidebar() {
         bottom: 0,
         width: `${SIDEBAR_WIDTH}px`,
         background: "#ffffff",
+        borderTop: "1px solid #e1e4e8",
         borderLeft: "1px solid #e1e4e8",
         display: "flex",
         flexDirection: "column",

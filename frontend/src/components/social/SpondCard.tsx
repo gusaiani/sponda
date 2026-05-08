@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "../../i18n";
 import { useAuth } from "../../hooks/useAuth";
 import { useDeleteSpond, useLikeSpond } from "../../hooks/useSocialFeed";
+import { useSeenSponds } from "../../hooks/useSeenSponds";
 import type { SpondPayload } from "../../hooks/useProfile";
 import { useEmailVerification } from "../EmailVerificationGate";
 import { UserAvatar } from "./UserAvatar";
@@ -119,8 +120,34 @@ export function SpondCard({ spond }: Props) {
     deleteSpond.mutate(spond.id);
   }
 
+  // Mark this Spond as "seen" when it scrolls into view. The collapsed
+  // sidebar's unread badge counts younger-than-48h Sponds the user
+  // hasn't yet observed; once they scroll past, it stops counting.
+  const articleRef = useRef<HTMLElement>(null);
+  const { markSeen } = useSeenSponds();
+  useEffect(() => {
+    const node = articleRef.current;
+    if (!node || typeof window === "undefined" || !("IntersectionObserver" in window)) {
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            markSeen(spond.id);
+            observer.disconnect();
+            break;
+          }
+        }
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [spond.id, markSeen]);
+
   return (
-    <article style={cardStyle}>
+    <article ref={articleRef} style={cardStyle}>
       {/* Inline header: avatar + display name + handle + timestamp on one
         * line. Body wraps the full card width below. Tighter than the
         * prior layout — saves ~36px of horizontal gutter, a lot in the

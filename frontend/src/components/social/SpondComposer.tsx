@@ -27,6 +27,11 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitte
   const [body, setBody] = useState("");
   const [ticker, setTicker] = useState(lockedTicker ?? "");
   const [error, setError] = useState<string | null>(null);
+  // Compact state: collapsed to a single visible row when the textarea
+  // is empty AND not focused — saves vertical space in the right rail.
+  // Expands the moment the user focuses or types something.
+  const [expanded, setExpanded] = useState(Boolean(parentHandle));
+  const isExpanded = expanded || body.length > 0;
 
   // Signed-out users still see a small CTA — they can't compose at all.
   // Unverified signed-in users see the full composer; the verification
@@ -101,58 +106,74 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitte
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
+            onFocus={() => setExpanded(true)}
+            onBlur={() => { if (body.length === 0 && !parentHandle) setExpanded(false); }}
             placeholder={placeholder}
-            rows={3}
+            rows={isExpanded ? 3 : 1}
             maxLength={SPOND_MAX_LENGTH + 50}
             style={{
-              width: "100%", minHeight: "72px", resize: "vertical",
-              padding: "8px 10px", border: "1px solid #ccc", borderRadius: "6px",
-              fontSize: "15px", fontFamily: "inherit",
+              width: "100%",
+              minHeight: isExpanded ? "72px" : "36px",
+              resize: isExpanded ? "vertical" : "none",
+              padding: "8px 10px",
+              border: "1px solid #ccc",
+              borderRadius: "6px",
+              fontSize: "15px",
+              fontFamily: "inherit",
+              transition: "min-height 0.18s ease",
+              overflow: "hidden",
             }}
           />
-          <div
-            style={{
-              display: "flex", justifyContent: "space-between",
-              alignItems: "center", marginTop: "6px", gap: "10px",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              {lockedTicker ? (
-                <span style={tickerChipStyle}>${lockedTicker}</span>
-              ) : (
-                <input
-                  type="text"
-                  value={ticker}
-                  placeholder={t("social.compose.add_ticker")}
-                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                  maxLength={10}
-                  style={{
-                    width: "120px", padding: "4px 8px",
-                    border: "1px solid #ccc", borderRadius: "6px",
-                    fontSize: "13px",
-                  }}
-                />
-              )}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span style={{ fontSize: "13px", color: counterColor }}>
-                {t("social.compose.char_left", { count: String(remaining) })}
-              </span>
-              <button
-                type="submit"
-                disabled={isEmpty || isOver || createSpond.isPending}
+          {isExpanded && (
+            <div style={{ marginTop: "8px" }}>
+              {/* First row: ticker chip / picker on the left.
+                * Second row: char counter + Spondar, both right-aligned
+                * with the textarea above. */}
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                {lockedTicker ? (
+                  <span style={tickerChipStyle}>${lockedTicker}</span>
+                ) : (
+                  <input
+                    type="text"
+                    value={ticker}
+                    placeholder={t("social.compose.add_ticker")}
+                    onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                    maxLength={10}
+                    style={{
+                      width: "120px", padding: "4px 8px",
+                      border: "1px solid #ccc", borderRadius: "6px",
+                      fontSize: "13px",
+                    }}
+                  />
+                )}
+              </div>
+              <div
                 style={{
-                  padding: "6px 14px", border: "none", borderRadius: "6px",
-                  background: isEmpty || isOver ? "#9aa" : "#1b347e",
-                  color: "#fff", fontWeight: 600,
-                  cursor: isEmpty || isOver || createSpond.isPending ? "not-allowed" : "pointer",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                  gap: "12px",
+                  marginTop: "8px",
                 }}
               >
-                {t("social.compose.button")}
-              </button>
+                <span style={{ fontSize: "13px", color: counterColor }}>
+                  {t("social.compose.char_left", { count: String(remaining) })}
+                </span>
+                <button
+                  type="submit"
+                  disabled={isEmpty || isOver || createSpond.isPending}
+                  style={{
+                    padding: "6px 14px", border: "none", borderRadius: "6px",
+                    background: isEmpty || isOver ? "#9aa" : "#1b347e",
+                    color: "#fff", fontWeight: 600,
+                    cursor: isEmpty || isOver || createSpond.isPending ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {t("social.compose.button")}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
           {error && (
             <div style={{ marginTop: "8px", padding: "6px 10px", background: "#fee", color: "#a00", borderRadius: "6px", fontSize: "13px" }}>
               {error}
