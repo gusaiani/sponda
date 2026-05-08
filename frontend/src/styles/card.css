@@ -4,10 +4,7 @@
   @apply py-6;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -638,10 +635,7 @@
   @apply py-6 animate-pulse;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }

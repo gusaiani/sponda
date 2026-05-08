@@ -11,19 +11,18 @@
 }
 
 /* ── Header ─────────────────────────────────────────────────────────
- * Breaks out of .app-main (max-width 880px) so the filter popover has
- * room to open close to the title — mirrors .company-header exactly so
- * the horizontal divider sits at the same height as on other pages. */
+ * Spans the full .app-main width so the filter popover has room to
+ * open close to the title. (Used to break out to 100vw because
+ * .app-main was capped at 880px; now .app-main fills .app-body so a
+ * plain width: 100% gives the same effect without leaking under the
+ * new sidebars.) */
 
 .screener-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding: 8px 16px 12px;
   margin-bottom: 16px;
   border-bottom: 1px solid var(--color-border);
@@ -295,10 +294,7 @@
 .screener-table-section {
   background: #ffffff;
   padding: 0 16px 32px;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
 }
 
 @media (min-width: 640px) {

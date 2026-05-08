@@ -6,10 +6,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding: 8px 16px;
   margin-top: -32px;
   margin-bottom: 24px;

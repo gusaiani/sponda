@@ -144,7 +144,12 @@
 
 
 .app-main {
-  @apply max-w-[880px] mx-auto px-4;
+  /* Fills .app-body's content area (which already excludes the LeftNav
+   * and SocialSidebar widths via padding). When both sidebars are
+   * closed, that's the full viewport; when one is open, it shrinks
+   * accordingly. No fixed max-width — content responds to whatever
+   * space is available. */
+  @apply mx-auto px-4 w-full;
   padding-top: 24px;
   padding-bottom: 48px;
 }
@@ -207,13 +212,10 @@
   color: var(--color-muted);
 }
 
-/* Company header (above tabs) */
+/* Company header (above tabs) — fills .app-main width. */
 .company-header {
   @apply flex items-center justify-between;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
   padding-top: 8px;
