@@ -59,7 +59,17 @@ function Indicator({ label, value, suffix = "" }: IndicatorProps) {
   );
 }
 
-export function CompanyCard({ data, isLoading, years }: { data: QuoteResult | null; isLoading: boolean; years: number }) {
+interface CompanyCardProps {
+  data: QuoteResult | null;
+  isLoading: boolean;
+  years: number;
+  /** When true, the logo loads eagerly with high fetch priority. Pass
+   *  this for above-the-fold cards (first ~4 in the grid) so the LCP
+   *  candidate is not gated on a lazy load. */
+  priority?: boolean;
+}
+
+export function CompanyCard({ data, isLoading, years, priority = false }: CompanyCardProps) {
   const { t, locale } = useTranslation();
 
   if (isLoading || !data) {
@@ -101,7 +111,8 @@ export function CompanyCard({ data, isLoading, years }: { data: QuoteResult | nu
           className="hcc-logo"
           src={logoUrl(data.ticker)}
           alt=""
-          loading="lazy"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
         />
         <div className="hcc-name-block">
@@ -158,7 +169,7 @@ export function HomepageCompanyCards() {
   });
 
   const HOMEPAGE_DEFAULT_YEARS = 10;
-  const entries = useCompareData(tickers, HOMEPAGE_DEFAULT_YEARS);
+  const entries = useCompareData(tickers, HOMEPAGE_DEFAULT_YEARS, { withFundamentals: false });
 
   return (
     <section className="hcc-section">
