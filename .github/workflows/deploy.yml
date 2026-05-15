@@ -160,6 +160,20 @@ jobs:
             cd /opt/sponda
             git fetch origin main
             git reset --hard origin/main
+
+            # Tag Sentry releases with the deployed git SHA. Persisted to
+            # /opt/sponda/.env so gunicorn picks SENTRY_RELEASE up via the
+            # systemd EnvironmentFile and the Next.js build below bakes
+            # NEXT_PUBLIC_SENTRY_RELEASE into the browser bundle.
+            SENTRY_SHA=$(git rev-parse HEAD)
+            for KEY in SENTRY_RELEASE NEXT_PUBLIC_SENTRY_RELEASE; do
+              if grep -q "^${KEY}=" /opt/sponda/.env; then
+                sed -i "s|^${KEY}=.*|${KEY}=${SENTRY_SHA}|" /opt/sponda/.env
+              else
+                echo "${KEY}=${SENTRY_SHA}" >> /opt/sponda/.env
+              fi
+            done
+
             source venv/bin/activate
             command -v uv >/dev/null || pip install uv
             uv pip install -r backend/requirements.txt
