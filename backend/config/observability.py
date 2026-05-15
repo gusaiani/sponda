@@ -21,6 +21,17 @@ SENSITIVE_HEADER_NAMES = frozenset({"authorization", "cookie", "set-cookie"})
 SENSITIVE_EXTRA_KEYS = frozenset({"DATABASE_URL", "SECRET_KEY", "DJANGO_SECRET_KEY"})
 FILTERED = "[Filtered]"
 
+# Hosts we own. The SDK injects the sentry-trace header into outbound
+# HTTP requests whose URL matches one of these patterns. Default is
+# "match everything", which would attach trace IDs to every third-party
+# API call (brapi, FRED, FMP, OpenAI). Sticking to our own infra keeps
+# trace IDs internal and reduces noise on partner-side request logs.
+DEFAULT_TRACE_PROPAGATION_TARGETS = [
+    r"^https?://(127\.0\.0\.1|localhost)(:\d+)?/",
+    r"^https?://([a-z0-9-]+\.)*poe\.ma/",
+    r"^https?://([a-z0-9-]+\.)*sponda\.capital/",
+]
+
 
 def init_sentry(
     dsn: str | None,
@@ -28,6 +39,7 @@ def init_sentry(
     release: str | None,
     traces_sample_rate: float = 1.0,
     profiles_sample_rate: float = 0.0,
+    trace_propagation_targets: list[str] | None = None,
 ) -> bool:
     """Initialize Sentry if a DSN is configured. Returns True when initialized."""
     if not dsn:
@@ -46,6 +58,11 @@ def init_sentry(
         profiles_sample_rate=profiles_sample_rate,
         send_default_pii=False,
         before_send=scrub_event,
+        trace_propagation_targets=(
+            trace_propagation_targets
+            if trace_propagation_targets is not None
+            else DEFAULT_TRACE_PROPAGATION_TARGETS
+        ),
     )
     return True
 

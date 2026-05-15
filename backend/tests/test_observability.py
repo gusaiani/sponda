@@ -47,6 +47,47 @@ class TestInitSentry:
         assert "CeleryIntegration" in integration_names
         assert "LoggingIntegration" in integration_names
 
+    def test_default_trace_propagation_targets_restrict_to_internal_hosts(self):
+        """Without an explicit list, the SDK propagates sentry-trace to every
+        outbound URL — including third-party APIs (brapi, FRED, FMP) that have
+        no use for the header. Confirm we ship a safe default."""
+        import re
+
+        with patch("config.observability.sentry_sdk.init") as mocked_init:
+            init_sentry(
+                dsn="https://public@sentry.example/1",
+                environment="production",
+                release="deadbeef",
+            )
+        targets = mocked_init.call_args.kwargs["trace_propagation_targets"]
+        assert targets, "trace_propagation_targets must be set explicitly"
+
+        def is_propagated(url: str) -> bool:
+            return any(re.search(pattern, url) for pattern in targets)
+
+        # Should propagate to internal hosts
+        assert is_propagated("http://127.0.0.1:8710/api/quote/VALE3/")
+        assert is_propagated("http://localhost:3100/")
+        assert is_propagated("https://sponda.capital/api/quote/VALE3/")
+        assert is_propagated("https://api.poe.ma/v1/data")
+
+        # Should NOT propagate to third-party data providers
+        assert not is_propagated("https://brapi.dev/api/quote/VALE3")
+        assert not is_propagated("https://api.stlouisfed.org/fred/series")
+        assert not is_propagated("https://financialmodelingprep.com/api/v3/")
+        assert not is_propagated("https://api.openai.com/v1/chat")
+
+    def test_caller_can_override_trace_propagation_targets(self):
+        custom = [r"^https://custom\.example/"]
+        with patch("config.observability.sentry_sdk.init") as mocked_init:
+            init_sentry(
+                dsn="https://public@sentry.example/1",
+                environment="production",
+                release="deadbeef",
+                trace_propagation_targets=custom,
+            )
+        assert mocked_init.call_args.kwargs["trace_propagation_targets"] == custom
+
 
 class TestScrubEvent:
     def test_redacts_authorization_header(self):
