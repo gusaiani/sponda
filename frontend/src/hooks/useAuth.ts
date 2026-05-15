@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
+import { clearPersistedAuthState } from "../utils/clearPersistedAuthState";
 import {
   getEmailVerificationPromptVisible,
   setEmailVerificationPromptVisible,
@@ -59,14 +60,25 @@ export function useAuth() {
   }, [isLoading, user]);
 
   async function logout() {
-    await fetch("/api/auth/logout/", {
-      method: "POST",
-      headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
-      credentials: "include",
-    });
+    try {
+      await fetch("/api/auth/logout/", {
+        method: "POST",
+        headers: { "X-CSRFToken": csrfHeaders()["X-CSRFToken"] },
+        credentials: "include",
+      });
+    } catch {
+      // Network errors must not strand the user in a half-logged-out
+      // state: server-side session is destroyed by Django on the next
+      // request anyway. Press on with the client-side cleanup.
+    }
     setEmailVerificationPromptVisible(false);
-    queryClient.setQueryData(["auth-user"], null);
-    queryClient.invalidateQueries({ queryKey: ["quota"] });
+    if (typeof window !== "undefined") {
+      clearPersistedAuthState({
+        queryClient,
+        storage: window.localStorage,
+        navigator: window.location,
+      });
+    }
   }
 
   async function refreshUser() {
