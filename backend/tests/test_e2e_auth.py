@@ -457,10 +457,20 @@ class TestAuthModalFromSaveList:
 class TestHomepageAddFavoriteCard:
     @pytest.fixture(autouse=True)
     def _setup(self, seed_data, mock_brapi):
-        # Seed ticker so the search dropdown can find PETR4
-        Ticker.objects.create(
-            symbol="PETR4", name="Petroleo Brasileiro", display_name="Petrobras",
-            sector="Energy Minerals", type="stock", logo="https://icons.brapi.dev/icons/PETR4.svg",
+        # Seed ticker so the search dropdown can find PETR4. Must be
+        # idempotent: this class is django_db(transaction=True) and runs
+        # under pytest-rerunfailures, so a rerun of a failed test re-invokes
+        # this fixture against a DB that still holds the committed PETR4 row
+        # from the first attempt. A plain create() would raise
+        # IntegrityError on the unique symbol constraint and turn a single
+        # flaky failure into a hard setup ERROR.
+        Ticker.objects.get_or_create(
+            symbol="PETR4",
+            defaults=dict(
+                name="Petroleo Brasileiro", display_name="Petrobras",
+                sector="Energy Minerals", type="stock",
+                logo="https://icons.brapi.dev/icons/PETR4.svg",
+            ),
         )
 
     @pytest.fixture
