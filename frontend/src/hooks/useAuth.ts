@@ -31,10 +31,21 @@ export function useAuth() {
   const queryClient = useQueryClient();
   const [showEmailVerificationPrompt, setShowEmailVerificationPrompt] = useState(false);
 
+  // refetchOnMount: "always" is load-bearing. The persisted React Query cache
+  // (PersistQueryClientProvider in providers.tsx) may rehydrate ["auth-user"]
+  // with a stale value — most importantly, with the `null` we wrote during a
+  // previous anonymous visit. With staleTime > 0 and the default refetch
+  // policy, that null would pin `isAuthenticated=false` across hard navs
+  // (e.g. the login → SPA flow ends in window.location.href = "/${locale}"),
+  // so a logged-in user would still see the unauthenticated UI on the next
+  // page mount until the staleness window elapsed. Forcing a mount-time
+  // refetch keeps the auth view of the world honest while still letting
+  // staleTime suppress background refetches on focus/reconnect.
   const { data: user, isLoading } = useQuery({
     queryKey: ["auth-user"],
     queryFn: fetchMe,
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: "always",
     retry: false,
   });
 
