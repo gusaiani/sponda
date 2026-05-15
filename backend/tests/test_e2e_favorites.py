@@ -138,6 +138,26 @@ def login_via_ui(page: Page, base_url: str, email: str, password: str):
     page.wait_for_url(_home_url_pattern(base_url), timeout=10000)
 
 
+def goto_authenticated(page: Page, url: str):
+    """Navigate to ``url`` and block until ``useAuth`` has actually loaded the
+    user.
+
+    Without this wait, downstream interactions that branch on
+    ``isAuthenticated`` (the favorite button most prominently) race against
+    the ``/api/auth/me/`` round-trip and the PersistQueryClientProvider
+    rehydration. The flake was: rehydrated `null` user → ``isAuthenticated``
+    momentarily false at click time → auth modal opens instead of the
+    toggle-favorite path → ``.favorite-button-active`` never appears.
+    """
+    with page.expect_response("**/api/auth/me/", timeout=10000) as me_info:
+        page.goto(url)
+    me_response = me_info.value
+    assert me_response.status == 200, (
+        f"useAuth didn't see a logged-in session on {url}: "
+        f"/api/auth/me/ returned {me_response.status}"
+    )
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("_build_frontend")
 class TestFavorites:
@@ -155,8 +175,8 @@ class TestFavorites:
         """Prominent favorite button should be visible when logged in with < 3 favorites."""
         login_via_ui(page, url, "test@example.com", "testpass123")
 
-        # Navigate to a company page
-        page.goto(f"{url}/PETR4")
+        # Navigate to a company page and block until useAuth has loaded.
+        goto_authenticated(page, f"{url}/PETR4")
         # Wait for the card to load
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
@@ -207,7 +227,7 @@ class TestFavorites:
         """Clicking the prominent button should favorite the company."""
         login_via_ui(page, url, "test@example.com", "testpass123")
 
-        page.goto(f"{url}/PETR4")
+        goto_authenticated(page, f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
 
@@ -215,9 +235,14 @@ class TestFavorites:
         favorite_button = page.locator(".favorite-button-prominent")
         expect(favorite_button).to_be_visible()
 
-        favorite_button.click()
+        # Tie the UI assertion to the POST round-trip; the compact button can
+        # only appear after the favorites list refetches with the new entry.
+        with page.expect_response("**/api/auth/favorites/") as fav_info:
+            favorite_button.click()
+        assert fav_info.value.status in (200, 201), (
+            f"Favorite POST failed: {fav_info.value.status}"
+        )
 
-        # After favoriting, it switches to the compact active button
         compact_button = page.locator(".favorite-button-active")
         expect(compact_button).to_be_visible(timeout=10000)
         expect(compact_button).to_have_text("★")
@@ -229,10 +254,12 @@ class TestFavorites:
         login_via_ui(page, url, "test@example.com", "testpass123")
 
         # Favorite PETR4
-        page.goto(f"{url}/PETR4")
+        goto_authenticated(page, f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
-        page.locator(".favorite-button-prominent").click()
+        with page.expect_response("**/api/auth/favorites/") as fav_info:
+            page.locator(".favorite-button-prominent").click()
+        assert fav_info.value.status in (200, 201)
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
 
@@ -250,15 +277,19 @@ class TestFavorites:
         login_via_ui(page, url, "test@example.com", "testpass123")
 
         # Favorite
-        page.goto(f"{url}/PETR4")
+        goto_authenticated(page, f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
-        page.locator(".favorite-button-prominent").click()
+        with page.expect_response("**/api/auth/favorites/") as fav_info:
+            page.locator(".favorite-button-prominent").click()
+        assert fav_info.value.status in (200, 201)
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
 
         # Unfavorite — now the compact active button is visible
-        page.locator(".favorite-button-active").click()
+        with page.expect_response("**/api/auth/favorites/**") as unfav_info:
+            page.locator(".favorite-button-active").click()
+        assert unfav_info.value.status in (200, 204)
 
         # Should revert to prominent (since user now has 0 favorites again)
         expect(page.locator(".favorite-button-prominent")).to_be_visible(timeout=10000)
