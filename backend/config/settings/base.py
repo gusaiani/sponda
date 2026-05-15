@@ -125,14 +125,18 @@ FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 SPONDA_FREE_LOOKUPS_PER_DAY = 3
 
 # Redis cache (production override can change LOCATION via env).
-# CONNECTION_POOL_KWARGS sizes the pool for the home-page fanout (~60 in-flight
+# max_connections sizes the pool for the home-page fanout (~60 in-flight
 # requests on a fresh visit) so pool exhaustion does not become the bottleneck.
+# Django's built-in RedisCache forwards leftover OPTIONS to redis.ConnectionPool.from_url,
+# so max_connections must sit at the OPTIONS top level (the django-redis-style
+# CONNECTION_POOL_KWARGS wrapper would leak the literal key down into AbstractConnection
+# and raise TypeError at first cache.get).
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
         "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/0"),
         "OPTIONS": {
-            "CONNECTION_POOL_KWARGS": {"max_connections": 50},
+            "max_connections": 50,
         },
     }
 }
