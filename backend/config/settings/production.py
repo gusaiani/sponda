@@ -6,6 +6,11 @@ ALLOWED_HOSTS = env.list("ALLOWED_HOSTS") + ["127.0.0.1", "localhost"]  # noqa: 
 DATABASES = {
     "default": env.db("DATABASE_URL"),  # noqa: F405
 }
+# Reuse Postgres connections across requests for up to 10 minutes. With
+# the home-page fanout (~60 parallel API calls), opening a fresh TCP+auth
+# connection per request is a meaningful slice of latency.
+DATABASES["default"]["CONN_MAX_AGE"] = 600
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 CSRF_TRUSTED_ORIGINS = [
     "https://sponda.poe.ma",

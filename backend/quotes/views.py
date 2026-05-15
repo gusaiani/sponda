@@ -1,11 +1,13 @@
 import hashlib
 import logging
 import re
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+import sentry_sdk
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Case, F, IntegerField, Q, Value, When
@@ -15,11 +17,21 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.middleware.server_timing import record_server_timing
+
 logger = logging.getLogger(__name__)
+
+# Browser cache TTL for /api/quote/<T>/ — short relative to the 24h
+# server-side TTL because clients re-render on every navigation and the
+# server cache is the real source of truth. One hour is enough to absorb
+# multi-tab opens and quick re-visits without making a stale dataset
+# stick to a session.
+PE10_CLIENT_CACHE_TTL = 60 * 60
 
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .tasks import refresh_provider_data
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
 from .leverage import calculate_leverage
 from .models import BalanceSheet, CompanyAnalysis, IndicatorSnapshot, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
@@ -605,16 +617,21 @@ def _persist_snapshot_from_view(
 
 
 def _ensure_fresh_data(ticker: str) -> None:
-    """Sync earnings, cash flows, and balance sheets if older than 24h.
+    """Stale-while-revalidate: keep the request path fast.
 
-    Backfill nudge: when the Ticker row exists, has a non-Brazilian symbol,
-    and is missing ``reported_currency``, force ``sync_earnings`` even if
-    earnings are otherwise fresh. The cross-currency rollout introduced the
-    field as a side-effect of ``fmp.sync_earnings``; tickers whose earnings
-    were cached pre-rollout would otherwise wait until the weekly
-    fundamentals cron (or natural cache rotation) to get stamped, and any
-    market-cap-based indicator silently produces the broken cross-currency
-    ratio in the meantime.
+    Three regimes:
+
+    * **Cold** — at least one of earnings/cash flows/balance sheets has no
+      row yet. The user has nothing to render, so we run the missing
+      provider syncs synchronously here.
+    * **Stale** — every series has data but at least one is older than
+      24h. Enqueue a Celery refresh and return immediately. The user sees
+      yesterday's data; tomorrow's request sees today's.
+    * **Fresh** — all three series are younger than 24h. No-op.
+
+    The reported_currency backfill nudge stays synchronous: the field
+    feeds the very next computation in this request, and is a one-shot
+    fix-up rather than a steady-state cost.
     """
     cutoff = timezone.now() - timedelta(hours=24)
 
@@ -623,32 +640,45 @@ def _ensure_fresh_data(ticker: str) -> None:
         and Ticker.objects.filter(symbol=ticker, reported_currency="").exists()
     )
 
-    has_fresh_earnings = QuarterlyEarnings.objects.filter(
+    has_any_earnings = QuarterlyEarnings.objects.filter(ticker=ticker).exists()
+    has_fresh_earnings = has_any_earnings and QuarterlyEarnings.objects.filter(
         ticker=ticker, fetched_at__gte=cutoff
     ).exists()
-    if needs_currency_backfill or not has_fresh_earnings:
-        try:
-            sync_earnings(ticker)
-        except ProviderError:
-            pass
 
-    has_fresh_cf = QuarterlyCashFlow.objects.filter(
+    has_any_cf = QuarterlyCashFlow.objects.filter(ticker=ticker).exists()
+    has_fresh_cf = has_any_cf and QuarterlyCashFlow.objects.filter(
         ticker=ticker, fetched_at__gte=cutoff
     ).exists()
-    if not has_fresh_cf:
-        try:
-            sync_cash_flows(ticker)
-        except ProviderError:
-            pass
 
-    has_fresh_bs = BalanceSheet.objects.filter(
+    has_any_bs = BalanceSheet.objects.filter(ticker=ticker).exists()
+    has_fresh_bs = has_any_bs and BalanceSheet.objects.filter(
         ticker=ticker, fetched_at__gte=cutoff
     ).exists()
-    if not has_fresh_bs:
-        try:
-            sync_balance_sheets(ticker)
-        except ProviderError:
-            pass
+
+    cold = not (has_any_earnings and has_any_cf and has_any_bs)
+
+    if cold or needs_currency_backfill:
+        # Sync only the series the request actually needs synchronously.
+        if needs_currency_backfill or not has_fresh_earnings:
+            try:
+                sync_earnings(ticker)
+            except ProviderError:
+                pass
+        if not has_fresh_cf:
+            try:
+                sync_cash_flows(ticker)
+            except ProviderError:
+                pass
+        if not has_fresh_bs:
+            try:
+                sync_balance_sheets(ticker)
+            except ProviderError:
+                pass
+        return
+
+    if not (has_fresh_earnings and has_fresh_cf and has_fresh_bs):
+        # Stale-while-revalidate: refresh in the background.
+        refresh_provider_data.delay(ticker)
 
 
 # Maps internal snake_case indicator names (rate_company) to the camelCase
@@ -704,175 +734,322 @@ def _build_ratings_block(quote_result: dict, sector: str | None) -> dict:
     return block
 
 
+class _QuoteError(Exception):
+    """Internal sentinel: a per-ticker error with HTTP status + message.
+
+    Raised by ``_compute_quote_payload`` so callers (PE10View and the
+    batch endpoint) can decide whether to surface the failure as an HTTP
+    response or as an inline ``{error: ...}`` slot in a batch payload.
+    """
+
+    def __init__(self, message: str, http_status: int):
+        super().__init__(message)
+        self.message = message
+        self.http_status = http_status
+
+
+def _compute_quote_payload(ticker: str, request=None) -> dict:
+    """Build the full /api/quote/ payload for a single ticker.
+
+    Returns the cached payload when available; otherwise computes the
+    payload via the same logic PE10View uses (provider fetch + DB calcs
+    + ratings + screener snapshot writeback) and writes it to the cache.
+
+    Raises ``_QuoteError`` for HTTP-mappable failures (ticker not found,
+    market data unavailable, provider down).
+    """
+    cache_key = f"pe10:{ticker}"
+    cache_started = time.perf_counter()
+    cached_result = cache.get(cache_key)
+    cache_lookup_ms = (time.perf_counter() - cache_started) * 1000.0
+    if cached_result is not None:
+        record_server_timing(request, "cache", cache_lookup_ms, description="hit")
+        return cached_result
+    record_server_timing(request, "cache", cache_lookup_ms, description="miss")
+
+    with sentry_sdk.start_span(op="quote.refresh", description="ensure_fresh_data"):
+        _ensure_fresh_data(ticker)
+
+    try:
+        with sentry_sdk.start_span(op="provider.quote", description="fetch_quote"):
+            quote = fetch_quote(ticker)
+    except ProviderError as e:
+        msg = str(e)
+        if "No results" in msg:
+            raise _QuoteError(
+                f'Ticker "{ticker}" não encontrado. Verifique o código e tente novamente.',
+                http_status=status.HTTP_404_NOT_FOUND,
+            ) from e
+        raise _QuoteError(
+            "Não foi possível obter os dados no momento. Tente novamente mais tarde.",
+            http_status=status.HTTP_502_BAD_GATEWAY,
+        ) from e
+
+    current_price = Decimal(str(quote.get("regularMarketPrice", 0)))
+    name = _clean_company_name(
+        quote.get("longName") or quote.get("shortName") or ticker
+    )
+    market_cap = quote.get("marketCap")
+
+    if not market_cap or not current_price:
+        snapshot = IndicatorSnapshot.objects.filter(ticker=ticker).first()
+        if snapshot:
+            if not market_cap and snapshot.market_cap:
+                market_cap = int(snapshot.market_cap)
+            if not current_price and snapshot.current_price:
+                current_price = Decimal(str(snapshot.current_price))
+
+    if not market_cap or not current_price:
+        raise _QuoteError(
+            "Dados de mercado indisponíveis para este ticker.",
+            http_status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    market_cap_decimal = Decimal(str(market_cap))
+
+    logo = ""
+    reported_currency = ""
+    sector = ""
+    try:
+        ticker_row = Ticker.objects.values("logo", "reported_currency", "sector").get(symbol=ticker)
+        logo = ticker_row["logo"]
+        reported_currency = ticker_row["reported_currency"]
+        sector = ticker_row["sector"] or ""
+    except Ticker.DoesNotExist:
+        pass
+
+    calc_started = time.perf_counter()
+    with sentry_sdk.start_span(op="db.calc", description="pe10"):
+        pe10_result = calculate_pe10(ticker, market_cap_decimal, max_years=50)
+    with sentry_sdk.start_span(op="db.calc", description="pfcf10"):
+        pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal, max_years=50)
+    max_years_available = max(pe10_result["years_of_data"], pfcf10_result["years_of_data"])
+    with sentry_sdk.start_span(op="db.calc", description="leverage"):
+        leverage_result = calculate_leverage(ticker)
+    with sentry_sdk.start_span(op="db.calc", description="peg"):
+        peg_result = calculate_peg(ticker, pe10_result["pe10"], max_years=50)
+    with sentry_sdk.start_span(op="db.calc", description="pfcf_peg"):
+        pfcf_peg_result = calculate_pfcf_peg(ticker, pfcf10_result["pfcf10"], max_years=50)
+    record_server_timing(request, "calc", (time.perf_counter() - calc_started) * 1000.0)
+
+    total_debt = leverage_result["totalDebt"]
+    avg_earnings = pe10_result["avg_adjusted_net_income"]
+    avg_fcf = pfcf10_result["avg_adjusted_fcf"]
+
+    debt_to_avg_earnings = None
+    if total_debt is not None and avg_earnings and avg_earnings > 0:
+        debt_to_avg_earnings = round(total_debt / avg_earnings, 2)
+
+    debt_to_avg_fcf = None
+    if total_debt is not None and avg_fcf and avg_fcf > 0:
+        debt_to_avg_fcf = round(total_debt / avg_fcf, 2)
+
+    listing_currency = "BRL" if is_brazilian_ticker(ticker) else "USD"
+    from .fx import market_cap_in_reported_currency  # noqa: PLC0415 — local to avoid import cycle
+    market_cap_reported = market_cap_in_reported_currency(market_cap_decimal, ticker)
+    result = {
+        "ticker": ticker,
+        "name": name,
+        "logo": logo,
+        "currentPrice": float(current_price),
+        "marketCap": market_cap,
+        "marketCapInReportedCurrency": float(market_cap_reported) if market_cap_reported is not None else None,
+        "listingCurrency": listing_currency,
+        "reportedCurrency": reported_currency or listing_currency,
+        "maxYearsAvailable": max_years_available,
+        # PE10
+        "pe10": pe10_result["pe10"],
+        "avgAdjustedNetIncome": pe10_result["avg_adjusted_net_income"],
+        "pe10YearsOfData": pe10_result["years_of_data"],
+        "pe10Label": pe10_result["label"],
+        "pe10Error": pe10_result["error"],
+        "pe10AnnualData": pe10_result["annual_data_flag"],
+        "pe10CalculationDetails": pe10_result["calculation_details"],
+        # PFCF10
+        "pfcf10": pfcf10_result["pfcf10"],
+        "avgAdjustedFCF": pfcf10_result["avg_adjusted_fcf"],
+        "pfcf10YearsOfData": pfcf10_result["years_of_data"],
+        "pfcf10Label": pfcf10_result["label"],
+        "pfcf10Error": pfcf10_result["error"],
+        "pfcf10AnnualData": pfcf10_result["annual_data_flag"],
+        "pfcf10CalculationDetails": pfcf10_result["calculation_details"],
+        # Leverage
+        "debtToEquity": leverage_result["debtToEquity"],
+        "debtExLeaseToEquity": leverage_result["debtExLeaseToEquity"],
+        "liabilitiesToEquity": leverage_result["liabilitiesToEquity"],
+        "currentRatio": leverage_result["currentRatio"],
+        "leverageError": leverage_result["leverageError"],
+        "leverageDate": leverage_result["leverageDate"],
+        "totalDebt": leverage_result["totalDebt"],
+        "totalLease": leverage_result["totalLease"],
+        "totalLiabilities": leverage_result["totalLiabilities"],
+        "stockholdersEquity": leverage_result["stockholdersEquity"],
+        # Debt coverage
+        "debtToAvgEarnings": debt_to_avg_earnings,
+        "debtToAvgFCF": debt_to_avg_fcf,
+        # PEG
+        "peg": peg_result["peg"],
+        "earningsCAGR": peg_result["earningsCAGR"],
+        "pegError": peg_result["pegError"],
+        "earningsCAGRMethod": peg_result["earningsCAGRMethod"],
+        "earningsCAGRExcludedYears": peg_result["earningsCAGRExcludedYears"],
+        # PFCLG
+        "pfcfPeg": pfcf_peg_result["pfcfPeg"],
+        "fcfCAGR": pfcf_peg_result["fcfCAGR"],
+        "pfcfPegError": pfcf_peg_result["pfcfPegError"],
+        "fcfCAGRMethod": pfcf_peg_result["fcfCAGRMethod"],
+        "fcfCAGRExcludedYears": pfcf_peg_result["fcfCAGRExcludedYears"],
+    }
+    result["ratings"] = _build_ratings_block(result, sector=sector or None)
+
+    try:
+        _persist_snapshot_from_view(
+            ticker=ticker,
+            market_cap=market_cap,
+            current_price=current_price,
+            pe10_result=pe10_result,
+            pfcf10_result=pfcf10_result,
+            leverage_result=leverage_result,
+            peg_result=peg_result,
+            pfcf_peg_result=pfcf_peg_result,
+            debt_to_avg_earnings=debt_to_avg_earnings,
+            debt_to_avg_fcf=debt_to_avg_fcf,
+        )
+    except Exception as error:
+        logger.warning("persist_snapshot_from_view failed for %s: %s", ticker, error)
+
+    cache.set(cache_key, result, PE10_CACHE_TTL)
+    return result
+
+
 class PE10View(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
-        cache_key = f"pe10:{ticker}"
-        cached_result = cache.get(cache_key)
-        if cached_result is not None:
-            self._log_lookup(request, ticker)
-            return Response(cached_result)
-
-        # Ensure we have fresh data (< 24h old)
-        _ensure_fresh_data(ticker)
-
-        # Fetch current price
         try:
-            quote = fetch_quote(ticker)
-        except ProviderError as e:
-            msg = str(e)
-            if "No results" in msg:
-                return Response(
-                    {"error": f'Ticker "{ticker}" não encontrado. Verifique o código e tente novamente.'},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-            return Response(
-                {"error": "Não foi possível obter os dados no momento. Tente novamente mais tarde."},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+            result = _compute_quote_payload(ticker, request=request)
+        except _QuoteError as error:
+            return Response({"error": error.message}, status=error.http_status)
 
-        current_price = Decimal(str(quote.get("regularMarketPrice", 0)))
-        name = _clean_company_name(
-            quote.get("longName") or quote.get("shortName") or ticker
-        )
-        market_cap = quote.get("marketCap")
-
-        if not market_cap or not current_price:
-            snapshot = IndicatorSnapshot.objects.filter(ticker=ticker).first()
-            if snapshot:
-                if not market_cap and snapshot.market_cap:
-                    market_cap = int(snapshot.market_cap)
-                if not current_price and snapshot.current_price:
-                    current_price = Decimal(str(snapshot.current_price))
-
-        if not market_cap or not current_price:
-            return Response(
-                {"error": "Dados de mercado indisponíveis para este ticker."},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        market_cap_decimal = Decimal(str(market_cap))
-
-        # Get logo + reported currency + sector from Ticker table.
-        logo = ""
-        reported_currency = ""
-        sector = ""
-        try:
-            ticker_row = Ticker.objects.values("logo", "reported_currency", "sector").get(symbol=ticker)
-            logo = ticker_row["logo"]
-            reported_currency = ticker_row["reported_currency"]
-            sector = ticker_row["sector"] or ""
-        except Ticker.DoesNotExist:
-            pass
-
-        # Calculate metrics — fetch all available years; frontend slices as needed
-        pe10_result = calculate_pe10(ticker, market_cap_decimal, max_years=50)
-        pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal, max_years=50)
-        max_years_available = max(pe10_result["years_of_data"], pfcf10_result["years_of_data"])
-        leverage_result = calculate_leverage(ticker)
-        peg_result = calculate_peg(ticker, pe10_result["pe10"], max_years=50)
-        pfcf_peg_result = calculate_pfcf_peg(ticker, pfcf10_result["pfcf10"], max_years=50)
-
-        # Debt / average earnings and debt / average FCF
-        total_debt = leverage_result["totalDebt"]
-        avg_earnings = pe10_result["avg_adjusted_net_income"]
-        avg_fcf = pfcf10_result["avg_adjusted_fcf"]
-
-        debt_to_avg_earnings = None
-        if total_debt is not None and avg_earnings and avg_earnings > 0:
-            debt_to_avg_earnings = round(total_debt / avg_earnings, 2)
-
-        debt_to_avg_fcf = None
-        if total_debt is not None and avg_fcf and avg_fcf > 0:
-            debt_to_avg_fcf = round(total_debt / avg_fcf, 2)
-
-        # Log the lookup
         self._log_lookup(request, ticker)
-
-        listing_currency = "BRL" if is_brazilian_ticker(ticker) else "USD"
-        from .fx import market_cap_in_reported_currency  # noqa: PLC0415 — local to avoid import cycle
-        market_cap_reported = market_cap_in_reported_currency(market_cap_decimal, ticker)
-        result = {
-            "ticker": ticker,
-            "name": name,
-            "logo": logo,
-            "currentPrice": float(current_price),
-            "marketCap": market_cap,
-            "marketCapInReportedCurrency": float(market_cap_reported) if market_cap_reported is not None else None,
-            "listingCurrency": listing_currency,
-            "reportedCurrency": reported_currency or listing_currency,
-            "maxYearsAvailable": max_years_available,
-            # PE10
-            "pe10": pe10_result["pe10"],
-            "avgAdjustedNetIncome": pe10_result["avg_adjusted_net_income"],
-            "pe10YearsOfData": pe10_result["years_of_data"],
-            "pe10Label": pe10_result["label"],
-            "pe10Error": pe10_result["error"],
-            "pe10AnnualData": pe10_result["annual_data_flag"],
-            "pe10CalculationDetails": pe10_result["calculation_details"],
-            # PFCF10
-            "pfcf10": pfcf10_result["pfcf10"],
-            "avgAdjustedFCF": pfcf10_result["avg_adjusted_fcf"],
-            "pfcf10YearsOfData": pfcf10_result["years_of_data"],
-            "pfcf10Label": pfcf10_result["label"],
-            "pfcf10Error": pfcf10_result["error"],
-            "pfcf10AnnualData": pfcf10_result["annual_data_flag"],
-            "pfcf10CalculationDetails": pfcf10_result["calculation_details"],
-            # Leverage
-            "debtToEquity": leverage_result["debtToEquity"],
-            "debtExLeaseToEquity": leverage_result["debtExLeaseToEquity"],
-            "liabilitiesToEquity": leverage_result["liabilitiesToEquity"],
-            "currentRatio": leverage_result["currentRatio"],
-            "leverageError": leverage_result["leverageError"],
-            "leverageDate": leverage_result["leverageDate"],
-            "totalDebt": leverage_result["totalDebt"],
-            "totalLease": leverage_result["totalLease"],
-            "totalLiabilities": leverage_result["totalLiabilities"],
-            "stockholdersEquity": leverage_result["stockholdersEquity"],
-            # Debt coverage
-            "debtToAvgEarnings": debt_to_avg_earnings,
-            "debtToAvgFCF": debt_to_avg_fcf,
-            # PEG
-            "peg": peg_result["peg"],
-            "earningsCAGR": peg_result["earningsCAGR"],
-            "pegError": peg_result["pegError"],
-            "earningsCAGRMethod": peg_result["earningsCAGRMethod"],
-            "earningsCAGRExcludedYears": peg_result["earningsCAGRExcludedYears"],
-            # PFCLG
-            "pfcfPeg": pfcf_peg_result["pfcfPeg"],
-            "fcfCAGR": pfcf_peg_result["fcfCAGR"],
-            "pfcfPegError": pfcf_peg_result["pfcfPegError"],
-            "fcfCAGRMethod": pfcf_peg_result["fcfCAGRMethod"],
-            "fcfCAGRExcludedYears": pfcf_peg_result["fcfCAGRExcludedYears"],
-        }
-
-        result["ratings"] = _build_ratings_block(result, sector=sector or None)
-
-        # Warm the screener snapshot + refresh Ticker.market_cap as a side-effect
-        # of the user view. Wrapped in a broad try/except so any bug in the
-        # persist path (DB outage, schema drift, etc.) never breaks the page.
-        try:
-            _persist_snapshot_from_view(
-                ticker=ticker,
-                market_cap=market_cap,
-                current_price=current_price,
-                pe10_result=pe10_result,
-                pfcf10_result=pfcf10_result,
-                leverage_result=leverage_result,
-                peg_result=peg_result,
-                pfcf_peg_result=pfcf_peg_result,
-                debt_to_avg_earnings=debt_to_avg_earnings,
-                debt_to_avg_fcf=debt_to_avg_fcf,
-            )
-        except Exception as error:
-            logger.warning("persist_snapshot_from_view failed for %s: %s", ticker, error)
-
-        cache.set(cache_key, result, PE10_CACHE_TTL)
-        return Response(result)
-
+        response = Response(result)
+        response["Cache-Control"] = f"public, max-age={PE10_CLIENT_CACHE_TTL}"
+        return response
 
     def _log_lookup(self, request, ticker):
+        if request.user.is_authenticated:
+            LookupLog.objects.create(user=request.user, ticker=ticker)
+        else:
+            if not request.session.session_key:
+                request.session.create()
+            LookupLog.objects.create(
+                session_key=request.session.session_key, ticker=ticker
+            )
+
+
+class BatchQuotesView(APIView):
+    """POST /api/quotes/batch/ — fetch many tickers in one round-trip.
+
+    Request body: ``{"tickers": ["PETR4", "VALE3", ...]}``
+    Response: ``{"results": {"PETR4": {"quote": {...}}, "VALE3": {"error": "..."}}}``
+
+    Server-side we fan out to ``_compute_quote_payload`` in a thread
+    pool because the per-ticker work is overwhelmingly I/O (DB reads,
+    cache lookups, occasional provider syncs). The batch endpoint cuts
+    the home page's ~60 parallel HTTP requests down to one, removing
+    request-queue contention and TLS overhead from the critical path.
+    """
+
+    MAX_BATCH_SIZE = 100
+    BATCH_THREAD_POOL_SIZE = 8
+
+    def post(self, request):
+        tickers = self._parse_tickers(request.data)
+        if isinstance(tickers, Response):
+            return tickers
+
+        results = self._fan_out(tickers, request)
+        for ticker in tickers:
+            if ticker in results and results[ticker].get("quote"):
+                self._log_lookup(request, ticker)
+
+        response = Response({"results": results})
+        response["Cache-Control"] = f"public, max-age={PE10_CLIENT_CACHE_TTL}"
+        return response
+
+    def _parse_tickers(self, payload):
+        if not isinstance(payload, dict):
+            return Response(
+                {"error": "Request body must be a JSON object."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        raw_tickers = payload.get("tickers")
+        if not isinstance(raw_tickers, list) or not raw_tickers:
+            return Response(
+                {"error": "`tickers` must be a non-empty list of ticker symbols."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for raw in raw_tickers:
+            if not isinstance(raw, str):
+                continue
+            normalized = raw.strip().upper()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            deduped.append(normalized)
+        if not deduped:
+            return Response(
+                {"error": "`tickers` contained no valid symbols."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if len(deduped) > self.MAX_BATCH_SIZE:
+            return Response(
+                {
+                    "error": (
+                        f"Batch too large ({len(deduped)} > {self.MAX_BATCH_SIZE})."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return deduped
+
+    def _fan_out(self, tickers: list[str], request) -> dict[str, dict]:
+        from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415 — local import keeps cold start cheap
+
+        results: dict[str, dict] = {}
+        with sentry_sdk.start_span(op="quote.batch", description=f"{len(tickers)} tickers"):
+            with ThreadPoolExecutor(max_workers=self.BATCH_THREAD_POOL_SIZE) as executor:
+                future_to_ticker = {
+                    executor.submit(self._compute_one, ticker, request): ticker
+                    for ticker in tickers
+                }
+                for future in future_to_ticker:
+                    ticker = future_to_ticker[future]
+                    try:
+                        results[ticker] = future.result()
+                    except Exception as error:  # noqa: BLE001 — last-line-of-defence for per-ticker isolation
+                        logger.exception("batch quote failed for %s", ticker)
+                        results[ticker] = {"error": str(error)}
+        return results
+
+    @staticmethod
+    def _compute_one(ticker: str, request) -> dict:
+        # Each worker thread gets its own Django DB connection. We close
+        # it on exit so the connection does not outlive the request and
+        # leak across workers.
+        from django.db import connections  # noqa: PLC0415 — local import
+        try:
+            try:
+                payload = _compute_quote_payload(ticker, request=request)
+            except _QuoteError as error:
+                return {"error": error.message, "status": error.http_status}
+            return {"quote": payload}
+        finally:
+            connections.close_all()
+
+    def _log_lookup(self, request, ticker: str) -> None:
         if request.user.is_authenticated:
             LookupLog.objects.create(user=request.user, ticker=ticker)
         else:
@@ -1076,7 +1253,12 @@ class CompanyAnalysisView(APIView):
         return response
 
 
-LOGO_CACHE_MAX_AGE = 30 * 24 * 3600  # 30 days
+LOGO_CACHE_MAX_AGE = 365 * 24 * 3600  # 1 year — logos rotate at most once a year
+LOGO_CACHE_STALE_WHILE_REVALIDATE = 7 * 24 * 3600  # browser may serve stale up to a week
+LOGO_CACHE_CONTROL = (
+    f"public, max-age={LOGO_CACHE_MAX_AGE}, "
+    f"stale-while-revalidate={LOGO_CACHE_STALE_WHILE_REVALIDATE}"
+)
 # After all sources fail for a symbol, remember the miss for this long so we
 # don't re-hit BRAPI / the network on every request. Short enough that a newly
 # published logo still surfaces within a day.
@@ -1148,7 +1330,7 @@ class LogoProxyView(APIView):
             else:
                 content_type = detect_image_content_type(image_data)
                 response = HttpResponse(image_data, content_type=content_type)
-                response["Cache-Control"] = f"public, max-age={LOGO_CACHE_MAX_AGE}"
+                response["Cache-Control"] = LOGO_CACHE_CONTROL
                 return response
 
         # Short-circuit: if we recently confirmed no real logo exists, skip all
@@ -1203,7 +1385,10 @@ class LogoProxyView(APIView):
     def _fallback_response(self, symbol: str) -> HttpResponse:
         fallback_data = generate_fallback_svg(symbol)
         response = HttpResponse(fallback_data, content_type="image/svg+xml")
-        response["Cache-Control"] = "public, max-age=3600"
+        # Fallback is deterministic per-symbol, so caching it long is safe;
+        # if a real logo later appears, the proxy switches to it server-side
+        # and the browser refresh will pull the new bytes within a day.
+        response["Cache-Control"] = "public, max-age=86400"
         return response
 
 

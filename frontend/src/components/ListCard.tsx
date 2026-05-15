@@ -88,7 +88,9 @@ function TickerCell({ ticker }: { ticker: string }) {
 
 export function ListCard({ listId, name, tickers, years }: ListCardProps) {
   const { t, locale } = useTranslation();
-  const entries = useCompareData(tickers, years);
+  // ListCard renders only quote-derived columns (PE10, PFCF10, market
+  // cap), so the per-ticker fundamentals fan-out is wasted work here.
+  const entries = useCompareData(tickers, years, { withFundamentals: false });
   const columns = getListCardColumns(years, t, locale);
   const compareUrl = `/${locale}/${tickers[0]}/comparar?listId=${listId}`;
   const isLoading = entries.length > 0 && entries.every((entry) => entry.isLoading);

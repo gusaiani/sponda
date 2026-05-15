@@ -39,6 +39,46 @@ Three-layer caching strategy eliminates redundant external API calls:
 
 **Layer 3 · Cache warming**: `python manage.py warm_cache` pre-populates all three endpoints for the top 50 most-queried tickers. Run every 4 hours via cron so popular tickers are always served from cache.
 
+### Home page fanout (May 2026 rewrite)
+
+The home page renders ~30 tickers (favorites + saved lists). Before this rewrite each visit fired ~60 parallel HTTP requests (PE10 + Fundamentals × ticker), and every request whose data was older than 24h paid for ~3 sequential provider syncs inside the user's request thread. End result: the first paint waited on a long tail of cold-cache calls, and "warming the cache" took ages.
+
+The current architecture, in the order each layer fires:
+
+1. **Server-rendered shell** — `app/[locale]/page.tsx` is an async Server Component (`force-dynamic`). It forwards the user's session cookie to Django, prefetches favorites + saved lists + the batch quote endpoint, and dehydrates the React Query cache into a `<HydrationBoundary>`. The browser receives populated cards in the first byte; no spinner.
+2. **`POST /api/quotes/batch/`** — one request returns every ticker the home page needs. Server fans out internally over a `ThreadPoolExecutor`. Replaces the 30-way client-side fanout. Capped at 100 tickers per request. Defined in `quotes/views.py::BatchQuotesView`; consumed via `useQuotesBatch`.
+3. **Stale-while-revalidate refresh** — `_ensure_fresh_data` returns immediately when stale data exists and enqueues `quotes.tasks.refresh_provider_data` (Celery) to re-pull from BRAPI/FMP in the background. Only outright cold tickers pay the synchronous provider cost.
+4. **Persisted React Query cache** — `@tanstack/react-query-persist-client` mirrors the cache to `localStorage` with a 24h `maxAge`. Returning visitors paint from disk instantly while a soft revalidation runs in the background.
+5. **Cache warming, favorites-aware** — `python manage.py warm_cache` now sources tickers from every active user's favorites + saved lists (in addition to LookupLog popularity), runs across 8 worker threads, and skips tickers whose `pe10:<T>` cache is already warm. The 0.5s `time.sleep` per ticker is gone.
+6. **Provider circuit breakers + tight timeouts** — every BRAPI/FMP/FRED call goes through `quotes.circuit_breaker.CircuitBreaker` with `(connect, read) = (3, 8)` timeouts. After N consecutive failures the breaker opens for ~60s, short-circuiting subsequent calls instead of pinning a worker for 30s on each one.
+7. **`Cache-Control: public, max-age=3600`** on PE10View + the batch endpoint, so repeat-tab visits skip the round-trip entirely. Logos bumped to `max-age=31536000, stale-while-revalidate=604800` since they rotate at most once a year.
+8. **DB connection pooling** — `CONN_MAX_AGE=600` + `CONN_HEALTH_CHECKS=True` in `production.py` so 30 parallel batch workers reuse the same pool of warm Postgres connections.
+9. **Redis pool** — `CONNECTION_POOL_KWARGS={"max_connections": 50}` on the cache backend, sized for the peak fanout.
+10. **`LookupLog(ticker, timestamp)` index** — added because `warm_cache` filters by ticker + recent timestamp on every run.
+
+### Real-user monitoring
+
+The frontend Sentry init (`instrumentation-client.ts`) now uses `browserTracingIntegration({ enableInp: true, enableLongAnimationFrame: true })`. Web Vitals (LCP / INP / CLS / FCP / TTFB) ship automatically; INP replaced FID as the responsiveness signal in March 2024 and is the most useful number on this page. `tracesSampler` keeps the home page and company-detail routes at 1.0 sampling and drops everything else to 0.2 to keep quota in check. `tracePropagationTargets` is wired so frontend transactions stitch to backend spans on the Sentry timeline.
+
+Backend custom spans (`sentry_sdk.start_span(op="db.calc", description=...)`) now wrap each PE10 sub-step (`pe10`, `pfcf10`, `leverage`, `peg`, `pfcf_peg`) plus the `_ensure_fresh_data` and `fetch_quote` calls. A `Server-Timing` middleware (`config.middleware.server_timing.ServerTimingMiddleware`) emits per-request `app`, `cache hit/miss`, and `calc` marks so DevTools and Sentry's Resource Timing capture both surface backend wall-clock without bespoke client code.
+
+#### Configuration
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SENTRY_TRACES_SAMPLE_RATE` | `1.0` (dev), set as needed in prod | Backend Django/Celery span sampling rate. |
+| `NEXT_PUBLIC_SENTRY_DSN` | unset | Enables frontend Sentry. When unset, the SDK is a no-op. |
+| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | `development` | Sentry environment tag. |
+| `NEXT_PUBLIC_SENTRY_RELEASE` | unset | Optional release tag (commit SHA in production). |
+| `DJANGO_API_URL` | `http://localhost:8710` | Used by the Next.js Server Component shell to prefetch from Django. Already used by `middleware.ts` for the `/api/*` proxy. |
+
+#### Local testing
+
+1. **Server-rendered home page** — `make backend && make frontend`, then visit `http://localhost:5174/`. View source: cards should be present in the initial HTML, not just a `<div id="__next">` placeholder.
+2. **Batch endpoint** — `curl -sX POST http://localhost:8710/api/quotes/batch/ -H 'Content-Type: application/json' -d '{"tickers": ["PETR4", "VALE3"]}' | jq '.results | keys'`. Server-Timing header on the response shows `app;dur=...`, `cache;dur=...;desc="hit|miss"`, and `calc;dur=...`.
+3. **Async refresh** — start a Celery worker (`celery -A config worker -l info`) and re-hit `/api/quote/PETR4/` after manually backdating its `QuarterlyEarnings.fetched_at` by 48h. The view returns immediately; the worker logs `refresh_provider_data` running.
+4. **Warm cache** — `python manage.py warm_cache --limit=50 --workers=8`. Output reports cached / failed / skipped-already-warm counts.
+
 ### Frontend
 
 - **Search debounce** at 300ms to reduce API calls during typing

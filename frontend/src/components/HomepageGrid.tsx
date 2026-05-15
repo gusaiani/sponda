@@ -386,7 +386,10 @@ export function HomepageGrid() {
     [activeLayout],
   );
 
-  const compareEntries = useCompareData(tickersInLayout, years);
+  // Home page does not render balance-sheet/fundamentals columns, so
+  // skip the per-ticker fundamentals fan-out. The batch endpoint covers
+  // everything CompanyCard reads from `entry.data`.
+  const compareEntries = useCompareData(tickersInLayout, years, { withFundamentals: false });
 
   const compareDataMap = useMemo(() => {
     const map = new Map<string, (typeof compareEntries)[number]>();
@@ -643,7 +646,12 @@ export function HomepageGrid() {
                 </span>
               </span>
               {item.type === "ticker" ? (
-                <TickerGridItem ticker={item.id} compareDataMap={compareDataMap} years={years} />
+                <TickerGridItem
+                  ticker={item.id}
+                  compareDataMap={compareDataMap}
+                  years={years}
+                  priority={index < 4}
+                />
               ) : (
                 <ListGridItem listId={item.id} lists={lists} />
               )}
@@ -695,15 +703,17 @@ interface TickerGridItemProps {
   ticker: string;
   compareDataMap: Map<string, { data: import("../hooks/usePE10").QuoteResult | null; isLoading: boolean }>;
   years: number;
+  priority?: boolean;
 }
 
-function TickerGridItem({ ticker, compareDataMap, years }: TickerGridItemProps) {
+function TickerGridItem({ ticker, compareDataMap, years, priority }: TickerGridItemProps) {
   const entry = compareDataMap.get(ticker);
   return (
     <CompanyCard
       data={entry?.data ?? null}
       isLoading={entry?.isLoading ?? true}
       years={years}
+      priority={priority}
     />
   );
 }

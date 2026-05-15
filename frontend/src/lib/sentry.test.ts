@@ -55,8 +55,36 @@ describe("initSentry", () => {
       release: "abc",
     });
     const options = sdk.init.mock.calls[0][0];
-    expect(options.tracesSampleRate).toBe(1.0);
+    expect(options.tracesSampleRate).toBe(0.2);
     expect(options.replaysSessionSampleRate).toBe(0.1);
     expect(options.replaysOnErrorSampleRate).toBe(1.0);
+  });
+
+  it("forwards tracePropagationTargets when provided", () => {
+    const sdk = { init: vi.fn() };
+    initSentry(sdk, {
+      dsn: "https://public@o0.ingest.sentry.io/0",
+      environment: "production",
+      release: "abc",
+      tracePropagationTargets: ["localhost", /^https:\/\/sponda\.capital/],
+    });
+    const options = sdk.init.mock.calls[0][0];
+    expect(options.tracePropagationTargets).toEqual([
+      "localhost",
+      /^https:\/\/sponda\.capital/,
+    ]);
+  });
+
+  it("uses tracesSampler when provided, overriding tracesSampleRate", () => {
+    const sdk = { init: vi.fn() };
+    const tracesSampler = vi.fn().mockReturnValue(0.5);
+    initSentry(sdk, {
+      dsn: "https://public@o0.ingest.sentry.io/0",
+      environment: "production",
+      release: "abc",
+      tracesSampler,
+    });
+    const options = sdk.init.mock.calls[0][0];
+    expect(options.tracesSampler).toBe(tracesSampler);
   });
 });

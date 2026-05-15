@@ -313,6 +313,10 @@ class LookupLog(models.Model):
         indexes = [
             models.Index(fields=["user", "timestamp"]),
             models.Index(fields=["session_key", "timestamp"]),
+            # warm_cache scans by (ticker, timestamp >= cutoff) and aggregates
+            # counts per ticker. Without this index the query is a sequential
+            # scan over the full table.
+            models.Index(fields=["ticker", "timestamp"]),
         ]
 
     def __str__(self):

@@ -6,7 +6,14 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
+from .circuit_breaker import CircuitBreaker
 from .models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+
+# (connect, read) — fail fast on connection issues, give the read a
+# generous budget for slow upstreams. 30s blanket timeout used to pin
+# workers when BRAPI was unreachable.
+_HTTP_TIMEOUT = (3, 8)
+_BREAKER = CircuitBreaker(name="brapi", failure_threshold=8, cool_down_seconds=60)
 
 
 class BRAPIError(Exception):
@@ -17,7 +24,14 @@ def _get(endpoint: str, params: dict | None = None) -> dict:
     params = params or {}
     params["token"] = settings.BRAPI_API_KEY
     url = f"{settings.BRAPI_BASE_URL}{endpoint}"
-    response = requests.get(url, params=params, timeout=30)
+
+    def _do_request() -> requests.Response:
+        return requests.get(url, params=params, timeout=_HTTP_TIMEOUT)
+
+    try:
+        response = _BREAKER.call(_do_request)
+    except requests.RequestException as error:
+        raise BRAPIError(f"BRAPI request failed: {error}") from error
     if response.status_code != 200:
         raise BRAPIError(
             f"BRAPI returned {response.status_code}: {response.text[:200]}"

@@ -5,7 +5,11 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
+from .circuit_breaker import CircuitBreaker
 from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings, Ticker, USCPIIndex
+
+_HTTP_TIMEOUT = (3, 8)
+_BREAKER = CircuitBreaker(name="fmp", failure_threshold=8, cool_down_seconds=60)
 
 
 class FMPError(Exception):
@@ -16,7 +20,14 @@ def _get(endpoint: str, params: dict | None = None) -> dict | list:
     params = params or {}
     params["apikey"] = settings.FMP_API_KEY
     url = f"{settings.FMP_BASE_URL}{endpoint}"
-    response = requests.get(url, params=params, timeout=30)
+
+    def _do_request() -> requests.Response:
+        return requests.get(url, params=params, timeout=_HTTP_TIMEOUT)
+
+    try:
+        response = _BREAKER.call(_do_request)
+    except requests.RequestException as error:
+        raise FMPError(f"FMP request failed: {error}") from error
     if response.status_code != 200:
         raise FMPError(
             f"FMP returned {response.status_code}: {response.text[:200]}"

@@ -25,7 +25,11 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
+from .circuit_breaker import CircuitBreaker
 from .models import CountryCPIIndex
+
+_HTTP_TIMEOUT = (3, 8)
+_BREAKER = CircuitBreaker(name="fred", failure_threshold=5, cool_down_seconds=120)
 
 
 class FREDError(Exception):
@@ -58,7 +62,14 @@ CURRENCY_TO_SERIES_ID: dict[str, str] = {
 def _get(endpoint: str, params: dict | None = None) -> dict | list:
     url = f"{settings.FRED_BASE_URL}{endpoint}"
     merged = {"api_key": settings.FRED_API_KEY, **(params or {})}
-    response = requests.get(url, params=merged, timeout=30)
+
+    def _do_request() -> requests.Response:
+        return requests.get(url, params=merged, timeout=_HTTP_TIMEOUT)
+
+    try:
+        response = _BREAKER.call(_do_request)
+    except requests.RequestException as error:
+        raise FREDError(f"FRED {endpoint} request failed: {error}") from error
     if response.status_code != 200:
         raise FREDError(f"FRED {endpoint} → HTTP {response.status_code}: {response.text[:200]}")
     return response.json()
