@@ -35,6 +35,10 @@ MIDDLEWARE = [
     "config.middleware.request_id.RequestIDMiddleware",
     "config.middleware.server_timing.ServerTimingMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Runs on the response after SessionMiddleware has added its Set-Cookie
+    # and Vary: Cookie, so we can strip them on anonymous public-cached
+    # responses before the response leaves the process.
+    "config.middleware.public_cache_strip.StripSessionFromPublicCacheMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
