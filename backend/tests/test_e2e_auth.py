@@ -178,10 +178,12 @@ class TestLoginPage:
         expect(page.locator(".auth-error")).to_be_visible(timeout=5000)
         expect(page.locator(".auth-error")).to_contain_text("incorretos")
 
-    def test_close_button_navigates_to_home(self, page: Page, url):
+    def test_brand_logo_navigates_to_home(self, page: Page, url):
         page.goto(f"{url}/login")
-        expect(page.locator(".auth-header-close")).to_be_visible(timeout=5000)
-        page.locator(".auth-header-close").click()
+        # The auth-page header no longer has a dedicated close (X) button;
+        # the SPONDA brand logo is the affordance back to the homepage.
+        expect(page.locator(".app-header-brand")).to_be_visible(timeout=5000)
+        page.locator(".app-header-brand").click()
         page.wait_for_url(_home_url_pattern(url), timeout=5000)
 
 
@@ -222,9 +224,10 @@ class TestSignupPage:
         page.locator("text=Ir para a página inicial").click()
         page.wait_for_url(_home_url_pattern(url), timeout=10000)
 
-        # Should be logged in (sees "Minha conta", not "Entrar")
-        expect(page.locator("text=Minha conta")).to_be_visible(timeout=5000)
-        expect(page.locator("text=Entrar")).not_to_be_visible()
+        # Should be logged in: the unified AccountButton renders the
+        # account menu (avatar + @handle), not the signed-out sign-in link.
+        expect(page.locator(".account-button-wrapper")).to_be_visible(timeout=5000)
+        expect(page.locator(".account-button--login")).not_to_be_visible()
 
         # User should exist in DB
         assert User.objects.filter(email="newuser@example.com").exists()
@@ -518,7 +521,7 @@ class TestHomepageAddFavoriteCard:
         expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=15000)
 
         # User should be logged in
-        expect(page.locator("text=Minha conta")).to_be_visible(timeout=15000)
+        expect(page.locator(".account-button-wrapper")).to_be_visible(timeout=15000)
 
         # PETR4 should now be in their favorites (visible as a card on homepage)
         expect(page.locator(".hcc-ticker >> text=PETR4")).to_be_visible(timeout=15000)
@@ -554,7 +557,7 @@ class TestHomepageAddFavoriteCard:
 
         # Modal closes, user is logged in
         expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=15000)
-        expect(page.locator("text=Minha conta")).to_be_visible(timeout=15000)
+        expect(page.locator(".account-button-wrapper")).to_be_visible(timeout=15000)
 
         # Wait for the favorite to be added to the database
         page.wait_for_timeout(3000)
@@ -583,7 +586,7 @@ class TestHomepageAddFavoriteCard:
         submit_modal_form(page)
 
         expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=15000)
-        expect(page.locator("text=Minha conta")).to_be_visible(timeout=15000)
+        expect(page.locator(".account-button-wrapper")).to_be_visible(timeout=15000)
 
         # Wait for any pending favorite operations
         page.wait_for_timeout(3000)
