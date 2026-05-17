@@ -516,3 +516,84 @@ Templates live under `backend/accounts/templates/emails/`:
 Subjects and localized share-link copy live in `accounts/email_subjects.py`. The sender (`accounts.views._send_welcome_email` / `_send_verification_email`) resolves the language via `_resolve_language`, renders the matching templates with `render_to_string`, and passes the localized subject.
 
 To add a new locale: register it in `SUPPORTED_LANGUAGES` (`accounts/models.py`), add a row to both subject dicts and `share_strings` in `email_subjects.py`, and create the four template files (`welcome_<lang>.html`, `welcome_<lang>.txt`, `verification_<lang>.html`, `verification_<lang>.txt`).
+
+## Social (Sponds)
+
+Users can post short messages — **Sponds** — follow each other, mute, block, and reply to threads. The feature lives under `/api/social/` (backend) and `frontend/src/components/social/` (frontend).
+
+### What it does
+
+- **Compose**: 500-char Sponds with optional `$TICKER` tag and `@handle` mentions. Mentions are extracted server-side and trigger notifications.
+- **Engage**: like, reply (one-level threads, replies render flat), edit within 5 minutes, soft-delete with thread tombstones.
+- **Follow graph**: follow public accounts immediately; follow private accounts via approval (pending → accepted). Mute (one-way) hides someone from the muter's feeds. Block (symmetric) hides each side from the other and removes any existing follows.
+- **Feeds**: home page shows `Following | Global` tabs; each company page gets a `Sponds` tab with a locked-ticker composer and per-ticker thread.
+- **Profile**: every user gets `@handle`, `display_name`, `bio`, `is_private`, with a public profile at `/<locale>/user/<handle>` and a Spond permalink at `/<locale>/spond/<id>`.
+- **Identity**: avatars are initials-on-color circles (no uploads in v1). Handles auto-derive from email on signup; users may change once per 30 days.
+- **Notifications**: reply / mention / like / follow / follow-request notifications, polled every 60s in a separate bell next to the existing alerts bell.
+- **SEO**: anonymous reads work, but `/user/`, `/spond/`, and `/api/social/` are `Disallow`'d in `robots.txt` and rendered with `<meta name="robots" content="noindex,follow">` until moderation matures.
+
+### Rate limits
+
+Limits are intentionally tight — 5× more stringent than typical defaults. With a small user base we'd rather see a 429 than tolerate a runaway script. They live in `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` in `backend/config/settings/base.py`.
+
+| Action | Per minute | Per hour | Per day |
+|---|---|---|---|
+| Compose Spond / reply | 4 | 24 | 80 |
+| Like / unlike | 12 | 120 | 600 |
+| Follow / unfollow | 6 | 20 | 60 |
+| Mute / block / unmute / unblock | 8 | 20 | — |
+| Profile edits | — | 6 | — |
+| Notifications mark-read | 24 | — | — |
+| Anonymous reads (per IP) | 60 | — | — |
+| Authenticated reads (per user) | 300 | — | — |
+
+Plus three application-level burst guards: a 5-min duplicate-body check, a hard cap of 8 distinct `@handle`s per Spond, and a rolling 1-hour cap of 20 unique follows per user. Handle changes are limited to once per 30 days, enforced in the serializer.
+
+429 responses include `Retry-After` and a JSON body identifying the scope; the frontend shows a localized toast.
+
+### Data model
+
+Backend app `social/`:
+- `Spond` — UUID-keyed posts with author, body, optional ticker, optional parent, soft-delete.
+- `SpondMention` / `SpondTickerMention` — denormalized lookup tables populated from the body so per-ticker and per-user feeds stay fast.
+- `SpondLike` — unique per `(user, spond)`.
+- `Follow` — with `state ∈ {pending, accepted}`; CHECK constraint forbids self-follow.
+- `Mute` and `Block` — separate one-way relations; blocking auto-removes any existing follows.
+- `Notification` — generic FK to Spond/Follow, with verbs `followed`, `follow_requested`, `replied`, `mentioned`, `liked`.
+
+Profile fields added to the existing `accounts.User`: `handle` (unique, nullable), `display_name`, `bio`, `is_private`, `handle_changed_at`. Migration `accounts/0015_social_profile_fields.py` adds the columns and backfills `handle` from each user's email local-part with collision suffixes.
+
+Visibility filtering for every Spond queryset and every profile lookup is centralized in `social/querysets.py::visible_sponds` and `is_user_visible`.
+
+### Local testing
+
+```bash
+# Backend
+cd backend
+python manage.py migrate
+python -m pytest tests/test_social_api.py tests/test_social_models.py tests/test_social_visibility.py tests/test_social_mentions.py tests/test_user_profile.py
+
+# Frontend
+cd frontend
+npm run test
+npm run build
+```
+
+### Seeding sample data
+
+`python manage.py seed_social` populates the local DB with 5 users (`alice`, `bruno`, `carla`, `diego`, `elena` — the last is private), 7 supported tickers, 15 Sponds with `$TICKER` and `@handle` mentions, 5 replies, ~20 likes, a small follow graph, and one pending follow request. The command is idempotent; pass `--reset` to wipe seeded users (and their cascaded data) before re-seeding, or `--password=<pw>` to override the default `sponda`.
+
+Login emails: `<handle>@seed.sponda.local`. So you can log in as Alice with `alice@seed.sponda.local` / `sponda` and immediately see the home feed populated. Logging in as Elena (private) lets you accept the pending follow request from Bruno.
+
+Two-account smoke test (after `python manage.py runserver`):
+1. Sign up two accounts (`alice@x.com`, `bob@x.com`); verify each via the link in the dev console / mailcatcher.
+2. As Alice, click the new initials-circle in the header → "Edit profile" → set a handle and bio.
+3. Go to a company page (e.g. `/pt/PETR4`) and click the **Sponds** tab; compose `$PETR4 looks cheap @bob`.
+4. Open Bob's session in another browser; the home page **Global** tab shows the post; click the bell to see the mention.
+5. As Bob, follow Alice. Switch tab to **Following** — Alice's Spond shows.
+6. Toggle Alice's account to **private** in the edit-profile modal; have a third user request to follow — accept/reject from the bell.
+7. Mute and block flows: from Bob's view, mute Alice (her Sponds disappear from his feed) → unmute → block (Alice's profile and Sponds disappear, and Bob disappears from Alice's view too).
+
+### Environment variables
+
+No new env vars in v1 (avatars are not uploaded; handles are derived from email). When uploaded avatars ship in v2, an `AVATAR_BACKEND` env var will select between local `MEDIA_ROOT` and S3.

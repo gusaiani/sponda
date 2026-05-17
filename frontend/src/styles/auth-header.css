@@ -1,5 +1,34 @@
 @reference "tailwindcss";
 
+/* Hamburger that toggles the left navigation. Lives in the layout-shell
+ * header next to the brand. Sized + positioned to vertically align its
+ * icon center with the icon column of the LeftNav items below.
+ *
+ * Both the hamburger and the nav-item icons sit inside a 40px-wide
+ * column anchored at x = 12px from the viewport's left edge:
+ *   - .app-header left padding is overridden to 12px in global.css.
+ *   - .left-nav-list horizontal padding is 0; .left-nav-item padding-left
+ *     is 12px; .left-nav-icon is a 40px-wide flex container.
+ *
+ * Result: the hamburger and the row icons share an x-axis. */
+.app-hamburger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #1b347e;
+  flex-shrink: 0;
+}
+
+.app-hamburger:hover {
+  background: #f0f2f5;
+}
+
 .auth-header {
   @apply flex items-center gap-1;
   animation: auth-header-fade-in 0.3s ease both;

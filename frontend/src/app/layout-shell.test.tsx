@@ -40,8 +40,34 @@ vi.mock("../components/AuthHeader", () => ({
 }));
 
 vi.mock("../components/FeedbackButton", () => ({
-  FeedbackButton: () => <div data-testid="feedback-button" />,
+  FeedbackProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useFeedback: () => ({ open: () => {} }),
 }));
+
+vi.mock("../components/EmailVerificationGate", () => ({
+  EmailVerificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useEmailVerification: () => ({ requireVerification: (action: () => void) => action() }),
+}));
+
+vi.mock("../components/social/SocialSidebar", () => ({
+  SocialSidebar: () => <div data-testid="social-sidebar" />,
+}));
+
+vi.mock("../components/LeftNav", () => ({
+  LeftNav: () => <div data-testid="left-nav" />,
+}));
+
+vi.mock("../components/LeftNavContext", () => ({
+  LeftNavProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useLeftNav: () => ({ open: false, toggle: () => {}, setOpen: () => {} }),
+}));
+
+vi.mock("../hooks/usePageTracking", () => ({
+  usePageTracking: () => {},
+}));
+
+vi.mock("../styles/social-sidebar.css", () => ({}));
+vi.mock("../styles/left-nav.css", () => ({}));
 
 vi.mock("../i18n", () => ({
   useTranslation: () => ({

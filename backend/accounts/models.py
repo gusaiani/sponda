@@ -26,6 +26,15 @@ class User(AbstractUser):
     homepage_layout = models.JSONField(default=list, blank=True)
     learning_mode_enabled = models.BooleanField(default=True)
 
+    # Social profile fields. ``handle`` is the public, unique @-name shown
+    # next to ``display_name`` in the social UI; ``is_private`` gates whether
+    # follows require approval and whether non-followers can see Sponds.
+    handle = models.CharField(max_length=24, unique=True, null=True, blank=True)
+    display_name = models.CharField(max_length=64, blank=True, default="")
+    bio = models.CharField(max_length=160, blank=True, default="")
+    is_private = models.BooleanField(default=False)
+    handle_changed_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
         return self.email
 

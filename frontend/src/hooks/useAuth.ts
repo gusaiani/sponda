@@ -17,6 +17,12 @@ export interface AuthUser {
    *  current user is a superuser (the feature is gated to superusers
    *  while methodology v1 stabilizes). */
   learning_mode_enabled?: boolean;
+  // Social profile fields. handle is null for users created before the
+  // social rollout backfill ran or who explicitly cleared it.
+  handle: string | null;
+  display_name: string;
+  bio: string;
+  is_private: boolean;
 }
 
 async function fetchMe(): Promise<AuthUser | null> {

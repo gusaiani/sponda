@@ -1,0 +1,37 @@
+/* Layout adjustments for the two fixed sidebars (left nav + Sponds rail).
+ *
+ * Both sidebars are position: fixed at the viewport edges; we shift the
+ * .app-body wrapper via padding so .app-main can stay centered inside the
+ * remaining width. This keeps the centered max-w[880px] block visually
+ * balanced between the two rails instead of left-anchored.
+ *
+ * Widths are exposed as CSS variables on the <html> element by the
+ * components themselves:
+ *   --left-nav-width   set by LeftNavContext (0 closed, 240 open)
+ *   --right-rail-width set by SocialSidebar (0 below 1100px, 36 collapsed,
+ *                                            380 expanded)
+ *
+ * Mobile (<= 900px): the left nav is an overlay with a backdrop, so we
+ * don't want padding for it. Below 1100px the right rail is hidden, so
+ * SocialSidebar publishes 0 itself.
+ */
+
+.app-body {
+  padding-left: var(--left-nav-width, 0px);
+  padding-right: var(--right-rail-width, 0px);
+  transition: padding 0.18s ease;
+}
+
+@media (max-width: 900px) {
+  /* Left nav becomes an overlay; don't reserve space for it. */
+  .app-body {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .social-sidebar,
+  .social-sidebar-rail {
+    display: none !important;
+  }
+}

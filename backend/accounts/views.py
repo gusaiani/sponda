@@ -237,6 +237,10 @@ class MeView(APIView):
             "allow_contact": request.user.allow_contact,
             "learning_mode_enabled": request.user.learning_mode_enabled,
             "language": language,
+            "handle": request.user.handle,
+            "display_name": request.user.display_name,
+            "bio": request.user.bio,
+            "is_private": request.user.is_private,
         })
 
 

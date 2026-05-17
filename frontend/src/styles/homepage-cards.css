@@ -2,43 +2,33 @@
 
 /* Homepage Company Cards */
 
-/* Break out of .app-main max-width to use full viewport.
-   Padding matches .app-header: px-4 mobile, px-6 at 640px+ */
+/* The grid lives inside .app-main; .app-main is laid out within .app-body
+ * which already reserves the LeftNav and SocialSidebar widths via
+ * --left-nav-width / --right-rail-width padding. So the grid just needs
+ * to fill its parent — no viewport-spanning breakout, which would push
+ * cards under the sidebars (cropping them).
+ *
+ * Trade-off: on a viewport much larger than .app-main's max-width
+ * (currently 880px) the cards no longer expand to the full viewport
+ * width. A wider main column on big monitors is a follow-up. */
 .hcc-section {
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
-  padding: 0 16px;
+  width: 100%;
+  padding: 0;
   margin-bottom: 64px;
   box-sizing: border-box;
-  max-width: 100vw;
-  overflow: hidden;
 }
 
-@media (min-width: 640px) {
-  .hcc-section {
-    padding: 0 24px;
-  }
-}
-
+/* Same auto-fit logic as .homepage-grid (see below) so the Popular
+ * Companies section reflows on sidebar open/close in the same way. */
 .hcc-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 16px;
 }
 
-@media (min-width: 640px) {
+@media (max-width: 480px) {
   .hcc-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .hcc-grid {
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
+    gap: 12px;
   }
 }
 
@@ -292,30 +282,27 @@
   background: #0f1d42;
 }
 
-/* ===== Homepage Unified Grid ===== */
-
+/* ===== Homepage Unified Grid =====
+ *
+ * Column count tracks the available content width. Driven by the grid's
+ * own size, not the viewport, so opening or closing the LeftNav and
+ * Sponds rail reflows the cards without a viewport resize.
+ *
+ * minmax(min(420px, 100%), 1fr) with a 16px gap gives:
+ *   container <420   → 1 col   (mobile / very narrow)
+ *   872  – 1307      → 2 cols  (typical 14" MBP with both sidebars open)
+ *   1308 – 1743      → 3 cols
+ *   ≥ 1744           → 4 cols  (no sidebars on a wide monitor)
+ */
 .homepage-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: 16px;
 }
 
-@media (min-width: 550px) {
+@media (max-width: 480px) {
   .homepage-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 768px) {
-  .homepage-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .homepage-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
   }
 }
 
@@ -384,6 +371,29 @@
   opacity: 0;
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
   padding: 0;
+}
+
+/* Sponds-balloon button in the company-card actions row. Matches the
+ * favorite handle's resting hidden state (opacity: 0) so it appears on
+ * hover alongside the star and share icons. */
+.homepage-grid-sponds-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #1b347e;
+  cursor: pointer;
+  opacity: 0;
+  padding: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.homepage-grid-sponds-button:hover {
+  background: rgba(27, 52, 126, 0.08);
 }
 
 .homepage-grid-favorite-handle--outlined {
@@ -458,6 +468,10 @@
 }
 
 .homepage-grid-item:hover .homepage-grid-favorite-handle {
+  opacity: 1;
+}
+
+.homepage-grid-item:hover .homepage-grid-sponds-button {
   opacity: 1;
 }
 

@@ -14,17 +14,16 @@
   }
 }
 
-/* Tab bar: tabs left, slider right — breaks out of app-main */
+/* Tab bar: tabs left, slider right. Spans the full .app-main width;
+ * .app-main now fills the sidebar-aware .app-body so width: 100% gives
+ * the page-spanning behavior the original 100vw hack was after. */
 .tab-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 4px;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 24px;
   padding-right: 24px;
 }
@@ -98,15 +97,12 @@
   border-color: var(--color-accent);
 }
 
-/* Chart container */
+/* Chart container — fills .app-main width. */
 .chart-container {
   @apply py-6;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -223,10 +219,7 @@
   @apply py-6 animate-pulse;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }

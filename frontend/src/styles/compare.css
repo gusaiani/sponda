@@ -182,15 +182,12 @@
   max-height: 200px;
 }
 
-/* Container for compare tab — breaks out of .app-main max-width */
+/* Container for compare tab — fills .app-main width. */
 .compare-container {
   @apply py-6;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }

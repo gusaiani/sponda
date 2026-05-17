@@ -182,6 +182,7 @@ export interface TranslationDictionary {
   "tabs.fundamentals": string;
   "tabs.compare": string;
   "tabs.charts": string;
+  "tabs.sponds": string;
 
   /* ── Sector Peers ── */
   "sector.same_sector": string;
@@ -589,6 +590,98 @@ export interface TranslationDictionary {
   "learning.indicator.debtToAvgEarnings.description": string;
   "learning.indicator.debtToAvgFCF.title": string;
   "learning.indicator.debtToAvgFCF.description": string;
+
+  /* ── Social ── */
+  "social.spond_noun": string;
+  "social.spond_noun_plural": string;
+  "social.compose.placeholder": string;
+  "social.compose.placeholder_company": string;
+  "social.compose.placeholder_reply": string;
+  "social.compose.button": string;
+  "social.compose.char_left": string;
+  "social.compose.add_ticker": string;
+  "social.compose.replying_to": string;
+  "social.feed.tab_following": string;
+  "social.feed.tab_global": string;
+  "social.feed.tab_company": string;
+  "social.feed.empty_following": string;
+  "social.feed.empty_global": string;
+  "social.feed.empty_company": string;
+  "social.feed.empty_profile": string;
+  "social.feed.login_to_follow": string;
+  "social.feed.login_to_post": string;
+  "social.spond.like": string;
+  "social.spond.unlike": string;
+  "social.spond.reply": string;
+  "social.spond.edit": string;
+  "social.spond.delete": string;
+  "social.spond.confirm_delete": string;
+  "social.spond.deleted": string;
+  "social.spond.show_replies": string;
+  "social.spond.edit_window_remaining": string;
+  "social.profile.edit_title": string;
+  "social.profile.handle": string;
+  "social.profile.handle_help": string;
+  "social.profile.display_name": string;
+  "social.profile.display_name_help": string;
+  "social.profile.bio": string;
+  "social.profile.bio_help": string;
+  "social.profile.is_private": string;
+  "social.profile.is_private_help": string;
+  "social.profile.save": string;
+  "social.profile.my_profile": string;
+  "social.profile.followers": string;
+  "social.profile.following": string;
+  "social.profile.follow": string;
+  "social.profile.following_button": string;
+  "social.profile.requested": string;
+  "social.profile.unfollow": string;
+  "social.profile.mute": string;
+  "social.profile.unmute": string;
+  "social.profile.block": string;
+  "social.profile.unblock": string;
+  "social.profile.private_account": string;
+  "social.profile.private_account_explainer": string;
+  "social.notifications.title": string;
+  "social.notifications.empty": string;
+  "social.notifications.followed": string;
+  "social.notifications.follow_requested": string;
+  "social.notifications.replied": string;
+  "social.notifications.mentioned": string;
+  "social.notifications.liked": string;
+  "social.notifications.accept": string;
+  "social.notifications.reject": string;
+  "social.notifications.mark_all_read": string;
+  "social.notifications.unread_count": string;
+  "social.errors.email_verification_required": string;
+  "social.verification_modal.title": string;
+  "social.verification_modal.body": string;
+  "social.verification_modal.help": string;
+  "social.verification_modal.waiting": string;
+  "social.verification_modal.resend": string;
+  "social.verification_modal.resent": string;
+  "social.errors.throttled": string;
+  "social.errors.handle_taken": string;
+  "social.errors.invalid_handle": string;
+  "social.errors.duplicate_body": string;
+  "social.errors.edit_window_expired": string;
+  "social.errors.handle_change_too_soon": string;
+  "social.errors.body_too_long": string;
+  "social.errors.too_many_mentions": string;
+  "social.sidebar.collapse": string;
+  "social.sidebar.expand": string;
+  "social.card.open_sponds": string;
+  "social.card.popover_title": string;
+
+  /* ── Left navigation ── */
+  "nav.toggle_open": string;
+  "nav.toggle_close": string;
+  "nav.home": string;
+  "nav.blog": string;
+  "nav.account_menu_label": string;
+  "nav.account_login": string;
+  "nav.account_settings": string;
+  "nav.account_sign_out": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

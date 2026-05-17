@@ -1,14 +1,12 @@
 @reference "tailwindcss";
 
-/* Container — breaks out of .app-main max-width like compare tab */
+/* Container — fills .app-main width (which now spans .app-body's
+ * sidebar-aware content area). */
 .fundamentals-container {
   @apply py-6;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -130,10 +128,7 @@
 .fundamentals-loading {
   @apply py-6 animate-pulse;
   background: #ffffff;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 32px;
   padding-right: 32px;
 }

@@ -37,15 +37,83 @@
 
 .notification-bell-menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 6px);
   right: 0;
   z-index: 200;
   background: #ffffff;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  min-width: 340px;
-  overflow: hidden;
+  border: 1px solid #d0d4dc;
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  min-width: 360px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.notification-bell-section-label {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  padding: 8px 14px 4px;
+  background: #fafbfc;
+  border-top: 1px solid #f0f0f0;
+}
+
+.notification-bell-section-label:first-of-type {
+  border-top: none;
+}
+
+.notification-bell-item--unread {
+  background: #f6f8ff;
+}
+
+.notification-bell-item--unread:hover {
+  background: #eef2ff;
+}
+
+.notification-bell-social-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-bell-social-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--color-ink);
+  line-height: 1.35;
+}
+
+.notification-bell-social-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.notification-bell-social-accept,
+.notification-bell-social-reject {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+}
+
+.notification-bell-social-accept {
+  background: #1b347e;
+  color: #ffffff;
+}
+
+.notification-bell-social-reject {
+  background: #ffffff;
+  color: var(--color-ink);
+  border: 1px solid #d0d4dc;
 }
 
 .notification-bell-header-row {

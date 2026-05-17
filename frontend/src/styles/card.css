@@ -4,10 +4,7 @@
   @apply py-6;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }
@@ -40,11 +37,15 @@
   line-height: 1.5;
 }
 
-/* Fixed slider container (desktop only) */
+/* Fixed slider container (desktop only). Anchored to the right edge of
+ * the main content area, NOT the viewport — adding the right rail's
+ * current width keeps it from disappearing behind the Sponds sidebar.
+ * The variable is published by SocialSidebar; defaults to 0 so the
+ * slider behaves correctly on pages without the rail. */
 .years-slider-fixed {
   display: none;
   position: fixed;
-  right: 24px;
+  right: calc(24px + var(--right-rail-width, 0px));
   z-index: 50;
   background: #f0f4fb;
   border: 1px solid #b8c8dd;
@@ -221,7 +222,13 @@
   background: #f5f7fb;
   border: none;
   border-radius: 8px;
-  padding: 16px 8px 20px;
+  /* Top padding reserves the band occupied by the absolute action
+   * buttons (.share-btn / alert at top:6px, height 28px → bottom 34px).
+   * The buttons are positioned against the padding-box edge so this
+   * padding does not move them; it keeps the centered .pe10-label +
+   * .info-btn from flowing under them when the grid column is narrow
+   * (e.g. with the Sponds rail expanded). */
+  padding: 38px 8px 20px;
   transition: background 0.2s;
 }
 
@@ -233,7 +240,8 @@
 .metric-block--graph {
   @apply flex-col items-stretch;
   justify-content: flex-start;
-  padding: 12px;
+  /* Same top-band reserve as .metric-block (absolute action buttons). */
+  padding: 38px 12px 12px;
   min-height: 100px;
 }
 
@@ -252,7 +260,7 @@
 @media (min-width: 768px) {
   .metric-block--graph {
     @apply flex-row items-stretch;
-    padding: 12px 12px 0 12px;
+    padding: 38px 12px 0 12px;
   }
 
   .metric-block--graph .metric-value-container {
@@ -634,10 +642,7 @@
   @apply py-6 animate-pulse;
   background: #ffffff;
   border: none;
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  margin-left: -50vw;
+  width: 100%;
   padding-left: 16px;
   padding-right: 16px;
 }
