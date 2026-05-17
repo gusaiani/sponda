@@ -187,18 +187,23 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      # Download into the job workspace, not /tmp. appleboy/scp-action
+      # runs in a Docker container that only mounts $GITHUB_WORKSPACE;
+      # a /tmp path on the runner is invisible to it ("tar: empty
+      # archive"). Source must be a workspace-relative path.
       - uses: actions/download-artifact@v4
         with:
           name: next-build
-          path: /tmp
+          path: _artifact
       - name: Copy build artifact to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: 159.203.108.19
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: /tmp/next-build.tar.gz
+          source: _artifact/next-build.tar.gz
           target: /opt/sponda/_deploy
+          strip_components: 1
           overwrite: true
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1

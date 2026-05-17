@@ -6,7 +6,7 @@ After=network.target postgresql.service
 User=root
 WorkingDirectory=/opt/sponda/backend
 EnvironmentFile=/opt/sponda/.env
-ExecStart=/opt/sponda/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8710 --workers 2
+ExecStart=/opt/sponda/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8710 --workers 5
 Restart=always
 
 [Install]
