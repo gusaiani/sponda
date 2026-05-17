@@ -311,6 +311,91 @@ function CardShareDropdown({ itemType, itemId, lists }: { itemType: string; item
   );
 }
 
+export function CardActions({
+  favoriteState,
+  itemType,
+  itemId,
+  lists,
+  onFavoriteClick,
+  onOpenSponds,
+}: {
+  favoriteState: CardFavoriteState;
+  itemType: string;
+  itemId: string;
+  lists: { id: number; name: string; tickers: string[] }[];
+  onFavoriteClick: () => void;
+  onOpenSponds: () => void;
+}) {
+  const { t } = useTranslation();
+
+  const favoriteButton = favoriteState !== "hidden" && (
+    <button
+      type="button"
+      className={`homepage-grid-favorite-handle homepage-grid-favorite-handle--${favoriteState}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        onFavoriteClick();
+      }}
+      aria-label={
+        favoriteState === "filled" ? t("favorites.remove") : t("favorites.add")
+      }
+      title={
+        favoriteState === "filled" ? t("favorites.remove") : t("favorites.add")
+      }
+    >
+      <FavoriteStarIcon filled={favoriteState === "filled"} />
+    </button>
+  );
+
+  const shareButton = (
+    <CardShareDropdown itemType={itemType} itemId={itemId} lists={lists} />
+  );
+
+  const spondsButton = itemType === "ticker" && (
+    <button
+      type="button"
+      className="homepage-grid-sponds-button"
+      onClick={(event) => {
+        event.stopPropagation();
+        event.preventDefault();
+        onOpenSponds();
+      }}
+      aria-label={t("social.card.open_sponds", { ticker: itemId })}
+      title={t("social.card.open_sponds", { ticker: itemId })}
+    >
+      <svg
+        aria-hidden
+        viewBox="0 0 24 24"
+        width="14"
+        height="14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M4 5h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9l-5 4v-4H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
+      </svg>
+    </button>
+  );
+
+  const dragHandle = (
+    <span className="homepage-grid-drag-handle">
+      <DragHandleIcon />
+    </span>
+  );
+
+  return (
+    <span className="homepage-grid-card-actions">
+      {spondsButton}
+      {favoriteButton}
+      {shareButton}
+      {dragHandle}
+    </span>
+  );
+}
+
 export function HomepageGrid() {
   const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
@@ -619,62 +704,14 @@ export function HomepageGrid() {
               onDragLeave={(event) => handleDragLeave(event, index)}
               onDrop={(event) => handleDrop(event, index)}
             >
-              <span className="homepage-grid-card-actions">
-                {favoriteState !== "hidden" && (
-                  <button
-                    type="button"
-                    className={`homepage-grid-favorite-handle homepage-grid-favorite-handle--${favoriteState}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      event.preventDefault();
-                      handleFavoriteClick(item.id);
-                    }}
-                    aria-label={
-                      favoriteState === "filled"
-                        ? t("favorites.remove")
-                        : t("favorites.add")
-                    }
-                    title={
-                      favoriteState === "filled"
-                        ? t("favorites.remove")
-                        : t("favorites.add")
-                    }
-                  >
-                    <FavoriteStarIcon filled={favoriteState === "filled"} />
-                  </button>
-                )}
-                <CardShareDropdown itemType={item.type} itemId={item.id} lists={lists} />
-                {item.type === "ticker" && (
-                  <button
-                    type="button"
-                    className="homepage-grid-sponds-button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      event.preventDefault();
-                      setSpondsForTicker(item.id);
-                    }}
-                    aria-label={t("social.card.open_sponds", { ticker: item.id })}
-                    title={t("social.card.open_sponds", { ticker: item.id })}
-                  >
-                    <svg
-                      aria-hidden
-                      viewBox="0 0 24 24"
-                      width="14"
-                      height="14"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M4 5h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9l-5 4v-4H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
-                    </svg>
-                  </button>
-                )}
-                <span className="homepage-grid-drag-handle">
-                  <DragHandleIcon />
-                </span>
-              </span>
+              <CardActions
+                favoriteState={favoriteState}
+                itemType={item.type}
+                itemId={item.id}
+                lists={lists}
+                onFavoriteClick={() => handleFavoriteClick(item.id)}
+                onOpenSponds={() => setSpondsForTicker(item.id)}
+              />
               {item.type === "ticker" ? (
                 <TickerGridItem
                   ticker={item.id}
