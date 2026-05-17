@@ -49,3 +49,11 @@ CACHES = {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }
+
+# Run Celery tasks in-process. Without this, the stale-while-revalidate
+# path (quotes/views.py: refresh_provider_data.delay) would publish to
+# the default Redis broker, so `make dev` would silently require a live
+# Redis even though the cache above deliberately does not. Eager keeps
+# local development fully Redis-free; propagate so failures aren't hidden.
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
