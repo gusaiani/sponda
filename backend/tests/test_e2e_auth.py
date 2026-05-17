@@ -7,6 +7,7 @@ import signal
 import subprocess
 import time
 import urllib.request
+import uuid
 import pytest
 import responses
 from django.contrib.auth import get_user_model
@@ -211,10 +212,26 @@ class TestSignupPage:
         page.goto(f"{url}/login")
         page.locator(".auth-mode-toggle >> text=Criar conta").click()
 
-        page.fill("input#email", "newuser@example.com")
+        # Unique per execution: this test is django_db(transaction=True)
+        # and CI reruns a failed e2e once. A hardcoded email survives a
+        # failed first attempt (no rollback between reruns), so the
+        # rerun's signup would deterministically hit "email already
+        # exists" and the success panel would never render. A fresh
+        # address keeps the retry independent of the first attempt.
+        email = f"newuser-{uuid.uuid4().hex[:12]}@example.com"
+        page.fill("input#email", email)
         page.fill("input#password", "securepass123")
         page.fill("input#confirm-password", "securepass123")
-        submit_page_form(page)
+
+        # Wait for the signup round-trip to actually finish before
+        # asserting the success UI, rather than racing a fixed timeout
+        # against network + state update + render under CI load.
+        with page.expect_response("**/api/auth/signup/") as signup_response:
+            submit_page_form(page)
+        assert signup_response.value.ok, (
+            f"signup request failed: HTTP {signup_response.value.status} "
+            f"{signup_response.value.text()}"
+        )
 
         # Should show email verification prompt
         expect(page.locator(".auth-signup-success")).to_be_visible(timeout=10000)
@@ -230,7 +247,7 @@ class TestSignupPage:
         expect(page.locator(".account-button--login")).not_to_be_visible()
 
         # User should exist in DB
-        assert User.objects.filter(email="newuser@example.com").exists()
+        assert User.objects.filter(email=email).exists()
 
     def test_signup_password_mismatch_shows_error(self, page: Page, url):
         page.goto(f"{url}/login")
