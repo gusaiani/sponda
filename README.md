@@ -149,6 +149,38 @@ Real logos are cached to disk at `LOGO_CACHE_DIR` for 30 days. When all sources 
 | `./manage.py warm_logo_cache [--region ...]` | Pre-warm the disk cache for popular tickers. |
 | `./manage.py audit_logos [--limit N] [--symbols ...]` | List tickers whose logo resolution ends in the generated fallback — use the output to populate `LOGO_OVERRIDE_URLS`. |
 
+## Lookup limits
+
+A freemium gate on company detail pages (`GET /api/quote/<ticker>/`),
+counting **distinct companies viewed per day**. Re-viewing a company
+already seen that day is always free, so the cap never traps a user on
+content they have already opened.
+
+| Visitor | Daily cap | Scope |
+|---|---|---|
+| Anonymous | `SPONDA_ANON_LOOKUPS_PER_DAY` (20) | Client IP (SHA-256 hashed) |
+| Logged in, email **not** verified | `SPONDA_UNVERIFIED_LOOKUPS_PER_DAY` (50) | User |
+| Logged in, email verified | Unlimited | — |
+
+**How it works**
+
+- `quotes.lookup_quota` is the single source of truth. Both `PE10View`
+  (enforcement) and `QuotaView` (the `/api/auth/quota/` meter) call it,
+  so the number a user sees can never disagree with the one that blocks
+  them.
+- Anonymous scope is per **IP**, resolved via `CF-Connecting-IP` →
+  `X-Forwarded-For` → `REMOTE_ADDR` (`quotes.client_ip`) and stored only
+  as a salted hash (`LookupLog.ip_hash`). A cleared session cookie no
+  longer resets the cap.
+- Over-cap requests get `429` with `{"code": "lookup_limit", ...}` and
+  `Cache-Control: no-store`; no payload is computed and no quota is
+  burned. Because the response now varies by IP/quota state,
+  `/api/quote/*` is **not** edge-cacheable — keep it off any Cloudflare
+  Cache Rule.
+- Frontend: a `429 lookup_limit` throws `LookupLimitError`. Anonymous
+  users get the login/signup modal; logged-in-unverified users get the
+  email-verification prompt (they already have an account).
+
 ## Stack
 
 - **Backend:** Django 5 + Django REST Framework + PostgreSQL + Redis
@@ -201,6 +233,8 @@ The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
 | `BRAPI_API_KEY` | BRAPI pro API key (Brazilian tickers) |
 | `FMP_API_KEY` | FMP API key (US tickers + FX rates) |
 | `FRED_API_KEY` | FRED API key (per-country CPI; free at fred.stlouisfed.org) |
+| `SPONDA_ANON_LOOKUPS_PER_DAY` | Anonymous per-IP daily company-lookup cap (default `20`) |
+| `SPONDA_UNVERIFIED_LOOKUPS_PER_DAY` | Per-user daily cap for logged-in but email-unverified accounts (default `50`) |
 | `DATABASE_URL` | PostgreSQL connection string (production only) |
 | `ALLOWED_HOSTS` | Comma-separated allowed hosts |
 | `DEBUG` | `True` for development, `False` for production |

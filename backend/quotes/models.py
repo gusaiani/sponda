@@ -302,6 +302,10 @@ class IndicatorSnapshot(models.Model):
 
 class LookupLog(models.Model):
     session_key = models.CharField(max_length=40, null=True, blank=True, db_index=True)
+    # SHA-256 of the client IP (see quotes.client_ip.client_ip_hash). Set for
+    # anonymous lookups so the daily cap is enforced per IP rather than per
+    # session — a session cookie is trivially cleared, an IP is not.
+    ip_hash = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE,
     )
@@ -317,6 +321,8 @@ class LookupLog(models.Model):
             # counts per ticker. Without this index the query is a sequential
             # scan over the full table.
             models.Index(fields=["ticker", "timestamp"]),
+            # Per-IP daily distinct-ticker count for the anonymous lookup cap.
+            models.Index(fields=["ip_hash", "timestamp"]),
         ]
 
     def __str__(self):

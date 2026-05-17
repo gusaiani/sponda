@@ -115,8 +115,46 @@ export interface QuoteRatings {
 
 interface QuoteError {
   error: string;
+  code?: string;
+  scope?: LookupScope;
   limit?: number;
   used?: number;
+}
+
+export type LookupScope = "anonymous" | "unverified" | "verified";
+
+/** Thrown by fetchQuote when the daily company-lookup cap is hit (HTTP 429
+ *  with code "lookup_limit"). Carries enough context for the UI to decide
+ *  between the auth modal (anonymous) and the email-verification prompt
+ *  (logged-in but unverified). */
+export class LookupLimitError extends Error {
+  readonly scope: LookupScope;
+  readonly limit: number | null;
+
+  constructor(scope: LookupScope, limit: number | null) {
+    super("lookup_limit_reached");
+    this.name = "LookupLimitError";
+    this.scope = scope;
+    this.limit = limit;
+  }
+}
+
+export type LookupLimitAction =
+  | { kind: "auth-modal"; limit: number | null }
+  | { kind: "verify-prompt"; limit: number | null };
+
+/** Maps a query error to the UI response for a hit lookup cap, or null
+ *  when the error is unrelated. Anonymous users are pushed to sign up;
+ *  logged-in-but-unverified users are nudged to verify their email
+ *  (the auth modal would be wrong — they already have an account). */
+export function resolveLookupLimitAction(
+  error: unknown,
+): LookupLimitAction | null {
+  if (!(error instanceof LookupLimitError)) return null;
+  if (error.scope === "unverified") {
+    return { kind: "verify-prompt", limit: error.limit };
+  }
+  return { kind: "auth-modal", limit: error.limit };
 }
 
 async function parseJSON(response: Response): Promise<unknown> {
@@ -155,6 +193,12 @@ export async function fetchQuote(ticker: string): Promise<QuoteResult> {
 
   if (!response.ok) {
     const data = (await parseJSON(response)) as QuoteError | null;
+    if (response.status === 429 && data?.code === "lookup_limit") {
+      throw new LookupLimitError(
+        data.scope ?? "anonymous",
+        data.limit ?? null,
+      );
+    }
     const fallback =
       response.status === 404
         ? `Ticker "${ticker}" não encontrado. Verifique o código e tente novamente.`

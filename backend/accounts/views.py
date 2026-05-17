@@ -12,6 +12,8 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from quotes.client_ip import client_ip_hash
+from quotes.lookup_quota import lookup_quota
 from quotes.models import LookupLog
 
 from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
@@ -207,8 +209,7 @@ class TrackPageView(APIView):
         if not path:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        ip_address = self._get_client_ip(request)
-        ip_hash = PageView.hash_ip(ip_address)
+        ip_hash = client_ip_hash(request)
         user = request.user if request.user.is_authenticated else None
         session_key = request.session.session_key or ""
 
@@ -220,13 +221,6 @@ class TrackPageView(APIView):
         )
 
         return Response({"ok": True}, status=status.HTTP_201_CREATED)
-
-    @staticmethod
-    def _get_client_ip(request):
-        forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR", "0.0.0.0")
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -480,28 +474,10 @@ class ResetPasswordView(APIView):
 
 class QuotaView(APIView):
     def get(self, request):
-        limit = settings.SPONDA_FREE_LOOKUPS_PER_DAY
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-        if request.user.is_authenticated:
-            used = LookupLog.objects.filter(
-                user=request.user, timestamp__gte=today_start
-            ).count()
-        else:
-            session_key = request.session.session_key
-            if not session_key:
-                used = 0
-            else:
-                used = LookupLog.objects.filter(
-                    session_key=session_key, timestamp__gte=today_start
-                ).count()
-
-        return Response({
-            "limit": limit,
-            "used": used,
-            "remaining": max(0, limit - used),
-            "authenticated": request.user.is_authenticated,
-        })
+        # Single source of truth shared with PE10View enforcement, so the
+        # number shown here can never disagree with the one that blocks.
+        # limit/remaining are null for verified (unlimited) users.
+        return Response(lookup_quota(request))
 
 
 # ── Favorites ──
