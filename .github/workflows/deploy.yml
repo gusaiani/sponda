@@ -143,11 +143,63 @@ jobs:
         if: needs.e2e-tests.result != 'success'
         run: exit 1
 
-  deploy:
+  # Build the Next.js bundle on the CI runner (16 GB RAM), never on the
+  # 2-core / 4 GB prod box. An OOM-killed `next build` on the box once
+  # left a corrupt .next with no BUILD_ID, crash-looping the frontend
+  # into a 12-hour outage. The runner produces the artifact; the box
+  # only unpacks it.
+  build-frontend:
     needs: [unit-tests, frontend-tests]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          # NEXT_PUBLIC_* are baked into the browser bundle at build time.
+          # They used to be sourced from /opt/sponda/.env on the box; now
+          # they must be provided here. SENTRY_RELEASE is the deployed SHA.
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+          NEXT_PUBLIC_SENTRY_ENVIRONMENT: production
+          NEXT_PUBLIC_SENTRY_RELEASE: ${{ github.sha }}
+          NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+        run: |
+          npm ci
+          npm run build
+          test -f .next/BUILD_ID
+      - name: Package .next
+        working-directory: frontend
+        run: tar -czf /tmp/next-build.tar.gz .next
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-build
+          path: /tmp/next-build.tar.gz
+          retention-days: 3
+
+  deploy:
+    needs: [build-frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: next-build
+          path: /tmp
+      - name: Copy build artifact to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 159.203.108.19
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: /tmp/next-build.tar.gz
+          target: /opt/sponda/_deploy
+          overwrite: true
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -161,32 +213,38 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # Tag Sentry releases with the deployed git SHA. Persisted to
-            # /opt/sponda/.env so gunicorn picks SENTRY_RELEASE up via the
-            # systemd EnvironmentFile and the Next.js build below bakes
-            # NEXT_PUBLIC_SENTRY_RELEASE into the browser bundle.
+            # Tag the backend Sentry release with the deployed SHA. The
+            # frontend's NEXT_PUBLIC_SENTRY_RELEASE is already baked into
+            # the artifact by the build-frontend job, so it is no longer
+            # written here.
             SENTRY_SHA=$(git rev-parse HEAD)
-            for KEY in SENTRY_RELEASE NEXT_PUBLIC_SENTRY_RELEASE; do
-              if grep -q "^${KEY}=" /opt/sponda/.env; then
-                sed -i "s|^${KEY}=.*|${KEY}=${SENTRY_SHA}|" /opt/sponda/.env
-              else
-                echo "${KEY}=${SENTRY_SHA}" >> /opt/sponda/.env
-              fi
-            done
+            if grep -q "^SENTRY_RELEASE=" /opt/sponda/.env; then
+              sed -i "s|^SENTRY_RELEASE=.*|SENTRY_RELEASE=${SENTRY_SHA}|" /opt/sponda/.env
+            else
+              echo "SENTRY_RELEASE=${SENTRY_SHA}" >> /opt/sponda/.env
+            fi
 
             source venv/bin/activate
             command -v uv >/dev/null || pip install uv
             uv pip install -r backend/requirements.txt
 
-            # Build Next.js frontend. Source /opt/sponda/.env so that
-            # NEXT_PUBLIC_* variables (e.g. SENTRY_DSN) get baked into
-            # the browser bundle at build time.
-            cd frontend
+            # Runtime node deps only. NO `next build` on the box — the
+            # bundle was built in CI. `npm ci` is CPU-bound (~1 min) but
+            # does not balloon memory the way `next build` did.
+            cd /opt/sponda/frontend
             npm ci
-            set -a
-            . /opt/sponda/.env
-            set +a
-            npm run build
+
+            # Atomically swap in the CI-built .next. Refuse a corrupt
+            # artifact (missing BUILD_ID) before touching the live dir,
+            # and keep the previous build as .next.old for rollback.
+            rm -rf .next.incoming
+            mkdir .next.incoming
+            tar -xzf /opt/sponda/_deploy/next-build.tar.gz -C .next.incoming
+            test -f .next.incoming/.next/BUILD_ID
+            rm -rf .next.old
+            [ -d .next ] && mv .next .next.old
+            mv .next.incoming/.next .next
+            rm -rf .next.incoming
             cd /opt/sponda
 
             # Build Hugo blog (blog.sponda.capital)
@@ -241,5 +299,28 @@ jobs:
 
             # Restart services
             systemctl restart sponda
-            systemctl enable --now sponda-frontend
+            systemctl enable sponda-frontend
             systemctl restart sponda-frontend
+
+            # Health gate: a corrupt/incompatible build must not be left
+            # crash-looping the live site. Poll the frontend; on failure
+            # roll .next back to the previous build and fail the deploy.
+            FRONTEND_OK=
+            for _ in $(seq 1 20); do
+              sleep 3
+              if curl -fsS -o /dev/null --max-time 5 http://127.0.0.1:3100/; then
+                FRONTEND_OK=1
+                break
+              fi
+            done
+            if [ -z "$FRONTEND_OK" ]; then
+              echo "Frontend failed health check after restart; rolling back .next"
+              cd /opt/sponda/frontend
+              rm -rf .next
+              if [ -d .next.old ]; then
+                mv .next.old .next
+                systemctl restart sponda-frontend
+              fi
+              exit 1
+            fi
+            rm -rf /opt/sponda/frontend/.next.old /opt/sponda/_deploy/next-build.tar.gz
