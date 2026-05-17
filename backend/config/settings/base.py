@@ -126,7 +126,13 @@ FMP_BASE_URL = "https://financialmodelingprep.com"
 FRED_API_KEY = env("FRED_API_KEY", default="")
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 
-SPONDA_FREE_LOOKUPS_PER_DAY = 3
+# Daily distinct-company lookup caps. Anonymous is scoped per client IP
+# (see quotes.lookup_quota); unverified accounts per user; verified
+# accounts are unlimited.
+SPONDA_ANON_LOOKUPS_PER_DAY = env.int("SPONDA_ANON_LOOKUPS_PER_DAY", default=20)
+SPONDA_UNVERIFIED_LOOKUPS_PER_DAY = env.int(
+    "SPONDA_UNVERIFIED_LOOKUPS_PER_DAY", default=50
+)
 
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight

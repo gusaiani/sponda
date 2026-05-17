@@ -55,7 +55,14 @@ import { RevisitBanner } from "../../../components/RevisitBanner";
 import { ShareButtons } from "../../../components/ShareButtons";
 import { CompanyGradeCard } from "../../../components/CompanyGradeCard";
 import { useLearningMode } from "../../../learning";
-import { usePE10, fetchQuote, type QuoteResult } from "../../../hooks/usePE10";
+import {
+  usePE10,
+  fetchQuote,
+  resolveLookupLimitAction,
+  type QuoteResult,
+} from "../../../hooks/usePE10";
+import { AuthModal } from "../../../components/AuthModal";
+import { setEmailVerificationPromptVisible } from "../../../utils/emailVerificationPrompt";
 import { useTickerDetail } from "../../../hooks/useTickerDetail";
 import { usePeers } from "../../../hooks/usePeers";
 import { useMultiplesHistory, fetchMultiplesHistory } from "../../../hooks/useMultiplesHistory";
@@ -114,6 +121,23 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const [inflationMode, setInflationMode] = useState<InflationMode>("nominal");
 
   const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
+
+  // Daily company-lookup cap hit. Anonymous -> push to sign up via the
+  // auth modal; logged-in-but-unverified -> nudge email verification
+  // (the auth modal would be wrong, they already have an account).
+  const lookupLimit = resolveLookupLimitAction(error);
+  const [limitModalDismissed, setLimitModalDismissed] = useState(false);
+  const limitModalTicker = useRef<string | null>(null);
+  if (limitModalTicker.current !== upperTicker) {
+    limitModalTicker.current = upperTicker;
+    if (limitModalDismissed) setLimitModalDismissed(false);
+  }
+  useEffect(() => {
+    if (lookupLimit?.kind === "verify-prompt") {
+      setEmailVerificationPromptVisible(true);
+    }
+  }, [lookupLimit?.kind]);
+
   const { data: currentTicker } = useTickerDetail(upperTicker);
   const { data: peers = [] } = usePeers(upperTicker);
   const { data: fundamentalsData } = useFundamentals(upperTicker, true);
@@ -301,7 +325,13 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
           )}
           {error && !isLoading && (
             <div className="pe10-card">
-              <div className="pe10-error">{(error as Error).message}</div>
+              <div className="pe10-error">
+                {lookupLimit
+                  ? `${t("quota.limit_reached")} ${lookupLimit.limit ?? ""} ${
+                      locale === "pt" ? "consultas diárias" : "daily queries"
+                    }.`
+                  : (error as Error).message}
+              </div>
             </div>
           )}
         </>
@@ -370,6 +400,21 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
         ticker={upperTicker}
         companyName={fullData?.name}
       />
+
+      {lookupLimit?.kind === "auth-modal" && !limitModalDismissed && (
+        <AuthModal
+          message={`${t("quota.limit_reached")} ${lookupLimit.limit ?? ""} ${
+            locale === "pt" ? "consultas diárias" : "daily queries"
+          }. ${t("quota.create_account")} ${t("quota.to_continue")}`}
+          onClose={() => setLimitModalDismissed(true)}
+          onSuccess={() => {
+            setLimitModalDismissed(true);
+            queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+            queryClient.invalidateQueries({ queryKey: ["quota"] });
+            queryClient.invalidateQueries({ queryKey: ["pe10", upperTicker] });
+          }}
+        />
+      )}
     </div>
   );
 }

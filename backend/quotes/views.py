@@ -28,8 +28,10 @@ logger = logging.getLogger(__name__)
 # stick to a session.
 PE10_CLIENT_CACHE_TTL = 60 * 60
 
+from .client_ip import client_ip_hash
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
+from .lookup_quota import lookup_quota, would_exceed_limit
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .tasks import refresh_provider_data
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
@@ -926,6 +928,23 @@ class PE10View(APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        # Enforce the daily distinct-company cap before doing any work, so
+        # a blocked request neither computes a payload nor burns quota.
+        # Re-viewing a company already counted today is always allowed.
+        if would_exceed_limit(request, ticker):
+            quota = lookup_quota(request)
+            response = Response(
+                {
+                    "error": "lookup_limit_reached",
+                    "code": "lookup_limit",
+                    "limit": quota["limit"],
+                    "scope": quota["scope"],
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+            response["Cache-Control"] = "no-store"
+            return response
+
         try:
             result = _compute_quote_payload(ticker, request=request)
         except _QuoteError as error:
@@ -943,7 +962,9 @@ class PE10View(APIView):
             if not request.session.session_key:
                 request.session.create()
             LookupLog.objects.create(
-                session_key=request.session.session_key, ticker=ticker
+                session_key=request.session.session_key,
+                ip_hash=client_ip_hash(request),
+                ticker=ticker,
             )
 
 

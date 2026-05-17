@@ -1,4 +1,4 @@
-import { useQuota } from "../hooks/useQuota";
+import { useQuota, shouldShowQuotaAlert } from "../hooks/useQuota";
 import { useTranslation } from "../i18n";
 import "../styles/auth.css";
 
@@ -6,7 +6,7 @@ export function QuotaAlert() {
   const { t, locale } = useTranslation();
   const { data } = useQuota();
 
-  if (!data || data.remaining > 0) return null;
+  if (!data || !shouldShowQuotaAlert(data)) return null;
 
   return (
     <div className="quota-alert">
