@@ -197,11 +197,37 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     [fullData, effectiveYears],
   );
 
+  // Pin the floating slider to the tab-bar row. The tab bar's Y shifts
+  // after first paint (company header mounts when fullData arrives, web
+  // fonts swap, cards reflow), so a single mount-time measurement locks
+  // in a too-high value. Re-measure after paint and on every reflow of
+  // the content above. Document-relative (top + scrollY) so the value is
+  // correct even if the page restored a scroll position.
   useEffect(() => {
-    if (!tabBarRef.current) return;
-    const rect = tabBarRef.current.getBoundingClientRect();
-    setSliderFixedTop(rect.top);
-  }, [isLoading, error]);
+    const tabBar = tabBarRef.current;
+    if (!tabBar) return;
+
+    const measure = () => {
+      const rect = tabBar.getBoundingClientRect();
+      setSliderFixedTop(rect.top + window.scrollY);
+    };
+
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+
+    let resizeObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(measure);
+      resizeObserver.observe(document.body);
+    }
+    document.fonts?.ready.then(measure).catch(() => {});
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", measure);
+      resizeObserver?.disconnect();
+    };
+  }, [isLoading, error, fullData, activeTab]);
 
   function switchTab(tab: TabKey) {
     router.push(buildTabPath(locale, upperTicker, tab));
