@@ -9,55 +9,10 @@ import { useSeenSponds } from "../../hooks/useSeenSponds";
 import type { SpondPayload } from "../../hooks/useProfile";
 import { useEmailVerification } from "../EmailVerificationGate";
 import { UserAvatar } from "./UserAvatar";
+import { renderSpondBody } from "./renderSpondBody";
 
 interface Props {
   spond: SpondPayload;
-}
-
-/**
- * Render plain Spond body with @handle and $TICKER tokens linkified.
- * Body is up to 500 chars and arrives plain-text, so a single regex pass
- * with split-and-stitch is fast enough — no DOM-walking, no DOMPurify.
- */
-function renderBody(body: string, locale: string) {
-  const parts: React.ReactNode[] = [];
-  const re = /(@[a-z0-9_]{3,24}|\$[A-Z]{1,5}\d{0,2})\b/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
-
-  while ((match = re.exec(body)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(body.slice(lastIndex, match.index));
-    }
-    const token = match[0];
-    if (token.startsWith("@")) {
-      const handle = token.slice(1);
-      parts.push(
-        <Link
-          key={`m-${key++}`}
-          href={`/${locale}/user/${handle}`}
-          style={{ color: "#1b347e", fontWeight: 600 }}
-        >
-          {token}
-        </Link>,
-      );
-    } else if (token.startsWith("$")) {
-      const symbol = token.slice(1);
-      parts.push(
-        <Link
-          key={`t-${key++}`}
-          href={`/${locale}/${symbol}`}
-          style={{ color: "#1b347e", fontWeight: 600 }}
-        >
-          {token}
-        </Link>,
-      );
-    }
-    lastIndex = re.lastIndex;
-  }
-  if (lastIndex < body.length) parts.push(body.slice(lastIndex));
-  return parts;
 }
 
 function relativeTime(iso: string, locale: string): string {
@@ -183,7 +138,7 @@ export function SpondCard({ spond }: Props) {
         </Link>
       </div>
       <div style={{ fontSize: "13px", lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#222" }}>
-        {renderBody(spond.body, locale)}
+        {renderSpondBody(spond.body, locale)}
       </div>
       {spond.ticker && (
         <div style={{ marginTop: "6px" }}>
