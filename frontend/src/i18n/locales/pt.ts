@@ -480,7 +480,7 @@ export const pt: TranslationDictionary = {
   "visits.days_overdue": "{count} dias de atraso",
   "visits.page_title": "Visitas",
   "visits.must_login": "Fa\u00e7a login para acompanhar suas visitas.",
-  "visits.banner_due": "Marcada como devida hoje",
+  "visits.banner_due": "Marcada como a visitar hoje",
   "visits.banner_overdue": "Sua revisita para esta empresa estava agendada para {date}",
   "visits.banner_change_settings": "Alterar configura\u00e7\u00f5es",
   "visits.banner_cancel_recurrence": "Cancelar recorr\u00eancia",

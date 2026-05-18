@@ -480,7 +480,7 @@ export const zh: TranslationDictionary = {
   "visits.days_overdue": "逾期 {count} 天",
   "visits.page_title": "访问",
   "visits.must_login": "请登录以跟踪您的公司访问。",
-  "visits.banner_due": "标记为今天到期",
+  "visits.banner_due": "标记为今天待回访",
   "visits.banner_overdue": "您为此公司安排的再访到期时间为 {date}",
   "visits.banner_change_settings": "更改设置",
   "visits.banner_cancel_recurrence": "取消重复",
