@@ -1,26 +1,17 @@
 @reference "tailwindcss";
 
+/* Inset 8px past the gutter so its left edge lines up with the logo,
+ * tab pills, and cards. Hugs its own content rather than stretching
+ * the full column, so the buttons sit right after the status text. */
 .revisit-banner {
   @apply flex flex-col rounded-lg mb-4;
   font-family: 'Inter', system-ui, sans-serif;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
-  margin-left: calc(50% - 50vw + 16px);
-  margin-right: 320px;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: 8px;
   box-sizing: border-box;
-}
-
-@media (max-width: 1024px) {
-  .revisit-banner {
-    margin-right: 16px;
-  }
-}
-
-@media (max-width: 640px) {
-  .revisit-banner {
-    margin-left: 0;
-    margin-right: 0;
-  }
 }
 
 .revisit-banner-overdue {
@@ -29,7 +20,7 @@
 }
 
 .revisit-banner-header {
-  @apply flex items-center justify-between gap-3;
+  @apply flex items-center gap-3;
   padding: 10px 16px;
 }
 
@@ -43,7 +34,6 @@
 .revisit-banner-text {
   font-size: 13px;
   color: var(--color-ink);
-  flex: 1;
 }
 
 .revisit-banner-actions {

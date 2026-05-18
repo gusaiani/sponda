@@ -14,9 +14,8 @@
   }
 }
 
-/* Tab bar: tabs left, slider right. Spans the full .app-main width;
- * .app-main now fills the sidebar-aware .app-body so width: 100% gives
- * the page-spanning behavior the original 100vw hack was after. */
+/* Tab bar: tabs left, slider right. Content inset 8px past the gutter
+ * so the link pills line up with the logo, revisit banner, and cards. */
 .tab-bar {
   display: flex;
   align-items: center;
@@ -24,8 +23,7 @@
   gap: 16px;
   margin-bottom: 4px;
   width: 100%;
-  padding-left: 24px;
-  padding-right: 24px;
+  padding-left: 8px;
 }
 
 .tab-pill {

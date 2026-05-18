@@ -149,7 +149,14 @@
    * closed, that's the full viewport; when one is open, it shrinks
    * accordingly. No fixed max-width — content responds to whatever
    * space is available. */
-  @apply mx-auto px-4 w-full;
+  @apply mx-auto w-full;
+  /* Single horizontal gutter for the whole content column, anchored at
+   * x=12 to match the header hamburger / LeftNav icon column. Every
+   * company-page element (header, revisit banner, tab pills, cards)
+   * sits flush to this edge — no extra per-element side padding — so
+   * they all share one left edge and one right edge. */
+  padding-left: 12px;
+  padding-right: 12px;
   padding-top: 24px;
   padding-bottom: 48px;
 }
@@ -212,12 +219,14 @@
   color: var(--color-muted);
 }
 
-/* Company header (above tabs) — fills .app-main width. */
+/* Content is inset 8px past the gutter so the logo lines up with the
+ * revisit banner, tab pills, and cards. The bottom divider is the
+ * element border, so it still spans the full .app-main width (gutter
+ * to gutter) and is NOT shifted by this padding. */
 .company-header {
   @apply flex items-center justify-between;
   width: 100%;
-  padding-left: 16px;
-  padding-right: 16px;
+  padding-left: 8px;
   padding-top: 8px;
   padding-bottom: 12px;
   margin-bottom: 16px;
@@ -226,8 +235,6 @@
 
 @media (min-width: 640px) {
   .company-header {
-    padding-left: 32px;
-    padding-right: 32px;
     padding-bottom: 16px;
     margin-bottom: 28px;
   }
