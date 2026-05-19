@@ -5,6 +5,7 @@ guardrail or remove the cost ceiling — it should degrade, not run unbounded.
 """
 from django.conf import settings
 
+
 class TestAssistantSettings:
     def test_openai_api_key_present_and_defaults_empty(self):
         # Absent key must not crash import; the endpoint will 503 instead
@@ -20,4 +21,7 @@ class TestAssistantSettings:
         # 0 => free trial OFF in v1 (superuser-only); enabling it is one env var
         assert settings.ASSISTANT_FREE_TRIAL_PER_DAY == 0
 
-    def 
+    def test_input_and_cost_guards(self):
+        assert settings.ASSISTANT_MAX_QUESTION_CHARS == 1000
+        # Global per-day USD kill-switch; a low default is the safe one
+        assert settings.ASSISTANT_GLOBAL_DAILY_USD_CAP == 10.0
