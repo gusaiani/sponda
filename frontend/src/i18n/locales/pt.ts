@@ -614,6 +614,7 @@ export const pt: TranslationDictionary = {
   "social.spond.confirm_delete": "Apagar esse Spond?",
   "social.spond.deleted": "Spond apagado",
   "social.spond.show_replies": "Ver {count} respostas",
+  "social.spond.hide_replies": "Ocultar respostas",
   "social.spond.edit_window_remaining": "Você pode editar por mais {minutes} min",
   "social.profile.edit_title": "Editar perfil",
   "social.profile.handle": "Handle",

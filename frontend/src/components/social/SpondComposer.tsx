@@ -15,10 +15,13 @@ interface Props {
   /** When set, this composer creates a reply to the given Spond. */
   parentId?: string;
   parentHandle?: string;
+  /** Drops the composer's own card chrome so it can sit inside a thread
+   *  box (used for inline replies on the Spond page). */
+  inline?: boolean;
   onSubmitted?: () => void;
 }
 
-export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitted }: Props) {
+export function SpondComposer({ lockedTicker, parentId, parentHandle, inline, onSubmitted }: Props) {
   const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const createSpond = useCreateSpond();
@@ -37,9 +40,11 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitte
   // Unverified signed-in users see the full composer; the verification
   // modal kicks in only when they hit Submit (and replays the post on
   // verification, via EmailVerificationProvider).
+  const cardStyle = inline ? composerInlineStyle : composerCardStyle;
+
   if (!isAuthenticated) {
     return (
-      <div style={composerCardStyle}>
+      <div style={cardStyle}>
         <p style={{ margin: 0, color: "#666" }}>
           {t("social.feed.login_to_post")}
         </p>
@@ -94,7 +99,7 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, onSubmitte
   }
 
   return (
-    <form onSubmit={handleSubmit} style={composerCardStyle}>
+    <form onSubmit={handleSubmit} style={cardStyle}>
       <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
         <UserAvatar handle={user?.handle ?? null} displayName={user?.display_name} size="md" />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -191,6 +196,12 @@ const composerCardStyle: React.CSSProperties = {
   borderRadius: "10px",
   background: "#ffffff",
   marginBottom: "16px",
+};
+
+// Inline mode: the surrounding SpondThread box owns the chrome, so the
+// composer drops its own border/background and only keeps inner padding.
+const composerInlineStyle: React.CSSProperties = {
+  padding: "12px",
 };
 
 const tickerChipStyle: React.CSSProperties = {
