@@ -2,7 +2,7 @@
 
 import { useTranslation } from "../../i18n";
 import { useSocialFeed, type FeedKind } from "../../hooks/useSocialFeed";
-import { SpondCard } from "./SpondCard";
+import { SpondThread } from "./SpondThread";
 
 interface Props {
   kind: FeedKind;
@@ -33,7 +33,7 @@ export function SpondFeed({ kind, ticker }: Props) {
   return (
     <div>
       {all.map((spond) => (
-        <SpondCard key={spond.id} spond={spond} />
+        <SpondThread key={spond.id} spond={spond} />
       ))}
       {query.hasNextPage && (
         <div style={{ textAlign: "center", padding: "12px" }}>

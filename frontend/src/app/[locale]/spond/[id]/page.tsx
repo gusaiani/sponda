@@ -3,10 +3,8 @@
 import { use, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "../../../../i18n";
-import { useAuth } from "../../../../hooks/useAuth";
 import type { SpondPayload } from "../../../../hooks/useProfile";
-import { SpondCard } from "../../../../components/social/SpondCard";
-import { SpondComposer } from "../../../../components/social/SpondComposer";
+import { SpondThread } from "../../../../components/social/SpondThread";
 
 interface Props {
   params: Promise<{ locale: string; id: string }>;
@@ -27,7 +25,6 @@ async function fetchThread(id: string): Promise<ThreadResponse | null> {
 export default function SpondPermalinkPage({ params }: Props) {
   const { id } = use(params);
   const { t } = useTranslation();
-  const { isAuthenticated } = useAuth();
   const [refresh, setRefresh] = useState(0);
 
   const { data, isLoading, refetch } = useQuery({
@@ -60,19 +57,12 @@ export default function SpondPermalinkPage({ params }: Props) {
     <>
       <meta name="robots" content="noindex,follow" />
       <div style={{ maxWidth: "640px", margin: "32px auto", padding: "0 16px" }}>
-        <SpondCard spond={data.spond} />
-        {isAuthenticated && (
-          <SpondComposer
-            parentId={data.spond.id}
-            parentHandle={data.spond.author.handle}
-            onSubmitted={() => setRefresh((n) => n + 1)}
-          />
-        )}
-        {data.replies.length > 0 && (
-          <div style={{ marginTop: "16px" }}>
-            {data.replies.map((reply) => <SpondCard key={reply.id} spond={reply} />)}
-          </div>
-        )}
+        <SpondThread
+          spond={data.spond}
+          replies={data.replies}
+          inlineReply
+          onChanged={() => setRefresh((n) => n + 1)}
+        />
       </div>
     </>
   );

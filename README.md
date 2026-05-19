@@ -524,7 +524,7 @@ Users can post short messages — **Sponds** — follow each other, mute, block,
 ### What it does
 
 - **Compose**: 500-char Sponds with optional `$TICKER` tag and `@handle` mentions. Mentions are extracted server-side and trigger notifications.
-- **Engage**: like, reply (one-level threads, replies render flat), edit within 5 minutes, soft-delete with thread tombstones.
+- **Engage**: like, reply (one-level threads), edit within 5 minutes, soft-delete with thread tombstones. A Spond and its replies render nested inside one box (`SpondThread`). On the permalink page the reply composer is hidden until "Responder" is clicked; in feeds/sidebar replies are collapsed behind a "show replies" toggle that lazy-loads the thread.
 - **Follow graph**: follow public accounts immediately; follow private accounts via approval (pending → accepted). Mute (one-way) hides someone from the muter's feeds. Block (symmetric) hides each side from the other and removes any existing follows.
 - **Feeds**: home page shows `Following | Global` tabs; each company page gets a `Sponds` tab with a locked-ticker composer and per-ticker thread.
 - **Profile**: every user gets `@handle`, `display_name`, `bio`, `is_private`, with a public profile at `/<locale>/user/<handle>` and a Spond permalink at `/<locale>/spond/<id>`.

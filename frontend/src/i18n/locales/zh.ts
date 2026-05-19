@@ -614,6 +614,7 @@ export const zh: TranslationDictionary = {
   "social.spond.confirm_delete": "删除该 Spond？",
   "social.spond.deleted": "Spond 已删除",
   "social.spond.show_replies": "显示 {count} 条回复",
+  "social.spond.hide_replies": "隐藏回复",
   "social.spond.edit_window_remaining": "你还可以编辑 {minutes} 分钟",
   "social.profile.edit_title": "编辑资料",
   "social.profile.handle": "用户名",

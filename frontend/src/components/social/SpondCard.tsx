@@ -13,6 +13,15 @@ import { renderSpondBody } from "./renderSpondBody";
 
 interface Props {
   spond: SpondPayload;
+  /** Drops the card's own border/background/margin so it can sit inside
+   *  a thread box that owns the chrome. */
+  embedded?: boolean;
+  /** When provided, the "Responder" action becomes a button calling this
+   *  (used to toggle an inline composer) instead of linking to the
+   *  permalink. */
+  onReplyClick?: () => void;
+  /** Renders the reply control in an active (toggled-open) state. */
+  replyActive?: boolean;
 }
 
 function relativeTime(iso: string, locale: string): string {
@@ -29,7 +38,7 @@ function relativeTime(iso: string, locale: string): string {
   return new Date(iso).toLocaleDateString(locale);
 }
 
-export function SpondCard({ spond }: Props) {
+export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props) {
   const { t, locale } = useTranslation();
   const { user } = useAuth();
   const likeSpond = useLikeSpond();
@@ -102,7 +111,7 @@ export function SpondCard({ spond }: Props) {
   }, [spond.id, markSeen]);
 
   return (
-    <article ref={articleRef} style={cardStyle}>
+    <article ref={articleRef} style={embedded ? embeddedCardStyle : cardStyle}>
       {/* Inline header: avatar + display name + handle + timestamp on one
         * line. Body wraps the full card width below. Tighter than the
         * prior layout — saves ~36px of horizontal gutter, a lot in the
@@ -156,9 +165,24 @@ export function SpondCard({ spond }: Props) {
         </div>
       )}
       <div style={{ display: "flex", gap: "14px", marginTop: "8px", color: "#666", fontSize: "12px" }}>
-        <Link href={`/${locale}/spond/${spond.id}`} style={{ color: "inherit", textDecoration: "none" }}>
-          {t("social.spond.reply")} {spond.reply_count > 0 && `· ${spond.reply_count}`}
-        </Link>
+        {onReplyClick ? (
+          <button
+            type="button"
+            onClick={onReplyClick}
+            style={{
+              background: "none", border: "none", padding: 0,
+              cursor: "pointer", fontSize: "12px",
+              color: replyActive ? "#1b347e" : "inherit",
+              fontWeight: replyActive ? 600 : 400,
+            }}
+          >
+            {t("social.spond.reply")}{spond.reply_count > 0 && ` · ${spond.reply_count}`}
+          </button>
+        ) : (
+          <Link href={`/${locale}/spond/${spond.id}`} style={{ color: "inherit", textDecoration: "none" }}>
+            {t("social.spond.reply")}{spond.reply_count > 0 && ` · ${spond.reply_count}`}
+          </Link>
+        )}
         <button
           type="button"
           onClick={handleLikeToggle}
@@ -196,4 +220,10 @@ const cardStyle: React.CSSProperties = {
   borderRadius: "8px",
   background: "#ffffff",
   marginBottom: "8px",
+};
+
+// Inside a SpondThread box the parent owns the border/background; the
+// card just needs its inner padding.
+const embeddedCardStyle: React.CSSProperties = {
+  padding: "10px 12px",
 };

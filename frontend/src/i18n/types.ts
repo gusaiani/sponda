@@ -618,6 +618,7 @@ export interface TranslationDictionary {
   "social.spond.confirm_delete": string;
   "social.spond.deleted": string;
   "social.spond.show_replies": string;
+  "social.spond.hide_replies": string;
   "social.spond.edit_window_remaining": string;
   "social.profile.edit_title": string;
   "social.profile.handle": string;
