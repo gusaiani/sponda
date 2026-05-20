@@ -110,3 +110,32 @@ class TestBuildCompanyContext:
 
         assert "your_note: Watching the dividend payout ratio." in context
         assert "your_alert: pe10 lte 5" in context
+
+    def test_truncates_oversized_payload(self):
+        """A pathological payload (e.g. a runaway string field, future bloat)
+        cannot blow the context window or the per-call cost.
+
+        Truncation must preserve the closing </COMPANY_DATA> delimiter,
+        otherwise the prompt-injection boundary breaks and the model could
+        treat whatever bled in next as instructions.
+        """
+        from assistant.context import MAX_CONTEXT_CHARS
+
+        huge_value = "x" * 20_000
+        fake_payload = {"display_name": huge_value}
+
+        with patch(
+            "assistant.context._compute_quote_payload",
+            return_value=fake_payload,
+        ):
+            context = build_company_context(
+                ticker="PETR4",
+                tab="metrics",
+                locale="pt",
+                user=None,
+            )
+
+        assert len(context) <= MAX_CONTEXT_CHARS
+        assert "[truncated]" in context
+        # Delimiter MUST survive — see docstring.
+        assert context.rstrip().endswith("</COMPANY_DATA>")
