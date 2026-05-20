@@ -181,6 +181,12 @@ content they have already opened.
   users get the login/signup modal; logged-in-unverified users get the
   email-verification prompt (they already have an account).
 
+## Assistant (LLM Q&A)
+
+Centered text-area at the bottom of the company page; streaming OpenAI-powered answers,
+guardrailed to Sponda's finance domain, with tiered per-day quotas. Superuser-only in v1.
+See [LLM_ASSISTANT.md](LLM_ASSISTANT.md).
+
 ## Stack
 
 - **Backend:** Django 5 + Django REST Framework + PostgreSQL + Redis
