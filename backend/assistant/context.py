@@ -13,8 +13,9 @@ INDICATOR_KEYS = ("pe10", "pfcf10", "peg", "current_price")
 
 # Conservative ~3000-token budget at 4 chars/token. The whole
 # <COMPANY_DATA>…</COMPANY_DATA> block, including delimiters and any
-# truncation marker, is guaranteed to fit within this length. 
+# truncation marker, is guaranteed to fit within this length.
 MAX_CONTEXT_CHARS = 12_000
+
 
 def build_company_context(
     ticker: str,
@@ -68,7 +69,7 @@ def build_company_context(
     if len(full) <= MAX_CONTEXT_CHARS:
         return full
 
-    # Oversized — crop the body, leave room for the marker and the 
+    # Oversized — crop the body, leave room for the marker and the
     # closing delimiter. The marker is visible to the model so it knows
     # the data is incomplete and answers accordingly.
     marker = "\n…[truncated]"
