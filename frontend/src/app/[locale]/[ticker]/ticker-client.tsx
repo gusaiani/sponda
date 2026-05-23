@@ -272,7 +272,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               fullData.reportedCurrency !== fullData.listingCurrency
                 ? `${fullData.listingCurrency} (${t("header.reportsIn")} ${fullData.reportedCurrency})`
                 : currencyCode(upperTicker, fullData.reportedCurrency)
-            }{learningModeEnabled && fullData.ratings?.overall != null ? " · " : ""}</span><CompanyGradeCard ratings={fullData.ratings ?? null} /></h2>
+            }{learningModeEnabled && derivedData?.ratings?.overall != null ? " · " : ""}</span><CompanyGradeCard ratings={derivedData?.ratings ?? null} /></h2>
           </div>
           <div className="company-header-actions">
             <VisitedButton ticker={upperTicker} />

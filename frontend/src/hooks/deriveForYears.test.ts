@@ -357,4 +357,56 @@ describe("deriveForYears", () => {
       expect(derived.fcfCAGR).toBeNull();
     });
   });
+
+  describe("window-aware ratings", () => {
+    it("rates the indicators using the *derived* (sliced) values, not the backend snapshot", () => {
+      // Regression for the KEPL3 / PFCLG bug: the chip rated the backend's
+      // long-window PFCLG while the card displayed the 10y window PFCLG.
+      // Build a quote whose recent decade grows fast (high CAGR → low PFCLG)
+      // but whose long history grows slowly (low CAGR → high PFCLG). The
+      // chip must follow the displayed value.
+      const fcf = [
+        // Last 10 years: steady ~10% growth — recent FCF roughly 2.6x oldest-in-window.
+        260_000, 236_000, 215_000, 196_000, 178_000,
+        162_000, 147_000, 134_000, 122_000, 110_000,
+        // Older 10 years: flat ~100k → drags the long-window CAGR down.
+        100_000, 100_000, 100_000, 100_000, 100_000,
+        100_000, 100_000, 100_000, 100_000, 100_000,
+      ];
+      const earnings = fcf.map((v) => Math.round(v * 0.9));
+      // Market cap chosen so PFCF10 ≈ 7 (low end of "Forte" PFCF10) and
+      // PFCLG comes out around 0.7-0.8 for the 10y window.
+      const avgFCF10 = fcf.slice(0, 10).reduce((s, v) => s + v, 0) / 10;
+      const marketCap = avgFCF10 * 7;
+
+      const full = makeFullData({ years: 20, marketCap, fcf, earnings });
+      // Inject a backend snapshot that says PFCLG is Fraco (tier 2).
+      full.ratings = {
+        pe10: 3, pfcf10: 3, peg: 2, pfcfPeg: 2,
+        debtToEquity: null, debtExLeaseToEquity: null,
+        liabilitiesToEquity: null, currentRatio: null,
+        debtToAvgEarnings: null, debtToAvgFCF: null,
+        overall: 2, methodologyVersion: "v1",
+      };
+
+      const derived = deriveForYears(full, 10);
+
+      expect(derived.pfcfPeg).not.toBeNull();
+      expect(derived.pfcfPeg!).toBeLessThan(1.0);
+      expect(derived.ratings).toBeDefined();
+      // Derived PFCLG sits in (0.5, 1] → tier 4 (Forte). Backend said 2.
+      expect(derived.ratings!.pfcfPeg).toBe(4);
+      expect(derived.ratings!.pfcfPeg).not.toBe(full.ratings.pfcfPeg);
+    });
+
+    it("emits null tiers when an indicator could not be computed", () => {
+      const full = makeFullData({ years: 5 });
+      const derived = deriveForYears(full, 20); // requesting more than available → all null
+
+      expect(derived.ratings).toBeDefined();
+      expect(derived.ratings!.pe10).toBeNull();
+      expect(derived.ratings!.pfcf10).toBeNull();
+      expect(derived.ratings!.pfcfPeg).toBeNull();
+    });
+  });
 });
