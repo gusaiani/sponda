@@ -5,6 +5,7 @@
  * This avoids re-fetching from the server when the user moves the slider.
  */
 import type { QuoteResult } from "./usePE10";
+import { rateCompany } from "../learning/computeRatings";
 
 /* ── CAGR (port of backend/quotes/cagr.py) ── */
 
@@ -175,6 +176,37 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     priceToBook = Math.round((full.marketCap / full.stockholdersEquity) * 100) / 100;
   }
 
+  // Learning Mode ratings, computed against the *derived* (window-aware)
+  // indicator values so the chip tier always matches the number shown on the
+  // card. Leverage/liquidity indicators are not year-dependent and pass
+  // through unchanged.
+  const derivedRating = rateCompany({
+    pe10,
+    pfcf10,
+    peg,
+    pfcfPeg,
+    debtToEquity: full.debtToEquity,
+    debtExLeaseToEquity: full.debtExLeaseToEquity,
+    liabilitiesToEquity: full.liabilitiesToEquity,
+    currentRatio: full.currentRatio,
+    debtToAvgEarnings,
+    debtToAvgFCF,
+  });
+  const ratings = {
+    pe10: derivedRating.ratings.pe10,
+    pfcf10: derivedRating.ratings.pfcf10,
+    peg: derivedRating.ratings.peg,
+    pfcfPeg: derivedRating.ratings.pfcfPeg,
+    debtToEquity: null,
+    debtExLeaseToEquity: derivedRating.ratings.debtExLeaseToEquity,
+    liabilitiesToEquity: derivedRating.ratings.liabilitiesToEquity,
+    currentRatio: derivedRating.ratings.currentRatio,
+    debtToAvgEarnings: derivedRating.ratings.debtToAvgEarnings,
+    debtToAvgFCF: derivedRating.ratings.debtToAvgFCF,
+    overall: derivedRating.overall,
+    methodologyVersion: derivedRating.methodologyVersion,
+  };
+
   return {
     ...full,
     // PE
@@ -209,5 +241,8 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     // Profitability
     roe,
     priceToBook,
+    // Window-aware ratings (overrides the backend's max-years snapshot so the
+    // chip tier matches the displayed indicator value).
+    ratings,
   };
 }
