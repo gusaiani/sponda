@@ -1,8 +1,8 @@
-"""Routes for the LLM Q&A assistant.
+"""Routes for the LLM Q&A assistant."""
+from django.urls import path 
 
-Empty in v1; the streaming `ask/` view lands here in Plan Step 4.
-Mounting the namespace now keeps every future view's URL stable.
-"""
-from django.urls import path # noqa: F401
+from assistant import views
 
-urlpatterns = []
+urlpatterns = [
+    path("ask/", views.ask, name="assistant-ask"),
+]
