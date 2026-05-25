@@ -34,6 +34,25 @@ describe("rateIndicator (lower-better)", () => {
   it("returns null for unknown indicator", () => {
     expect(rateIndicator("unknownThing", 1)).toBe(null);
   });
+
+  // Negative values for lower-better ratios are an economic signal that the
+  // denominator (earnings, FCF, equity) flipped sign — i.e. the underlying
+  // business is broken on this dimension. Treating them as "very cheap" (tier
+  // 5) is the opposite of the truth. Repro: BLAU3 shows P/FCL10 = -217.4 and
+  // was tagged tier 5 instead of tier 1.
+  it.each([
+    "pe10",
+    "pfcf10",
+    "peg",
+    "pfcfPeg",
+    "debtExLeaseToEquity",
+    "liabilitiesToEquity",
+    "debtToAvgEarnings",
+    "debtToAvgFCF",
+  ])("rates negative %s as tier 1 (weak), not tier 5", (indicator) => {
+    expect(rateIndicator(indicator, -217.4)).toBe(1);
+    expect(rateIndicator(indicator, -0.01)).toBe(1);
+  });
 });
 
 describe("rateIndicator (higher-better)", () => {
