@@ -9,10 +9,12 @@ from django.conf import settings
 from django.http import HttpResponseBadRequest, HttpResponseForbidden, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from openai import APIError, APITimeoutError, RateLimitError
 
 from assistant.context import build_company_context
 from assistant.guardrail import classify_question
 from assistant.openai_client import get_openai_client
+from assistant.prompts import ANSWER_SYSTEM_PROMPT, OFF_TOPIC_RESPONSE
 
 
 def _sse_frame(event: str, data: dict | str) -> bytes:
@@ -47,6 +49,12 @@ def _event_stream(*, ticker, tab, locale, question, user):
         "classification": verdict.classification,
     })
 
+    if verdict.classification != "on_topic":
+        redirect_text = OFF_TOPIC_RESPONSE.get(locale, OFF_TOPIC_RESPONSE["en"])
+        yield _sse_frame("off_topic", redirect_text)
+        yield _sse_frame("done", {"input_tokens": 0, "output_tokens": 0})
+        return
+
     user_message = (
         f"locale: {locale}\n"
         f"\n"
@@ -69,12 +77,36 @@ def _event_stream(*, ticker, tab, locale, question, user):
         stream_options={"include_usage": True},
     )
 
-    for chunk in stream:
-        if not chunk.choices:
-            continue
-        token_text = chunk.choices[0].delta.content
-        if token_text:
-            yield _sse_frame("token", token_text)
+    usage = None
+
+    try:
+        for chunk in stream:
+            if chunk.usage is not None:
+                # The include_usage chunk arrives last and has no choices;
+                # stash it and let the loop fall through to the next chunk
+                # (there won't be one, but guarding `choices` keeps both
+                # branches independent).
+                usage = chunk.usage
+            if not chunk.choices:
+                continue
+            token_text = chunk.choices[0].delta.content
+            if token_text:
+                yield _sse_frame("token", token_text)
+    except APITimeoutError:
+        yield _sse_frame("error", {"code": "upstream_timeout"})
+        return
+    except RateLimitError:
+        yield _sse_frame("error", {"code": "rate_limited"})
+        return
+    except APIError:
+        yield _sse_frame("error", {"code": "internal"})
+        return
+
+    done_payload = {
+        "input_tokens": usage.prompt_tokens if usage else 0,
+        "output_tokens": usage.completion_tokens if usage else 0,
+    }
+    yield _sse_frame("done", done_payload)
 
 @csrf_exempt
 # CSRF off because the client posts JSON with an explicit fetch + auth

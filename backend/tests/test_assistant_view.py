@@ -188,3 +188,108 @@ class TestAskView:
             content_type="application/json",
         )
         assert response.status_code == 400
+
+    def test_off_topic_question_short_circuits_before_answer_model(self, client):
+        """When the guardrail classifies a question as off_topic we must
+        stream the canned localized response and NEVER call the expensive
+        answer odel. This is the whole cost-control story for the harness.
+        """
+        from unittest.mock import MagicMock, patch
+        from django.contrib.auth import get_user_model
+
+        from assistant.guardrail import GuardrailVerdict
+
+        superuser = get_user_model().objects.create_superuser(
+            username="root@example.com",
+            email="root@example.com",
+            password="pw123456",
+        )
+        client.force_login(superuser)
+
+        fake_openai_client = MagicMock()
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: PETR4\n</COMPANY_DATA>",
+        ), patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="off_topic")
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_openai_client,
+        ):
+            response = client.post(
+                ASK_URL,
+                data={
+                    "ticker": "PETR4",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "What's the weather in Rio?",
+                },
+                content_type="application/json",
+            )
+            body = b"".join(response.streaming_content).decode()
+
+        assert response.status_code == 200
+        
+        assert "event: off_topic" in body
+        assert "Só posso responder perguntas" in body
+        assert "event: done" in body
+
+        fake_openai_client.chat.completions.create.assert_not_called()
+
+    def test_openai_timeout_midstream_emits_error_frame(self, client):
+        """OpenAI can time out after we've already shipped meta + a token.
+        The generator must catch it, emit an `error` frame with a stable
+        machine-readable code, and exit cleanly - never let the exception
+        bubble out of the StreamingHttpResponse iterator.
+        """
+        from unittest.mock import MagicMock, patch
+        from django.contrib.auth import get_user_model
+        from openai import APITimeoutError
+
+        from assistant.guardrail import GuardrailVerdict
+
+        superuser = get_user_model().objects.create_superuser(
+            username="root@example.com",
+            email="root@example.com",
+            password="pw123456",
+        )
+        client.force_login(superuser)
+
+        def exploding_stream():
+            good_chunk = MagicMock()
+            good_chunk.choices = [MagicMock(delta=MagicMock(content="The "))]
+            good_chunk.usage = None
+            yield good_chunk
+            raise APITimeoutError(request=MagicMock())
+
+        fake_openai_client = MagicMock()
+        fake_openai_client.chat.completions.create.return_value = exploding_stream()
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: PETR4\n</COMPANY_DATA>",
+        ), patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic")
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_openai_client,
+        ):
+            response = client.post(
+                ASK_URL,
+                data={
+                    "ticker": "PETR4",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is PETR4 cheap?",
+                },
+                content_type="application/json",
+            )
+            body = b"".join(response.streaming_content).decode()
+
+        assert response.status_code == 200
+        assert "event: token" in body
+        assert "event: error" in body
+        assert "upstream_timeout" in body
