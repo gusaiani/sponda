@@ -57,6 +57,11 @@ export interface RateCompanyResult {
 }
 
 function tierForLowerBetter(value: number, cuts: readonly number[]): number {
+  // A negative value on a lower-better ratio (P/E, P/FCF, debt-to-earnings,
+  // debt/equity, …) means the denominator flipped sign — earnings, FCF or
+  // equity went negative. Rate it as weak rather than letting it slip past
+  // the smallest cut and score tier 5.
+  if (value < 0) return 1;
   if (value <= cuts[0]) return 5;
   if (value <= cuts[1]) return 4;
   if (value <= cuts[2]) return 3;

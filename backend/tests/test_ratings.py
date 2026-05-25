@@ -68,6 +68,26 @@ class TestRateIndicator:
     def test_extreme_high_value_lower_is_better_floors_at_one(self):
         assert rate_indicator("debt_ex_lease_to_equity", Decimal("999")) == 1
 
+    @pytest.mark.parametrize(
+        "indicator",
+        [
+            "pe10",
+            "pfcf10",
+            "peg",
+            "pfcf_peg",
+            "debt_ex_lease_to_equity",
+            "liabilities_to_equity",
+            "debt_to_avg_earnings",
+            "debt_to_avg_fcf",
+        ],
+    )
+    def test_negative_value_for_lower_better_is_tier_one(self, indicator):
+        # A negative ratio means the denominator (earnings, FCF, equity) flipped
+        # sign — the company is broken on this dimension. Repro: BLAU3 had
+        # P/FCL10 = -217.4 and was tagged tier 5 instead of tier 1.
+        assert rate_indicator(indicator, Decimal("-217.4")) == 1
+        assert rate_indicator(indicator, Decimal("-0.01")) == 1
+
     def test_sector_override_used_when_available(self, monkeypatch):
         # Patch in a sector override so we know the lookup path is wired up.
         # Default for D-Lease/E rates 1.0 as average tier; for "Utilities" we set
