@@ -9,6 +9,7 @@ import { useTranslation } from "../i18n";
 import { formatNumber, formatLargeNumber, currencySymbol, logoUrl } from "../utils/format";
 import { getDefaultTickers } from "../utils/suggestedCompanies";
 import type { QuoteResult } from "../hooks/usePE10";
+import { HomepageGradeBadge } from "./HomepageGradeBadge";
 import "../styles/homepage-cards.css";
 
 const HOMEPAGE_MAX_CARDS = 8;
@@ -116,7 +117,10 @@ export function CompanyCard({ data, isLoading, years, priority = false }: Compan
           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
         />
         <div className="hcc-name-block">
-          <span className="hcc-name">{data.name}</span>
+          <span className="hcc-name-row">
+            <span className="hcc-name">{data.name}</span>
+            <HomepageGradeBadge ratings={data.ratings} />
+          </span>
           <span className="hcc-ticker">{data.ticker}</span>
         </div>
       </div>
