@@ -564,6 +564,7 @@ export const en: TranslationDictionary = {
   "learning.grade.not_enough_data": "Not enough data to grade this company yet.",
   "learning.grade.tooltip.title": "How we got to this rating",
   "learning.grade.tooltip.intro": "Mean of the {count} rated indicators.",
+  "learning.grade.tooltip.term": "Term: {years} years",
   "learning.grade.tooltip.beta": "⚠️ This calculation is in beta as of May 5, 2026.",
   "learning.tooltip.disclaimer": "For learning purposes only.",
   "learning.indicator.pe10.title": "P/E10",

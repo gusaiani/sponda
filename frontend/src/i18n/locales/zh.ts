@@ -564,6 +564,7 @@ export const zh: TranslationDictionary = {
   "learning.grade.not_enough_data": "数据不足，暂无法对该公司进行评级。",
   "learning.grade.tooltip.title": "评级是如何计算的",
   "learning.grade.tooltip.intro": "对 {count} 项已评分指标取平均。",
+  "learning.grade.tooltip.term": "期限：{years} 年",
   "learning.grade.tooltip.beta": "⚠️ 截至 2026 年 5 月 5 日，该计算为 Beta 版。",
   "learning.tooltip.disclaimer": "仅供学习参考。",
   "learning.indicator.pe10.title": "P/E10",
