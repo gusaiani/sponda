@@ -48,7 +48,7 @@ class TestAskView:
         )
         assert response.status_code == 403
 
-    def test_superuser_streams_meta_token_done_frames(self, client):
+    def test_superuser_streams_meta_token_done_frames(self, superuser_client):
         """Happy path: superuser asks an on-topic question, the view
         streams `meta → token → token → done` SSE frames in order.
 
@@ -64,13 +64,6 @@ class TestAskView:
         from django.contrib.auth import get_user_model
 
         from assistant.guardrail import GuardrailVerdict
-
-        superuser = get_user_model().objects.create_superuser(
-            username="root@example.com",
-            email="root@example.com",
-            password="pw123456",
-        )
-        client.force_login(superuser)
 
         # Fake OpenAI streaming response: two token chunks, then a final
         # chunk that carries the usage numbers (mirrors the real SDK
@@ -104,7 +97,7 @@ class TestAskView:
             "assistant.views.get_openai_client",
             return_value=fake_client,
         ):
-            response = client.post(
+            response = superuser_client.post(
                 ASK_URL,
                 data={
                     "ticker": "PETR4",
@@ -135,20 +128,13 @@ class TestAskView:
         assert "PETR4" in body
         assert "is cheap." in body
 
-    def test_empty_question_is_rejected_with_400(self, client):
+    def test_empty_question_is_rejected_with_400(self, superuser_client):
         """An empty question must never reach OpenAI - there's nothing
         to classify or answer, and we'd be paying for the round trip.
         """
         from django.contrib.auth import get_user_model
 
-        superuser = get_user_model().objects.create_superuser(
-            username="root@example.com",
-            email="root@example.com",
-            password="pw123456",
-        )
-        client.force_login(superuser)
-
-        response = client.post(
+        response = superuser_client.post(
             ASK_URL,
             data={
                 "ticker": "PETR4",
@@ -160,7 +146,7 @@ class TestAskView:
         )
         assert response.status_code == 400
 
-    def test_oversized_question_is_rejected_with_400(self, client, settings):
+    def test_oversized_question_is_rejected_with_400(self, superuser_client, settings):
         """ASSISTANT_MAX_QUESTION_CHARS caps input cost. Beyond the cap
         we reject before the guardrail call - cheap rejection, not cheap-model rejection.
         """
@@ -168,16 +154,9 @@ class TestAskView:
 
         settings.ASSISTANT_MAX_QUESTION_CHARS = 50
 
-        superuser = get_user_model().objects.create_superuser(
-            username="root@example.com",
-            email="root@example.com",
-            password="pw123456",
-        )
-        client.force_login(superuser)
-
         too_long_question = "x" * (settings.ASSISTANT_MAX_QUESTION_CHARS + 1)
 
-        response = client.post(
+        response = superuser_client.post(
             ASK_URL,
             data={
                 "ticker": "PETR4",
@@ -189,7 +168,7 @@ class TestAskView:
         )
         assert response.status_code == 400
 
-    def test_off_topic_question_short_circuits_before_answer_model(self, client):
+    def test_off_topic_question_short_circuits_before_answer_model(self, superuser_client):
         """When the guardrail classifies a question as off_topic we must
         stream the canned localized response and NEVER call the expensive
         answer odel. This is the whole cost-control story for the harness.
@@ -198,13 +177,6 @@ class TestAskView:
         from django.contrib.auth import get_user_model
 
         from assistant.guardrail import GuardrailVerdict
-
-        superuser = get_user_model().objects.create_superuser(
-            username="root@example.com",
-            email="root@example.com",
-            password="pw123456",
-        )
-        client.force_login(superuser)
 
         fake_openai_client = MagicMock()
 
@@ -218,7 +190,7 @@ class TestAskView:
             "assistant.views.get_openai_client",
             return_value=fake_openai_client,
         ):
-            response = client.post(
+            response = superuser_client.post(
                 ASK_URL,
                 data={
                     "ticker": "PETR4",
@@ -238,7 +210,7 @@ class TestAskView:
 
         fake_openai_client.chat.completions.create.assert_not_called()
 
-    def test_openai_timeout_midstream_emits_error_frame(self, client):
+    def test_openai_timeout_midstream_emits_error_frame(self, superuser_client):
         """OpenAI can time out after we've already shipped meta + a token.
         The generator must catch it, emit an `error` frame with a stable
         machine-readable code, and exit cleanly - never let the exception
@@ -249,13 +221,6 @@ class TestAskView:
         from openai import APITimeoutError
 
         from assistant.guardrail import GuardrailVerdict
-
-        superuser = get_user_model().objects.create_superuser(
-            username="root@example.com",
-            email="root@example.com",
-            password="pw123456",
-        )
-        client.force_login(superuser)
 
         def exploding_stream():
             good_chunk = MagicMock()
@@ -277,7 +242,7 @@ class TestAskView:
             "assistant.views.get_openai_client",
             return_value=fake_openai_client,
         ):
-            response = client.post(
+            response = superuser_client.post(
                 ASK_URL,
                 data={
                     "ticker": "PETR4",
@@ -293,3 +258,68 @@ class TestAskView:
         assert "event: token" in body
         assert "event: error" in body
         assert "upstream_timeout" in body
+
+    def test_successful_answer_writes_llmquery_row(self, superuser_client, superuser):
+        """Every call - success, off_topic, or error, - must leave one
+        LLMQuery row behind. The row is what assistant_quota will count
+        against the daily cap and what the cost dashboard reads from, so
+        persisting it is non-negotiable, even on the happy path.
+        """
+        from unittest.mock import MagicMock, patch
+        from django.contrib.auth import get_user_model
+
+        from assistant.guardrail import GuardrailVerdict
+        from assistant.models import LLMQuery
+
+        def make_token_chunk(text):
+            chunk = MagicMock()
+            chunk.choices = [MagicMock(delta=MagicMock(content=text))]
+            chunk.usage = None
+            return chunk
+
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=42, completion_tokens=7)
+
+        fake_stream = iter([
+            make_token_chunk("PETR4"),
+            make_token_chunk("is cheap."),
+            usage_chunk,
+        ])
+        fake_openai_client = MagicMock()
+        fake_openai_client.chat.completions.create.return_value = fake_stream
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: PETR4\n</COMPANY_DATA>",
+        ), patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic")
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_openai_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "PETR4",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is PETR4 cheap?",
+                },
+                content_type="application/json",
+            )
+            b"".join(response.streaming_content)
+
+        assert LLMQuery.objects.count() == 1
+        row = LLMQuery.objects.get()
+        assert row.user == superuser
+        assert row.ticker == "PETR4"
+        assert row.tab == "metrics"
+        assert row.locale == "pt"
+        assert row.classification == "on_topic"
+        assert row.status == "ok"
+        assert row.input_tokens == 42
+        assert row.output_tokens == 7
+        assert row.cost_usd > 0
+        assert row.model
