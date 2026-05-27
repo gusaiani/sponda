@@ -62,6 +62,21 @@ function computeCAGR(yearlyValues: [number, number][]): CAGRResult {
   return { cagr: Math.round(cagr * 100) / 100, method: "regression", error: null, excludedYears: excluded };
 }
 
+/**
+ * Pick the year window to use for a given company, capped to what the
+ * company actually has. Used on the homepage so a young company (e.g.
+ * Duolingo with ~4 years of history) still renders its computable
+ * indicators and earns a Learn-mode grade badge instead of going blank
+ * because the slider is set higher than its data window.
+ */
+export function effectiveYearsForCompany(
+  sliderYears: number,
+  maxYearsAvailable: number | null | undefined,
+): number {
+  if (maxYearsAvailable == null) return sliderYears;
+  return Math.max(1, Math.min(sliderYears, maxYearsAvailable));
+}
+
 /* ── Main derivation ── */
 
 export function deriveForYears(full: QuoteResult, years: number): QuoteResult {

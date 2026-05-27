@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deriveForYears } from "./deriveForYears";
+import { deriveForYears, effectiveYearsForCompany } from "./deriveForYears";
 import type { QuoteResult } from "./usePE10";
 
 /** Helper: build a minimal QuoteResult with N years of earnings and FCF data */
@@ -408,5 +408,28 @@ describe("deriveForYears", () => {
       expect(derived.ratings!.pfcf10).toBeNull();
       expect(derived.ratings!.pfcfPeg).toBeNull();
     });
+  });
+});
+
+describe("effectiveYearsForCompany", () => {
+  it("returns the slider value when the company has at least that many years", () => {
+    expect(effectiveYearsForCompany(10, 17)).toBe(10);
+    expect(effectiveYearsForCompany(10, 10)).toBe(10);
+  });
+
+  it("caps to the company's maximum when the slider exceeds it", () => {
+    // Duolingo case: slider at 10y, only ~4 years of history.
+    expect(effectiveYearsForCompany(10, 4)).toBe(4);
+    expect(effectiveYearsForCompany(20, 6)).toBe(6);
+  });
+
+  it("falls back to the slider value when maxAvailable is null or undefined", () => {
+    expect(effectiveYearsForCompany(10, null)).toBe(10);
+    expect(effectiveYearsForCompany(10, undefined)).toBe(10);
+  });
+
+  it("never returns less than 1", () => {
+    expect(effectiveYearsForCompany(10, 0)).toBe(1);
+    expect(effectiveYearsForCompany(10, -5)).toBe(1);
   });
 });
