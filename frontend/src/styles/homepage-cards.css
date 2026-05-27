@@ -75,6 +75,13 @@
   min-width: 0;
 }
 
+.hcc-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .hcc-name {
   font-size: 13px;
   font-weight: 500;
@@ -83,6 +90,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .hcc-ticker {

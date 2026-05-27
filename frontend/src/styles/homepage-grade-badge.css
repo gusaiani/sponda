@@ -1,0 +1,123 @@
+.homepage-grade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+  vertical-align: middle;
+  cursor: default;
+  flex-shrink: 0;
+  outline: none;
+}
+
+.homepage-grade-badge-numeral {
+  display: inline-block;
+  pointer-events: none;
+}
+
+.homepage-grade-badge-tier-1 { background-color: var(--color-rating-1, #b91c1c); }
+.homepage-grade-badge-tier-2 { background-color: var(--color-rating-2, #ea580c); }
+.homepage-grade-badge-tier-3 { background-color: var(--color-rating-3, #a16207); }
+.homepage-grade-badge-tier-4 { background-color: var(--color-rating-4, #65a30d); }
+.homepage-grade-badge-tier-5 { background-color: var(--color-rating-5, #15803d); }
+
+.homepage-grade-badge-tooltip {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: calc(100vw - 16px);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: #1f2937;
+  color: #f9fafb;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
+}
+
+.homepage-grade-badge-tooltip-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.homepage-grade-badge-tooltip-intro {
+  font-size: 12px;
+  color: rgba(249, 250, 251, 0.75);
+}
+
+.homepage-grade-badge-tooltip-beta {
+  font-size: 11px;
+  color: rgba(255, 215, 130, 0.95);
+}
+
+.homepage-grade-badge-tooltip-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.homepage-grade-badge-tooltip-row {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.homepage-grade-badge-tooltip-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+}
+
+.homepage-grade-badge-tooltip-marker-tier-1 { background-color: var(--color-rating-1, #b91c1c); }
+.homepage-grade-badge-tooltip-marker-tier-2 { background-color: var(--color-rating-2, #ea580c); }
+.homepage-grade-badge-tooltip-marker-tier-3 { background-color: var(--color-rating-3, #a16207); }
+.homepage-grade-badge-tooltip-marker-tier-4 { background-color: var(--color-rating-4, #65a30d); }
+.homepage-grade-badge-tooltip-marker-tier-5 { background-color: var(--color-rating-5, #15803d); }
+
+.homepage-grade-badge-tooltip-indicator {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.homepage-grade-badge-tooltip-divider {
+  display: block;
+  height: 1px;
+  margin: 4px 0 2px;
+  background-color: rgba(249, 250, 251, 0.18);
+}
+
+.homepage-grade-badge-tooltip-disclaimer {
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 400;
+  color: rgba(249, 250, 251, 0.65);
+}
