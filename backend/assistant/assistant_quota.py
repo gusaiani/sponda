@@ -4,6 +4,10 @@ The single seam the view reads from: flipping the free trial on, adding
 paying users, or changing caps all happen behind these functions. Keep
 behavior tight against tests in tests/test_assistant_quota.py.
 """
+from django.conf import settings
+from django.utils import timezone
+
+from assistant.models import LLMQuery
 
 
 def assistant_access_tier(user) -> str:
@@ -27,3 +31,24 @@ def is_paying_user(user) -> bool:
     becomes a real lookup; the signature does not change.
     """
     return False
+
+def would_exceed_assistant_limit(user) -> bool:
+    """Return True if `user` is already at (or over) their daily cap.
+
+    Called by the  view before any OpenAI call so a blocked caller
+    costs us nothing. The singe seam: tier -> cap -> count. For
+    now only the 'denied' bdranch is wired; other tiers land in the next baby steps.
+    """
+    tier = assistant_access_tier(user)
+
+    if tier == "superuser":
+        return False
+    if tier == "denied":
+        return True
+    if tier == "paying":
+        today = timezone.now().date()
+        used_today = LLMQuery.objects.filter(
+            user=user,
+            created_at__date=today,
+        ).count()
+        return used_today >= settings.ASSISTANT_PAYING_PER_DAY

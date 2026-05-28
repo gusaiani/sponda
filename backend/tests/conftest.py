@@ -59,6 +59,15 @@ def superuser(db):
     )
 
 @pytest.fixture
+def paying_user(db):
+    """A logged-in-ready paying user. `db` enables DB access for this test."""
+    return get_user_model().objects.create_user(
+        username="paid@example.com",
+        email="paid@example.com",
+        password="pw123456",
+    )
+
+@pytest.fixture
 def superuser_client(client, superuser):
     """Test client already authenticated as a superuser."""
     client.force_login(superuser)
