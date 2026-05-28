@@ -195,3 +195,63 @@ class TestPe10CrossCurrency:
         market_cap = Decimal("585_000_000_000")
         result = calculate_pe10("PETR4", market_cap)
         assert result["pe10"] is not None
+
+
+class TestPe10TrailingQuarters:
+    """TFCO4 regression: when the most recent fiscal year has only a
+    partial set of quarters reported (e.g. mid-2026 with Q1 only), the
+    N-year window must backfill from older years so it divides an
+    honest N years of earnings — not pretend that partial year is a
+    full year and under-weight the average."""
+
+    def test_partial_current_year_backfills_from_older_year(self, db):
+        # 1 quarter of 2026 + 4 quarters each of 2025, 2024, 2023.
+        # PE3 (max_years=3) trailing 12 quarters MUST cover:
+        #   Q1 2026 + full 2025 + full 2024 + Q2–Q4 2023.
+        # OLD behaviour summed (Q1 2026 + 2025 + 2024) ÷ 3, undershooting.
+        for month, day in [(3, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker="TFCO4", end_date=date(2026, month, day),
+                net_income=10_000_000,
+            )
+        for year in [2025, 2024, 2023]:
+            for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="TFCO4", end_date=date(year, month, day),
+                    net_income=10_000_000,
+                )
+
+        result = calculate_pe10("TFCO4", Decimal("400_000_000"), max_years=3)
+
+        # Trailing 12 quarters × 10M each = 120M. ÷ 3 years = 40M avg.
+        # PE = 400M / 40M = 10.
+        assert result["pe10"] == 10.0
+        assert result["avg_adjusted_net_income"] == 40_000_000.0
+        assert result["years_of_data"] == 3
+        assert result["label"] == "PE3"
+
+        details = result["calculation_details"]
+        # 4 calendar-year rows expected: 2026(1q) + 2025(4q) + 2024(4q) + 2023(synthetic 3q tail).
+        assert len(details) == 4
+        assert details[0]["year"] == 2026 and details[0]["quarters"] == 1
+        assert details[1]["year"] == 2025 and details[1]["quarters"] == 4
+        assert details[2]["year"] == 2024 and details[2]["quarters"] == 4
+        assert details[3]["year"] == 2023 and details[3]["quarters"] == 3
+        # The 2023 row holds only the latest 3 of its 4 quarters.
+        kept_dates = [q["end_date"] for q in details[3]["quarterlyDetail"]]
+        assert kept_dates == ["2023-06-30", "2023-09-30", "2023-12-31"]
+
+    def test_caps_window_when_company_lacks_enough_quarters(self, db):
+        # Only 8 quarters total (2 full years). max_years=10 must
+        # downgrade to PE2 rather than divide by 10.
+        for year in [2024, 2025]:
+            for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="YOUNG3", end_date=date(year, month, day),
+                    net_income=10_000_000,
+                )
+        result = calculate_pe10("YOUNG3", Decimal("160_000_000"), max_years=10)
+        # 8 quarters × 10M = 80M. ÷ 2 years = 40M avg. PE = 160M/40M = 4.
+        assert result["years_of_data"] == 2
+        assert result["label"] == "PE2"
+        assert result["pe10"] == 4.0

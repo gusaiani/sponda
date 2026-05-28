@@ -33,16 +33,22 @@ def calculate_peg(ticker: str, pe10: float | None, max_years: int = 10) -> dict:
         return {**empty, "pegError": "PE10 indisponível"}
 
     annual_data = get_annual_earnings(ticker, max_years=max_years)
-    if len(annual_data) < 2:
+    # Drop partial calendar years from the CAGR input. A year with < 4
+    # quarters reported is not comparable on the same axis as a full
+    # year — including it crashes the YoY rate when the most recent
+    # year only has Q1 in. TTM-endpoint CAGR is the cleaner fix and
+    # will follow in a separate pass.
+    full_years_only = [d for d in annual_data if d["quarters"] >= 4]
+    if len(full_years_only) < 2:
         return {**empty, "pegError": "Dados insuficientes para calcular crescimento"}
 
-    years = [d["year"] for d in annual_data]
+    years = [d["year"] for d in full_years_only]
     ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     # Build (year, adjusted_value) pairs for the CAGR calculator
     yearly_values = [
         (d["year"], float(d["net_income"] * ipca_factors.get(d["year"], Decimal("1"))))
-        for d in annual_data
+        for d in full_years_only
     ]
 
     cagr_result = compute_cagr(yearly_values)

@@ -77,22 +77,99 @@ export function effectiveYearsForCompany(
   return Math.max(1, Math.min(sliderYears, maxYearsAvailable));
 }
 
+/* ── Trailing-quarters helpers ──
+ *
+ * The N-year window must cover exactly N×4 quarters of data, not "the
+ * top N calendar years". When the most recent fiscal year only has a
+ * partial set of quarters reported (e.g. TFCO4 mid-2026 with only Q1
+ * 2026 in), the old logic would slice the top N calendar years —
+ * (partial 2026 + 2025 + 2024) — sum them, and divide by N. That
+ * understated the denominator because year 2026 contributed 1 quarter
+ * pretending to be a full year.
+ *
+ * Correct behaviour: trail back into older years to gather exactly N×4
+ * quarters, then divide that adjusted sum by N. The oldest year is
+ * synthesised as a partial-tail row so the modal table still adds up
+ * to the average it shows.
+ */
+
+interface YearAggregateLike {
+  year: number;
+  ipcaFactor: number;
+  quarters: number;
+  quarterlyDetail: readonly { end_date: string }[];
+}
+
+interface TrailingQuartersResult<Y> {
+  /** Sum of adjusted (IPCA-applied) quarterly values over the trailing
+   *  N×4 window. Includes pro-rata contribution from a partial oldest
+   *  year when the window does not align with a calendar boundary. */
+  adjustedSum: number;
+  /** adjustedSum / years — the average annual figure used for PE/PFCF. */
+  avg: number;
+  /** True when the company has at least N×4 quarters of data. */
+  hasEnoughData: boolean;
+  /** Year-grouped breakdown for display. The oldest entry may be a
+   *  synthesised partial-tail year holding only the contributing
+   *  quarters. */
+  sliced: Y[];
+}
+
+function trailingQuartersAverage<Y extends YearAggregateLike>(
+  details: readonly Y[],
+  years: number,
+  getQuarterNominal: (q: Y["quarterlyDetail"][number]) => number,
+  buildPartialYear: (
+    year: Y,
+    takenQuarters: Y["quarterlyDetail"][number][],
+    partialNominal: number,
+    partialAdjusted: number,
+  ) => Y,
+): TrailingQuartersResult<Y> {
+  const target = years * 4;
+  let collected = 0;
+  let adjustedSum = 0;
+  const sliced: Y[] = [];
+
+  for (const yearData of details) {
+    if (collected >= target) break;
+    const remaining = target - collected;
+    if (yearData.quarters <= remaining) {
+      // Full year fits inside the trailing window.
+      sliced.push(yearData);
+      // Trust the per-year adjusted sum the backend already computed —
+      // it's nominal-quarter-sum × ipcaFactor. Recomputing from the
+      // quarter list would diverge by a rounding step.
+      const yearAdjusted = yearData.quarterlyDetail.reduce(
+        (sum, q) => sum + getQuarterNominal(q),
+        0,
+      ) * yearData.ipcaFactor;
+      adjustedSum += yearAdjusted;
+      collected += yearData.quarters;
+    } else {
+      // Partial tail: take the latest `remaining` quarters from this year.
+      // quarterlyDetail is sorted ascending by end_date, so slice(-N) is
+      // the most-recent N quarters of that year.
+      const taken = yearData.quarterlyDetail.slice(-remaining);
+      const partialNominal = taken.reduce((sum, q) => sum + getQuarterNominal(q), 0);
+      const partialAdjusted = partialNominal * yearData.ipcaFactor;
+      adjustedSum += partialAdjusted;
+      sliced.push(buildPartialYear(yearData, taken, partialNominal, partialAdjusted));
+      collected = target;
+    }
+  }
+
+  return {
+    adjustedSum,
+    avg: adjustedSum / years,
+    hasEnoughData: collected >= target,
+    sliced,
+  };
+}
+
 /* ── Main derivation ── */
 
 export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
-  const maxEarnings = full.pe10CalculationDetails.length;
-  const maxFCF = full.pfcf10CalculationDetails.length;
-
-  // Strict semantics: if the company does not have at least `years` of data,
-  // mark that side as insufficient so year-dependent metrics render as N/A
-  // instead of silently being computed from a shorter window.
-  const hasEnoughEarnings = maxEarnings >= years;
-  const hasEnoughFCF = maxFCF >= years;
-
-  // Slice to requested years (details are sorted most-recent-first)
-  const earningsSlice = hasEnoughEarnings ? full.pe10CalculationDetails.slice(0, years) : [];
-  const fcfSlice = hasEnoughFCF ? full.pfcf10CalculationDetails.slice(0, years) : [];
-
   // Market-cap-based ratios divide by reporting-currency averages, so use
   // the FX-translated market cap from the backend (in reporting currency).
   // Fall back to the raw listing-currency market cap when the backend did
@@ -101,35 +178,57 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   const marketCapForRatios =
     full.marketCapInReportedCurrency ?? full.marketCap;
 
-  // PE
+  // PE — trailing N×4 quarters
+  const earningsTrail = trailingQuartersAverage(
+    full.pe10CalculationDetails,
+    years,
+    (q) => q.net_income,
+    (year, taken, partialNominal, partialAdjusted) => ({
+      ...year,
+      nominalNetIncome: partialNominal,
+      adjustedNetIncome: partialAdjusted,
+      quarters: taken.length,
+      quarterlyDetail: taken,
+    }),
+  );
   let pe10: number | null = null;
   let avgAdjustedNetIncome: number | null = null;
   let pe10Error: string | null = null;
-
-  if (hasEnoughEarnings) {
-    const total = earningsSlice.reduce((s, y) => s + y.adjustedNetIncome, 0);
-    avgAdjustedNetIncome = total / years;
+  if (earningsTrail.hasEnoughData) {
+    avgAdjustedNetIncome = earningsTrail.avg;
     if (avgAdjustedNetIncome !== 0 && marketCapForRatios) {
       pe10 = Math.round((marketCapForRatios / avgAdjustedNetIncome) * 100) / 100;
     }
   } else {
     pe10Error = "no_earnings_data";
   }
+  const earningsSlice = earningsTrail.hasEnoughData ? earningsTrail.sliced : [];
 
-  // PFCF
+  // PFCF — trailing N×4 quarters
+  const fcfTrail = trailingQuartersAverage(
+    full.pfcf10CalculationDetails,
+    years,
+    (q) => q.fcf,
+    (year, taken, partialNominal, partialAdjusted) => ({
+      ...year,
+      nominalFCF: partialNominal,
+      adjustedFCF: partialAdjusted,
+      quarters: taken.length,
+      quarterlyDetail: taken,
+    }),
+  );
   let pfcf10: number | null = null;
   let avgAdjustedFCF: number | null = null;
   let pfcf10Error: string | null = null;
-
-  if (hasEnoughFCF) {
-    const total = fcfSlice.reduce((s, y) => s + y.adjustedFCF, 0);
-    avgAdjustedFCF = total / years;
+  if (fcfTrail.hasEnoughData) {
+    avgAdjustedFCF = fcfTrail.avg;
     if (avgAdjustedFCF !== 0 && marketCapForRatios) {
       pfcf10 = Math.round((marketCapForRatios / avgAdjustedFCF) * 100) / 100;
     }
   } else {
     pfcf10Error = "no_cashflow_data";
   }
+  const fcfSlice = fcfTrail.hasEnoughData ? fcfTrail.sliced : [];
 
   // Debt coverage
   let debtToAvgEarnings: number | null = null;
@@ -141,8 +240,16 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     debtToAvgFCF = Math.round((full.totalDebt / avgAdjustedFCF) * 100) / 100;
   }
 
-  // CAGR (earnings)
-  const earningsCAGRInput: [number, number][] = earningsSlice.map((y) => [y.year, y.adjustedNetIncome]);
+  // CAGR (earnings) — partial calendar years (most-recent year not yet
+  // closed, or the synthesised partial-tail year at the oldest edge of the
+  // trailing window) cannot be compared against full years on the same
+  // axis, because their adjusted total is a fraction of a year's
+  // earnings. Filter them out so the growth rate doesn't collapse to a
+  // bogus number like "-76% YoY" when the latest year only has Q1
+  // reported. A TTM-endpoint rewrite is a follow-up.
+  const earningsCAGRInput: [number, number][] = earningsSlice
+    .filter((y) => y.quarters >= 4)
+    .map((y) => [y.year, y.adjustedNetIncome]);
   const earningsCagr = computeCAGR(earningsCAGRInput);
 
   // PEG
@@ -160,8 +267,10 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     peg = Math.round((pe10 / earningsCagr.cagr) * 100) / 100;
   }
 
-  // CAGR (FCF)
-  const fcfCAGRInput: [number, number][] = fcfSlice.map((y) => [y.year, y.adjustedFCF]);
+  // CAGR (FCF) — same partial-year filter as earnings, see above.
+  const fcfCAGRInput: [number, number][] = fcfSlice
+    .filter((y) => y.quarters >= 4)
+    .map((y) => [y.year, y.adjustedFCF]);
   const fcfCagr = computeCAGR(fcfCAGRInput);
 
   // PFCLG
@@ -227,14 +336,17 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
     // PE
     pe10,
     avgAdjustedNetIncome,
-    pe10YearsOfData: earningsSlice.length,
+    // Divisor displayed in the modal — always N. The detail list may
+    // be N+1 rows long when the trailing window slices into an extra
+    // calendar year, but the average is over N years either way.
+    pe10YearsOfData: earningsTrail.hasEnoughData ? years : 0,
     pe10Label: `PE${years}`,
     pe10Error,
     pe10CalculationDetails: earningsSlice,
     // PFCF
     pfcf10,
     avgAdjustedFCF,
-    pfcf10YearsOfData: fcfSlice.length,
+    pfcf10YearsOfData: fcfTrail.hasEnoughData ? years : 0,
     pfcf10Label: `PFCF${years}`,
     pfcf10Error,
     pfcf10CalculationDetails: fcfSlice,

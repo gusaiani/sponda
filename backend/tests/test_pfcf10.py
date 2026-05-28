@@ -111,3 +111,34 @@ class TestCalculatePFCF10:
         assert "ipcaFactor" in details[0]
         assert "adjustedFCF" in details[0]
         assert "quarterlyDetail" in details[0]
+
+
+class TestPFCF10TrailingQuarters:
+    """Same partial-current-year regression as pe10: trailing N×4
+    quarters must include a partial-tail year when the most recent
+    fiscal year is not yet closed."""
+
+    def test_partial_current_year_backfills_from_older_year(self, db):
+        QuarterlyCashFlow.objects.create(
+            ticker="TFCO4", end_date=date(2026, 3, 31),
+            operating_cash_flow=10_000_000, investment_cash_flow=0,
+        )
+        for year in [2025, 2024, 2023]:
+            for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyCashFlow.objects.create(
+                    ticker="TFCO4", end_date=date(year, month, day),
+                    operating_cash_flow=10_000_000, investment_cash_flow=0,
+                )
+
+        result = calculate_pfcf10("TFCO4", Decimal("400_000_000"), max_years=3)
+
+        assert result["pfcf10"] == 10.0
+        assert result["avg_adjusted_fcf"] == 40_000_000.0
+        assert result["years_of_data"] == 3
+        assert result["label"] == "PFCF3"
+
+        details = result["calculation_details"]
+        assert len(details) == 4
+        assert details[3]["year"] == 2023 and details[3]["quarters"] == 3
+        kept_dates = [q["end_date"] for q in details[3]["quarterlyDetail"]]
+        assert kept_dates == ["2023-06-30", "2023-09-30", "2023-12-31"]

@@ -37,7 +37,13 @@ function makeFullData(opts: {
       ipcaFactor: 1,
       adjustedNetIncome: v,
       quarters: 4,
-      quarterlyDetail: [],
+      // Spread the year total evenly across 4 quarters so the trailing-
+      // quarters helper has something to sum at quarter granularity. The
+      // values themselves are arbitrary — only the per-quarter sum matters.
+      quarterlyDetail: [0, 1, 2, 3].map((qIndex) => ({
+        end_date: `${currentYear - i}-${String((qIndex + 1) * 3).padStart(2, "0")}-30`,
+        net_income: v / 4,
+      })),
     })),
     // PFCF10 (full data)
     pfcf10: null,
@@ -52,7 +58,12 @@ function makeFullData(opts: {
       ipcaFactor: 1,
       adjustedFCF: v,
       quarters: 4,
-      quarterlyDetail: [],
+      quarterlyDetail: [0, 1, 2, 3].map((qIndex) => ({
+        end_date: `${currentYear - i}-${String((qIndex + 1) * 3).padStart(2, "0")}-30`,
+        operating_cash_flow: v / 4,
+        investment_cash_flow: 0,
+        fcf: v / 4,
+      })),
     })),
     // Leverage (pass-through, not derived)
     debtToEquity: null,
@@ -135,7 +146,12 @@ describe("deriveForYears", () => {
         ipcaFactor: 1,
         adjustedFCF: 80_000,
         quarters: 4,
-        quarterlyDetail: [],
+        quarterlyDetail: [0, 1, 2, 3].map((qIndex) => ({
+          end_date: `${2025 - i}-${String((qIndex + 1) * 3).padStart(2, "0")}-30`,
+          operating_cash_flow: 20_000,
+          investment_cash_flow: 0,
+          fcf: 20_000,
+        })),
       }));
 
       const derived = deriveForYears(full, 7);
@@ -407,6 +423,204 @@ describe("deriveForYears", () => {
       expect(derived.ratings!.pe10).toBeNull();
       expect(derived.ratings!.pfcf10).toBeNull();
       expect(derived.ratings!.pfcfPeg).toBeNull();
+    });
+  });
+
+  describe("trailing N×4 quarters average (partial current year)", () => {
+    // TFCO4 (Track & Field) bug regression: latest fiscal year had only Q1
+    // reported. Old behaviour summed 3 calendar years (Q1 2026 + full 2025 +
+    // full 2024 = 9 quarters) and divided by 3, underestimating the average.
+    // New behaviour: trail back into 2023 to gather a full N×4 quarters and
+    // divide that sum by N.
+
+    function makePartialCurrentYearQuote(_years: number, marketCap: number): QuoteResult {
+      // Year layout (most-recent first), each quarter worth $10:
+      //   2026: 1 quarter   (Q1 only)         → $10
+      //   2025: 4 quarters                    → $40
+      //   2024: 4 quarters                    → $40
+      //   2023: 4 quarters                    → $40 (only the tail-3 enter the trailing-12 window)
+      // PE3 trailing-12 average = (10 + 40 + 40 + 30) / 3 = $40
+      // OLD calendar-year average = (10 + 40 + 40) / 3 = $30 → PE too low.
+      const earningsBreakdown = [
+        { year: 2026, quartersValues: [10] },
+        { year: 2025, quartersValues: [10, 10, 10, 10] },
+        { year: 2024, quartersValues: [10, 10, 10, 10] },
+        { year: 2023, quartersValues: [10, 10, 10, 10] },
+      ];
+      const pe10CalculationDetails = earningsBreakdown.map((y) => ({
+        year: y.year,
+        nominalNetIncome: y.quartersValues.reduce((s, v) => s + v, 0),
+        ipcaFactor: 1,
+        adjustedNetIncome: y.quartersValues.reduce((s, v) => s + v, 0),
+        quarters: y.quartersValues.length,
+        quarterlyDetail: y.quartersValues.map((v, i) => ({
+          // q1=Mar, q2=Jun, q3=Sep, q4=Dec
+          end_date: `${y.year}-${String((i + 1) * 3).padStart(2, "0")}-30`,
+          net_income: v,
+        })),
+      }));
+      const pfcf10CalculationDetails = earningsBreakdown.map((y) => ({
+        year: y.year,
+        nominalFCF: y.quartersValues.reduce((s, v) => s + v, 0),
+        ipcaFactor: 1,
+        adjustedFCF: y.quartersValues.reduce((s, v) => s + v, 0),
+        quarters: y.quartersValues.length,
+        quarterlyDetail: y.quartersValues.map((v, i) => ({
+          end_date: `${y.year}-${String((i + 1) * 3).padStart(2, "0")}-30`,
+          operating_cash_flow: v,
+          investment_cash_flow: 0,
+          fcf: v,
+        })),
+      }));
+      return {
+        ticker: "TFCO4",
+        name: "Track & Field",
+        logo: "",
+        currentPrice: 1,
+        marketCap,
+        maxYearsAvailable: 4,
+        pe10: null, avgAdjustedNetIncome: null, pe10YearsOfData: 0,
+        pe10Label: "PE0", pe10Error: null, pe10AnnualData: false,
+        pe10CalculationDetails,
+        pfcf10: null, avgAdjustedFCF: null, pfcf10YearsOfData: 0,
+        pfcf10Label: "PFCF0", pfcf10Error: null, pfcf10AnnualData: false,
+        pfcf10CalculationDetails,
+        debtToEquity: null, debtExLeaseToEquity: null,
+        liabilitiesToEquity: null, currentRatio: null,
+        leverageError: null, leverageDate: null,
+        totalDebt: null, totalLease: null, totalLiabilities: null,
+        stockholdersEquity: null,
+        debtToAvgEarnings: null, debtToAvgFCF: null,
+        peg: null, earningsCAGR: null, pegError: null,
+        earningsCAGRMethod: null, earningsCAGRExcludedYears: [],
+        pfcfPeg: null, fcfCAGR: null, pfcfPegError: null,
+        fcfCAGRMethod: null, fcfCAGRExcludedYears: [],
+        roe: null, priceToBook: null,
+      };
+    }
+
+    it("averages over the trailing N×4 quarters, not N calendar years", () => {
+      const full = makePartialCurrentYearQuote(3, /*marketCap*/ 400);
+      const derived = deriveForYears(full, 3);
+
+      // Expected: trailing 12 quarters = 10 (Q1 2026) + 40 (2025) + 40 (2024) + 30 (Q2-Q4 2023)
+      // Sum = 120, avg = 40, PE = 400 / 40 = 10
+      expect(derived.avgAdjustedNetIncome).toBeCloseTo(40, 5);
+      expect(derived.pe10).toBe(10);
+    });
+
+    it("includes a synthesized partial-tail year in calculationDetails for display", () => {
+      const full = makePartialCurrentYearQuote(3, 400);
+      const derived = deriveForYears(full, 3);
+
+      // 4 rows expected: 2026 (1q), 2025 (4q), 2024 (4q), 2023 (synthetic 3q tail)
+      expect(derived.pe10CalculationDetails).toHaveLength(4);
+      const tail = derived.pe10CalculationDetails[3];
+      expect(tail.year).toBe(2023);
+      expect(tail.quarters).toBe(3);
+      expect(tail.quarterlyDetail).toHaveLength(3);
+      // The 3 quarters kept are the most-recent 3 of 2023 (Q2, Q3, Q4)
+      expect(tail.quarterlyDetail.map((q) => q.end_date)).toEqual([
+        "2023-06-30",
+        "2023-09-30",
+        "2023-12-30",
+      ]);
+      // nominal/adjusted reflect the 3 quarters only (not the full year)
+      expect(tail.nominalNetIncome).toBe(30);
+      expect(tail.adjustedNetIncome).toBe(30);
+    });
+
+    it("denominator remains N (slider value), not the number of detail rows", () => {
+      const full = makePartialCurrentYearQuote(3, 400);
+      const derived = deriveForYears(full, 3);
+
+      // pe10YearsOfData is the divisor displayed in the modal: must be 3.
+      expect(derived.pe10YearsOfData).toBe(3);
+      expect(derived.pe10Label).toBe("PE3");
+    });
+
+    it("does the same for PFCF / FCF average", () => {
+      const full = makePartialCurrentYearQuote(3, 400);
+      const derived = deriveForYears(full, 3);
+
+      expect(derived.avgAdjustedFCF).toBeCloseTo(40, 5);
+      expect(derived.pfcf10).toBe(10);
+      expect(derived.pfcf10CalculationDetails).toHaveLength(4);
+    });
+
+    it("ROE uses the trailing-quarters average earnings, not the calendar-year sum", () => {
+      const full = makePartialCurrentYearQuote(3, 400);
+      full.stockholdersEquity = 400;
+      const derived = deriveForYears(full, 3);
+
+      // ROE = avgAdjustedNetIncome / equity = 40 / 400 = 10%
+      expect(derived.roe).toBe(10);
+    });
+
+    it("debt/avgEarnings uses the trailing-quarters average", () => {
+      const full = makePartialCurrentYearQuote(3, 400);
+      full.totalDebt = 80;
+      const derived = deriveForYears(full, 3);
+
+      // debt / avg = 80 / 40 = 2.0
+      expect(derived.debtToAvgEarnings).toBe(2.0);
+    });
+
+    it("returns null when there aren't enough quarters for the requested window", () => {
+      // 4 calendar years total = 13 quarters (one of them partial).
+      // Asking for 5 years (= 20 quarters) → insufficient.
+      const full = makePartialCurrentYearQuote(3, 400);
+      const derived = deriveForYears(full, 5);
+
+      expect(derived.pe10).toBeNull();
+      expect(derived.avgAdjustedNetIncome).toBeNull();
+    });
+
+    it("excludes partial-current and partial-tail years from the CAGR input", () => {
+      // Earnings double across the 3 full years (2023→2024→2025 doubles
+      // each year), with a partial Q1 2026 that, if naively included,
+      // would crash the YoY rate. We expect CAGR to ignore both partial
+      // rows and compute growth across the 3 full years only.
+      const earningsBreakdown = [
+        { year: 2026, quartersValues: [5] },          // partial — should be dropped
+        { year: 2025, quartersValues: [40, 40, 40, 40] }, // = 160
+        { year: 2024, quartersValues: [20, 20, 20, 20] }, // = 80
+        { year: 2023, quartersValues: [10, 10, 10, 10] }, // = 40 (full)
+        { year: 2022, quartersValues: [10, 10, 10, 10] }, // = 40 (full, used as the trailing tail partial)
+      ];
+      const detailsForBoth = earningsBreakdown.map((y) => ({
+        year: y.year,
+        nominalNetIncome: y.quartersValues.reduce((s, v) => s + v, 0),
+        ipcaFactor: 1,
+        adjustedNetIncome: y.quartersValues.reduce((s, v) => s + v, 0),
+        quarters: y.quartersValues.length,
+        quarterlyDetail: y.quartersValues.map((v, i) => ({
+          end_date: `${y.year}-${String((i + 1) * 3).padStart(2, "0")}-30`,
+          net_income: v,
+        })),
+      }));
+      const full = makeFullData({ years: 1 });
+      full.pe10CalculationDetails = detailsForBoth;
+      full.maxYearsAvailable = 5;
+
+      const derived = deriveForYears(full, 3);
+
+      // Sliced detail (most-recent first): 2026(partial), 2025, 2024,
+      // and a synthesised 2023 with 3 quarters (3 × $10 = $30).
+      // CAGR input after filtering: only 2025 + 2024 (both full, in window).
+      // Endpoint CAGR over 1 year = 160 / 80 = 2.0 → +100%.
+      expect(derived.earningsCAGR).toBeCloseTo(100, 1);
+    });
+
+    it("falls through unchanged when every year in the window is already full", () => {
+      // No partial-current-year — the slicing should match the old behaviour.
+      const full = makeFullData({ years: 5, marketCap: 500_000, earnings: [100_000, 100_000, 100_000, 100_000, 100_000] });
+      const derived = deriveForYears(full, 5);
+
+      expect(derived.pe10).toBe(5);
+      expect(derived.pe10CalculationDetails).toHaveLength(5);
+      // No synthetic partial row appended
+      expect(derived.pe10CalculationDetails.every((row) => row.quarters === 4)).toBe(true);
     });
   });
 });
