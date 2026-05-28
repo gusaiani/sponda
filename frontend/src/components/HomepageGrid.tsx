@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useFavorites } from "../hooks/useFavorites";
 import { useSavedLists } from "../hooks/useSavedLists";
 import { useCompareData } from "../hooks/useCompareData";
+import { effectiveYearsForCompany } from "../hooks/deriveForYears";
 import { useDragGhost } from "../hooks/useDragGhost";
 import {
   LayoutItem,
@@ -477,7 +478,14 @@ export function HomepageGrid() {
   // Home page does not render balance-sheet/fundamentals columns, so
   // skip the per-ticker fundamentals fan-out. The batch endpoint covers
   // everything CompanyCard reads from `entry.data`.
-  const compareEntries = useCompareData(tickersInLayout, years, { withFundamentals: false });
+  // autoCapPerCompany: each card derives at min(slider, maxYearsAvailable)
+  // so a young ticker (e.g. Duolingo) still surfaces its computable
+  // indicators and earns a Learn grade badge instead of blanking out
+  // when the slider sits above its data window.
+  const compareEntries = useCompareData(tickersInLayout, years, {
+    withFundamentals: false,
+    autoCapPerCompany: true,
+  });
 
   const compareDataMap = useMemo(() => {
     const map = new Map<string, (typeof compareEntries)[number]>();
@@ -781,11 +789,19 @@ interface TickerGridItemProps {
 
 function TickerGridItem({ ticker, compareDataMap, years, priority }: TickerGridItemProps) {
   const entry = compareDataMap.get(ticker);
+  // Labels (P/L10, PEG10, …) must reflect the window actually used to
+  // derive the displayed numbers. When the data was capped to the
+  // company's available history, show that capped value next to the
+  // label so it does not lie about the window.
+  const effective = effectiveYearsForCompany(
+    years,
+    entry?.data?.maxYearsAvailable,
+  );
   return (
     <CompanyCard
       data={entry?.data ?? null}
       isLoading={entry?.isLoading ?? true}
-      years={years}
+      years={effective}
       priority={priority}
     />
   );

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { type QuoteResult } from "./usePE10";
 import { fetchFundamentals, type FundamentalsYear } from "./useFundamentals";
-import { deriveForYears } from "./deriveForYears";
+import { deriveForYears, effectiveYearsForCompany } from "./deriveForYears";
 import { computeShillerPERatios } from "../components/FundamentalsTab";
 import { useQuotesBatch } from "./useQuotesBatch";
 
@@ -24,6 +24,13 @@ interface UseCompareDataOptions {
    *  any caller that renders balance-sheet columns must keep this
    *  enabled (the default). */
   withFundamentals?: boolean;
+  /** When true, cap each company's derivation window to its own
+   *  `maxYearsAvailable`. The homepage uses this so a short-history
+   *  ticker (e.g. Duolingo) still surfaces its computable indicators
+   *  and earns a Learn grade badge when the slider is set higher than
+   *  its data window. CompareTab keeps the default (strict apples-to-
+   *  apples comparison across the same window). */
+  autoCapPerCompany?: boolean;
 }
 
 export function useCompareData(
@@ -31,7 +38,7 @@ export function useCompareData(
   years: number,
   options: UseCompareDataOptions = {},
 ): CompareEntry[] {
-  const { withFundamentals = true } = options;
+  const { withFundamentals = true, autoCapPerCompany = false } = options;
 
   const batchQuery = useQuotesBatch(tickers);
 
@@ -51,7 +58,10 @@ export function useCompareData(
         const upper = ticker.toUpperCase();
         const entry = batchQuery.data?.results?.[upper];
         const quote = entry?.quote ?? null;
-        const data = quote ? deriveForYears(quote, years) : null;
+        const yearsForQuote = quote && autoCapPerCompany
+          ? effectiveYearsForCompany(years, quote.maxYearsAvailable)
+          : years;
+        const data = quote ? deriveForYears(quote, yearsForQuote) : null;
 
         const fundamentals = fundamentalsQueries[index];
         const recentYear = fundamentals?.data?.years?.[0] ?? null;
@@ -84,6 +94,6 @@ export function useCompareData(
           error,
         };
       }),
-    [tickers, years, batchQuery.data, batchQuery.isLoading, batchQuery.error, fundamentalsQueries, withFundamentals],
+    [tickers, years, batchQuery.data, batchQuery.isLoading, batchQuery.error, fundamentalsQueries, withFundamentals, autoCapPerCompany],
   );
 }
