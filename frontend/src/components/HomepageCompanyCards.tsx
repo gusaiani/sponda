@@ -119,7 +119,7 @@ export function CompanyCard({ data, isLoading, years, priority = false }: Compan
         <div className="hcc-name-block">
           <span className="hcc-name-row">
             <span className="hcc-name">{data.name}</span>
-            <HomepageGradeBadge ratings={data.ratings} />
+            <HomepageGradeBadge ratings={data.ratings} years={years} />
           </span>
           <span className="hcc-ticker">{data.ticker}</span>
         </div>

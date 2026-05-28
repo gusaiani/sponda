@@ -568,6 +568,7 @@ export interface TranslationDictionary {
   "learning.grade.not_enough_data": string;
   "learning.grade.tooltip.title": string;
   "learning.grade.tooltip.intro": string;
+  "learning.grade.tooltip.term": string;
   "learning.grade.tooltip.beta": string;
   "learning.tooltip.disclaimer": string;
   "learning.indicator.pe10.title": string;

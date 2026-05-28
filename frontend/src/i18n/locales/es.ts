@@ -564,6 +564,7 @@ export const es: TranslationDictionary = {
   "learning.grade.not_enough_data": "Datos insuficientes para calificar esta empresa.",
   "learning.grade.tooltip.title": "Cómo llegamos a esta nota",
   "learning.grade.tooltip.intro": "Media de las {count} notas de los indicadores evaluados.",
+  "learning.grade.tooltip.term": "Plazo: {years} años",
   "learning.grade.tooltip.beta": "⚠️ Este cálculo está en fase beta, a 5 de mayo de 2026.",
   "learning.tooltip.disclaimer": "Solo con fines didácticos.",
   "learning.indicator.pe10.title": "P/B10",

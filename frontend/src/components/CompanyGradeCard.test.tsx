@@ -13,7 +13,11 @@ vi.mock("../learning", () => ({
 
 vi.mock("../i18n", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => {
+      if (key === "learning.grade.tooltip.term") return "Term: {years} years";
+      if (key === "learning.grade.tooltip.intro") return "Mean of {count} indicators.";
+      return key;
+    },
     locale: "en",
   }),
 }));
@@ -77,5 +81,29 @@ describe("CompanyGradeCard", () => {
     expect(document.body.querySelector(".company-grade-card-tooltip")).not.toBeNull();
     fireEvent.mouseLeave(trigger);
     expect(document.body.querySelector(".company-grade-card-tooltip")).toBeNull();
+  });
+
+  it("shows the derivation term inside the tooltip when years is provided", () => {
+    mockUseLearningMode.mockReturnValue({ enabled: true, available: true });
+    const { container } = render(
+      <CompanyGradeCard ratings={{ overall: 3, pe10: 4 }} years={7} />,
+    );
+    const trigger = container.querySelector(".company-grade-card") as HTMLElement;
+    fireEvent.mouseEnter(trigger);
+    const term = document.body.querySelector(".company-grade-card-tooltip-term");
+    expect(term).not.toBeNull();
+    expect(term?.textContent ?? "").toContain("7");
+  });
+
+  it("omits the term line when years is not provided", () => {
+    mockUseLearningMode.mockReturnValue({ enabled: true, available: true });
+    const { container } = render(
+      <CompanyGradeCard ratings={{ overall: 3, pe10: 4 }} />,
+    );
+    const trigger = container.querySelector(".company-grade-card") as HTMLElement;
+    fireEvent.mouseEnter(trigger);
+    expect(
+      document.body.querySelector(".company-grade-card-tooltip-term"),
+    ).toBeNull();
   });
 });

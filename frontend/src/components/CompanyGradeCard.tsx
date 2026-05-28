@@ -22,6 +22,9 @@ export interface GradeBreakdown {
 
 interface CompanyGradeCardProps {
   ratings: GradeBreakdown | null | undefined;
+  /** Term (in years) used to derive the ratings — surfaced in the
+   *  tooltip so users know which window the grade was computed over. */
+  years?: number;
 }
 
 const PER_INDICATOR_KEYS: Array<keyof GradeBreakdown> = [
@@ -41,7 +44,7 @@ const TOOLTIP_WIDTH = 280;
 const TOOLTIP_GAP = 8;
 const VIEWPORT_PADDING = 8;
 
-export function CompanyGradeCard({ ratings }: CompanyGradeCardProps) {
+export function CompanyGradeCard({ ratings, years }: CompanyGradeCardProps) {
   const { enabled } = useLearningMode();
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLSpanElement>(null);
@@ -99,6 +102,9 @@ export function CompanyGradeCard({ ratings }: CompanyGradeCardProps) {
     "{count}",
     String(breakdown.length),
   );
+  const termText = years != null
+    ? t("learning.grade.tooltip.term" as never).replace("{years}", String(years))
+    : null;
 
   return (
     <>
@@ -131,6 +137,9 @@ export function CompanyGradeCard({ ratings }: CompanyGradeCardProps) {
             {t("learning.grade.tooltip.title" as never)}
           </span>
           <span className="company-grade-card-tooltip-intro">{introText}</span>
+          {termText && (
+            <span className="company-grade-card-tooltip-term">{termText}</span>
+          )}
           <span className="company-grade-card-tooltip-beta">
             {t("learning.grade.tooltip.beta" as never)}
           </span>

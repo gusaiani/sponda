@@ -564,6 +564,7 @@ export const de: TranslationDictionary = {
   "learning.grade.not_enough_data": "Nicht genügend Daten zur Bewertung dieses Unternehmens.",
   "learning.grade.tooltip.title": "So kommt diese Bewertung zustande",
   "learning.grade.tooltip.intro": "Mittel der {count} bewerteten Indikatoren.",
+  "learning.grade.tooltip.term": "Zeitraum: {years} Jahre",
   "learning.grade.tooltip.beta": "⚠️ Diese Berechnung ist Stand 5. Mai 2026 in Beta.",
   "learning.tooltip.disclaimer": "Nur zu Lernzwecken.",
   "learning.indicator.pe10.title": "KGV10",

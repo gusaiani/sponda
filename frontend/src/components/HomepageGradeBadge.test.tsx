@@ -13,7 +13,13 @@ vi.mock("../learning", () => ({
 
 vi.mock("../i18n", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => {
+      // Mirror real strings that carry placeholders so component code that
+      // performs `.replace("{years}", …)` actually has something to replace.
+      if (key === "learning.grade.tooltip.term") return "Term: {years} years";
+      if (key === "learning.grade.tooltip.intro") return "Mean of {count} indicators.";
+      return key;
+    },
     locale: "en",
   }),
 }));
@@ -76,5 +82,30 @@ describe("HomepageGradeBadge", () => {
     expect(document.body.querySelector(".homepage-grade-badge-tooltip")).not.toBeNull();
     fireEvent.mouseLeave(trigger);
     expect(document.body.querySelector(".homepage-grade-badge-tooltip")).toBeNull();
+  });
+
+  it("shows the derivation term inside the tooltip when years is provided", () => {
+    mockUseLearningMode.mockReturnValue({ enabled: true, available: true });
+    const { container } = render(
+      <HomepageGradeBadge ratings={{ overall: 3, pe10: 4 }} years={10} />,
+    );
+    const trigger = container.querySelector(".homepage-grade-badge") as HTMLElement;
+    fireEvent.mouseEnter(trigger);
+    const term = document.body.querySelector(".homepage-grade-badge-tooltip-term");
+    expect(term).not.toBeNull();
+    // Translation key is echoed by the mock t() with the placeholder filled in.
+    expect(term?.textContent ?? "").toContain("10");
+  });
+
+  it("omits the term line when years is not provided", () => {
+    mockUseLearningMode.mockReturnValue({ enabled: true, available: true });
+    const { container } = render(
+      <HomepageGradeBadge ratings={{ overall: 3, pe10: 4 }} />,
+    );
+    const trigger = container.querySelector(".homepage-grade-badge") as HTMLElement;
+    fireEvent.mouseEnter(trigger);
+    expect(
+      document.body.querySelector(".homepage-grade-badge-tooltip-term"),
+    ).toBeNull();
   });
 });

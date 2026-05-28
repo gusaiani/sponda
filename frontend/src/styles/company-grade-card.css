@@ -86,6 +86,11 @@
   color: rgba(249, 250, 251, 0.75);
 }
 
+.company-grade-card-tooltip-term {
+  font-size: 12px;
+  color: rgba(249, 250, 251, 0.75);
+}
+
 .company-grade-card-tooltip-beta {
   font-size: 11px;
   color: rgba(255, 215, 130, 0.95);

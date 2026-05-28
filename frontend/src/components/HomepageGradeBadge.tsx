@@ -9,6 +9,10 @@ import "../styles/homepage-grade-badge.css";
 
 interface HomepageGradeBadgeProps {
   ratings: GradeBreakdown | null | undefined;
+  /** Term (in years) used to derive the ratings — surfaced in the tooltip
+   *  so users know which window the grade was computed over. Optional so
+   *  callers that don't track an effective window can omit it. */
+  years?: number;
 }
 
 const PER_INDICATOR_KEYS: Array<keyof GradeBreakdown> = [
@@ -28,7 +32,7 @@ const TOOLTIP_WIDTH = 280;
 const TOOLTIP_GAP = 8;
 const VIEWPORT_PADDING = 8;
 
-export function HomepageGradeBadge({ ratings }: HomepageGradeBadgeProps) {
+export function HomepageGradeBadge({ ratings, years }: HomepageGradeBadgeProps) {
   const { enabled } = useLearningMode();
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLSpanElement>(null);
@@ -78,6 +82,9 @@ export function HomepageGradeBadge({ ratings }: HomepageGradeBadgeProps) {
     "{count}",
     String(breakdown.length),
   );
+  const termText = years != null
+    ? t("learning.grade.tooltip.term" as never).replace("{years}", String(years))
+    : null;
 
   return (
     <>
@@ -109,6 +116,9 @@ export function HomepageGradeBadge({ ratings }: HomepageGradeBadgeProps) {
             {t("learning.grade.tooltip.title" as never)}
           </span>
           <span className="homepage-grade-badge-tooltip-intro">{introText}</span>
+          {termText && (
+            <span className="homepage-grade-badge-tooltip-term">{termText}</span>
+          )}
           <span className="homepage-grade-badge-tooltip-beta">
             {t("learning.grade.tooltip.beta" as never)}
           </span>
