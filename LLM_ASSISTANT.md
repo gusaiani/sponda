@@ -77,11 +77,17 @@ echo "OPENAI_API_KEY=sk-..." >> ../.env
 
 ## Status
 
+Backend (Steps 1–5) is feature-complete for v1 and fully tested — 31 passing
+tests across the assistant app (`backend/tests/test_assistant_*.py`).
+
 - ✅ Step 1 — app scaffold, `LLMQuery` model + migration, settings, URL include, env example
-- ⏳ Step 2 — server-side context assembly
-- ⏳ Step 3 — guardrail (Pydantic structured output)
-- ⏳ Step 4 — SSE streaming answer endpoint (superuser-gated)
-- ⏳ Step 5 — tiered quota enforcement
+- ✅ Step 2 — server-side context assembly (`assistant/context.py`)
+- ✅ Step 3 — guardrail, Pydantic structured output (`assistant/guardrail.py`)
+- ✅ Step 4 — SSE streaming answer endpoint, superuser-gated (`assistant/views.py`)
+- ✅ Step 5 — tiered quota enforcement (`assistant/assistant_quota.py`), wired into the
+  view as a 429 before any OpenAI call. The resolver/cap logic supports the `paying`
+  tier; the `ask` gate stays superuser-only in v1, so the quota check is a no-op for
+  superusers (always under cap) and pre-wired for when the gate broadens.
 - ⏳ Step 6 — frontend `AssistantBar` + SSE consumer
 - ⏳ Step 7 — wire into `layout-shell`, gated
 - ⏳ Step 8 — nginx bypass + middleware-matcher exclusion (SSE through CDN)

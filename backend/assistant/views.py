@@ -7,7 +7,7 @@ import json
 import time
 
 from django.conf import settings
-from django.http import HttpResponseBadRequest, HttpResponseForbidden, StreamingHttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openai import APIError, APITimeoutError, RateLimitError
@@ -18,6 +18,7 @@ from assistant.guardrail import classify_question
 from assistant.models import LLMQuery
 from assistant.openai_client import get_openai_client
 from assistant.prompts import ANSWER_SYSTEM_PROMPT, OFF_TOPIC_RESPONSE
+from assistant.assistant_quota import would_exceed_assistant_limit
 
 
 def _sse_frame(event: str, data: dict | str) -> bytes:
@@ -157,6 +158,9 @@ def ask(request):
     # access. Later tiers (paying, trial) plug in via assistant_quota.
     if not request.user.is_authenticated or not request.user.is_superuser:
         return HttpResponseForbidden()
+
+    if would_exceed_assistant_limit(request.user):
+        return HttpResponse(status=429)
 
     try:
         payload = json.loads(request.body or b"{}")

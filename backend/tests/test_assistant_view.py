@@ -1,6 +1,10 @@
 """Tests for the streaming /api/assistant/ask/ view."""
 import pytest
 
+from unittest.mock import MagicMock, patch
+from django.contrib.auth import get_user_model
+
+from assistant.guardrail import GuardrailVerdict
 
 ASK_URL = "/api/assistant/ask/"
 
@@ -27,7 +31,6 @@ class TestAskView:
         """The gate is is_superuser, NOT is_authenticated. A regular
         logged-in user must also be turned away in v1.
         """
-        from django.contrib.auth import get_user_model
 
         regular_user = get_user_model().objects.create_user(
             username="regular@example.com",
@@ -60,10 +63,6 @@ class TestAskView:
           the stream is buffered and the whole point is lost)
         - frames are emitted in the order meta → token* → done
         """
-        from unittest.mock import MagicMock, patch
-        from django.contrib.auth import get_user_model
-
-        from assistant.guardrail import GuardrailVerdict
 
         # Fake OpenAI streaming response: two token chunks, then a final
         # chunk that carries the usage numbers (mirrors the real SDK
@@ -132,7 +131,6 @@ class TestAskView:
         """An empty question must never reach OpenAI - there's nothing
         to classify or answer, and we'd be paying for the round trip.
         """
-        from django.contrib.auth import get_user_model
 
         response = superuser_client.post(
             ASK_URL,
@@ -150,8 +148,6 @@ class TestAskView:
         """ASSISTANT_MAX_QUESTION_CHARS caps input cost. Beyond the cap
         we reject before the guardrail call - cheap rejection, not cheap-model rejection.
         """
-        from django.contrib.auth import get_user_model
-
         settings.ASSISTANT_MAX_QUESTION_CHARS = 50
 
         too_long_question = "x" * (settings.ASSISTANT_MAX_QUESTION_CHARS + 1)
@@ -173,11 +169,6 @@ class TestAskView:
         stream the canned localized response and NEVER call the expensive
         answer odel. This is the whole cost-control story for the harness.
         """
-        from unittest.mock import MagicMock, patch
-        from django.contrib.auth import get_user_model
-
-        from assistant.guardrail import GuardrailVerdict
-
         fake_openai_client = MagicMock()
 
         with patch(
@@ -216,11 +207,7 @@ class TestAskView:
         machine-readable code, and exit cleanly - never let the exception
         bubble out of the StreamingHttpResponse iterator.
         """
-        from unittest.mock import MagicMock, patch
-        from django.contrib.auth import get_user_model
         from openai import APITimeoutError
-
-        from assistant.guardrail import GuardrailVerdict
 
         def exploding_stream():
             good_chunk = MagicMock()
@@ -265,10 +252,6 @@ class TestAskView:
         against the daily cap and what the cost dashboard reads from, so
         persisting it is non-negotiable, even on the happy path.
         """
-        from unittest.mock import MagicMock, patch
-        from django.contrib.auth import get_user_model
-
-        from assistant.guardrail import GuardrailVerdict
         from assistant.models import LLMQuery
 
         def make_token_chunk(text):
@@ -323,3 +306,32 @@ class TestAskView:
         assert row.output_tokens == 7
         assert row.cost_usd > 0
         assert row.model
+
+    def test_over_quota_request_is_rejected_with_429(self, superuser_client):
+        """A caller already at their daily cap must be turned away with 429
+        BEFORE the guardrail or answer model runs. would_exceed_assistant_limit
+        is the single seam; we patch it True so this test pins the wiring, not
+        the tier match (that's locked in test_assistant_quota.py).
+        """
+        fake_openai_client = MagicMock()
+
+        with patch(
+            "assistant.views.would_exceed_assistant_limit",
+            return_value=True,
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_openai_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "PETR4",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is it cheap?",
+                },
+                content_type="application/json",
+            )
+        
+        assert response.status_code == 429
+        fake_openai_client.chat.completions.create.assert_not_called()
