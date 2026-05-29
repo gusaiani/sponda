@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
@@ -48,6 +49,29 @@ def seed_e2e_baseline(ticker: str) -> None:
     ]
     QuarterlyCashFlow.objects.bulk_create(cash_flows, ignore_conflicts=True)
 
+@pytest.fixture
+def superuser(db):
+    """A logged-in-ready superuser. `db` enables DB access for this test."""
+    return get_user_model().objects.create_superuser(
+        username="root@example.com",
+        email="root@example.com",
+        password="pw123456",
+    )
+
+@pytest.fixture
+def paying_user(db):
+    """A logged-in-ready paying user. `db` enables DB access for this test."""
+    return get_user_model().objects.create_user(
+        username="paid@example.com",
+        email="paid@example.com",
+        password="pw123456",
+    )
+
+@pytest.fixture
+def superuser_client(client, superuser):
+    """Test client already authenticated as a superuser."""
+    client.force_login(superuser)
+    return client
 
 @pytest.fixture(autouse=True)
 def clear_cache():

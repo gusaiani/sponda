@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "quotes",
     "accounts",
     "social",
+    "assistant",
 ]
 
 MIDDLEWARE = [
@@ -154,6 +155,24 @@ SPONDA_ANON_LOOKUPS_PER_DAY = env.int("SPONDA_ANON_LOOKUPS_PER_DAY", default=20)
 SPONDA_UNVERIFIED_LOOKUPS_PER_DAY = env.int(
     "SPONDA_UNVERIFIED_LOOKUPS_PER_DAY", default=50
 )
+
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+
+# Cheap classifier first (guardrail), strong model only for on-topic answers.
+ASSISTANT_ANSWER_MODEL = env("ASSISTANT_ANSWER_MODEL", default="gpt-4o")
+ASSISTANT_GUARD_MODEL = env("ASSISTANT_GUARD_MODEL", default="gpt-4o-mini")
+
+# Per-day quotas. 0 => tier disabled. v1 = superuser-only (unlimited),
+# paying tier exists in code but is_paying_user() returns False until a
+# Subscription model lands, free trial defaults off.
+ASSISTANT_PAYING_PER_DAY = env.int("ASSISTANT_PAYING_PER_DAY", default=200)
+ASSISTANT_FREE_TRIAL_PER_DAY = env.int("ASSISTANT_FREE_TRIAL_PER_DAY", default= 0)
+
+# Per-request input cap (cost defense before we even hit OpenAI).
+ASSISTANT_MAX_QUESTION_CHARS = env.int("ASSISTANT_MAX_QUESTION_CHARS", default=1000)
+
+# Global per-day USD kill-switch. Low default keeps v1 cheap by design. 
+ASSISTANT_GLOBAL_DAILY_USD_CAP = env.float("ASSISTANT_GLOBAL_DAILY_USD_CAP", default=10.0)
 
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight
