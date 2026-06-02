@@ -1,9 +1,26 @@
+import { useCallback, useRef, useState } from "react";
+import { csrfHeaders } from "../../utils/csrf";
+
 export interface SseFrame {
   event: string;
   data: string;
 }
 
+export interface AssistantContext {
+  ticker: string;
+  tab: string;
+  locale: string;
+  question: string;
+}
+
+export const ASSISTANT_ASK_URL = "/api/assistant/ask";
+
 const FRAME_DELIMITER = "\n\n";
+
+const ASSISTANT_ERROR_CODE_BY_STATUS: Record<number, string> = {
+  403: "ASSISTANT_FORBIDDEN",  // backend's superuser/tier gate rejected
+  429: "assistant_limit",      // daily quota exhausted
+};
 
 export function parseSseFrames(buffer: string): {
   frames: SseFrame[];
@@ -79,4 +96,80 @@ export function applyFrame(
       default:
         return state;
   }
+}
+
+export async function readAssistantStream(
+  response: Response,
+  onState: (state: AssistantState) => void,
+): Promise<AssistantState> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+
+  let buffer = "";
+  let state: AssistantState = INITIAL_ASSISTANT_STATE;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    // stream: true lets a multi-byte char span two chunks without mojibake.
+    buffer += decoder.decode(value, { stream: true });
+
+    const { frames, rest } = parseSseFrames(buffer);
+    buffer = rest;
+
+    for (const frame of frames) {
+      state = applyFrame(state, frame);
+      onState(state);
+    }
+  }
+
+  return state;
+}
+
+export function buildAskRequest(
+  context: AssistantContext,
+  signal: AbortSignal,
+): RequestInit {
+  return {
+    method: "POST",
+    credentials: "include",
+    headers: csrfHeaders(),
+    body: JSON.stringify(context),
+    signal,
+  }
+}
+
+export function useAssistantStream() {
+  const [state, setState] = useState<AssistantState>(INITIAL_ASSISTANT_STATE);
+  const controllerRef = useRef<AbortController | null>(null);
+
+  const ask = useCallback(async (context: AssistantContext) => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+
+    setState({...INITIAL_ASSISTANT_STATE, status: "submitting"});
+
+    const response = await fetch(
+      ASSISTANT_ASK_URL,
+      buildAskRequest(context, controller.signal),
+    );
+
+    const mappedErrorCode = ASSISTANT_ERROR_CODE_BY_STATUS[response.status];
+    if (mappedErrorCode) {
+      setState((prev) => ({ ...prev, status: "error", errorCode: mappedErrorCode }));
+      return;
+    }
+
+    await readAssistantStream(response, setState);
+  }, []);
+
+  const abort = useCallback(() => {
+    controllerRef.current?.abort();
+  }, []);
+
+  return { state, ask, abort };
 }
