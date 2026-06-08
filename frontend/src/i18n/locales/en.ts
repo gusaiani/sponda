@@ -680,4 +680,15 @@ export const en: TranslationDictionary = {
   "nav.account_login": "Sign in",
   "nav.account_settings": "Settings",
   "nav.account_sign_out": "Sign out",
+
+  /* ── Assistant ── */
+  "assistant.placeholder": "Ask about this company…",
+  "assistant.send": "Send",
+  "assistant.stop": "Stop",
+  "assistant.error.upstream_timeout": "The assistant took too long to respond. Please try again.",
+  "assistant.error.rate_limited": "Too many requests right now. Please wait a moment and try again.",
+  "assistant.error.internal": "Something went wrong. Please try again.",
+  "assistant.error.ASSISTANT_FORBIDDEN": "You don't have access to the assistant.",
+  "assistant.error.assistant_limit": "You've reached your daily question limit.",
+  "assistant.error.generic": "Something went wrong. Please try again.",
 };

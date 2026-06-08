@@ -680,4 +680,15 @@ export const pt: TranslationDictionary = {
   "nav.account_login": "Entrar",
   "nav.account_settings": "Configurações",
   "nav.account_sign_out": "Sair",
+
+  /* ── Assistant ── */
+  "assistant.placeholder": "Pergunte sobre esta empresa…",
+  "assistant.send": "Enviar",
+  "assistant.stop": "Parar",
+  "assistant.error.upstream_timeout": "O assistente demorou demais para responder. Tente novamente.",
+  "assistant.error.rate_limited": "Muitas solicitações agora. Aguarde um momento e tente novamente.",
+  "assistant.error.internal": "Algo deu errado. Tente novamente.",
+  "assistant.error.ASSISTANT_FORBIDDEN": "Você não tem acesso ao assistente.",
+  "assistant.error.assistant_limit": "Você atingiu seu limite diário de perguntas.",
+  "assistant.error.generic": "Algo deu errado. Tente novamente.",
 };

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { csrfHeaders } from "../../utils/csrf";
 
 export interface SseFrame {
@@ -169,6 +169,10 @@ export function useAssistantStream() {
 
   const abort = useCallback(() => {
     controllerRef.current?.abort();
+  }, []);
+
+  useEffect(() => {
+    return () => controllerRef.current?.abort();
   }, []);
 
   return { state, ask, abort };

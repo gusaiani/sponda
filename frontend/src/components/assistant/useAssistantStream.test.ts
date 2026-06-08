@@ -184,4 +184,29 @@ describe("useAssistantStream hook", () => {
     expect(result.current.state.status).toBe("error");
     expect(result.current.state.errorCode).toBe(expectedCode);
   })
+
+  it("aborts the in-flight request when the component unmounts", async () => {
+    const neverResolves = new Promise<Response>(() => {});
+    vi.stubGlobal("fetch", vi.fn().mockReturnValue(neverResolves));
+
+    const abortSpy = vi.spyOn(AbortController.prototype, "abort");
+
+    const { result, unmount } = renderHook(() => useAssistantStream());
+
+    // Fire ask() but don't await, as it never settles
+    act(() => {
+      void result.current.ask({
+        ticker: "PETR4",
+        tab: "metrics",
+        locale: "pt",
+        question: "Is it cheap?",
+      });
+    });
+
+    unmount();
+
+    expect(abortSpy).toHaveBeenCalled();
+
+    abortSpy.mockRestore();
+  });
 });

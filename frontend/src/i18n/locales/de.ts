@@ -680,4 +680,15 @@ export const de: TranslationDictionary = {
   "nav.account_login": "Anmelden",
   "nav.account_settings": "Einstellungen",
   "nav.account_sign_out": "Abmelden",
+
+  /* ── Assistant ── */
+  "assistant.placeholder": "Fragen Sie zu diesem Unternehmen…",
+  "assistant.send": "Senden",
+  "assistant.stop": "Stopp",
+  "assistant.error.upstream_timeout": "Der Assistent hat zu lange für eine Antwort gebraucht. Bitte versuchen Sie es erneut.",
+  "assistant.error.rate_limited": "Zu viele Anfragen im Moment. Bitte warten Sie einen Augenblick und versuchen Sie es erneut.",
+  "assistant.error.internal": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
+  "assistant.error.ASSISTANT_FORBIDDEN": "Sie haben keinen Zugriff auf den Assistenten.",
+  "assistant.error.assistant_limit": "Sie haben Ihr tägliches Fragenlimit erreicht.",
+  "assistant.error.generic": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
 };
