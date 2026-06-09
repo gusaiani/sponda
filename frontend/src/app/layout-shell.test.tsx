@@ -1,21 +1,30 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 
 afterEach(cleanup);
 
-const { mockPathname, mockPush, mockInvalidateQueries } = vi.hoisted(() => ({
-  mockPathname: vi.fn(),
-  mockPush: vi.fn(),
-  mockInvalidateQueries: vi.fn(),
-}));
+const { mockPathname, mockPush, mockInvalidateQueries, mockIsSuperuser } =
+  vi.hoisted(() => ({
+    mockPathname: vi.fn(),
+    mockPush: vi.fn(),
+    mockInvalidateQueries: vi.fn(),
+    mockIsSuperuser: vi.fn(),
+  }));
 
 vi.mock("next/image", () => ({
   default: ({ alt, ...props }: { alt: string }) => <img alt={alt} {...props} />,
 }));
 
 vi.mock("next/link", () => ({
-  default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
+  default: ({
+    href,
+    children,
+    ...props
+  }: {
+    href: string;
+    children: React.ReactNode;
+  }) => (
     <a href={href} {...props}>
       {children}
     </a>
@@ -40,13 +49,19 @@ vi.mock("../components/AuthHeader", () => ({
 }));
 
 vi.mock("../components/FeedbackButton", () => ({
-  FeedbackProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  FeedbackProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   useFeedback: () => ({ open: () => {} }),
 }));
 
 vi.mock("../components/EmailVerificationGate", () => ({
-  EmailVerificationProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  useEmailVerification: () => ({ requireVerification: (action: () => void) => action() }),
+  EmailVerificationProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  useEmailVerification: () => ({
+    requireVerification: (action: () => void) => action(),
+  }),
 }));
 
 vi.mock("../components/social/SocialSidebar", () => ({
@@ -58,12 +73,24 @@ vi.mock("../components/LeftNav", () => ({
 }));
 
 vi.mock("../components/LeftNavContext", () => ({
-  LeftNavProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  LeftNavProvider: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
   useLeftNav: () => ({ open: false, toggle: () => {}, setOpen: () => {} }),
 }));
 
 vi.mock("../hooks/usePageTracking", () => ({
   usePageTracking: () => {},
+}));
+
+vi.mock("../hooks/useAuth", () => ({
+  useAuth: () => ({ isSuperuser: mockIsSuperuser() }),
+}));
+
+vi.mock("../components/assistant/AssistantBar", () => ({
+  AssistantBar: ({ ticker, tab }: { ticker: string; tab: string }) => (
+    <div data-testid="assistant-bar" data-ticker={ticker} data-tab={tab} />
+  ),
 }));
 
 vi.mock("../styles/social-sidebar.css", () => ({}));
@@ -89,29 +116,58 @@ describe("LayoutShell", () => {
     mockPathname.mockReturnValue("/en/PETR4");
     mockPush.mockClear();
     mockInvalidateQueries.mockClear();
+    mockIsSuperuser.mockReturnValue(false);
   });
 
   it("renders the SPONDA header brand on auth pages", () => {
     mockPathname.mockReturnValue("/en/login");
 
-    render(<LayoutShell><div>Login content</div></LayoutShell>);
+    render(
+      <LayoutShell>
+        <div>Login content</div>
+      </LayoutShell>,
+    );
 
     const authHeader = document.querySelector(".app-header-auth");
     expect(authHeader).not.toBeNull();
-    expect(authHeader!.querySelector(".app-header-logo")?.textContent).toBe("SPONDA");
-    expect(authHeader!.querySelector('[data-testid="auth-header"]')).not.toBeNull();
+    expect(authHeader!.querySelector(".app-header-logo")?.textContent).toBe(
+      "SPONDA",
+    );
+    expect(
+      authHeader!.querySelector('[data-testid="auth-header"]'),
+    ).not.toBeNull();
     expect(document.querySelector('[data-testid="search-bar"]')).toBeNull();
     expect(authHeader!.textContent).not.toContain("screener.link_label");
   });
 
   it("keeps the full header on non-auth pages", () => {
-    render(<LayoutShell><div>Company content</div></LayoutShell>);
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
 
     const header = document.querySelector(".app-header");
     expect(header).not.toBeNull();
     expect(header!.classList.contains("app-header-auth")).toBe(false);
-    expect(header!.querySelector(".app-header-logo")?.textContent).toBe("SPONDA");
+    expect(header!.querySelector(".app-header-logo")?.textContent).toBe(
+      "SPONDA",
+    );
     expect(document.querySelector('[data-testid="search-bar"]')).not.toBeNull();
     expect(header!.textContent).toContain("screener.link_label");
+  });
+
+  it("renders the assistant bar for a superuser on a company page", () => {
+    mockIsSuperuser.mockReturnValue(true);
+    mockPathname.mockReturnValue("/en/PETR4");
+
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
+
+    const assistantBar = screen.getByTestId("assistant-bar");
+    expect(assistantBar.getAttribute("data-ticker")).toBe("PETR4");
   });
 });
