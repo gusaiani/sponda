@@ -62,6 +62,18 @@ describe("middleware config.matcher", () => {
     expect(pathIsMatched("/api/logos/BRK.B.png")).toBe(true);
   });
 
+  it("does NOT match the assistant SSE route, so the buffering rewrite never touches it", () => {
+    // /api/assistant/ask returns text/event-stream. Routing it through the
+    // middleware's NextResponse.rewrite() buffers the whole body (same bug
+    // that forced the /api/logos/ nginx bypass), killing token-by-token
+    // delivery. nginx proxies this path straight to Django; middleware skips it.
+    expect(pathIsMatched("/api/assistant/ask")).toBe(false);
+
+    // Every other /api/ path must still be proxied exactly as before.
+    expect(pathIsMatched("/api/auth/me/")).toBe(true);
+    expect(pathIsMatched("/api/logos/PETR4.png")).toBe(true);
+  });
+
   it("matches /og/* and /admin/* paths", () => {
     expect(pathIsMatched("/og/PETR4")).toBe(true);
     expect(pathIsMatched("/admin/login/")).toBe(true);

@@ -169,9 +169,9 @@ export const config = {
   // containing a dot — which would otherwise skip logo requests like
   // `/api/logos/PETR4.png`.
   matcher: [
-    "/api/:path*",
+    "/api/((?!assistant/ask).*)",
     "/og/:path*",
     "/admin/:path*",
-    "/((?!_next|images|fonts|favicon|.*\\..*).*)",
+    "/((?!_next|images|fonts|favicon|api/assistant/ask|.*\\..*).*)",
   ],
 };
