@@ -690,5 +690,8 @@ export const pt: TranslationDictionary = {
   "assistant.error.internal": "Algo deu errado. Tente novamente.",
   "assistant.error.ASSISTANT_FORBIDDEN": "Você não tem acesso ao assistente.",
   "assistant.error.assistant_limit": "Você atingiu seu limite diário de perguntas.",
+  "assistant.error.assistant_unavailable": "O assistente está temporariamente indisponível. Tente novamente mais tarde.",
+  "assistant.error.assistant_interrupted": "A conexão caiu antes de a resposta terminar. Tente novamente.",
+  "assistant.error.network": "Não foi possível acessar o assistente. Verifique sua conexão e tente novamente.",
   "assistant.error.generic": "Algo deu errado. Tente novamente.",
 };

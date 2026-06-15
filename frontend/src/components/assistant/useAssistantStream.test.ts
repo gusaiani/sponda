@@ -17,6 +17,16 @@ function streamingResponse(chunks: string[]): Response {
   return new Response(body);
 };
 
+describe("ASSISTANT_ASK_URL", () => {
+  it("targets Django's trailing-slash route", () => {
+    // Django's route is `assistant/ask/` (APPEND_SLASH on). A slashless
+    // POST can't be redirected (Django raises rather than 301 a POST body),
+    // so it 500s before the view ever runs. The slash is mandatory. The URL
+    // may carry a dev origin prefix (direct-to-Django), so match the suffix.
+    expect(ASSISTANT_ASK_URL.endsWith("/api/assistant/ask/")).toBe(true);
+  });
+});
+
 describe("parseSseFrames", () => {
   it("parses complete frames and holds back the incomplete tail", () => {
     const buffer = 
@@ -184,6 +194,123 @@ describe("useAssistantStream hook", () => {
     expect(result.current.state.status).toBe("error");
     expect(result.current.state.errorCode).toBe(expectedCode);
   })
+
+  const askContext: AssistantContext = {
+    ticker: "PETR4",
+    tab: "metrics",
+    locale: "pt",
+    question: "Is it cheap?",
+  };
+
+  it("reads the specific code from a 503 JSON body", async () => {
+    // The backend short-circuits with 503 + {"code": ...} when no API key
+    // is set; the specific code drives the developer hint in the UI.
+    const response = new Response(
+      JSON.stringify({ code: "assistant_not_configured" }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
+    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask(askContext);
+    });
+
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.errorCode).toBe("assistant_not_configured");
+  });
+
+  it("falls back to a generic unavailable code for a 503 with no body", async () => {
+    const response = new Response(null, { status: 503 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask(askContext);
+    });
+
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.errorCode).toBe("assistant_unavailable");
+  });
+
+  it("records the real HTTP status on a non-OK response", async () => {
+    // The status drives the developer hint — it must reflect what the
+    // backend actually returned (e.g. a 500), not a hardcoded guess.
+    const response = new Response(null, { status: 500 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask(askContext);
+    });
+
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.httpStatus).toBe(500);
+  });
+
+  it("flags a stream that ends with no terminal frame as interrupted", async () => {
+    // 200 OK, but the body dies after meta + a token — no done/off_topic/
+    // error. This is exactly what a backend that throws after committing
+    // the 200 produces. Without detection the UI hangs on 'streaming'.
+    const response = streamingResponse([
+      'event: meta\ndata: {"classification":"on_topic"}\n\n',
+      'event: token\ndata: "PETR4 "\n\n',
+    ]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask(askContext);
+    });
+
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.errorCode).toBe("assistant_interrupted");
+    // The partial answer stays visible above the error message.
+    expect(result.current.state.answer).toBe("PETR4 ");
+  });
+
+  it("flags an empty 200 body as interrupted", async () => {
+    const response = streamingResponse([]);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask(askContext);
+    });
+
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.errorCode).toBe("assistant_interrupted");
+  });
+
+  it("maps a fetch failure to the network error code", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new TypeError("Failed to fetch")),
+    );
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask(askContext);
+    });
+
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.errorCode).toBe("network");
+  });
+
+  it("does not surface an error when the request is aborted", async () => {
+    // Stop button / unmount aborts the fetch — that's deliberate, not a
+    // failure, so the UI must not flash an error message.
+    const abortError = new DOMException("Aborted", "AbortError");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(abortError));
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask(askContext);
+    });
+
+    expect(result.current.state.status).not.toBe("error");
+    expect(result.current.state.errorCode).toBeNull();
+  });
 
   it("aborts the in-flight request when the component unmounts", async () => {
     const neverResolves = new Promise<Response>(() => {});

@@ -13,14 +13,58 @@ export interface AssistantContext {
   question: string;
 }
 
-export const ASSISTANT_ASK_URL = "/api/assistant/ask";
+// The assistant streams Server-Sent Events. In development the browser posts
+// directly to Django (cross-origin, credentialed): Next's dev server can't
+// proxy a streaming text/event-stream to a browser's incremental reader
+// without breaking the chunked framing. In production the request is
+// same-origin and nginx routes /api/assistant/ask straight to Django (the
+// SSE bypass). Trailing slash is required — Django's route is `assistant/ask/`
+// with APPEND_SLASH, so a slashless POST 500s before the view runs.
+const ASSISTANT_ASK_PATH = "/api/assistant/ask/";
+const ASSISTANT_DEV_API_ORIGIN =
+  process.env.NEXT_PUBLIC_DEV_API_ORIGIN || "http://localhost:8710";
+export const ASSISTANT_ASK_URL =
+  process.env.NODE_ENV === "production"
+    ? ASSISTANT_ASK_PATH
+    : `${ASSISTANT_DEV_API_ORIGIN}${ASSISTANT_ASK_PATH}`;
 
 const FRAME_DELIMITER = "\n\n";
 
 const ASSISTANT_ERROR_CODE_BY_STATUS: Record<number, string> = {
   403: "ASSISTANT_FORBIDDEN",  // backend's superuser/tier gate rejected
   429: "assistant_limit",      // daily quota exhausted
+  503: "assistant_unavailable", // service down / not configured
 };
+
+// Any non-OK status without a more specific mapping or body code lands here.
+const FALLBACK_HTTP_ERROR_CODE = "assistant_unavailable";
+
+// A healthy stream always ends on one of these. Anything else means the
+// connection dropped mid-answer.
+const TERMINAL_STATUSES: ReadonlySet<AssistantState["status"]> = new Set([
+  "done",
+  "off_topic",
+  "error",
+]);
+
+/** Pull the most specific error code out of a non-OK response. A JSON body
+ * like {"code":"assistant_not_configured"} wins — it lets the UI show a
+ * developer-specific hint — otherwise fall back to a status-based code. */
+async function resolveHttpErrorCode(response: Response): Promise<string> {
+  try {
+    const body = (await response.clone().json()) as { code?: unknown };
+    if (typeof body.code === "string" && body.code) {
+      return body.code;
+    }
+  } catch {
+    // Empty or non-JSON body (e.g. a bare 403/429) — use the status map.
+  }
+  return ASSISTANT_ERROR_CODE_BY_STATUS[response.status] ?? FALLBACK_HTTP_ERROR_CODE;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
 
 export function parseSseFrames(buffer: string): {
   frames: SseFrame[];
@@ -58,6 +102,9 @@ export interface AssistantState {
   answer: string;
   classification: string | null;
   errorCode: string | null;
+  // The HTTP status of a non-OK response, when the error came from one.
+  // null for stream-level errors (interrupted, network, mid-stream frames).
+  httpStatus: number | null;
 }
 
 export const INITIAL_ASSISTANT_STATE: AssistantState = {
@@ -65,6 +112,7 @@ export const INITIAL_ASSISTANT_STATE: AssistantState = {
   answer: "",
   classification: null,
   errorCode: null,
+  httpStatus: null,
 };
 
 /** Fold one SSE frame into the running state. Pure: same inputs → same
@@ -153,18 +201,43 @@ export function useAssistantStream() {
 
     setState({...INITIAL_ASSISTANT_STATE, status: "submitting"});
 
-    const response = await fetch(
-      ASSISTANT_ASK_URL,
-      buildAskRequest(context, controller.signal),
-    );
+    try {
+      const response = await fetch(
+        ASSISTANT_ASK_URL,
+        buildAskRequest(context, controller.signal),
+      );
 
-    const mappedErrorCode = ASSISTANT_ERROR_CODE_BY_STATUS[response.status];
-    if (mappedErrorCode) {
-      setState((prev) => ({ ...prev, status: "error", errorCode: mappedErrorCode }));
-      return;
+      if (!response.ok) {
+        const errorCode = await resolveHttpErrorCode(response);
+        setState((prev) => ({
+          ...prev,
+          status: "error",
+          errorCode,
+          httpStatus: response.status,
+        }));
+        return;
+      }
+
+      const finalState = await readAssistantStream(response, setState);
+
+      // A well-behaved stream ends on done / off_topic / error. Anything
+      // else means the connection dropped mid-answer (e.g. the backend
+      // threw after committing a 200) — surface it instead of hanging,
+      // keeping whatever partial answer already streamed in.
+      if (!TERMINAL_STATUSES.has(finalState.status)) {
+        setState({
+          ...finalState,
+          status: "error",
+          errorCode: "assistant_interrupted",
+        });
+      }
+    } catch (error) {
+      // An abort is deliberate (Stop button or unmount), not a failure.
+      if (isAbortError(error)) {
+        return;
+      }
+      setState((prev) => ({ ...prev, status: "error", errorCode: "network" }));
     }
-
-    await readAssistantStream(response, setState);
   }, []);
 
   const abort = useCallback(() => {

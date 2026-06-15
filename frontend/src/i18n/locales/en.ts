@@ -690,5 +690,8 @@ export const en: TranslationDictionary = {
   "assistant.error.internal": "Something went wrong. Please try again.",
   "assistant.error.ASSISTANT_FORBIDDEN": "You don't have access to the assistant.",
   "assistant.error.assistant_limit": "You've reached your daily question limit.",
+  "assistant.error.assistant_unavailable": "The assistant is temporarily unavailable. Please try again later.",
+  "assistant.error.assistant_interrupted": "The connection dropped before the answer finished. Please try again.",
+  "assistant.error.network": "Couldn't reach the assistant. Check your connection and try again.",
   "assistant.error.generic": "Something went wrong. Please try again.",
 };

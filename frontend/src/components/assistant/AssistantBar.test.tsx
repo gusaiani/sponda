@@ -57,6 +57,36 @@ describe("AssistantBar", () => {
     });
   });
 
+  it("submits when the user presses Enter in the textbox", () => {
+    render(<AssistantBar ticker="PETR4" tab="metrics" />);
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Is it cheap?" },
+    });
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Enter" });
+
+    expect(ask).toHaveBeenCalledWith({
+      ticker: "PETR4",
+      tab: "metrics",
+      locale: "pt",
+      question: "Is it cheap?",
+    });
+  });
+
+  it("inserts a newline instead of submitting on Shift+Enter", () => {
+    render(<AssistantBar ticker="PETR4" tab="metrics" />);
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Is it cheap?" },
+    });
+    fireEvent.keyDown(screen.getByRole("textbox"), {
+      key: "Enter",
+      shiftKey: true,
+    });
+
+    expect(ask).not.toHaveBeenCalled();
+  });
+
   it("renders the streamed answer text", () => {
     mockState = {
       ...INITIAL_ASSISTANT_STATE,
@@ -91,6 +121,55 @@ describe("AssistantBar", () => {
     render(<AssistantBar ticker="PETR4" tab="metrics" />);
 
     expect(screen.getByText("assistant.error.generic")).toBeTruthy();
+  });
+
+  it("shows the generic unavailable message to users on a config error", () => {
+    // assistant_not_configured is a backend-misconfig code; users should
+    // see a neutral "unavailable" message, not the raw cause.
+    mockState = {
+      ...INITIAL_ASSISTANT_STATE,
+      status: "error",
+      errorCode: "assistant_not_configured",
+    };
+
+    render(<AssistantBar ticker="PETR4" tab="metrics" />);
+
+    expect(
+      screen.getByText("assistant.error.assistant_unavailable"),
+    ).toBeTruthy();
+  });
+
+  it("renders a developer hint naming the cause outside production", () => {
+    mockState = {
+      ...INITIAL_ASSISTANT_STATE,
+      status: "error",
+      errorCode: "assistant_not_configured",
+    };
+
+    render(<AssistantBar ticker="PETR4" tab="metrics" />);
+
+    expect(screen.getByText(/OPENAI_API_KEY/)).toBeTruthy();
+  });
+
+  it("includes the real HTTP status in the developer hint", () => {
+    mockState = {
+      ...INITIAL_ASSISTANT_STATE,
+      status: "error",
+      errorCode: "assistant_unavailable",
+      httpStatus: 500,
+    };
+
+    render(<AssistantBar ticker="PETR4" tab="metrics" />);
+
+    expect(screen.getByText(/HTTP 500/)).toBeTruthy();
+  });
+
+  it("does not render a developer hint when there is no error", () => {
+    mockState = { ...INITIAL_ASSISTANT_STATE, status: "streaming" };
+
+    render(<AssistantBar ticker="PETR4" tab="metrics" />);
+
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it.each(["submitting", "streaming"] as const)(

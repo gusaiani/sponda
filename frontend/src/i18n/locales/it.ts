@@ -690,5 +690,8 @@ export const it: TranslationDictionary = {
   "assistant.error.internal": "Qualcosa è andato storto. Riprova.",
   "assistant.error.ASSISTANT_FORBIDDEN": "Non hai accesso all'assistente.",
   "assistant.error.assistant_limit": "Hai raggiunto il limite giornaliero di domande.",
+  "assistant.error.assistant_unavailable": "L'assistente è temporaneamente non disponibile. Riprova più tardi.",
+  "assistant.error.assistant_interrupted": "La connessione è caduta prima del completamento della risposta. Riprova.",
+  "assistant.error.network": "Impossibile raggiungere l'assistente. Controlla la connessione e riprova.",
   "assistant.error.generic": "Qualcosa è andato storto. Riprova.",
 };

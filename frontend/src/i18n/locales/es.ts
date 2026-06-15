@@ -690,5 +690,8 @@ export const es: TranslationDictionary = {
   "assistant.error.internal": "Algo salió mal. Inténtalo de nuevo.",
   "assistant.error.ASSISTANT_FORBIDDEN": "No tienes acceso al asistente.",
   "assistant.error.assistant_limit": "Has alcanzado tu límite diario de preguntas.",
+  "assistant.error.assistant_unavailable": "El asistente no está disponible temporalmente. Inténtalo de nuevo más tarde.",
+  "assistant.error.assistant_interrupted": "La conexión se interrumpió antes de terminar la respuesta. Inténtalo de nuevo.",
+  "assistant.error.network": "No se pudo conectar con el asistente. Comprueba tu conexión e inténtalo de nuevo.",
   "assistant.error.generic": "Algo salió mal. Inténtalo de nuevo.",
 };

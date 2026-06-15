@@ -127,6 +127,47 @@ class TestAskView:
         assert "PETR4" in body
         assert "is cheap." in body
 
+    def test_token_frames_are_json_encoded(self, superuser_client):
+        """Every SSE frame's `data` must be JSON — the client JSON.parses all
+        of them on one path. Token text is a string, so it must be emitted
+        JSON-encoded (`data: "Para "`, not `data: Para `); otherwise the
+        browser's JSON.parse throws on the first token and the whole answer is
+        silently dropped (surfacing as a generic 'fetch failed').
+        """
+        def make_token_chunk(text):
+            chunk = MagicMock()
+            chunk.choices = [MagicMock(delta=MagicMock(content=text))]
+            chunk.usage = None
+            return chunk
+
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+
+        fake_stream = iter([make_token_chunk("Para "), usage_chunk])
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = fake_stream
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: PETR4\n</COMPANY_DATA>",
+        ), patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic"),
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={"ticker": "PETR4", "tab": "metrics", "locale": "pt", "question": "Is PETR4 cheap?"},
+                content_type="application/json",
+            )
+            body = b"".join(response.streaming_content).decode()
+
+        assert 'data: "Para "' in body          # JSON-encoded token
+        assert "\ndata: Para \n" not in body     # never the raw, unquoted form
+
     def test_empty_question_is_rejected_with_400(self, superuser_client):
         """An empty question must never reach OpenAI - there's nothing
         to classify or answer, and we'd be paying for the round trip.
@@ -306,6 +347,34 @@ class TestAskView:
         assert row.output_tokens == 7
         assert row.cost_usd > 0
         assert row.model
+
+    def test_missing_api_key_returns_503_before_any_model_call(self, superuser_client, settings):
+        """With OPENAI_API_KEY unset the assistant cannot reach OpenAI. The
+        view must fail fast with a 503 and a machine-readable code BEFORE the
+        guardrail runs — never start a 200 stream that dies mid-flight, which
+        would leave the client hanging on a dead connection with no frames.
+        """
+        settings.OPENAI_API_KEY = ""
+
+        with patch("assistant.views.classify_question") as classify, patch(
+            "assistant.views.get_openai_client"
+        ) as get_client:
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "PETR4",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is it cheap?",
+                },
+                content_type="application/json",
+            )
+
+        assert response.status_code == 503
+        assert response.json()["code"] == "assistant_not_configured"
+        # The whole point is to short-circuit: no guardrail, no client build.
+        classify.assert_not_called()
+        get_client.assert_not_called()
 
     def test_over_quota_request_is_rejected_with_429(self, superuser_client):
         """A caller already at their daily cap must be turned away with 429

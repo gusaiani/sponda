@@ -33,6 +33,32 @@ Streaming requires the SSE route to **bypass Next.js middleware** (`NextResponse
 and **nginx proxy buffering** (`X-Accel-Buffering: no`, `proxy_buffering off`) — same pattern as
 `/api/logos/`. See deploy step.
 
+## Error handling
+
+The endpoint fails loudly, never silently. Three layers:
+
+1. **Pre-stream HTTP errors** — returned *before* any `200`/SSE is committed, so
+   the client gets a real status it can branch on:
+   - `403` superuser/tier gate · `429` daily quota · `400` empty/oversized question
+   - `503 {"code": "assistant_not_configured"}` when `OPENAI_API_KEY` is unset.
+     Without this guard the guardrail call would throw mid-generator *after* a
+     `200` was already sent, leaving the client hanging on a dead stream.
+2. **Mid-stream SSE `error` frames** — once streaming, upstream failures surface
+   as an `error` event with a stable code (`upstream_timeout`, `rate_limited`,
+   `internal`) rather than a broken connection.
+3. **Client-side resilience** (`useAssistantStream`):
+   - Any non-OK status → error state; a JSON `code` in the body wins over the
+     status map (so `assistant_not_configured` reaches the UI).
+   - A stream that closes with no terminal frame (`done`/`off_topic`/`error`) →
+     `assistant_interrupted`, keeping any partial answer visible.
+   - A failed `fetch` → `network`; an `AbortError` (Stop button / unmount) is
+     treated as deliberate, not an error.
+
+User-facing messages are localized in all seven locales; config-level causes
+(`assistant_not_configured`) show a neutral "unavailable" message to users while
+a **developer hint** (rendered only when `NODE_ENV !== "production"`) names the
+real cause, e.g. *"OPENAI_API_KEY is not set on the backend."*
+
 ## Access tiers
 
 | Tier | When | Daily cap |

@@ -694,6 +694,9 @@ export interface TranslationDictionary {
   "assistant.error.internal": string;
   "assistant.error.ASSISTANT_FORBIDDEN": string;
   "assistant.error.assistant_limit": string;
+  "assistant.error.assistant_unavailable": string;
+  "assistant.error.assistant_interrupted": string;
+  "assistant.error.network": string;
   "assistant.error.generic": string;
 }
 

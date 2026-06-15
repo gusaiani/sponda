@@ -7,7 +7,13 @@ import json
 import time
 
 from django.conf import settings
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, StreamingHttpResponse
+from django.http import (
+    HttpResponse,
+    HttpResponseBadRequest,
+    HttpResponseForbidden,
+    JsonResponse,
+    StreamingHttpResponse,
+)
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openai import APIError, APITimeoutError, RateLimitError
@@ -26,9 +32,12 @@ def _sse_frame(event: str, data: dict | str) -> bytes:
 
     SSE wire spec: each frame is `event: <name>` + `data: <payload>` +
     a blank line. We always serialize `data` as JSON (even for plain
-    strings) so the client has one parse path, not two.
+    strings) so the client has one parse path, not two — a raw `data: Para`
+    would make the client's JSON.parse throw on the first token. ensure_ascii
+    is off so UTF-8 (e.g. accented token text) stays human-readable on the
+    wire instead of being escaped to \\uXXXX.
     """
-    payload = data if isinstance(data, str) else json.dumps(data)
+    payload = json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {payload}\n\n".encode()
 
 def _event_stream(*, ticker, tab, locale, question, user):
@@ -176,6 +185,14 @@ def ask(request):
         return HttpResponseBadRequest("question is required")
     if len(question) > settings.ASSISTANT_MAX_QUESTION_CHARS:
         return HttpResponseBadRequest("question exceeds max length")
+
+    # No key configured ⇒ both the guardrail and the answer call would fail
+    # the moment they hit OpenAI. That failure would land mid-generator,
+    # after StreamingHttpResponse has already committed a 200, leaving the
+    # client reading a dead connection with no terminal frame. Fail fast
+    # with a real error status the client can render instead.
+    if not settings.OPENAI_API_KEY:
+        return JsonResponse({"code": "assistant_not_configured"}, status=503)
 
     response = StreamingHttpResponse(
         _event_stream(
