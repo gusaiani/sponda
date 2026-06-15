@@ -11,6 +11,15 @@ ASK_URL = "/api/assistant/ask/"
 
 @pytest.mark.django_db
 class TestAskView:
+    @pytest.fixture(autouse=True)
+    def _set_openai_key(self, settings):
+        """The view 503s when OPENAI_API_KEY is unset (assistant_not_configured).
+        CI has no key, so set a dummy one for the whole class; tests that mock
+        the OpenAI client need the guard to pass. The missing-key test overrides
+        this back to "" in its own body.
+        """
+        settings.OPENAI_API_KEY = "sk-test-key"
+
     def test_anonymous_request_is_rejected(self, client):
         """v1 is superuser-only. The gate is server-side, not a UI hide —
         an unauthenticated POST must never reach the OpenAI call.
