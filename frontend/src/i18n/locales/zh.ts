@@ -685,6 +685,8 @@ export const zh: TranslationDictionary = {
   "assistant.placeholder": "询问有关该公司的问题…",
   "assistant.send": "发送",
   "assistant.stop": "停止",
+  "assistant.close": "关闭",
+  "assistant.open": "打开助手",
   "assistant.error.upstream_timeout": "助手响应超时，请重试。",
   "assistant.error.rate_limited": "当前请求过多，请稍后再试。",
   "assistant.error.internal": "出现错误，请重试。",

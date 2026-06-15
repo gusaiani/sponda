@@ -11,7 +11,29 @@ export interface AssistantContext {
   tab: string;
   locale: string;
   question: string;
+  // The PRAZO window (year slider) the user is viewing. The backend recomputes
+  // the windowed multiples for it so the assistant matches the on-screen
+  // numbers. null/omitted ⇒ backend falls back to its all-history default.
+  years?: number | null;
 }
+
+// One remembered exchange. The client keeps a short rolling list of these
+// per company and resends it so follow-ups ("and the year before?") have
+// context. Kept lean (no data block) so memory stays cheap.
+export interface AssistantTurn {
+  question: string;
+  answer: string;
+}
+
+// The ask body: the current context plus the rolling memory.
+export interface AssistantAskPayload extends AssistantContext {
+  history: AssistantTurn[];
+}
+
+// Mirrors the backend ASSISTANT_MAX_HISTORY_TURNS. The client caps what it
+// sends; the backend re-clamps defensively. A small window keeps every
+// follow-up prompt cheap.
+const MAX_HISTORY_TURNS = 4;
 
 // The assistant streams Server-Sent Events. In development the browser posts
 // directly to Django (cross-origin, credentialed): Next's dev server can't
@@ -99,6 +121,9 @@ export interface AssistantState {
     | "done"
     | "off_topic"
     | "error";
+  // The question being answered, shown above the answer. Carried on the state
+  // so it survives the whole async flow (streaming, error, off_topic).
+  question: string;
   answer: string;
   classification: string | null;
   errorCode: string | null;
@@ -109,6 +134,7 @@ export interface AssistantState {
 
 export const INITIAL_ASSISTANT_STATE: AssistantState = {
   status: "idle",
+  question: "",
   answer: "",
   classification: null,
   errorCode: null,
@@ -149,12 +175,15 @@ export function applyFrame(
 export async function readAssistantStream(
   response: Response,
   onState: (state: AssistantState) => void,
+  initialState: AssistantState = INITIAL_ASSISTANT_STATE,
 ): Promise<AssistantState> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
 
   let buffer = "";
-  let state: AssistantState = INITIAL_ASSISTANT_STATE;
+  // Start from the caller's state (carrying the question) so applyFrame's
+  // spread preserves it across every folded frame.
+  let state: AssistantState = initialState;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -178,75 +207,137 @@ export async function readAssistantStream(
 }
 
 export function buildAskRequest(
-  context: AssistantContext,
+  payload: AssistantContext | AssistantAskPayload,
   signal: AbortSignal,
 ): RequestInit {
   return {
     method: "POST",
     credentials: "include",
     headers: csrfHeaders(),
-    body: JSON.stringify(context),
+    body: JSON.stringify(payload),
     signal,
   }
 }
 
+/** Replace the last turn of a thread (the in-flight one) with an updated copy. */
+function replaceLast(turns: AssistantState[], turn: AssistantState): AssistantState[] {
+  return turns.slice(0, -1).concat(turn);
+}
+
 export function useAssistantStream() {
-  const [state, setState] = useState<AssistantState>(INITIAL_ASSISTANT_STATE);
+  // The whole session thread. The last turn is the in-flight / latest one;
+  // `state` below is derived from it so existing single-turn consumers keep
+  // working. Per-company: cleared when the ticker changes.
+  const [conversation, setConversationState] = useState<AssistantState[]>([]);
+  const conversationRef = useRef<AssistantState[]>([]);
+  const conversationTickerRef = useRef<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
+
+  // Mirror the thread into a ref synchronously so `ask` reads the latest one
+  // without a stale closure (it has empty deps).
+  const setConversation = useCallback(
+    (updater: AssistantState[] | ((prev: AssistantState[]) => AssistantState[])) => {
+      setConversationState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        conversationRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
 
   const ask = useCallback(async (context: AssistantContext) => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
 
-    setState({...INITIAL_ASSISTANT_STATE, status: "submitting"});
+    // Memory is scoped to one company: a PETR4 thread must not bleed into an
+    // AAPL one, so a ticker change starts a fresh thread.
+    const sameCompany = context.ticker === conversationTickerRef.current;
+    conversationTickerRef.current = context.ticker;
+    const priorTurns = sameCompany ? conversationRef.current : [];
+
+    // The bounded memory we resend to the backend, derived from the thread:
+    // only genuine answered turns (off-topic redirects still end on `done`, so
+    // gate on the classification), newest-wins, capped.
+    const history: AssistantTurn[] = priorTurns
+      .filter((turn) => turn.status === "done" && turn.classification === "on_topic")
+      .map((turn) => ({ question: turn.question, answer: turn.answer }))
+      .slice(-MAX_HISTORY_TURNS);
+
+    // Seed the new turn so its question shows immediately, above the thinking
+    // indicator and the streamed answer.
+    const submittingTurn: AssistantState = {
+      ...INITIAL_ASSISTANT_STATE,
+      status: "submitting",
+      question: context.question,
+    };
+    setConversation([...priorTurns, submittingTurn]);
+
+    const updateCurrentTurn = (turn: AssistantState) =>
+      setConversation((prev) => replaceLast(prev, turn));
+
+    // Fail the in-flight turn while keeping its question (and any partial
+    // answer already streamed) visible in the thread.
+    const failCurrentTurn = (errorCode: string, httpStatus: number | null = null) =>
+      setConversation((prev) =>
+        prev.length
+          ? replaceLast(prev, { ...prev[prev.length - 1], status: "error", errorCode, httpStatus })
+          : prev,
+      );
+
+    const payload: AssistantAskPayload = { ...context, history };
 
     try {
       const response = await fetch(
         ASSISTANT_ASK_URL,
-        buildAskRequest(context, controller.signal),
+        buildAskRequest(payload, controller.signal),
       );
 
       if (!response.ok) {
         const errorCode = await resolveHttpErrorCode(response);
-        setState((prev) => ({
-          ...prev,
-          status: "error",
-          errorCode,
-          httpStatus: response.status,
-        }));
+        failCurrentTurn(errorCode, response.status);
         return;
       }
 
-      const finalState = await readAssistantStream(response, setState);
+      const finalState = await readAssistantStream(response, updateCurrentTurn, submittingTurn);
 
       // A well-behaved stream ends on done / off_topic / error. Anything
       // else means the connection dropped mid-answer (e.g. the backend
       // threw after committing a 200) — surface it instead of hanging,
       // keeping whatever partial answer already streamed in.
       if (!TERMINAL_STATUSES.has(finalState.status)) {
-        setState({
-          ...finalState,
-          status: "error",
-          errorCode: "assistant_interrupted",
-        });
+        failCurrentTurn("assistant_interrupted");
       }
     } catch (error) {
       // An abort is deliberate (Stop button or unmount), not a failure.
       if (isAbortError(error)) {
         return;
       }
-      setState((prev) => ({ ...prev, status: "error", errorCode: "network" }));
+      failCurrentTurn("network");
     }
-  }, []);
+  }, [setConversation]);
 
   const abort = useCallback(() => {
     controllerRef.current?.abort();
-  }, []);
+    // Settle the in-flight turn so a stopped stream doesn't blink a caret
+    // forever: drop it if nothing streamed yet, else keep the partial answer.
+    setConversation((prev) => {
+      if (!prev.length) return prev;
+      const last = prev[prev.length - 1];
+      if (last.status === "submitting") return prev.slice(0, -1);
+      if (last.status === "streaming") return replaceLast(prev, { ...last, status: "done" });
+      return prev;
+    });
+  }, [setConversation]);
 
   useEffect(() => {
     return () => controllerRef.current?.abort();
   }, []);
 
-  return { state, ask, abort };
+  const state = conversation.length
+    ? conversation[conversation.length - 1]
+    : INITIAL_ASSISTANT_STATE;
+
+  return { state, conversation, ask, abort };
 }

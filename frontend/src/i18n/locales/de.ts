@@ -685,6 +685,8 @@ export const de: TranslationDictionary = {
   "assistant.placeholder": "Fragen Sie zu diesem Unternehmen…",
   "assistant.send": "Senden",
   "assistant.stop": "Stopp",
+  "assistant.close": "Schließen",
+  "assistant.open": "Assistent öffnen",
   "assistant.error.upstream_timeout": "Der Assistent hat zu lange für eine Antwort gebraucht. Bitte versuchen Sie es erneut.",
   "assistant.error.rate_limited": "Zu viele Anfragen im Moment. Bitte warten Sie einen Augenblick und versuchen Sie es erneut.",
   "assistant.error.internal": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",

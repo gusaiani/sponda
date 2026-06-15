@@ -385,6 +385,188 @@ class TestAskView:
         classify.assert_not_called()
         get_client.assert_not_called()
 
+    def test_window_years_is_threaded_into_context(self, superuser_client):
+        """The PRAZO slider window rides the request and must reach
+        build_company_context, so the data block reflects the window the user
+        is viewing — not the backend's all-history default.
+        """
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+        token_chunk = MagicMock()
+        token_chunk.choices = [MagicMock(delta=MagicMock(content="ok"))]
+        token_chunk.usage = None
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = iter([token_chunk, usage_chunk])
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: WEGE3\n</COMPANY_DATA>",
+        ) as build_context, patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic"),
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "WEGE3",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is it cheap?",
+                    "years": 5,
+                },
+                content_type="application/json",
+            )
+            b"".join(response.streaming_content)
+
+        assert build_context.call_args.kwargs["years"] == 5
+
+    def test_out_of_range_window_years_is_ignored(self, superuser_client):
+        """Untrusted input: a window outside the slider's 1..20 range degrades
+        to None (no windowed recompute), never raises or feeds a garbage
+        window into the calc.
+        """
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+        token_chunk = MagicMock()
+        token_chunk.choices = [MagicMock(delta=MagicMock(content="ok"))]
+        token_chunk.usage = None
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = iter([token_chunk, usage_chunk])
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: WEGE3\n</COMPANY_DATA>",
+        ) as build_context, patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic"),
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "WEGE3",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is it cheap?",
+                    "years": 999,
+                },
+                content_type="application/json",
+            )
+            b"".join(response.streaming_content)
+
+        assert build_context.call_args.kwargs["years"] is None
+
+    def test_history_is_interleaved_into_answer_messages(self, superuser_client):
+        """A follow-up question carries the prior Q&A so the answer model has
+        context. The view must interleave the clamped history between the
+        system prompt and the current question — the shape OpenAI needs for
+        multi-turn memory.
+        """
+        def make_token_chunk(text):
+            chunk = MagicMock()
+            chunk.choices = [MagicMock(delta=MagicMock(content=text))]
+            chunk.usage = None
+            return chunk
+
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = iter(
+            [make_token_chunk("Sure."), usage_chunk]
+        )
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: PETR4\n</COMPANY_DATA>",
+        ), patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic"),
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "PETR4",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "And the year before?",
+                    "history": [
+                        {"question": "Is it cheap?", "answer": "On PE10, yes."},
+                    ],
+                },
+                content_type="application/json",
+            )
+            b"".join(response.streaming_content)
+
+        messages = fake_client.chat.completions.create.call_args.kwargs["messages"]
+        roles = [message["role"] for message in messages]
+
+        # system, then the prior turn (user/assistant), then the live question.
+        assert roles == ["system", "user", "assistant", "user"]
+        assert "Is it cheap?" in messages[1]["content"]
+        assert messages[2]["content"] == "On PE10, yes."
+        assert "And the year before?" in messages[-1]["content"]
+
+    def test_history_is_clamped_to_max_turns(self, superuser_client, settings):
+        """The per-session cost ceiling is enforced server-side: even if the
+        client sends more turns than allowed, only the most recent survive.
+        Never trust the client to bound its own memory.
+        """
+        settings.ASSISTANT_MAX_HISTORY_TURNS = 1
+
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+        token_chunk = MagicMock()
+        token_chunk.choices = [MagicMock(delta=MagicMock(content="ok"))]
+        token_chunk.usage = None
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = iter([token_chunk, usage_chunk])
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: PETR4\n</COMPANY_DATA>",
+        ), patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic"),
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "PETR4",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Latest?",
+                    "history": [
+                        {"question": "oldest", "answer": "a0"},
+                        {"question": "newest", "answer": "a1"},
+                    ],
+                },
+                content_type="application/json",
+            )
+            b"".join(response.streaming_content)
+
+        messages = fake_client.chat.completions.create.call_args.kwargs["messages"]
+        serialized = " ".join(message["content"] for message in messages)
+        assert "newest" in serialized
+        assert "oldest" not in serialized
+
     def test_over_quota_request_is_rejected_with_429(self, superuser_client):
         """A caller already at their daily cap must be turned away with 429
         BEFORE the guardrail or answer model runs. would_exceed_assistant_limit

@@ -25,3 +25,9 @@ class TestAssistantSettings:
         assert settings.ASSISTANT_MAX_QUESTION_CHARS == 1000
         # Global per-day USD kill-switch; a low default is the safe one
         assert settings.ASSISTANT_GLOBAL_DAILY_USD_CAP == 10.0
+
+    def test_history_caps(self):
+        # Conversation memory must be bounded so a long session can't balloon
+        # prompt size (and cost). A few turns is enough for natural follow-ups.
+        assert settings.ASSISTANT_MAX_HISTORY_TURNS == 4
+        assert settings.ASSISTANT_MAX_HISTORY_ANSWER_CHARS == 2000

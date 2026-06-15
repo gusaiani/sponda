@@ -21,6 +21,7 @@ from openai import APIError, APITimeoutError, RateLimitError
 from assistant.context import build_company_context
 from assistant.cost import calculate_cost
 from assistant.guardrail import classify_question
+from assistant.history import build_history_messages
 from assistant.models import LLMQuery
 from assistant.openai_client import get_openai_client
 from assistant.prompts import ANSWER_SYSTEM_PROMPT, OFF_TOPIC_RESPONSE
@@ -40,13 +41,41 @@ def _sse_frame(event: str, data: dict | str) -> bytes:
     payload = json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {payload}\n\n".encode()
 
-def _event_stream(*, ticker, tab, locale, question, user):
+# The PRAZO slider's valid range, mirrored from the frontend
+# (ticker-client.tsx clamps to 1..20). Anything outside is ignored — the
+# context falls back to the canonical all-history window.
+MIN_WINDOW_YEARS = 1
+MAX_WINDOW_YEARS = 20
+
+
+def _parse_window_years(raw):
+    """Coerce the client-sent PRAZO window to a valid int, or None.
+
+    Untrusted input: a non-int or out-of-range value degrades to None (no
+    windowed recompute) rather than raising.
+    """
+    try:
+        years = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if MIN_WINDOW_YEARS <= years <= MAX_WINDOW_YEARS:
+        return years
+    return None
+
+
+def _event_stream(*, ticker, tab, locale, question, years, history_messages, user):
     """Yield the SSE frames for one assistant response.
 
     Pulled into its own generator so the view body stays linear and
     Django's StreamingHttpResponse can iterate it lazily - bytes are
     flushed to the client as each `yield` fires, not after the whole
     answer is built.
+
+    `history_messages` is the clamped prior conversation; it threads into
+    both the guardrail (so follow-ups classify correctly) and the answer
+    call (so the model has memory). The fresh <COMPANY_DATA> block only
+    rides the current question — history stays lean text, keeping memory
+    cheap and the data always reflecting the page the user is on now.
     """
     started_at = time.monotonic()
     status = "ok"
@@ -54,10 +83,11 @@ def _event_stream(*, ticker, tab, locale, question, user):
     usage = None
 
     try:
-        company_context = build_company_context(ticker, tab, locale, user)
+        company_context = build_company_context(ticker, tab, locale, user, years=years)
         verdict = classify_question(
             question=question,
             company_context=company_context,
+            history_messages=history_messages,
         )
 
         classification = verdict.classification
@@ -90,6 +120,7 @@ def _event_stream(*, ticker, tab, locale, question, user):
             model=settings.ASSISTANT_ANSWER_MODEL,
             messages=[
                 {"role": "system", "content": ANSWER_SYSTEM_PROMPT},
+                *history_messages,
                 {"role": "user", "content": user_message},
             ],
             stream=True,
@@ -180,11 +211,21 @@ def ask(request):
     tab = (payload.get("tab") or "").strip()
     locale = (payload.get("locale") or "en").strip()
     question = (payload.get("question") or "").strip()
+    years = _parse_window_years(payload.get("years"))
 
     if not question:
         return HttpResponseBadRequest("question is required")
     if len(question) > settings.ASSISTANT_MAX_QUESTION_CHARS:
         return HttpResponseBadRequest("question exceeds max length")
+
+    # Bound the conversation memory server-side — never trust the client to
+    # cap its own history. This is the per-session cost ceiling.
+    history_messages = build_history_messages(
+        payload.get("history"),
+        max_turns=settings.ASSISTANT_MAX_HISTORY_TURNS,
+        max_question_chars=settings.ASSISTANT_MAX_QUESTION_CHARS,
+        max_answer_chars=settings.ASSISTANT_MAX_HISTORY_ANSWER_CHARS,
+    )
 
     # No key configured ⇒ both the guardrail and the answer call would fail
     # the moment they hit OpenAI. That failure would land mid-generator,
@@ -200,6 +241,8 @@ def ask(request):
             tab=tab,
             locale=locale,
             question=question,
+            years=years,
+            history_messages=history_messages,
             user=request.user,
         ),
         content_type="text/event-stream"

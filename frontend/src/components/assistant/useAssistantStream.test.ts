@@ -312,6 +312,185 @@ describe("useAssistantStream hook", () => {
     expect(result.current.state.errorCode).toBeNull();
   });
 
+  // ----- conversation memory -----
+
+  function doneStream(answer: string): Response {
+    return streamingResponse([
+      'event: meta\ndata: {"classification":"on_topic"}\n\n',
+      `event: token\ndata: ${JSON.stringify(answer)}\n\n`,
+      'event: done\ndata: {}\n\n',
+    ]);
+  }
+
+  function bodyOf(fetchMock: ReturnType<typeof vi.fn>, callIndex: number) {
+    return JSON.parse(fetchMock.mock.calls[callIndex][1].body as string);
+  }
+
+  it("sends no history on the first question of a session", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(doneStream("On PE10, yes."));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+
+    expect(bodyOf(fetchMock, 0).history).toEqual([]);
+  });
+
+  it("accumulates the prior Q&A and sends it on a follow-up", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(doneStream("On PE10, yes."))
+      .mockResolvedValueOnce(doneStream("Also cheap."));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "And on PFCF10?" });
+    });
+
+    expect(bodyOf(fetchMock, 1).history).toEqual([
+      { question: "Is it cheap?", answer: "On PE10, yes." },
+    ]);
+  });
+
+  it("resets memory when the company changes", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(doneStream("A1"))
+      .mockResolvedValueOnce(doneStream("A2"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Q1" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "AAPL", tab: "metrics", locale: "en", question: "Q2" });
+    });
+
+    expect(bodyOf(fetchMock, 1).history).toEqual([]);
+  });
+
+  it("does not remember an off-topic turn", async () => {
+    const offTopic = streamingResponse([
+      'event: meta\ndata: {"classification":"off_topic"}\n\n',
+      'event: off_topic\ndata: "Off you go."\n\n',
+      'event: done\ndata: {}\n\n',
+    ]);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(offTopic)
+      .mockResolvedValueOnce(doneStream("A2"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Weather in Rio?" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+
+    expect(bodyOf(fetchMock, 1).history).toEqual([]);
+  });
+
+  it("accumulates each exchange in the conversation thread", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(doneStream("On PE10, yes."))
+      .mockResolvedValueOnce(doneStream("Also cheap."));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "And on PFCF10?" });
+    });
+
+    expect(result.current.conversation).toHaveLength(2);
+    expect(result.current.conversation[0].question).toBe("Is it cheap?");
+    expect(result.current.conversation[0].answer).toBe("On PE10, yes.");
+    expect(result.current.conversation[1].question).toBe("And on PFCF10?");
+    expect(result.current.conversation[1].answer).toBe("Also cheap.");
+  });
+
+  it("clears the conversation thread when the company changes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(doneStream("ok"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Q1" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "AAPL", tab: "metrics", locale: "en", question: "Q2" });
+    });
+
+    expect(result.current.conversation).toHaveLength(1);
+    expect(result.current.conversation[0].question).toBe("Q2");
+  });
+
+  it("exposes the submitted question on the state through to done", async () => {
+    // The UI shows the user's question above the answer; the hook must carry
+    // it on the state so it survives the whole streaming flow.
+    const fetchMock = vi.fn().mockResolvedValue(doneStream("On PE10, yes."));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+
+    expect(result.current.state.status).toBe("done");
+    expect(result.current.state.question).toBe("Is it cheap?");
+  });
+
+  it("keeps the question visible when the request errors", async () => {
+    const response = new Response(null, { status: 500 });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ...askContext, question: "Why so pricey?" });
+    });
+
+    expect(result.current.state.status).toBe("error");
+    expect(result.current.state.question).toBe("Why so pricey?");
+  });
+
+  it("sends the PRAZO window with the request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(doneStream("ok"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "WEGE3", tab: "metrics", locale: "pt", question: "?", years: 5 });
+    });
+
+    expect(bodyOf(fetchMock, 0).years).toBe(5);
+  });
+
+  it("caps remembered turns, dropping the oldest", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => doneStream("ok"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    for (let turn = 0; turn < 6; turn++) {
+      await act(async () => {
+        await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: `q${turn}` });
+      });
+    }
+
+    // The 6th request (index 5) carries the last 4 turns; q0 has aged out.
+    const history = bodyOf(fetchMock, 5).history as { question: string }[];
+    expect(history).toHaveLength(4);
+    expect(history[0].question).toBe("q1");
+    expect(history.some((turn) => turn.question === "q0")).toBe(false);
+  });
+
   it("aborts the in-flight request when the component unmounts", async () => {
     const neverResolves = new Promise<Response>(() => {});
     vi.stubGlobal("fetch", vi.fn().mockReturnValue(neverResolves));

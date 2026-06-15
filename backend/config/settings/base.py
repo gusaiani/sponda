@@ -171,8 +171,15 @@ ASSISTANT_FREE_TRIAL_PER_DAY = env.int("ASSISTANT_FREE_TRIAL_PER_DAY", default= 
 # Per-request input cap (cost defense before we even hit OpenAI).
 ASSISTANT_MAX_QUESTION_CHARS = env.int("ASSISTANT_MAX_QUESTION_CHARS", default=1000)
 
-# Global per-day USD kill-switch. Low default keeps v1 cheap by design. 
+# Global per-day USD kill-switch. Low default keeps v1 cheap by design.
 ASSISTANT_GLOBAL_DAILY_USD_CAP = env.float("ASSISTANT_GLOBAL_DAILY_USD_CAP", default=10.0)
+
+# Conversation memory. The client resends the running Q&A each turn so
+# follow-ups have context; the backend clamps it so a long session can't
+# balloon prompt size (and cost). Oldest pairs are dropped first beyond the
+# turn cap; each remembered answer is truncated to the char cap.
+ASSISTANT_MAX_HISTORY_TURNS = env.int("ASSISTANT_MAX_HISTORY_TURNS", default=4)
+ASSISTANT_MAX_HISTORY_ANSWER_CHARS = env.int("ASSISTANT_MAX_HISTORY_ANSWER_CHARS", default=2000)
 
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight
