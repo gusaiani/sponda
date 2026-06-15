@@ -680,4 +680,18 @@ export const zh: TranslationDictionary = {
   "nav.account_login": "登录",
   "nav.account_settings": "设置",
   "nav.account_sign_out": "退出",
+
+  /* ── Assistant ── */
+  "assistant.placeholder": "询问有关该公司的问题…",
+  "assistant.send": "发送",
+  "assistant.stop": "停止",
+  "assistant.error.upstream_timeout": "助手响应超时，请重试。",
+  "assistant.error.rate_limited": "当前请求过多，请稍后再试。",
+  "assistant.error.internal": "出现错误，请重试。",
+  "assistant.error.ASSISTANT_FORBIDDEN": "您无权访问助手。",
+  "assistant.error.assistant_limit": "您已达到每日提问上限。",
+  "assistant.error.assistant_unavailable": "助手暂时不可用，请稍后再试。",
+  "assistant.error.assistant_interrupted": "连接在回答完成前中断，请重试。",
+  "assistant.error.network": "无法连接助手，请检查网络后重试。",
+  "assistant.error.generic": "出现错误，请重试。",
 };

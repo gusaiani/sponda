@@ -86,7 +86,7 @@ class SignupView(APIView):
         user = serializer.save()
         login(request, user)
 
-        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
+        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.capital")
         _send_welcome_email(user, base_url)
         _send_verification_email(user, base_url)
 
@@ -287,7 +287,7 @@ class ResendVerificationView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
+        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.capital")
         _send_verification_email(request.user, base_url)
 
         return Response({"ok": True})
@@ -349,7 +349,7 @@ class ChangeEmailView(APIView):
             user=request.user, used=False
         ).update(used=True)
 
-        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
+        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.capital")
         _send_verification_email(request.user, base_url)
 
         return Response({"email": request.user.email, "email_verified": False})
@@ -433,7 +433,7 @@ class ForgotPasswordView(APIView):
 
         token_obj = PasswordResetToken.create_for_user(user)
 
-        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.poe.ma")
+        base_url = getattr(settings, "SITE_BASE_URL", "https://sponda.capital")
         reset_url = f"{base_url}/reset-password?token={token_obj.token}"
 
         send_mail(

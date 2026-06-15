@@ -684,6 +684,20 @@ export interface TranslationDictionary {
   "nav.account_login": string;
   "nav.account_settings": string;
   "nav.account_sign_out": string;
+
+  /* ── Assistant ── */
+  "assistant.placeholder": string;
+  "assistant.send": string;
+  "assistant.stop": string;
+  "assistant.error.upstream_timeout": string;
+  "assistant.error.rate_limited": string;
+  "assistant.error.internal": string;
+  "assistant.error.ASSISTANT_FORBIDDEN": string;
+  "assistant.error.assistant_limit": string;
+  "assistant.error.assistant_unavailable": string;
+  "assistant.error.assistant_interrupted": string;
+  "assistant.error.network": string;
+  "assistant.error.generic": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

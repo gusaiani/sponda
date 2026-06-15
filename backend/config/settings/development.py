@@ -7,7 +7,17 @@ DATABASES = {
     "default": env.db("DEV_DATABASE_URL", default="postgres:///sponda"),  # noqa: F405
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+# The dev frontend (Next on :3000) posts the assistant SSE request directly
+# to Django — Next's dev server can't proxy a streaming text/event-stream to
+# a browser's incremental reader. That's a cross-origin, credentialed request,
+# so we echo the specific origin and allow credentials; a wildcard
+# (CORS_ALLOW_ALL_ORIGINS) is rejected by browsers for credentialed requests.
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 # Serve built frontend in dev/test when available
 FRONTEND_DIST_DIR = BASE_DIR.parent / "frontend" / "dist"

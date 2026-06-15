@@ -13,7 +13,6 @@ DATABASES["default"]["CONN_MAX_AGE"] = 600
 DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://sponda.poe.ma",
     "https://sponda.capital",
     "https://www.sponda.capital",
 ]
@@ -24,7 +23,7 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 FRONTEND_DIST_DIR = BASE_DIR.parent / "frontend" / "dist"  # noqa: F405
 
-# Email via Resend SMTP (reusing existing poe.ma domain verification)
+# Email via Resend SMTP (sponda.capital verified as the sending domain)
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = "smtp.resend.com"
 EMAIL_PORT = 465

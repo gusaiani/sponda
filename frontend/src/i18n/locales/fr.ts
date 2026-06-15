@@ -680,4 +680,18 @@ export const fr: TranslationDictionary = {
   "nav.account_login": "Se connecter",
   "nav.account_settings": "Paramètres",
   "nav.account_sign_out": "Se déconnecter",
+
+  /* ── Assistant ── */
+  "assistant.placeholder": "Posez une question sur cette entreprise…",
+  "assistant.send": "Envoyer",
+  "assistant.stop": "Arrêter",
+  "assistant.error.upstream_timeout": "L'assistant a mis trop de temps à répondre. Veuillez réessayer.",
+  "assistant.error.rate_limited": "Trop de requêtes pour le moment. Veuillez patienter un instant et réessayer.",
+  "assistant.error.internal": "Une erreur s'est produite. Veuillez réessayer.",
+  "assistant.error.ASSISTANT_FORBIDDEN": "Vous n'avez pas accès à l'assistant.",
+  "assistant.error.assistant_limit": "Vous avez atteint votre limite quotidienne de questions.",
+  "assistant.error.assistant_unavailable": "L'assistant est temporairement indisponible. Veuillez réessayer plus tard.",
+  "assistant.error.assistant_interrupted": "La connexion a été interrompue avant la fin de la réponse. Veuillez réessayer.",
+  "assistant.error.network": "Impossible de joindre l'assistant. Vérifiez votre connexion et réessayez.",
+  "assistant.error.generic": "Une erreur s'est produite. Veuillez réessayer.",
 };

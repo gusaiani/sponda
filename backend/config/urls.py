@@ -343,6 +343,7 @@ urlpatterns = [
     path("api/", include("quotes.urls")),
     path("api/auth/", include("accounts.urls")),
     path("api/social/", include("social.urls")),
+    path("api/assistant/", include("assistant.urls")),
     re_path(r"^(?P<filepath>assets/.*)$", _serve_frontend),
     re_path(r"^(?!api/|admin/)(?P<filepath>.*)$", _serve_frontend),
 ]

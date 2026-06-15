@@ -680,4 +680,18 @@ export const es: TranslationDictionary = {
   "nav.account_login": "Iniciar sesión",
   "nav.account_settings": "Ajustes",
   "nav.account_sign_out": "Cerrar sesión",
+
+  /* ── Assistant ── */
+  "assistant.placeholder": "Pregunta sobre esta empresa…",
+  "assistant.send": "Enviar",
+  "assistant.stop": "Detener",
+  "assistant.error.upstream_timeout": "El asistente tardó demasiado en responder. Inténtalo de nuevo.",
+  "assistant.error.rate_limited": "Demasiadas solicitudes en este momento. Espera un momento e inténtalo de nuevo.",
+  "assistant.error.internal": "Algo salió mal. Inténtalo de nuevo.",
+  "assistant.error.ASSISTANT_FORBIDDEN": "No tienes acceso al asistente.",
+  "assistant.error.assistant_limit": "Has alcanzado tu límite diario de preguntas.",
+  "assistant.error.assistant_unavailable": "El asistente no está disponible temporalmente. Inténtalo de nuevo más tarde.",
+  "assistant.error.assistant_interrupted": "La conexión se interrumpió antes de terminar la respuesta. Inténtalo de nuevo.",
+  "assistant.error.network": "No se pudo conectar con el asistente. Comprueba tu conexión e inténtalo de nuevo.",
+  "assistant.error.generic": "Algo salió mal. Inténtalo de nuevo.",
 };
