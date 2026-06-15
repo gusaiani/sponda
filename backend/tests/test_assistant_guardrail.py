@@ -59,3 +59,37 @@ class TestClassifyQuestion:
         assert user_message["role"] == "user"
         assert company_context in user_message["content"]
         assert question in user_message["content"]
+
+    def test_history_messages_are_threaded_between_system_and_question(self):
+        """A short follow-up like "and the year before?" only reads as
+        on-topic in light of the previous turn. The classifier must see the
+        recent conversation, interleaved after the system prompt and before
+        the current question, or it would misjudge elliptical follow-ups.
+        """
+        history_messages = [
+            {"role": "user", "content": "Question: Is it cheap?"},
+            {"role": "assistant", "content": "On PE10, yes."},
+        ]
+
+        fake_verdict = GuardrailVerdict(classification="on_topic")
+        fake_response = MagicMock()
+        fake_response.choices = [MagicMock(message=MagicMock(parsed=fake_verdict))]
+        fake_client = MagicMock()
+        fake_client.beta.chat.completions.parse.return_value = fake_response
+
+        with patch(
+            "assistant.guardrail.get_openai_client",
+            return_value=fake_client,
+        ):
+            classify_question(
+                question="And the year before?",
+                company_context="<COMPANY_DATA>\nticker:PETR4\n</COMPANY_DATA>",
+                history_messages=history_messages,
+            )
+
+        messages = fake_client.beta.chat.completions.parse.call_args.kwargs["messages"]
+
+        assert messages[0]["role"] == "system"
+        assert messages[1:3] == history_messages
+        assert messages[-1]["role"] == "user"
+        assert "And the year before?" in messages[-1]["content"]

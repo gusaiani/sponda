@@ -28,13 +28,23 @@ class GuardrailVerdict(BaseModel):
 
     classification: Classification
 
-def classify_question(question: str, company_context: str) -> GuardrailVerdict:
+def classify_question(
+    question: str,
+    company_context: str,
+    history_messages: list[dict] | None = None,
+) -> GuardrailVerdict:
     """Classify a user question with the cheap model before any expensive call.
 
     `question` is raw user text - treat as untrusted. `company_context` is
     the assembled <COMPANY_DATA> block; it goes to the classifier too so
     the model can tell "is this question about *this* company" apart
     from "is this question on-topic in the abstract".
+
+    `history_messages` is the clamped prior conversation (already turned into
+    chat messages). A short follow-up like "and the year before?" only reads
+    as on-topic in light of the previous turn, so the classifier sees the
+    recent memory too — interleaved after the harness rules, before the
+    current question.
 
     Returns the parsed `GuardrailVerdict` - the caller branches on
     `.classification` and either streams an answer or sends the fixed
@@ -53,11 +63,12 @@ def classify_question(question: str, company_context: str) -> GuardrailVerdict:
         f"Question: {question}"
     )
 
-    # Two-message shape: the harness rules go in the system role, the
-    # data + question goes in the user role. Same shape we'll use later
-    # for the answer call - keeps the mental model consistent.
+    # Harness rules in the system role, recent memory next, then the data +
+    # current question in the user role. Same shape the answer call uses -
+    # keeps the mental model consistent.
     messages = [
         {"role": "system", "content": GUARDRAIL_SYSTEM_PROMPT},
+        *(history_messages or []),
         {"role": "user", "content": user_message},
     ]
 

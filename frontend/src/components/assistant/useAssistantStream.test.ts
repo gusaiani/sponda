@@ -312,6 +312,108 @@ describe("useAssistantStream hook", () => {
     expect(result.current.state.errorCode).toBeNull();
   });
 
+  // ----- conversation memory -----
+
+  function doneStream(answer: string): Response {
+    return streamingResponse([
+      'event: meta\ndata: {"classification":"on_topic"}\n\n',
+      `event: token\ndata: ${JSON.stringify(answer)}\n\n`,
+      'event: done\ndata: {}\n\n',
+    ]);
+  }
+
+  function bodyOf(fetchMock: ReturnType<typeof vi.fn>, callIndex: number) {
+    return JSON.parse(fetchMock.mock.calls[callIndex][1].body as string);
+  }
+
+  it("sends no history on the first question of a session", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(doneStream("On PE10, yes."));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+
+    expect(bodyOf(fetchMock, 0).history).toEqual([]);
+  });
+
+  it("accumulates the prior Q&A and sends it on a follow-up", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(doneStream("On PE10, yes."))
+      .mockResolvedValueOnce(doneStream("Also cheap."));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "And on PFCF10?" });
+    });
+
+    expect(bodyOf(fetchMock, 1).history).toEqual([
+      { question: "Is it cheap?", answer: "On PE10, yes." },
+    ]);
+  });
+
+  it("resets memory when the company changes", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(doneStream("A1"))
+      .mockResolvedValueOnce(doneStream("A2"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Q1" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "AAPL", tab: "metrics", locale: "en", question: "Q2" });
+    });
+
+    expect(bodyOf(fetchMock, 1).history).toEqual([]);
+  });
+
+  it("does not remember an off-topic turn", async () => {
+    const offTopic = streamingResponse([
+      'event: meta\ndata: {"classification":"off_topic"}\n\n',
+      'event: off_topic\ndata: "Off you go."\n\n',
+      'event: done\ndata: {}\n\n',
+    ]);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(offTopic)
+      .mockResolvedValueOnce(doneStream("A2"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Weather in Rio?" });
+    });
+    await act(async () => {
+      await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: "Is it cheap?" });
+    });
+
+    expect(bodyOf(fetchMock, 1).history).toEqual([]);
+  });
+
+  it("caps remembered turns, dropping the oldest", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => doneStream("ok"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { result } = renderHook(() => useAssistantStream());
+    for (let turn = 0; turn < 6; turn++) {
+      await act(async () => {
+        await result.current.ask({ ticker: "PETR4", tab: "metrics", locale: "pt", question: `q${turn}` });
+      });
+    }
+
+    // The 6th request (index 5) carries the last 4 turns; q0 has aged out.
+    const history = bodyOf(fetchMock, 5).history as { question: string }[];
+    expect(history).toHaveLength(4);
+    expect(history[0].question).toBe("q1");
+    expect(history.some((turn) => turn.question === "q0")).toBe(false);
+  });
+
   it("aborts the in-flight request when the component unmounts", async () => {
     const neverResolves = new Promise<Response>(() => {});
     vi.stubGlobal("fetch", vi.fn().mockReturnValue(neverResolves));

@@ -13,6 +13,24 @@ export interface AssistantContext {
   question: string;
 }
 
+// One remembered exchange. The client keeps a short rolling list of these
+// per company and resends it so follow-ups ("and the year before?") have
+// context. Kept lean (no data block) so memory stays cheap.
+export interface AssistantTurn {
+  question: string;
+  answer: string;
+}
+
+// The ask body: the current context plus the rolling memory.
+export interface AssistantAskPayload extends AssistantContext {
+  history: AssistantTurn[];
+}
+
+// Mirrors the backend ASSISTANT_MAX_HISTORY_TURNS. The client caps what it
+// sends; the backend re-clamps defensively. A small window keeps every
+// follow-up prompt cheap.
+const MAX_HISTORY_TURNS = 4;
+
 // The assistant streams Server-Sent Events. In development the browser posts
 // directly to Django (cross-origin, credentialed): Next's dev server can't
 // proxy a streaming text/event-stream to a browser's incremental reader
@@ -178,14 +196,14 @@ export async function readAssistantStream(
 }
 
 export function buildAskRequest(
-  context: AssistantContext,
+  payload: AssistantContext | AssistantAskPayload,
   signal: AbortSignal,
 ): RequestInit {
   return {
     method: "POST",
     credentials: "include",
     headers: csrfHeaders(),
-    body: JSON.stringify(context),
+    body: JSON.stringify(payload),
     signal,
   }
 }
@@ -193,18 +211,34 @@ export function buildAskRequest(
 export function useAssistantStream() {
   const [state, setState] = useState<AssistantState>(INITIAL_ASSISTANT_STATE);
   const controllerRef = useRef<AbortController | null>(null);
+  // Rolling per-company memory. A ref, not state: it must survive re-renders
+  // but changing it should never re-render on its own.
+  const historyRef = useRef<AssistantTurn[]>([]);
+  const historyTickerRef = useRef<string | null>(null);
 
   const ask = useCallback(async (context: AssistantContext) => {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
 
+    // Memory is scoped to one company: a PETR4 thread must not bleed into an
+    // AAPL one, so a ticker change clears the rolling history.
+    if (context.ticker !== historyTickerRef.current) {
+      historyRef.current = [];
+      historyTickerRef.current = context.ticker;
+    }
+
     setState({...INITIAL_ASSISTANT_STATE, status: "submitting"});
+
+    const payload: AssistantAskPayload = {
+      ...context,
+      history: historyRef.current,
+    };
 
     try {
       const response = await fetch(
         ASSISTANT_ASK_URL,
-        buildAskRequest(context, controller.signal),
+        buildAskRequest(payload, controller.signal),
       );
 
       if (!response.ok) {
@@ -230,6 +264,19 @@ export function useAssistantStream() {
           status: "error",
           errorCode: "assistant_interrupted",
         });
+        return;
+      }
+
+      // Remember only genuine answered turns. Off-topic redirects (canned
+      // copy — note the stream still ends on `done`, so we gate on the
+      // classification, not the status) and errors carry no signal worth
+      // resending, and remembering them would waste tokens on every later
+      // turn. Newest-wins: drop the oldest beyond the cap.
+      if (finalState.status === "done" && finalState.classification === "on_topic") {
+        historyRef.current = [
+          ...historyRef.current,
+          { question: context.question, answer: finalState.answer },
+        ].slice(-MAX_HISTORY_TURNS);
       }
     } catch (error) {
       // An abort is deliberate (Stop button or unmount), not a failure.

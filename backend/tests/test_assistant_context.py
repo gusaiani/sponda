@@ -14,7 +14,9 @@ class TestBuildCompanyContext:
         must sit inside <COMPANY_DATA>…</COMPANY_DATA> so the system prompt
         can tell the model to treat it strictly as data, never instructions.
         """
-        fake_payload = {"display_name": "Petróleo Brasileiro", "pe10": 4.2}
+        # Real payload keys: the quote payload exposes `name`, not
+        # `display_name` (the context layer relabels it for the LLM).
+        fake_payload = {"name": "Petróleo Brasileiro", "pe10": 4.2}
 
         with patch(
             "assistant.context._compute_quote_payload",
@@ -39,13 +41,15 @@ class TestBuildCompanyContext:
         excluded — they balloon the prompt and the LLM doesn't need them
         to answer a valuation question.
         """
+        # Real payload keys (camelCase): `currentPrice`, plus the verbose
+        # *CalculationDetails* dict that must never leak into the prompt.
         fake_payload = {
-            "display_name": "Petróleo Brasileiro",
+            "name": "Petróleo Brasileiro",
             "pe10": 4.2,
             "pfcf10": 3.1,
             "peg": 0.8,
-            "current_price": 38.5,
-            "pe10_calculation_details": {"intermediate": "noise…"},   # must NOT leak
+            "currentPrice": 38.5,
+            "pe10CalculationDetails": {"intermediate": "noise…"},   # must NOT leak
         }
 
         with patch(
@@ -63,8 +67,9 @@ class TestBuildCompanyContext:
         assert "pfcf10: 3.1" in context
         assert "peg: 0.8" in context
         assert "current_price: 38.5" in context
-        # Cost defense: verbose calc-details blocks must NOT appear in the prompt
-        assert "calculation_details" not in context
+        # Cost defense: verbose calc-details blocks must NOT appear in the
+        # prompt. The allowlist of named fields guarantees this by construction.
+        assert "calculation_details" not in context.lower()
         assert "intermediate" not in context
 
     @pytest.mark.django_db
@@ -111,6 +116,62 @@ class TestBuildCompanyContext:
         assert "your_note: Watching the dividend payout ratio." in context
         assert "your_alert: pe10 lte 5" in context
 
+    def test_fundamentals_tab_adds_balance_sheet_fields(self):
+        """The data block follows the open tab. On the fundamentals tab the
+        model should see the leverage / balance-sheet numbers the user is
+        looking at, so it can answer about debt without the client resending
+        what the server already computed.
+        """
+        fake_payload = {
+            "name": "Petróleo Brasileiro",
+            "pe10": 4.2,
+            "debtToEquity": 0.85,
+            "currentRatio": 1.4,
+            "totalDebt": 300_000,
+        }
+
+        with patch(
+            "assistant.context._compute_quote_payload",
+            return_value=fake_payload,
+        ):
+            context = build_company_context(
+                ticker="PETR4",
+                tab="fundamentals",
+                locale="pt",
+                user=None,
+            )
+
+        assert "debt_to_equity: 0.85" in context
+        assert "current_ratio: 1.4" in context
+        assert "total_debt: 300000" in context
+
+    def test_metrics_tab_omits_fundamentals_only_fields(self):
+        """Tab scoping is exclusive: a balance-sheet field offered only on the
+        fundamentals tab must NOT appear on the metrics tab, so every prompt
+        carries just the numbers on screen, not the whole payload.
+        """
+        fake_payload = {
+            "name": "Petróleo Brasileiro",
+            "pe10": 4.2,
+            "debtToEquity": 0.85,
+        }
+
+        with patch(
+            "assistant.context._compute_quote_payload",
+            return_value=fake_payload,
+        ):
+            context = build_company_context(
+                ticker="PETR4",
+                tab="metrics",
+                locale="pt",
+                user=None,
+            )
+
+        # Base fields always present...
+        assert "pe10: 4.2" in context
+        # ...but the fundamentals-only field is scoped out.
+        assert "debt_to_equity" not in context
+
     def test_truncates_oversized_payload(self):
         """A pathological payload (e.g. a runaway string field, future bloat)
         cannot blow the context window or the per-call cost.
@@ -122,7 +183,7 @@ class TestBuildCompanyContext:
         from assistant.context import MAX_CONTEXT_CHARS
 
         huge_value = "x" * 20_000
-        fake_payload = {"display_name": huge_value}
+        fake_payload = {"name": huge_value}
 
         with patch(
             "assistant.context._compute_quote_payload",

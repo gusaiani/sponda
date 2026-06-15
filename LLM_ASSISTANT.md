@@ -14,15 +14,21 @@ so users cannot turn it into a general-purpose chatbot and costs stay bounded.
 
 ## How it works
 
-`POST /api/assistant/ask/` with `{"ticker","tab","locale","question"}`. The client sends only a
-context **descriptor** — never financial data. The view, in order:
+`POST /api/assistant/ask/` with `{"ticker","tab","locale","question","history"}`. The client sends only a
+context **descriptor** (plus its own rolling memory) — never financial data; the server recomputes the
+numbers itself. The view, in order:
 
 1. Permission check (`IsAssistantAllowed`) — superuser-only in v1; backend-enforced, not a UI hide.
 2. Daily quota check (`assistant_quota.would_exceed_assistant_limit`) — returns 429 before any OpenAI call.
-3. **Context assembly** — reuses `quotes.views._compute_quote_payload` for the same numbers the user sees,
-   plus the `Ticker` row, plus (if authed) the latest `accounts.CompanyVisit.note` and active
-   `accounts.IndicatorAlert` rows. Wrapped in `<COMPANY_DATA>…</COMPANY_DATA>` delimiters so
-   user-authored notes cannot be interpreted as instructions.
+3. **Context assembly** (`assistant/context.py`) — reuses `quotes.views._compute_quote_payload` for the
+   same numbers the user sees. An **allowlist** of named fields is emitted (so verbose `*CalculationDetails`
+   blocks can never leak into the prompt): an always-present base set (`display_name`, `current_price`,
+   `pe10`, `pfcf10`, `peg`) plus a **tab-specific** set driven by the open tab — e.g. `fundamentals` adds
+   the leverage/balance-sheet numbers (`debt_to_equity`, `current_ratio`, `total_debt`…), `metrics` adds
+   `pfcf_peg` / CAGRs. So the model sees what's on screen without every prompt carrying the whole payload.
+   Plus (if authed) the latest `accounts.CompanyVisit.note` and active `accounts.IndicatorAlert` rows.
+   Wrapped in `<COMPANY_DATA>…</COMPANY_DATA>` delimiters so user-authored notes cannot be interpreted as
+   instructions.
 4. **Guardrail** — GPT-4o-mini with Pydantic structured output classifies `on_topic | off_topic | jailbreak`.
    Non-`on_topic` → one `off_topic` SSE frame, log row, done.
 5. **Answer** — GPT-4o streaming (`stream=True`, `include_usage=True`), strong localized system prompt.
@@ -32,6 +38,25 @@ context **descriptor** — never financial data. The view, in order:
 Streaming requires the SSE route to **bypass Next.js middleware** (`NextResponse.rewrite` buffers)
 and **nginx proxy buffering** (`X-Accel-Buffering: no`, `proxy_buffering off`) — same pattern as
 `/api/logos/`. See deploy step.
+
+## Conversation memory
+
+Follow-ups work: "Is it cheap?" → "And on PFCF10?" keeps context. Memory is **bounded by design** so a
+long session can't balloon prompt cost.
+
+- **Client** (`useAssistantStream`) keeps a rolling per-company list of `{question, answer}` turns in a
+  ref. It resends the list on each `ask`, appends a turn only when the stream ends on a genuine
+  `on_topic` answer (off-topic redirects and errors are not remembered), caps it to the last
+  `MAX_HISTORY_TURNS` (4, newest-wins), and **clears it when the ticker changes** (a PETR4 thread never
+  bleeds into AAPL).
+- **Server** never trusts the client to bound itself: `assistant/history.py::build_history_messages`
+  re-clamps the incoming list — drops incomplete/malformed entries, keeps the last
+  `ASSISTANT_MAX_HISTORY_TURNS` pairs, truncates each question to `ASSISTANT_MAX_QUESTION_CHARS` and each
+  answer to `ASSISTANT_MAX_HISTORY_ANSWER_CHARS`. The clamped turns are interleaved as lean
+  `user`/`assistant` messages **between the system prompt and the current question**, in both the
+  guardrail call (so short follow-ups classify as on-topic) and the answer call. Only the current turn
+  carries the fresh `<COMPANY_DATA>` block — history stays plain text, so memory is cheap and the data
+  always reflects the page the user is on *now*.
 
 ## Error handling
 
@@ -80,8 +105,10 @@ free trial on is one env var; adding paying users is one function body once bill
 | `ASSISTANT_GUARD_MODEL` | `gpt-4o-mini` | Cheap classifier for the topic guardrail. |
 | `ASSISTANT_PAYING_PER_DAY` | `200` | Per-day quota for the `paying` tier (when billing lands). |
 | `ASSISTANT_FREE_TRIAL_PER_DAY` | `0` | Per-day free-trial quota. `0` ⇒ trial disabled. |
-| `ASSISTANT_MAX_QUESTION_CHARS` | `1000` | Per-request input cap, enforced before OpenAI is called. |
+| `ASSISTANT_MAX_QUESTION_CHARS` | `1000` | Per-request input cap, enforced before OpenAI is called. Also caps each remembered question. |
 | `ASSISTANT_GLOBAL_DAILY_USD_CAP` | `10.0` | Global per-day USD kill-switch across all tiers. |
+| `ASSISTANT_MAX_HISTORY_TURNS` | `4` | Max remembered Q&A pairs per session (oldest dropped first). The per-session cost ceiling. |
+| `ASSISTANT_MAX_HISTORY_ANSWER_CHARS` | `2000` | Truncates each remembered answer before it re-enters the prompt. |
 
 ## Local testing
 
