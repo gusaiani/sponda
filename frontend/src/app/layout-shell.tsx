@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { AssistantBar } from "../components/assistant/AssistantBar";
+import { AssistantWindowProvider } from "../components/assistant/AssistantWindowContext";
 import { SearchBar } from "../components/SearchBar";
 import { AuthHeader } from "../components/AuthHeader";
 import { FeedbackProvider } from "../components/FeedbackButton";
@@ -116,6 +117,7 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
   );
 
   return (
+    <AssistantWindowProvider>
     <div className="app-container">
       {isOnAuthPage ? (
         <header className="app-header app-header-auth">
@@ -191,6 +193,7 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
         </a>
       </footer>
     </div>
+    </AssistantWindowProvider>
   );
 }
 

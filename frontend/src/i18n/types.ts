@@ -689,6 +689,8 @@ export interface TranslationDictionary {
   "assistant.placeholder": string;
   "assistant.send": string;
   "assistant.stop": string;
+  "assistant.close": string;
+  "assistant.open": string;
   "assistant.error.upstream_timeout": string;
   "assistant.error.rate_limited": string;
   "assistant.error.internal": string;

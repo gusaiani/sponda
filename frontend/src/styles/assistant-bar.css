@@ -28,6 +28,90 @@
     0 12px 32px rgba(15, 29, 66, 0.14);
 }
 
+/* Header strip holding the close affordance, right-aligned above the thread. */
+.assistant-bar-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.assistant-bar-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-muted);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.assistant-bar-close:hover {
+  color: var(--color-ink);
+  background: #f1f5f9;
+}
+
+/* Collapsed state: a circular spark button that brings the assistant back.
+ * pointer-events re-enabled (the bar wrapper is click-through). */
+.assistant-bar-launcher {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  font-size: 20px;
+  color: #ffffff;
+  background: #1b347e;
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 29, 66, 0.28);
+  transition: background-color 0.15s, transform 0.15s;
+}
+
+.assistant-bar-launcher:hover {
+  background: #0f1d42;
+  transform: translateY(-1px);
+}
+
+/* The session thread: every question→answer exchange, scrolling within a
+ * capped height so a long conversation never pushes the input off-screen. The
+ * panel still grows upward to this cap. */
+.assistant-bar-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* One question→answer exchange. */
+.assistant-bar-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The user's submitted question, shown above its answer. Bold, no background —
+ * reads as the question heading for the answer that follows, distinct from the
+ * assistant's regular-weight prose. */
+.assistant-bar-question {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* Streamed answer / off-topic redirect. Light surface, generous line
  * height for readability, capped height with its own scroll so a long
  * GPT-4o answer never pushes the input off-screen. */
@@ -40,8 +124,6 @@
   border: 1px solid var(--color-border);
   border-radius: 12px;
   padding: 12px 14px;
-  max-height: 40vh;
-  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
 }

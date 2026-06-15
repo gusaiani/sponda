@@ -67,6 +67,7 @@ import { useTickerDetail } from "../../../hooks/useTickerDetail";
 import { usePeers } from "../../../hooks/usePeers";
 import { useMultiplesHistory, fetchMultiplesHistory } from "../../../hooks/useMultiplesHistory";
 import { deriveForYears } from "../../../hooks/deriveForYears";
+import { useSetAssistantWindow } from "../../../components/assistant/AssistantWindowContext";
 import { fetchFundamentals, useFundamentals } from "../../../hooks/useFundamentals";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl, currencyCode } from "../../../utils/format";
@@ -196,6 +197,14 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     () => fullData ? deriveForYears(fullData, effectiveYears) : null,
     [fullData, effectiveYears],
   );
+
+  // Share the active PRAZO window with the floating AssistantBar (it lives in
+  // the layout shell, a sibling of this page), so the assistant reasons over
+  // the same windowed numbers the user is viewing.
+  const setAssistantWindow = useSetAssistantWindow();
+  useEffect(() => {
+    setAssistantWindow(effectiveYears);
+  }, [setAssistantWindow, effectiveYears]);
 
   // Pin the floating slider to the tab-bar row. The tab bar's Y shifts
   // after first paint (company header mounts when fullData arrives, web

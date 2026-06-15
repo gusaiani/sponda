@@ -41,7 +41,29 @@ def _sse_frame(event: str, data: dict | str) -> bytes:
     payload = json.dumps(data, ensure_ascii=False)
     return f"event: {event}\ndata: {payload}\n\n".encode()
 
-def _event_stream(*, ticker, tab, locale, question, history_messages, user):
+# The PRAZO slider's valid range, mirrored from the frontend
+# (ticker-client.tsx clamps to 1..20). Anything outside is ignored — the
+# context falls back to the canonical all-history window.
+MIN_WINDOW_YEARS = 1
+MAX_WINDOW_YEARS = 20
+
+
+def _parse_window_years(raw):
+    """Coerce the client-sent PRAZO window to a valid int, or None.
+
+    Untrusted input: a non-int or out-of-range value degrades to None (no
+    windowed recompute) rather than raising.
+    """
+    try:
+        years = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if MIN_WINDOW_YEARS <= years <= MAX_WINDOW_YEARS:
+        return years
+    return None
+
+
+def _event_stream(*, ticker, tab, locale, question, years, history_messages, user):
     """Yield the SSE frames for one assistant response.
 
     Pulled into its own generator so the view body stays linear and
@@ -61,7 +83,7 @@ def _event_stream(*, ticker, tab, locale, question, history_messages, user):
     usage = None
 
     try:
-        company_context = build_company_context(ticker, tab, locale, user)
+        company_context = build_company_context(ticker, tab, locale, user, years=years)
         verdict = classify_question(
             question=question,
             company_context=company_context,
@@ -189,6 +211,7 @@ def ask(request):
     tab = (payload.get("tab") or "").strip()
     locale = (payload.get("locale") or "en").strip()
     question = (payload.get("question") or "").strip()
+    years = _parse_window_years(payload.get("years"))
 
     if not question:
         return HttpResponseBadRequest("question is required")
@@ -218,6 +241,7 @@ def ask(request):
             tab=tab,
             locale=locale,
             question=question,
+            years=years,
             history_messages=history_messages,
             user=request.user,
         ),

@@ -385,6 +385,85 @@ class TestAskView:
         classify.assert_not_called()
         get_client.assert_not_called()
 
+    def test_window_years_is_threaded_into_context(self, superuser_client):
+        """The PRAZO slider window rides the request and must reach
+        build_company_context, so the data block reflects the window the user
+        is viewing — not the backend's all-history default.
+        """
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+        token_chunk = MagicMock()
+        token_chunk.choices = [MagicMock(delta=MagicMock(content="ok"))]
+        token_chunk.usage = None
+
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = iter([token_chunk, usage_chunk])
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: WEGE3\n</COMPANY_DATA>",
+        ) as build_context, patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic"),
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "WEGE3",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is it cheap?",
+                    "years": 5,
+                },
+                content_type="application/json",
+            )
+            b"".join(response.streaming_content)
+
+        assert build_context.call_args.kwargs["years"] == 5
+
+    def test_out_of_range_window_years_is_ignored(self, superuser_client):
+        """Untrusted input: a window outside the slider's 1..20 range degrades
+        to None (no windowed recompute), never raises or feeds a garbage
+        window into the calc.
+        """
+        usage_chunk = MagicMock()
+        usage_chunk.choices = [MagicMock(delta=MagicMock(content=None))]
+        usage_chunk.usage = MagicMock(prompt_tokens=1, completion_tokens=1)
+        token_chunk = MagicMock()
+        token_chunk.choices = [MagicMock(delta=MagicMock(content="ok"))]
+        token_chunk.usage = None
+        fake_client = MagicMock()
+        fake_client.chat.completions.create.return_value = iter([token_chunk, usage_chunk])
+
+        with patch(
+            "assistant.views.build_company_context",
+            return_value="<COMPANY_DATA>\nticker: WEGE3\n</COMPANY_DATA>",
+        ) as build_context, patch(
+            "assistant.views.classify_question",
+            return_value=GuardrailVerdict(classification="on_topic"),
+        ), patch(
+            "assistant.views.get_openai_client",
+            return_value=fake_client,
+        ):
+            response = superuser_client.post(
+                ASK_URL,
+                data={
+                    "ticker": "WEGE3",
+                    "tab": "metrics",
+                    "locale": "pt",
+                    "question": "Is it cheap?",
+                    "years": 999,
+                },
+                content_type="application/json",
+            )
+            b"".join(response.streaming_content)
+
+        assert build_context.call_args.kwargs["years"] is None
+
     def test_history_is_interleaved_into_answer_messages(self, superuser_client):
         """A follow-up question carries the prior Q&A so the answer model has
         context. The view must interleave the clamped history between the

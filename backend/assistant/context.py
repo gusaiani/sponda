@@ -6,7 +6,13 @@ the model to treat anything inside strictly as data, never instructions.
 """
 from __future__ import annotations
 
+from decimal import Decimal
+
 from accounts.models import CompanyVisit, IndicatorAlert
+from quotes.peg import calculate_peg
+from quotes.pe10 import calculate_pe10
+from quotes.pfcf10 import calculate_pfcf10
+from quotes.pfcf_peg import calculate_pfcf_peg
 from quotes.views import _compute_quote_payload
 
 # Each entry is (payload_key, context_label): the camelCase key as it appears
@@ -64,14 +70,74 @@ def _append_fields(lines, payload, fields):
             lines.append(f"{label}: {value}")
 
 
+def _safe_ratio(numerator, denominator):
+    """Debt-coverage ratio, guarded the same way the quote payload guards it:
+    only when the denominator is a positive number. Mirrors
+    quotes.views._compute_quote_payload so the assistant matches the page."""
+    if numerator is None or not denominator or denominator <= 0:
+        return None
+    return round(numerator / denominator, 2)
+
+
+def _windowed_metrics(ticker, payload, years):
+    """Recompute the window-dependent multiples for the user's PRAZO window.
+
+    The page derives these client-side per the slider (`deriveForYears`); the
+    backend payload's scalars use the all-history window (`max_years=50`), so
+    they don't match what's on screen. Reusing the *same* canonical calc
+    functions with the user's window guarantees the assistant sees the same
+    numbers the user does — with no second implementation to drift (the bug
+    that produced PE10 66.66 while the page showed 49.9).
+
+    Leverage / balance-sheet fields are point-in-time, not window-dependent,
+    so they are left untouched on the payload.
+    """
+    market_cap = payload.get("marketCap")
+    if market_cap is None:
+        return {}
+    market_cap = Decimal(str(market_cap))
+
+    pe10_result = calculate_pe10(ticker, market_cap, max_years=years)
+    pfcf10_result = calculate_pfcf10(ticker, market_cap, max_years=years)
+    peg_result = calculate_peg(ticker, pe10_result["pe10"], max_years=years)
+    pfcf_peg_result = calculate_pfcf_peg(
+        ticker, pfcf10_result["pfcf10"], max_years=years
+    )
+
+    total_debt = payload.get("totalDebt")
+    return {
+        "pe10": pe10_result["pe10"],
+        "pfcf10": pfcf10_result["pfcf10"],
+        "peg": peg_result["peg"],
+        "pfcfPeg": pfcf_peg_result["pfcfPeg"],
+        "earningsCAGR": peg_result.get("earningsCAGR"),
+        "fcfCAGR": pfcf_peg_result.get("fcfCAGR"),
+        "debtToAvgEarnings": _safe_ratio(
+            total_debt, pe10_result.get("avg_adjusted_net_income")
+        ),
+        "debtToAvgFCF": _safe_ratio(
+            total_debt, pfcf10_result.get("avg_adjusted_fcf")
+        ),
+    }
+
+
 def build_company_context(
     ticker: str,
     tab: str,
     locale: str,
     user,
+    years: int | None = None,
 ) -> str:
-    """Assemble the bounded data block for one company question."""
+    """Assemble the bounded data block for one company question.
+
+    `years` is the PRAZO window the user is viewing. When given, the
+    window-dependent multiples are recomputed for that window so the model
+    reasons over the same numbers on screen. When absent (legacy client / not
+    on a company page), the canonical all-history payload scalars are used.
+    """
     payload = _compute_quote_payload(ticker)
+    if years is not None:
+        payload = {**payload, **_windowed_metrics(ticker, payload, years)}
 
     lines = [f"ticker: {ticker}"]
     _append_fields(lines, payload, BASE_FIELDS)
