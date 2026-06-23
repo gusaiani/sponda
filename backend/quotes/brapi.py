@@ -6,7 +6,7 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
-from .circuit_breaker import CircuitBreaker
+from .circuit_breaker import CircuitBreaker, CircuitOpenError
 from .models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 
 # (connect, read) — fail fast on connection issues, give the read a
@@ -30,6 +30,12 @@ def _get(endpoint: str, params: dict | None = None) -> dict:
 
     try:
         response = _BREAKER.call(_do_request)
+    except CircuitOpenError as error:
+        # The breaker is open because BRAPI has been failing. Surface it as a
+        # BRAPIError so it flows through the normal provider-degradation path
+        # (ProviderError-tolerant tasks, quarterly->annual fallbacks) instead
+        # of escaping uncaught and flooding Sentry.
+        raise BRAPIError(f"BRAPI circuit open: {error}") from error
     except requests.RequestException as error:
         raise BRAPIError(f"BRAPI request failed: {error}") from error
     if response.status_code != 200:
