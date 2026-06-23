@@ -9,6 +9,7 @@ from django.test.utils import CaptureQueriesContext
 
 from quotes.brapi import (
     BRAPIError,
+    _get,
     fetch_financial_data,
     fetch_historical_prices,
     fetch_income_statements,
@@ -18,7 +19,23 @@ from quotes.brapi import (
     sync_ipca,
     sync_earnings,
 )
+from quotes.circuit_breaker import CircuitOpenError
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+
+
+class TestGetWrapsCircuitOpen:
+    """An open breaker must surface as BRAPIError, not a bare CircuitOpenError.
+
+    Otherwise it escapes every ``except BRAPIError`` / ``except ProviderError``
+    handler in the refresh pipeline and floods Sentry instead of degrading
+    gracefully like any other provider outage.
+    """
+
+    @patch("quotes.brapi._BREAKER")
+    def test_open_breaker_raises_brapi_error(self, mock_breaker):
+        mock_breaker.call.side_effect = CircuitOpenError("Circuit 'brapi' is open")
+        with pytest.raises(BRAPIError, match="circuit"):
+            _get("/quote/PETR4")
 
 
 MOCK_QUOTE_RESPONSE = {

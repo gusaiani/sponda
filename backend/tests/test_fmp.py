@@ -7,8 +7,10 @@ import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
+from quotes.circuit_breaker import CircuitOpenError
 from quotes.fmp import (
     FMPError,
+    _get,
     fetch_balance_sheets,
     fetch_cash_flow_statements,
     fetch_dividends,
@@ -22,6 +24,16 @@ from quotes.fmp import (
     sync_us_cpi,
 )
 from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings, USCPIIndex
+
+
+class TestGetWrapsCircuitOpen:
+    """An open breaker must surface as FMPError, not a bare CircuitOpenError."""
+
+    @patch("quotes.fmp._BREAKER")
+    def test_open_breaker_raises_fmp_error(self, mock_breaker):
+        mock_breaker.call.side_effect = CircuitOpenError("Circuit 'fmp' is open")
+        with pytest.raises(FMPError, match="circuit"):
+            _get("/stable/quote", params={"symbol": "AAPL"})
 
 
 MOCK_QUOTE_RESPONSE = [

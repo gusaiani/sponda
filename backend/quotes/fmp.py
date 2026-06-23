@@ -5,7 +5,7 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
-from .circuit_breaker import CircuitBreaker
+from .circuit_breaker import CircuitBreaker, CircuitOpenError
 from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings, Ticker, USCPIIndex
 
 _HTTP_TIMEOUT = (3, 8)
@@ -26,6 +26,11 @@ def _get(endpoint: str, params: dict | None = None) -> dict | list:
 
     try:
         response = _BREAKER.call(_do_request)
+    except CircuitOpenError as error:
+        # The breaker is open because FMP has been failing. Surface it as an
+        # FMPError so it flows through the normal provider-degradation path
+        # instead of escaping uncaught and flooding Sentry.
+        raise FMPError(f"FMP circuit open: {error}") from error
     except requests.RequestException as error:
         raise FMPError(f"FMP request failed: {error}") from error
     if response.status_code != 200:
