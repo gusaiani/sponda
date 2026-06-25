@@ -241,8 +241,10 @@
 .metric-block--graph {
   @apply flex-col items-stretch;
   justify-content: flex-start;
-  /* Same top-band reserve as .metric-block (absolute action buttons). */
-  padding: 38px 12px 12px;
+  /* No top-band reserve: the absolute action buttons are allowed to overlap
+   * the label/chart on hover rather than push the content down with an ugly
+   * empty band at rest. */
+  padding: 12px;
   min-height: 100px;
 }
 
@@ -261,7 +263,7 @@
 @media (min-width: 768px) {
   .metric-block--graph {
     @apply flex-row items-stretch;
-    padding: 38px 12px 0 12px;
+    padding: 12px;
   }
 
   .metric-block--graph .metric-value-container {
