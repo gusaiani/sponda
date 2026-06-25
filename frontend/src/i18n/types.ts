@@ -298,6 +298,7 @@ export interface TranslationDictionary {
   "metrics.copy_link": string;
   "metrics.link_copied": string;
   "metrics.share_indicator": string;
+  "metrics.expand_chart": string;
   "metrics.error.no_earnings_data": string;
   "metrics.error.no_cashflow_data": string;
   "metrics.error.pe_unavailable": string;
