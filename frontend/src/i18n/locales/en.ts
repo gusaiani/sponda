@@ -298,6 +298,7 @@ export const en: TranslationDictionary = {
   "metrics.copy_link": "Copy link",
   "metrics.link_copied": "Copied!",
   "metrics.share_indicator": "Share this indicator",
+  "metrics.expand_chart": "View chart in detail",
   "metrics.error.no_earnings_data": "No earnings data available",
   "metrics.error.no_cashflow_data": "No cash flow data available",
   "metrics.error.pe_unavailable": "PE unavailable",

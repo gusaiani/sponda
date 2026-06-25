@@ -298,6 +298,7 @@ export const zh: TranslationDictionary = {
   "metrics.copy_link": "复制链接",
   "metrics.link_copied": "已复制！",
   "metrics.share_indicator": "分享此指标",
+  "metrics.expand_chart": "查看详细图表",
   "metrics.error.no_earnings_data": "暂无盈利数据",
   "metrics.error.no_cashflow_data": "暂无现金流数据",
   "metrics.error.pe_unavailable": "PE 不可用",
