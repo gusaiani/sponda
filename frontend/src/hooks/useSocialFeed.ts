@@ -65,6 +65,9 @@ export function useCreateSpond() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["social-feed"] });
       queryClient.invalidateQueries({ queryKey: ["social-profile"] });
+      // Refresh any already-expanded thread so an inline reply shows up
+      // immediately under its parent in the feed.
+      queryClient.invalidateQueries({ queryKey: ["social-thread"] });
     },
   });
 }
