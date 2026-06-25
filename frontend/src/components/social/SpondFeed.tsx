@@ -33,7 +33,7 @@ export function SpondFeed({ kind, ticker }: Props) {
   return (
     <div>
       {all.map((spond) => (
-        <SpondThread key={spond.id} spond={spond} />
+        <SpondThread key={spond.id} spond={spond} inlineReply />
       ))}
       {query.hasNextPage && (
         <div style={{ textAlign: "center", padding: "12px" }}>
