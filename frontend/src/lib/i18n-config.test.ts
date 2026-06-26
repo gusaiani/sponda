@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { detectLocaleFromHeader } from "./i18n-config";
+import {
+  detectLocaleFromHeader,
+  NOINDEX_LOCALES,
+  isNoindexLocale,
+  robotsForLocale,
+  INDEXABLE_LOCALES,
+  SUPPORTED_LOCALES,
+} from "./i18n-config";
 
 describe("detectLocaleFromHeader", () => {
   it("returns en when header is null", () => {
@@ -48,5 +55,31 @@ describe("detectLocaleFromHeader", () => {
 
   it("is case-insensitive", () => {
     expect(detectLocaleFromHeader("FR-FR,FR;q=0.9")).toBe("fr");
+  });
+});
+
+describe("noindex locale policy", () => {
+  it("marks zh as noindex (scraper-dominated, no real audience)", () => {
+    expect(NOINDEX_LOCALES.has("zh")).toBe(true);
+    expect(isNoindexLocale("zh")).toBe(true);
+  });
+
+  it("keeps the primary locales indexable", () => {
+    for (const locale of ["pt", "en"] as const) {
+      expect(isNoindexLocale(locale)).toBe(false);
+    }
+  });
+
+  it("robotsForLocale returns noindex for zh and index for others", () => {
+    expect(robotsForLocale("zh")).toBe("noindex, follow");
+    expect(robotsForLocale("pt")).toBe("index, follow");
+    expect(robotsForLocale("en")).toBe("index, follow");
+  });
+
+  it("INDEXABLE_LOCALES is every supported locale minus the noindex set", () => {
+    expect(INDEXABLE_LOCALES).not.toContain("zh");
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(INDEXABLE_LOCALES.includes(locale)).toBe(!isNoindexLocale(locale));
+    }
   });
 });

@@ -30,6 +30,29 @@ export function isSupportedLocale(value: string): value is SupportedLocale {
   return SUPPORTED_LOCALES.includes(value as SupportedLocale);
 }
 
+/** Locales we serve but do not want search engines to index.
+ *
+ * `zh` is kept reachable for any genuine visitor but excluded from indexing:
+ * its traffic is overwhelmingly automated scraping rather than a real
+ * audience, so indexing it only invites more low-value crawl load. */
+export const NOINDEX_LOCALES: ReadonlySet<SupportedLocale> = new Set<SupportedLocale>([
+  "zh",
+]);
+
+export function isNoindexLocale(locale: string): boolean {
+  return NOINDEX_LOCALES.has(locale as SupportedLocale);
+}
+
+/** `<meta name="robots">` directive for a locale's pages. */
+export function robotsForLocale(locale: string): string {
+  return isNoindexLocale(locale) ? "noindex, follow" : "index, follow";
+}
+
+/** Supported locales that should appear in sitemaps and hreflang alternates. */
+export const INDEXABLE_LOCALES: SupportedLocale[] = SUPPORTED_LOCALES.filter(
+  (locale) => !isNoindexLocale(locale),
+);
+
 /** Mapping from Accept-Language prefix to supported locale. */
 const LANG_PREFIX_TO_LOCALE: [string, SupportedLocale][] = [
   ["pt", "pt"],

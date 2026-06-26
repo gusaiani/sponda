@@ -3,7 +3,7 @@ import Script from "next/script";
 import { notFound } from "next/navigation";
 import { Providers } from "../providers";
 import { LayoutShell } from "../layout-shell";
-import { SUPPORTED_LOCALES, isSupportedLocale, LOCALE_TO_HTML_LANG, LOCALE_TO_OG_LOCALE } from "../../lib/i18n-config";
+import { INDEXABLE_LOCALES, isSupportedLocale, robotsForLocale, LOCALE_TO_HTML_LANG, LOCALE_TO_OG_LOCALE } from "../../lib/i18n-config";
 import { getOgImageUrl } from "../../lib/metadata";
 import type { Locale } from "../../i18n/types";
 
@@ -69,9 +69,10 @@ export async function generateMetadata({ params }: LocaleLayoutProps): Promise<M
     it: "analisi fondamentale, indicatori fondamentali, Shiller PE, PE10, CAPE, P/E, investimento di valore, mercato azionario, azioni globali",
   };
 
-  // Build hreflang alternates for all supported locales
+  // Build hreflang alternates for indexable locales only — a noindex locale
+  // (e.g. zh) must not be advertised as a crawlable alternate.
   const alternateLanguages: Record<string, string> = {};
-  for (const loc of SUPPORTED_LOCALES) {
+  for (const loc of INDEXABLE_LOCALES) {
     const key = loc === "pt" ? "pt-BR" : loc;
     alternateLanguages[key] = `/${loc}`;
   }
@@ -82,7 +83,7 @@ export async function generateMetadata({ params }: LocaleLayoutProps): Promise<M
     description,
     keywords: KEYWORDS[locale] || KEYWORDS.en,
     authors: [{ name: "Poema Parceria de Investimentos", url: "https://poe.ma" }],
-    robots: "index, follow",
+    robots: robotsForLocale(locale),
     metadataBase: new URL(BASE_URL),
     alternates: {
       canonical: `/${locale}`,

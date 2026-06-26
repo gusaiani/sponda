@@ -238,6 +238,138 @@ class TestPE10ViewEnforcement:
         ).exists()
 
 
+class TestDataEndpointEnforcement:
+    """The heavy ticker DATA endpoints (multiples-history, fundamentals) must
+    enforce the same daily distinct-company cap as PE10View.
+
+    Otherwise a client that skips the main quote page can still enumerate the
+    whole catalogue through these unmetered sub-endpoints, hitting providers
+    for every ticker. Enforcement must short-circuit *before* any provider
+    call, exactly like PE10View.
+    """
+
+    def _seed_ip(self, ip, tickers):
+        from quotes.client_ip import client_ip_hash
+        from django.test import RequestFactory
+        r = RequestFactory().get("/")
+        r.META["HTTP_CF_CONNECTING_IP"] = ip
+        h = client_ip_hash(r)
+        for t in tickers:
+            LookupLog.objects.create(ticker=t, ip_hash=h)
+        return h
+
+    @pytest.fixture
+    def no_provider_calls(self, monkeypatch):
+        """Fail loudly if enforcement ever lets a request reach a provider."""
+        import quotes.views as views
+
+        def _boom(*_a, **_k):  # pragma: no cover - asserted via not-called
+            raise AssertionError("provider was called despite over-cap request")
+
+        monkeypatch.setattr(views, "_ensure_fresh_data", _boom)
+        monkeypatch.setattr(views, "fetch_quote", _boom)
+
+    def test_multiples_history_over_cap_gets_429(
+        self, api_client, db, settings, no_provider_calls
+    ):
+        settings.SPONDA_ANON_LOOKUPS_PER_DAY = 3
+        self._seed_ip("203.0.113.40", ["AAA", "BBB", "CCC"])
+        resp = api_client.get(
+            "/api/quote/DDDD/multiples-history/",
+            HTTP_CF_CONNECTING_IP="203.0.113.40",
+        )
+        assert resp.status_code == 429
+        body = resp.json()
+        assert body["code"] == "lookup_limit"
+        assert body["scope"] == "anonymous"
+        assert "no-store" in resp.headers.get("Cache-Control", "")
+
+    def test_fundamentals_over_cap_gets_429(
+        self, api_client, db, settings, no_provider_calls
+    ):
+        settings.SPONDA_ANON_LOOKUPS_PER_DAY = 3
+        self._seed_ip("203.0.113.41", ["AAA", "BBB", "CCC"])
+        resp = api_client.get(
+            "/api/quote/DDDD/fundamentals/",
+            HTTP_CF_CONNECTING_IP="203.0.113.41",
+        )
+        assert resp.status_code == 429
+        assert resp.json()["code"] == "lookup_limit"
+
+    def test_over_cap_data_request_is_not_logged(
+        self, api_client, db, settings, no_provider_calls
+    ):
+        from quotes.client_ip import client_ip_hash
+        from django.test import RequestFactory
+
+        settings.SPONDA_ANON_LOOKUPS_PER_DAY = 1
+        self._seed_ip("203.0.113.42", ["AAA"])
+        api_client.get(
+            "/api/quote/NOPE/fundamentals/",
+            HTTP_CF_CONNECTING_IP="203.0.113.42",
+        )
+        r = RequestFactory().get("/")
+        r.META["HTTP_CF_CONNECTING_IP"] = "203.0.113.42"
+        assert not LookupLog.objects.filter(
+            ip_hash=client_ip_hash(r), ticker="NOPE"
+        ).exists()
+
+    def test_revisit_of_seen_ticker_is_not_blocked_at_quota_layer(
+        self, db, settings
+    ):
+        """A ticker already counted today must pass the quota gate even when
+        the scope is otherwise over its cap (mirrors PE10View revisit rule)."""
+        from quotes.lookup_enforcement import LookupQuotaEnforcedView
+        from quotes.client_ip import client_ip_hash
+        from django.contrib.auth.models import AnonymousUser
+        from django.test import RequestFactory
+
+        settings.SPONDA_ANON_LOOKUPS_PER_DAY = 1
+        req = RequestFactory().get("/api/quote/SEEN/fundamentals/")
+        req.user = AnonymousUser()
+        req.META["HTTP_CF_CONNECTING_IP"] = "203.0.113.43"
+        LookupLog.objects.create(ticker="SEEN", ip_hash=client_ip_hash(req))
+
+        view = LookupQuotaEnforcedView()
+        assert view.enforce_lookup_quota(req, "SEEN") is None  # revisit allowed
+        assert view.enforce_lookup_quota(req, "OTHER") is not None  # new -> 429
+
+
+class TestLookupQuotaMixin:
+    """quotes.lookup_enforcement.LookupQuotaEnforcedView — the shared gate +
+    logger reused by every ticker payload endpoint."""
+
+    def test_record_lookup_persists_ip_hash_for_anon(self, db):
+        from quotes.lookup_enforcement import LookupQuotaEnforcedView
+        from quotes.client_ip import client_ip_hash
+        from django.contrib.auth.models import AnonymousUser
+        from django.contrib.sessions.middleware import SessionMiddleware
+        from django.test import RequestFactory
+
+        req = RequestFactory().get("/api/quote/PETR4/fundamentals/")
+        req.user = AnonymousUser()
+        req.META["HTTP_CF_CONNECTING_IP"] = "203.0.113.44"
+        SessionMiddleware(lambda r: None).process_request(req)
+
+        LookupQuotaEnforcedView().record_lookup(req, "PETR4")
+        assert LookupLog.objects.filter(
+            ip_hash=client_ip_hash(req), ticker="PETR4"
+        ).exists()
+
+    def test_record_lookup_attributes_to_user_when_authenticated(
+        self, db, verified_user
+    ):
+        from quotes.lookup_enforcement import LookupQuotaEnforcedView
+        from django.test import RequestFactory
+
+        req = RequestFactory().get("/api/quote/PETR4/fundamentals/")
+        req.user = verified_user
+        LookupQuotaEnforcedView().record_lookup(req, "PETR4")
+        assert LookupLog.objects.filter(
+            user=verified_user, ticker="PETR4"
+        ).exists()
+
+
 class TestQuotaViewEndpoint:
     def test_anon_quota_endpoint(self, api_client, db):
         resp = api_client.get(

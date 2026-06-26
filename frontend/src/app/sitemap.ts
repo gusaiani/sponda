@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SUPPORTED_LOCALES } from "../lib/i18n-config";
+import { INDEXABLE_LOCALES } from "../lib/i18n-config";
 import { getPopularSymbols } from "../utils/suggestedCompanies";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 
@@ -33,7 +33,7 @@ async function fetchLastUpdated(): Promise<string> {
 function buildAlternates(pathBuilder: (locale: string) => string): Record<string, string> {
   const languages: Record<string, string> = {};
 
-  for (const locale of SUPPORTED_LOCALES) {
+  for (const locale of INDEXABLE_LOCALES) {
     const key = locale === "pt" ? "pt-BR" : locale;
     languages[key] = `${BASE_URL}${pathBuilder(locale)}`;
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import sitemap from "./sitemap";
-import { SUPPORTED_LOCALES } from "../lib/i18n-config";
+import { SUPPORTED_LOCALES, INDEXABLE_LOCALES, isNoindexLocale } from "../lib/i18n-config";
 import { getPopularSymbols } from "../utils/suggestedCompanies";
 import { tabSlugForLocale } from "../utils/tabs";
 
@@ -42,16 +42,28 @@ describe("sitemap", () => {
     expect(urls).not.toContain("https://sponda.capital/en/signup");
   });
 
-  it("hreflang alternates include all supported locales", async () => {
+  it("hreflang alternates include every indexable locale", async () => {
+    const entries = await sitemap();
+    const homeEntry = entries.find((e) => e.url === "https://sponda.capital/en");
+    const languages = homeEntry?.alternates?.languages as Record<string, string>;
+
+    for (const locale of INDEXABLE_LOCALES) {
+      const key = locale === "pt" ? "pt-BR" : locale;
+      expect(languages[key]).toBe(`https://sponda.capital/${locale}`);
+    }
+    expect(languages["x-default"]).toBe("https://sponda.capital/en");
+  });
+
+  it("omits noindex locales (zh) from hreflang alternates", async () => {
     const entries = await sitemap();
     const homeEntry = entries.find((e) => e.url === "https://sponda.capital/en");
     const languages = homeEntry?.alternates?.languages as Record<string, string>;
 
     for (const locale of SUPPORTED_LOCALES) {
-      const key = locale === "pt" ? "pt-BR" : locale;
-      expect(languages[key]).toBe(`https://sponda.capital/${locale}`);
+      if (isNoindexLocale(locale)) {
+        expect(languages[locale]).toBeUndefined();
+      }
     }
-    expect(languages["x-default"]).toBe("https://sponda.capital/en");
   });
 
   it("uses real lastModified from health endpoint", async () => {

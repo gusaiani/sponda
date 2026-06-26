@@ -31,6 +31,7 @@ PE10_CLIENT_CACHE_TTL = 60 * 60
 from .client_ip import client_ip_hash
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
+from .lookup_enforcement import LookupQuotaEnforcedView
 from .lookup_quota import lookup_quota, would_exceed_limit
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .tasks import refresh_provider_data
@@ -924,48 +925,26 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
     return result
 
 
-class PE10View(APIView):
+class PE10View(LookupQuotaEnforcedView, APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
         # Enforce the daily distinct-company cap before doing any work, so
         # a blocked request neither computes a payload nor burns quota.
         # Re-viewing a company already counted today is always allowed.
-        if would_exceed_limit(request, ticker):
-            quota = lookup_quota(request)
-            response = Response(
-                {
-                    "error": "lookup_limit_reached",
-                    "code": "lookup_limit",
-                    "limit": quota["limit"],
-                    "scope": quota["scope"],
-                },
-                status=status.HTTP_429_TOO_MANY_REQUESTS,
-            )
-            response["Cache-Control"] = "no-store"
-            return response
+        blocked = self.enforce_lookup_quota(request, ticker)
+        if blocked is not None:
+            return blocked
 
         try:
             result = _compute_quote_payload(ticker, request=request)
         except _QuoteError as error:
             return Response({"error": error.message}, status=error.http_status)
 
-        self._log_lookup(request, ticker)
+        self.record_lookup(request, ticker)
         response = Response(result)
         response["Cache-Control"] = f"public, max-age={PE10_CLIENT_CACHE_TTL}"
         return response
-
-    def _log_lookup(self, request, ticker):
-        if request.user.is_authenticated:
-            LookupLog.objects.create(user=request.user, ticker=ticker)
-        else:
-            if not request.session.session_key:
-                request.session.create()
-            LookupLog.objects.create(
-                session_key=request.session.session_key,
-                ip_hash=client_ip_hash(request),
-                ticker=ticker,
-            )
 
 
 class BatchQuotesView(APIView):
@@ -1081,15 +1060,23 @@ class BatchQuotesView(APIView):
             )
 
 
-class MultiplesHistoryView(APIView):
+class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
     """Return historical prices and year-end P/L, P/FCL multiples."""
 
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        # Same daily distinct-company cap as PE10View, enforced before any
+        # cache read or provider call, so this sub-endpoint can't be used to
+        # enumerate the catalogue around the main quote page's limit.
+        blocked = self.enforce_lookup_quota(request, ticker)
+        if blocked is not None:
+            return blocked
+
         cache_key = f"multiples_history:{ticker}"
         cached_result = cache.get(cache_key)
         if cached_result is not None:
+            self.record_lookup(request, ticker)
             response = Response(cached_result)
             response["Cache-Control"] = "public, max-age=3600"
             return response
@@ -1143,20 +1130,29 @@ class MultiplesHistoryView(APIView):
         )
 
         cache.set(cache_key, result, MULTIPLES_HISTORY_CACHE_TTL)
+        self.record_lookup(request, ticker)
         response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
         return response
 
 
-class FundamentalsView(APIView):
+class FundamentalsView(LookupQuotaEnforcedView, APIView):
     """Return per-year fundamental data for the Fundamentos tab."""
 
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        # Same daily distinct-company cap as PE10View, enforced before any
+        # cache read or provider call, so this sub-endpoint can't be used to
+        # enumerate the catalogue around the main quote page's limit.
+        blocked = self.enforce_lookup_quota(request, ticker)
+        if blocked is not None:
+            return blocked
+
         cache_key = f"fundamentals:{ticker}"
         cached_result = cache.get(cache_key)
         if cached_result is not None:
+            self.record_lookup(request, ticker)
             response = Response(cached_result)
             response["Cache-Control"] = "public, max-age=3600"
             return response
@@ -1229,6 +1225,7 @@ class FundamentalsView(APIView):
             "reportedCurrency": reported_currency or listing_currency,
         }
         cache.set(cache_key, result, FUNDAMENTALS_CACHE_TTL)
+        self.record_lookup(request, ticker)
         response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
         return response
