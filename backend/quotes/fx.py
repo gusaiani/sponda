@@ -53,6 +53,44 @@ def _lookup_usd_to(on_date: date_type, quote_currency: str) -> Decimal | None:
     return row.rate if row else None
 
 
+def fx_series(
+    from_currency: str,
+    to_currency: str,
+    start: date_type | None = None,
+) -> list[tuple[date_type, Decimal]]:
+    """Return the ``from_currency → to_currency`` rate at every date we hold an
+    FX anchor for, on or after ``start`` (ascending by date).
+
+    Each rate is units of ``to_currency`` per 1 unit of ``from_currency``,
+    computed via the same USD pivot as :func:`get_fx_rate`. The candidate dates
+    come from the stored USD-pivoted rows for the non-USD legs of the pair, so a
+    consumer can step-sample the result to translate a dated value series.
+
+    Returns an empty list when the currencies are identical (the caller treats
+    that as the identity conversion).
+    """
+    from_currency = from_currency.upper()
+    to_currency = to_currency.upper()
+    if from_currency == to_currency:
+        return []
+
+    non_usd_legs = {c for c in (from_currency, to_currency) if c != "USD"}
+    anchor_dates = (
+        FxRate.objects
+        .filter(base_currency="USD", quote_currency__in=non_usd_legs)
+    )
+    if start is not None:
+        anchor_dates = anchor_dates.filter(date__gte=start)
+    dates = sorted(set(anchor_dates.values_list("date", flat=True)))
+
+    series: list[tuple[date_type, Decimal]] = []
+    for on_date in dates:
+        rate = get_fx_rate(on_date, from_currency, to_currency)
+        if rate is not None:
+            series.append((on_date, rate))
+    return series
+
+
 def _resolve_listing_currency(ticker: str) -> str:
     """The currency the *quote* (price, market cap) is denominated in.
     BRL for B3 tickers, USD for everything else (FMP)."""

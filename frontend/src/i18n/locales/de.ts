@@ -219,6 +219,12 @@ export const de: TranslationDictionary = {
   "compare.list_name": "Listenname",
   "compare.data_unavailable": "Daten nicht verfügbar",
   "compare.add_company": "Unternehmen hinzufügen...",
+  "chart.scale_group": "Diagrammskala",
+  "chart.scale_absolute": "Absolut",
+  "chart.scale_indexed": "Basis 100",
+  "chart.scale_indexed_fx": "Basis 100",
+  "chart.log_scale": "Log-Skala",
+  "chart.fx_warning": "Die Umrechnung verwendet den aktuellen Wechselkurs für Daten ohne Historie.",
 
   /* ── Fundamentals ── */
   "fundamentals.nominal": "Nominal",

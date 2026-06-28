@@ -506,7 +506,7 @@ type ModalKey =
   | "pfcl10" | "pfclg" | "cagrFCF"
   | null;
 
-import { localizeLabel, formatNumber, formatLargeNumber, currencySymbol, formatQuarterLabel } from "../utils/format";
+import { localizeLabel, formatNumber, formatLargeNumber, currencySymbol, currencyCode, formatQuarterLabel } from "../utils/format";
 
 /* ── Error code → i18n key mapping ── */
 
@@ -1182,6 +1182,190 @@ const MODAL_TITLES: Record<string, (data: QuoteData, t: TFn, locale: string) => 
   cagrFCF: (_d, t) => t("modal.title.cagr_fcf"),
 };
 
+/* ── Chart series builder (shared with the comparison overlay) ── */
+
+/** The windowed company fields the chart series math reads. A subset of
+ * QuoteData / QuoteResult, so either can be passed directly. */
+export interface ChartSourceData {
+  marketCap: number | null;
+  currentPrice: number;
+  earningsCAGR: number | null;
+  fcfCAGR: number | null;
+  pe10YearsOfData: number;
+  pfcf10YearsOfData: number;
+  pe10CalculationDetails: PE10YearlyBreakdown[];
+  pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
+}
+
+/**
+ * Build every indicator's chart series from one company's windowed data. Pure
+ * and exported so the comparison overlay reuses the exact same series math for
+ * each added company instead of re-deriving it divergently.
+ */
+export function buildChartData(
+  data: ChartSourceData,
+  priceHistory: { date: string; adjustedClose: number }[] | undefined,
+  fundamentals: import("../hooks/useFundamentals").FundamentalsYear[] | undefined,
+  quarterlyRatios: import("../hooks/useFundamentals").QuarterlyBalanceRatio[] | undefined,
+  years: number,
+): Record<string, DataPoint[]> {
+  // Annual adjusted earnings/FCF indexed by year (IPCA-adjusted aggregates)
+  const earningsByYear = new Map<number, number>();
+  for (const entry of data.pe10CalculationDetails) {
+    earningsByYear.set(entry.year, entry.adjustedNetIncome);
+  }
+  const fcfByYear = new Map<number, number>();
+  for (const entry of data.pfcf10CalculationDetails) {
+    fcfByYear.set(entry.year, entry.adjustedFCF);
+  }
+
+  // Daily P/L10 = price × shares / rolling-10y-avg(adjusted net income)
+  const pe10Series = buildRollingRatioSeries(
+    priceHistory ?? [],
+    data.marketCap,
+    data.currentPrice,
+    earningsByYear,
+    years,
+  );
+  // Daily P/FCL10 = price × shares / rolling-10y-avg(adjusted FCF)
+  const pfcf10Series = buildRollingRatioSeries(
+    priceHistory ?? [],
+    data.marketCap,
+    data.currentPrice,
+    fcfByYear,
+    years,
+  );
+
+  // PEG and P/FCL/G trend like P/L10 and P/FCL10 scaled by 1/CAGR.
+  // The current CAGR is the best estimate we have for historical growth context.
+  const pegSeries: DataPoint[] = data.earningsCAGR && data.earningsCAGR > 0
+    ? pe10Series.map((p) => ({ ...p, value: p.value / data.earningsCAGR! }))
+    : [];
+  const pfcfgSeries: DataPoint[] = data.fcfCAGR && data.fcfCAGR > 0
+    ? pfcf10Series.map((p) => ({ ...p, value: p.value / data.fcfCAGR! }))
+    : [];
+
+  // Quarterly earnings series (used for CAGR earnings context chart)
+  const earningsSeries: DataPoint[] = [...data.pe10CalculationDetails]
+    .reverse()
+    .flatMap((y) =>
+      y.quarterlyDetail.length > 0
+        ? y.quarterlyDetail
+            .sort((a, b) => a.end_date.localeCompare(b.end_date))
+            .map((q) => ({
+              label: q.end_date.slice(0, 7),
+              value: q.net_income,
+              yearTick: String(y.year).slice(2),
+            }))
+        : [{ label: String(y.year), value: y.adjustedNetIncome }]
+    );
+
+  // Quarterly FCF series (used for CAGR FCF context chart)
+  const fcfSeries: DataPoint[] = [...data.pfcf10CalculationDetails]
+    .reverse()
+    .flatMap((y) =>
+      y.quarterlyDetail.length > 0
+        ? y.quarterlyDetail
+            .sort((a, b) => a.end_date.localeCompare(b.end_date))
+            .map((q) => ({
+              label: q.end_date.slice(0, 7),
+              value: q.fcf,
+              yearTick: String(y.year).slice(2),
+            }))
+        : [{ label: String(y.year), value: y.adjustedFCF }]
+    );
+
+  const debtEquitySeries: DataPoint[] = buildQuarterlyRatioSeries(
+    quarterlyRatios ?? [],
+    "debtToEquity",
+    years,
+  );
+
+  const liabEquitySeries: DataPoint[] = buildQuarterlyRatioSeries(
+    quarterlyRatios ?? [],
+    "liabilitiesToEquity",
+    years,
+  );
+
+  const currentRatioSeries: DataPoint[] = buildQuarterlyRatioSeries(
+    quarterlyRatios ?? [],
+    "currentRatio",
+    years,
+  );
+
+  // Rolling N-year debt-coverage ratios — matches the main number's formula
+  // at each historical year. N = slider window (same as PE10 / PFCF10 window).
+  const debtToEarningsSeries: DataPoint[] = buildDebtToRollingAvgSeries(
+    fundamentals ?? [],
+    "netIncomeAdjusted",
+    data.pe10YearsOfData || years,
+    years,
+  );
+
+  const debtToFCFSeries: DataPoint[] = buildDebtToRollingAvgSeries(
+    fundamentals ?? [],
+    "fcfAdjusted",
+    data.pfcf10YearsOfData || years,
+    years,
+  );
+
+  const marketCapSeries: DataPoint[] = buildMarketCapSeries(
+    priceHistory ?? [],
+    data.marketCap,
+    data.currentPrice,
+    years,
+  );
+
+  // Weekly prices from daily price history
+  const priceSeries: DataPoint[] = [];
+  if (priceHistory?.length) {
+    const currentYear = new Date().getFullYear();
+    const startYear = currentYear - years;
+    const filtered = priceHistory.filter(
+      (p) => parseInt(p.date.slice(0, 4), 10) > startYear
+    );
+    // Sample to weekly (~1 per 5 trading days)
+    const step = Math.max(1, Math.floor(filtered.length / 150));
+    for (let i = 0; i < filtered.length; i += step) {
+      const point = filtered[i];
+      const yearStr = point.date.slice(2, 4);
+      priceSeries.push({
+        label: point.date,
+        value: point.adjustedClose,
+        yearTick: yearStr,
+      });
+    }
+    // Always include the last point
+    if (filtered.length > 0) {
+      const last = filtered[filtered.length - 1];
+      if (priceSeries[priceSeries.length - 1]?.label !== last.date) {
+        priceSeries.push({
+          label: last.date,
+          value: last.adjustedClose,
+          yearTick: last.date.slice(2, 4),
+        });
+      }
+    }
+  }
+
+  return {
+    [METRIC_IDS.currentPrice]: priceSeries,
+    [METRIC_IDS.marketCap]: marketCapSeries,
+    [METRIC_IDS.pe10]: pe10Series,
+    [METRIC_IDS.peg]: pegSeries,
+    [METRIC_IDS.cagrEarnings]: earningsSeries,
+    [METRIC_IDS.pfcf10]: pfcf10Series,
+    [METRIC_IDS.pfcfg]: pfcfgSeries,
+    [METRIC_IDS.cagrFCF]: fcfSeries,
+    [METRIC_IDS.debtToEquity]: debtEquitySeries,
+    [METRIC_IDS.debtExLease]: debtEquitySeries,
+    [METRIC_IDS.liabToEquity]: liabEquitySeries,
+    [METRIC_IDS.debtToEarnings]: debtToEarningsSeries,
+    [METRIC_IDS.debtToFCF]: debtToFCFSeries,
+    [METRIC_IDS.currentRatio]: currentRatioSeries,
+  } as Record<string, DataPoint[]>;
+}
+
 /* ── Main Card ── */
 
 export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, sector, fundamentals, quarterlyRatios, priceHistory }: CompanyMetricsCardProps) {
@@ -1201,167 +1385,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
 
   /* Build chart data arrays from calculation details & fundamentals */
-  const chartData = useMemo(() => {
-    // Annual adjusted earnings/FCF indexed by year (IPCA-adjusted aggregates)
-    const earningsByYear = new Map<number, number>();
-    for (const entry of data.pe10CalculationDetails) {
-      earningsByYear.set(entry.year, entry.adjustedNetIncome);
-    }
-    const fcfByYear = new Map<number, number>();
-    for (const entry of data.pfcf10CalculationDetails) {
-      fcfByYear.set(entry.year, entry.adjustedFCF);
-    }
-
-    // Daily P/L10 = price × shares / rolling-10y-avg(adjusted net income)
-    const pe10Series = buildRollingRatioSeries(
-      priceHistory ?? [],
-      data.marketCap,
-      data.currentPrice,
-      earningsByYear,
-      years,
-    );
-    // Daily P/FCL10 = price × shares / rolling-10y-avg(adjusted FCF)
-    const pfcf10Series = buildRollingRatioSeries(
-      priceHistory ?? [],
-      data.marketCap,
-      data.currentPrice,
-      fcfByYear,
-      years,
-    );
-
-    // PEG and P/FCL/G trend like P/L10 and P/FCL10 scaled by 1/CAGR.
-    // The current CAGR is the best estimate we have for historical growth context.
-    const pegSeries: DataPoint[] = data.earningsCAGR && data.earningsCAGR > 0
-      ? pe10Series.map((p) => ({ ...p, value: p.value / data.earningsCAGR! }))
-      : [];
-    const pfcfgSeries: DataPoint[] = data.fcfCAGR && data.fcfCAGR > 0
-      ? pfcf10Series.map((p) => ({ ...p, value: p.value / data.fcfCAGR! }))
-      : [];
-
-    // Quarterly earnings series (used for CAGR earnings context chart)
-    const earningsSeries: DataPoint[] = [...data.pe10CalculationDetails]
-      .reverse()
-      .flatMap((y) =>
-        y.quarterlyDetail.length > 0
-          ? y.quarterlyDetail
-              .sort((a, b) => a.end_date.localeCompare(b.end_date))
-              .map((q) => ({
-                label: q.end_date.slice(0, 7),
-                value: q.net_income,
-                yearTick: String(y.year).slice(2),
-              }))
-          : [{ label: String(y.year), value: y.adjustedNetIncome }]
-      );
-
-    // Quarterly FCF series (used for CAGR FCF context chart)
-    const fcfSeries: DataPoint[] = [...data.pfcf10CalculationDetails]
-      .reverse()
-      .flatMap((y) =>
-        y.quarterlyDetail.length > 0
-          ? y.quarterlyDetail
-              .sort((a, b) => a.end_date.localeCompare(b.end_date))
-              .map((q) => ({
-                label: q.end_date.slice(0, 7),
-                value: q.fcf,
-                yearTick: String(y.year).slice(2),
-              }))
-          : [{ label: String(y.year), value: y.adjustedFCF }]
-      );
-
-    const sortedFundamentals = (fundamentals ?? [])
-      .sort((a, b) => a.year - b.year)
-      .slice(-years);
-
-    const debtEquitySeries: DataPoint[] = buildQuarterlyRatioSeries(
-      quarterlyRatios ?? [],
-      "debtToEquity",
-      years,
-    );
-
-    const liabEquitySeries: DataPoint[] = buildQuarterlyRatioSeries(
-      quarterlyRatios ?? [],
-      "liabilitiesToEquity",
-      years,
-    );
-
-    const currentRatioSeries: DataPoint[] = buildQuarterlyRatioSeries(
-      quarterlyRatios ?? [],
-      "currentRatio",
-      years,
-    );
-
-    // Rolling N-year debt-coverage ratios — matches the main number's formula
-    // at each historical year. N = slider window (same as PE10 / PFCF10 window).
-    const debtToEarningsSeries: DataPoint[] = buildDebtToRollingAvgSeries(
-      fundamentals ?? [],
-      "netIncomeAdjusted",
-      data.pe10YearsOfData || years,
-      years,
-    );
-
-    const debtToFCFSeries: DataPoint[] = buildDebtToRollingAvgSeries(
-      fundamentals ?? [],
-      "fcfAdjusted",
-      data.pfcf10YearsOfData || years,
-      years,
-    );
-
-    const marketCapSeries: DataPoint[] = buildMarketCapSeries(
-      priceHistory ?? [],
-      data.marketCap,
-      data.currentPrice,
-      years,
-    );
-
-    // Weekly prices from daily price history
-    const priceSeries: DataPoint[] = [];
-    if (priceHistory?.length) {
-      const currentYear = new Date().getFullYear();
-      const startYear = currentYear - years;
-      const filtered = priceHistory.filter(
-        (p) => parseInt(p.date.slice(0, 4), 10) > startYear
-      );
-      // Sample to weekly (~1 per 5 trading days)
-      const step = Math.max(1, Math.floor(filtered.length / 150));
-      for (let i = 0; i < filtered.length; i += step) {
-        const point = filtered[i];
-        const yearStr = point.date.slice(2, 4);
-        priceSeries.push({
-          label: point.date,
-          value: point.adjustedClose,
-          yearTick: yearStr,
-        });
-      }
-      // Always include the last point
-      if (filtered.length > 0) {
-        const last = filtered[filtered.length - 1];
-        if (priceSeries[priceSeries.length - 1]?.label !== last.date) {
-          priceSeries.push({
-            label: last.date,
-            value: last.adjustedClose,
-            yearTick: last.date.slice(2, 4),
-          });
-        }
-      }
-    }
-
-    return {
-      [METRIC_IDS.currentPrice]: priceSeries,
-      [METRIC_IDS.marketCap]: marketCapSeries,
-      [METRIC_IDS.pe10]: pe10Series,
-      [METRIC_IDS.peg]: pegSeries,
-      [METRIC_IDS.cagrEarnings]: earningsSeries,
-      [METRIC_IDS.pfcf10]: pfcf10Series,
-      [METRIC_IDS.pfcfg]: pfcfgSeries,
-      [METRIC_IDS.cagrFCF]: fcfSeries,
-      [METRIC_IDS.debtToEquity]: debtEquitySeries,
-      [METRIC_IDS.debtExLease]: debtEquitySeries,
-      [METRIC_IDS.liabToEquity]: liabEquitySeries,
-      [METRIC_IDS.debtToEarnings]: debtToEarningsSeries,
-      [METRIC_IDS.debtToFCF]: debtToFCFSeries,
-      [METRIC_IDS.currentRatio]: currentRatioSeries,
-    } as Record<string, DataPoint[]>;
-  }, [data.pe10CalculationDetails, data.pfcf10CalculationDetails, data.pe10YearsOfData, data.pfcf10YearsOfData, data.marketCap, data.currentPrice, data.earningsCAGR, data.fcfCAGR, fundamentals, quarterlyRatios, priceHistory, years]);
+  const chartData = useMemo(
+    () => buildChartData(data, priceHistory, fundamentals, quarterlyRatios, years),
+    [data, priceHistory, fundamentals, quarterlyRatios, years],
+  );
 
   /* Highlight metric from URL hash */
   useEffect(() => {
@@ -1680,9 +1707,18 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
 
       {expandedChart && chartData[expandedChart.metricId] && (
         <IndicatorChartModal
-          title={`${expandedChart.label} — ${data.name}`}
-          data={chartData[expandedChart.metricId]}
+          indicatorLabel={expandedChart.label}
+          metricId={expandedChart.metricId}
+          primary={{
+            ticker: data.ticker,
+            name: data.name,
+            currency: currencyCode(data.ticker),
+            points: chartData[expandedChart.metricId],
+          }}
           formatValue={chartValueFormatters[expandedChart.metricId]}
+          years={years}
+          maxYears={maxYears}
+          onYearsChange={onYearsChange}
           onClose={() => setExpandedChart(null)}
         />
       )}

@@ -219,6 +219,12 @@ export interface TranslationDictionary {
   "compare.list_name": string;
   "compare.data_unavailable": string;
   "compare.add_company": string;
+  "chart.scale_group": string;
+  "chart.scale_absolute": string;
+  "chart.scale_indexed": string;
+  "chart.scale_indexed_fx": string;
+  "chart.log_scale": string;
+  "chart.fx_warning": string;
 
   /* ── Fundamentals ── */
   "fundamentals.nominal": string;
