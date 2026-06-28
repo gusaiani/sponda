@@ -46,7 +46,11 @@ def would_exceed_assistant_limit(user) -> bool:
     if tier == "denied":
         return True
     if tier == "paying":
-        today = timezone.now().date()
+        # `created_at__date` is evaluated in the project timezone (USE_TZ), so
+        # the cap boundary must use the local date too. The UTC date would
+        # miscount near UTC midnight (00:00-03:00 in Sao Paulo), letting a
+        # capped user through or, as the tests caught, failing to count today.
+        today = timezone.localdate()
         used_today = LLMQuery.objects.filter(
             user=user,
             created_at__date=today,

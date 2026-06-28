@@ -140,6 +140,29 @@ Subsector inference is pattern-based: a per-sector list of regexes in `SUBSECTOR
 
 **API:** `GET /api/tickers/<symbol>/peers/`
 
+## Comparison chart (expanded indicator view)
+
+Clicking the expand button on any indicator card opens a full-window chart for that single indicator. Beyond the larger view it adds three things:
+
+1. **Term slider** — the same `PRAZO/TERM` slider from the page, rendered inside the modal and bound to the page's `years`. Moving it re-derives the series (for rolling indicators like P/L10 the term is the rolling window, so the curve changes, matching the headline number).
+2. **Overlay other companies** — a ticker search adds companies to the chart. Each added company's series is built with the *same* math as the primary (`deriveForYears` → `buildChartData` in `frontend/src/components/CompanyMetricsCard.tsx`), fetched on demand via `useComparisonSeries`.
+3. **Indicator-aware normalization** — how series are combined depends on the indicator's kind (`frontend/src/utils/indicatorKinds.ts`):
+
+| Kind | Indicators | Overlay behavior |
+|---|---|---|
+| `currency-abs-level` | current price | Rebased: arbitrary share-price levels and currency units are neutralized by indexing each series to 100 at a common origin. |
+| `currency-abs-size` | market cap | Rebased (growth) or FX-converted to a common currency, then rebased. |
+| `ratio` | P/L10, P/FCL10, PEG, D/E, current ratio, debt coverage, … | Overlaid raw — already currency-neutral. Optional log scale for outliers. |
+| `percent` | earnings/FCF CAGR | Overlaid raw. |
+
+For currency indicators with two or more companies, a scale toggle offers **Absolute** (single-currency only), **Base 100** (rebased in each company's local currency — price *performance*), and **Base 100 · common currency** (FX-converted to the primary company's listing currency before rebasing — *investor return*). Absolute is disabled when the companies span more than one currency, since a shared currency axis there is misleading. The alignment, rebasing, and FX-conversion math lives in `frontend/src/utils/normalizeSeries.ts`.
+
+The common-currency mode reads a historical FX path from a new endpoint. Dates without an FX anchor fall back to the latest rate, and the chart shows a note when that happens.
+
+**API:** `GET /api/fx/series/?from=<ISO>&to=<ISO>[&start=YYYY-MM-DD]` → `{ from, to, rates: [{ date, rate }] }`, where `rate` is units of `to` per 1 unit of `from`, computed via the USD pivot (see [Cross-currency indicators](#cross-currency-indicators)). Public and currency-only — no ticker, no quota.
+
+No new environment variables. To test locally: open a company page, expand any indicator, drag the term slider, and add a peer (for a cross-currency check, overlay a US ticker on a Brazilian one and switch to Base 100 · common currency).
+
 ## Logos
 
 Company logos are served through `GET /api/logos/<symbol>.png`. The resolution chain is designed so that missing logos are recoverable without code changes:

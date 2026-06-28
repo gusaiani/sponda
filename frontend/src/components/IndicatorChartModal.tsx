@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ResponsiveContainer,
@@ -12,12 +12,34 @@ import {
   Tooltip,
 } from "recharts";
 import { useTranslation } from "../i18n";
-import { formatNumber } from "../utils/format";
+import { formatNumber, currencySymbolForCode } from "../utils/format";
 import type { DataPoint } from "./MiniChart";
+import { YearsSlider } from "./YearsSlider";
+import { CompanySearchInput } from "./CompanySearchInput";
+import { indicatorKind, isRebasable } from "../utils/indicatorKinds";
+import {
+  buildAlignedDataset,
+  convertSeries,
+  hasMixedCurrencies,
+  timestampToLabel,
+  type NamedSeries,
+} from "../utils/normalizeSeries";
+import { useComparisonSeries } from "../hooks/useComparisonSeries";
+import { useFxSeriesMany } from "../hooks/useFxSeries";
 
 const DEFAULT_CHART_COLOR = "#1e40af";
 const MIN_POINTS_FOR_CHART = 2;
 const MAX_X_AXIS_TICKS = 12;
+
+/** Distinct per-company line colors. Index 0 is the primary company. */
+const SERIES_COLORS = [
+  "#1e40af",
+  "#d97706",
+  "#16a34a",
+  "#8b5cf6",
+  "#06b6d4",
+  "#db2777",
+];
 
 function makeDefaultFormat(locale: string) {
   return (value: number): string => {
@@ -156,29 +178,174 @@ export function ExpandButton({ label, onClick }: ExpandButtonProps) {
   );
 }
 
+/* ── Multi-company comparison chart ── */
+
+type ScaleMode = "absolute" | "indexed" | "indexed-fx";
+
+function ComparisonTooltip({ active, payload, label, names, formatValue, indexed, locale }: {
+  active?: boolean;
+  payload?: { value: number | null; dataKey: string; color: string }[];
+  label?: number;
+  names: Record<string, string>;
+  formatValue: (value: number) => string;
+  indexed: boolean;
+  locale: string;
+}) {
+  if (!active || !payload?.length || label == null) return null;
+  const rows = payload.filter((row) => row.value != null);
+  if (!rows.length) return null;
+  return (
+    <div className="detailed-chart-tooltip">
+      <span className="detailed-chart-tooltip-label">{timestampToLabel(Number(label))}</span>
+      {rows.map((row) => (
+        <span key={row.dataKey} className="detailed-chart-tooltip-row" style={{ color: row.color }}>
+          <span className="detailed-chart-tooltip-name">{names[row.dataKey] ?? row.dataKey}</span>
+          <span className="detailed-chart-tooltip-value">
+            {indexed ? formatNumber(row.value as number, 1, locale) : formatValue(row.value as number)}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+interface ComparisonChartProps {
+  series: NamedSeries[];
+  rebase: boolean;
+  logScale: boolean;
+  formatValue: (value: number) => string;
+}
+
+/** Renders one line per company on a shared time axis. */
+function ComparisonChart({ series, rebase, logScale, formatValue }: ComparisonChartProps) {
+  const { locale } = useTranslation();
+  const { rows, tickers } = useMemo(
+    () => buildAlignedDataset(series, { rebase }),
+    [series, rebase],
+  );
+  if (rows.length < MIN_POINTS_FOR_CHART) return null;
+
+  const names: Record<string, string> = {};
+  const colors: Record<string, string> = {};
+  for (const entry of series) {
+    names[entry.ticker] = entry.name;
+    colors[entry.ticker] = entry.color;
+  }
+
+  // One tick per calendar-year boundary, thinned to a sane maximum.
+  let yearTicks: number[] = [];
+  let lastYear = "";
+  for (const row of rows) {
+    const year = String(new Date(row.t).getUTCFullYear());
+    if (year !== lastYear) {
+      yearTicks.push(row.t);
+      lastYear = year;
+    }
+  }
+  if (yearTicks.length > MAX_X_AXIS_TICKS) {
+    const step = Math.ceil(yearTicks.length / MAX_X_AXIS_TICKS);
+    yearTicks = yearTicks.filter((_, index) => index % step === 0);
+  }
+
+  return (
+    <div className="detailed-chart">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={rows} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
+          <CartesianGrid stroke="#e3e9f4" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="t"
+            type="number"
+            domain={[rows[0].t, rows[rows.length - 1].t]}
+            tickLine={false}
+            axisLine={{ stroke: "#d0daea" }}
+            tick={{ fontSize: 12, fill: "#5570a0" }}
+            ticks={yearTicks}
+            tickFormatter={(t: number) => String(new Date(t).getUTCFullYear()).slice(2)}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={{ stroke: "#d0daea" }}
+            tick={{ fontSize: 12, fill: "#5570a0" }}
+            width={56}
+            scale={logScale ? "log" : "auto"}
+            domain={logScale ? ["auto", "auto"] : undefined}
+            allowDataOverflow={logScale}
+            tickFormatter={(value: number) => (rebase ? formatNumber(value, 0, locale) : formatValue(value))}
+          />
+          <Tooltip
+            content={(
+              <ComparisonTooltip
+                names={names}
+                formatValue={formatValue}
+                indexed={rebase}
+                locale={locale}
+              />
+            )}
+            cursor={{ stroke: "#d0daea", strokeWidth: 1 }}
+          />
+          {tickers.map((ticker) => (
+            <Line
+              key={ticker}
+              type="monotone"
+              dataKey={ticker}
+              name={names[ticker]}
+              stroke={colors[ticker]}
+              strokeWidth={2}
+              dot={false}
+              activeDot={{ r: 4, fill: colors[ticker], stroke: "#fff", strokeWidth: 1.5 }}
+              connectNulls
+              isAnimationActive={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+interface PrimaryCompany {
+  ticker: string;
+  name: string;
+  currency: string;
+  points: DataPoint[];
+}
+
 interface IndicatorChartModalProps {
-  title: string;
-  currentValue?: string;
-  data: DataPoint[];
-  color?: string;
+  indicatorLabel: string;
+  metricId: string;
+  primary: PrimaryCompany;
   formatValue?: (value: number) => string;
+  years: number;
+  maxYears: number;
+  onYearsChange: (years: number) => void;
   onClose: () => void;
 }
 
 /**
- * Whole-window overlay that shows a single indicator's chart in full detail.
- * Closes on Escape, backdrop click, or the close button; locks body scroll
- * while open.
+ * Whole-window overlay for one indicator. Beyond the single-company chart it
+ * carries the term slider, lets the user overlay other companies, and — for
+ * currency-denominated indicators — rebases (and optionally FX-converts) the
+ * series so they are comparable. Closes on Escape, backdrop click, or the
+ * close button; locks body scroll while open.
  */
 export function IndicatorChartModal({
-  title,
-  currentValue,
-  data,
-  color,
+  indicatorLabel,
+  metricId,
+  primary,
   formatValue,
+  years,
+  maxYears,
+  onYearsChange,
   onClose,
 }: IndicatorChartModalProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const [compareTickers, setCompareTickers] = useState<string[]>([]);
+  const [scaleMode, setScaleMode] = useState<ScaleMode>("indexed");
+  const [logScale, setLogScale] = useState(false);
+
+  const effectiveFormatValue = formatValue ?? ((value: number) => formatNumber(value, 2, locale));
+  const kind = indicatorKind(metricId);
+  const rebasable = isRebasable(kind);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -192,13 +359,79 @@ export function IndicatorChartModal({
     };
   }, [onClose]);
 
+  const comparison = useComparisonSeries(compareTickers, years);
+
+  // Raw (pre-conversion) series for the active indicator, one per company.
+  const rawSeries: NamedSeries[] = useMemo(() => {
+    const list: NamedSeries[] = [
+      {
+        ticker: primary.ticker,
+        name: primary.name,
+        color: SERIES_COLORS[0],
+        currency: primary.currency,
+        points: primary.points,
+      },
+    ];
+    comparison.forEach((company, index) => {
+      const points = company.chartData?.[metricId];
+      if (points && points.length >= MIN_POINTS_FOR_CHART) {
+        list.push({
+          ticker: company.ticker,
+          name: company.name,
+          color: SERIES_COLORS[(index + 1) % SERIES_COLORS.length],
+          currency: company.currency,
+          points,
+        });
+      }
+    });
+    return list;
+  }, [primary, comparison, metricId]);
+
+  const multi = rawSeries.length >= 2;
+  const mixed = hasMixedCurrencies(rawSeries);
+  const showScaleToggle = rebasable && multi;
+  const showLogToggle = kind === "ratio" && multi;
+
+  // Resolve the effective scale: only-rebasable metrics may rebase; absolute is
+  // forbidden across currencies (a shared currency axis would be misleading).
+  let resolvedScale: ScaleMode = showScaleToggle ? scaleMode : "absolute";
+  if (resolvedScale === "absolute" && mixed && rebasable) resolvedScale = "indexed";
+
+  // For common-currency mode, fetch FX from every foreign currency → primary's.
+  const foreignCurrencies = useMemo(() => {
+    const set = new Set<string>();
+    for (const entry of rawSeries) {
+      if (entry.currency !== primary.currency) set.add(entry.currency);
+    }
+    return [...set];
+  }, [rawSeries, primary.currency]);
+  const fxByCurrency = useFxSeriesMany(
+    foreignCurrencies,
+    primary.currency,
+    resolvedScale === "indexed-fx",
+  );
+
+  const processedSeries: NamedSeries[] = useMemo(() => {
+    if (resolvedScale !== "indexed-fx") return rawSeries;
+    return rawSeries.map((entry) =>
+      entry.currency === primary.currency
+        ? entry
+        : { ...entry, points: convertSeries(entry.points, fxByCurrency[entry.currency] ?? []) },
+    );
+  }, [rawSeries, resolvedScale, fxByCurrency, primary.currency]);
+
+  const fxPending =
+    resolvedScale === "indexed-fx" &&
+    foreignCurrencies.some((currency) => (fxByCurrency[currency] ?? []).length === 0);
+
+  const commonCurrencyLabel = currencySymbolForCode(primary.currency);
+
   return createPortal(
     <div className="chart-fullscreen-overlay" onClick={onClose}>
       <div className="chart-fullscreen-content" onClick={(event) => event.stopPropagation()}>
         <div className="chart-fullscreen-header">
           <div className="chart-fullscreen-titles">
-            <h2 className="chart-fullscreen-title">{title}</h2>
-            {currentValue && <span className="chart-fullscreen-value">{currentValue}</span>}
+            <h2 className="chart-fullscreen-title">{indicatorLabel} — {primary.name}</h2>
           </div>
           <button
             className="chart-fullscreen-close"
@@ -209,8 +442,91 @@ export function IndicatorChartModal({
             ×
           </button>
         </div>
+
+        <div className="chart-fullscreen-controls">
+          {maxYears > 1 && (
+            <YearsSlider years={years} maxYears={maxYears} onYearsChange={onYearsChange} />
+          )}
+          <div className="chart-fullscreen-add">
+            <CompanySearchInput
+              onAdd={(ticker) =>
+                setCompareTickers((current) =>
+                  current.includes(ticker) || ticker === primary.ticker
+                    ? current
+                    : [...current, ticker],
+                )
+              }
+              excludeTickers={[primary.ticker, ...compareTickers]}
+            />
+          </div>
+          {showScaleToggle && (
+            <div className="chart-scale-toggle" role="group" aria-label={t("chart.scale_group")}>
+              <button
+                type="button"
+                className={`chart-scale-btn${resolvedScale === "absolute" ? " chart-scale-btn--active" : ""}`}
+                disabled={mixed}
+                onClick={() => setScaleMode("absolute")}
+              >
+                {t("chart.scale_absolute")}
+              </button>
+              <button
+                type="button"
+                className={`chart-scale-btn${resolvedScale === "indexed" ? " chart-scale-btn--active" : ""}`}
+                onClick={() => setScaleMode("indexed")}
+              >
+                {t("chart.scale_indexed")}
+              </button>
+              <button
+                type="button"
+                className={`chart-scale-btn${resolvedScale === "indexed-fx" ? " chart-scale-btn--active" : ""}`}
+                onClick={() => setScaleMode("indexed-fx")}
+              >
+                {t("chart.scale_indexed_fx")} · {commonCurrencyLabel}
+              </button>
+            </div>
+          )}
+          {showLogToggle && (
+            <label className="chart-log-toggle">
+              <input
+                type="checkbox"
+                checked={logScale}
+                onChange={(event) => setLogScale(event.target.checked)}
+              />
+              {t("chart.log_scale")}
+            </label>
+          )}
+        </div>
+
+        <div className="chart-fullscreen-legend">
+          {rawSeries.map((entry) => (
+            <span key={entry.ticker} className="chart-legend-item">
+              <span className="chart-legend-swatch" style={{ background: entry.color }} />
+              <span className="chart-legend-name">{entry.name}</span>
+              {entry.ticker !== primary.ticker && (
+                <button
+                  type="button"
+                  className="chart-legend-remove"
+                  aria-label={t("common.remove")}
+                  onClick={() =>
+                    setCompareTickers((current) => current.filter((ticker) => ticker !== entry.ticker))
+                  }
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+
+        {fxPending && <div className="chart-fx-note">{t("chart.fx_warning")}</div>}
+
         <div className="chart-fullscreen-body">
-          <DetailedChart data={data} color={color} formatValue={formatValue} />
+          <ComparisonChart
+            series={processedSeries}
+            rebase={resolvedScale !== "absolute"}
+            logScale={logScale}
+            formatValue={effectiveFormatValue}
+          />
         </div>
       </div>
     </div>,

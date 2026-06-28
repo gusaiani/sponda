@@ -536,6 +536,47 @@ class TickerSearchView(APIView):
         return response
 
 
+class FxSeriesView(APIView):
+    """Historical ``from → to`` FX path for the comparison chart's common-currency
+    mode. Public and currency-only (no ticker, no quota): it exposes exchange
+    rates we already store, not company data."""
+
+    def get(self, request):
+        from_currency = (request.query_params.get("from") or "").upper()
+        to_currency = (request.query_params.get("to") or "").upper()
+        if not from_currency or not to_currency:
+            return Response(
+                {"error": "Both 'from' and 'to' currencies are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        start_param = request.query_params.get("start")
+        start_date = None
+        if start_param:
+            try:
+                start_date = date.fromisoformat(start_param)
+            except ValueError:
+                return Response(
+                    {"error": "'start' must be an ISO date (YYYY-MM-DD)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        from .fx import fx_series  # noqa: PLC0415 — local to avoid import cycle
+
+        series = fx_series(from_currency, to_currency, start=start_date)
+        payload = {
+            "from": from_currency,
+            "to": to_currency,
+            "rates": [
+                {"date": on_date.isoformat(), "rate": float(rate)}
+                for on_date, rate in series
+            ],
+        }
+        response = Response(payload)
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
 class HealthView(APIView):
     TICKER_STALENESS_THRESHOLD = timedelta(days=2)
     IPCA_STALENESS_THRESHOLD = timedelta(days=45)

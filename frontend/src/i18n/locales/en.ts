@@ -219,6 +219,12 @@ export const en: TranslationDictionary = {
   "compare.list_name": "List name",
   "compare.data_unavailable": "Data unavailable",
   "compare.add_company": "Add company...",
+  "chart.scale_group": "Chart scale",
+  "chart.scale_absolute": "Absolute",
+  "chart.scale_indexed": "Base 100",
+  "chart.scale_indexed_fx": "Base 100",
+  "chart.log_scale": "Log scale",
+  "chart.fx_warning": "Conversion uses the latest FX rate for dates without history.",
 
   /* ── Fundamentals ── */
   "fundamentals.nominal": "Nominal",

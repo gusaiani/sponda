@@ -4,6 +4,19 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { ExpandButton, DetailedChart, IndicatorChartModal } from "./IndicatorChartModal";
 import type { DataPoint } from "./MiniChart";
 
+vi.mock("../i18n", () => ({
+  useTranslation: () => ({ t: (key: string) => key, locale: "en" }),
+}));
+vi.mock("../hooks/useComparisonSeries", () => ({
+  useComparisonSeries: () => [],
+}));
+vi.mock("../hooks/useFxSeries", () => ({
+  useFxSeriesMany: () => ({}),
+}));
+vi.mock("../hooks/useTickerSearch", () => ({
+  useTickerSearch: () => ({ results: [] }),
+}));
+
 afterEach(cleanup);
 
 const series: DataPoint[] = [
@@ -40,18 +53,38 @@ describe("DetailedChart", () => {
 });
 
 describe("IndicatorChartModal", () => {
+  const primary = { ticker: "ACME3", name: "ACME", currency: "BRL", points: series };
   const defaultProps = {
-    title: "Current Price",
-    currentValue: "R$ 12.00",
-    data: series,
+    indicatorLabel: "Current Price",
+    metricId: "current-price",
+    primary,
+    years: 10,
+    maxYears: 20,
+    onYearsChange: vi.fn(),
     onClose: vi.fn(),
   };
 
-  it("renders the fullscreen overlay with the title and current value", () => {
+  it("renders the fullscreen overlay with the indicator and company in the title", () => {
     render(<IndicatorChartModal {...defaultProps} onClose={vi.fn()} />);
     expect(document.querySelector(".chart-fullscreen-overlay")).not.toBeNull();
-    expect(screen.getByText("Current Price")).toBeTruthy();
-    expect(screen.getByText("R$ 12.00")).toBeTruthy();
+    expect(screen.getByText("Current Price — ACME")).toBeTruthy();
+  });
+
+  it("renders the term slider and an add-company input", () => {
+    render(<IndicatorChartModal {...defaultProps} onClose={vi.fn()} />);
+    expect(document.querySelector(".years-slider")).not.toBeNull();
+    expect(document.querySelector(".compare-add-input")).not.toBeNull();
+  });
+
+  it("shows the primary company in the legend without a remove button", () => {
+    render(<IndicatorChartModal {...defaultProps} onClose={vi.fn()} />);
+    expect(screen.getByText("ACME")).toBeTruthy();
+    expect(document.querySelector(".chart-legend-remove")).toBeNull();
+  });
+
+  it("does not show the scale toggle for a single company", () => {
+    render(<IndicatorChartModal {...defaultProps} onClose={vi.fn()} />);
+    expect(document.querySelector(".chart-scale-toggle")).toBeNull();
   });
 
   it("calls onClose when the close button is clicked", () => {

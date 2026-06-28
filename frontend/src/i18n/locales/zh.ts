@@ -219,6 +219,12 @@ export const zh: TranslationDictionary = {
   "compare.list_name": "列表名称",
   "compare.data_unavailable": "数据不可用",
   "compare.add_company": "添加公司...",
+  "chart.scale_group": "图表刻度",
+  "chart.scale_absolute": "绝对值",
+  "chart.scale_indexed": "基准100",
+  "chart.scale_indexed_fx": "基准100",
+  "chart.log_scale": "对数刻度",
+  "chart.fx_warning": "无历史汇率的日期使用最新汇率换算。",
 
   /* ── Fundamentals ── */
   "fundamentals.nominal": "名义值",
