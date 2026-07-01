@@ -274,6 +274,7 @@ jobs:
 
             # Install systemd services and timers
             cp /opt/sponda/systemd/sponda.service /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-celery.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-frontend.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-refresh.timer /etc/systemd/system/
@@ -303,6 +304,12 @@ jobs:
 
             # Restart services
             systemctl restart sponda
+            # The Celery worker is a long-running process: without a restart it
+            # keeps executing the code it loaded at boot, so deployed task fixes
+            # never take effect (an open-circuit error kept reaching Sentry from
+            # a worker that had been up since before the fix landed).
+            systemctl enable sponda-celery
+            systemctl restart sponda-celery
             systemctl enable sponda-frontend
             systemctl restart sponda-frontend
 
