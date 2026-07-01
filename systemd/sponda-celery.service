@@ -1,0 +1,15 @@
+[Unit]
+Description=Sponda Celery Worker
+After=network.target postgresql.service redis-server.service
+Wants=redis-server.service
+
+[Service]
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+ExecStart=/opt/sponda/venv/bin/celery -A config worker -l info --concurrency=2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
