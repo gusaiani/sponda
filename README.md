@@ -239,19 +239,55 @@ at `https://sponda.capital/api/mcp/` (Streamable HTTP, stateless, no auth). The 
 surface is `assistant/tools.py` verbatim: the same JSON Schemas and executors the
 in-house screening agent uses, so the public MCP surface and the agent can never drift.
 
-Four tools: `list_available_indicators`, `screen_companies`, `get_company`, and
-`get_fundamentals` (the expensive one — live provider fetch — with its own tighter cap).
-Executor failures ("unknown symbol") come back as tool results with `isError: true`,
-never protocol errors, so a calling model can read them and adjust.
+### Using it (any MCP client)
 
-Connect from Claude Code:
+**Claude Code** — one command, then just ask:
 
 ```bash
 claude mcp add --transport http sponda https://sponda.capital/api/mcp/
 ```
 
-Or in Claude (web/desktop): Settings → Connectors → Add custom connector →
+**Claude (web/desktop):** Settings → Connectors → Add custom connector →
 `https://sponda.capital/api/mcp/`.
+
+**Cursor** (`~/.cursor/mcp.json`) or any client that takes a JSON server config:
+
+```json
+{
+  "mcpServers": {
+    "sponda": { "url": "https://sponda.capital/api/mcp/" }
+  }
+}
+```
+
+Then ask things like:
+
+> Brazilian companies with P/E10 under 8 and debt payable from average FCF in under 3 years
+>
+> Of those, which has the most conservative leverage? Pull WEGE3's full fundamentals.
+
+Four tools, designed to be called in this order:
+
+| Tool | What it does | Cost |
+| --- | --- | --- |
+| `list_available_indicators` | Indicator catalogue (keys, definitions, direction), plus live country/sector lists and examples of metrics Sponda does *not* have | cheap |
+| `screen_companies` | Filter/sort/rank the ~23k-company universe by indicator bounds, country, sector; returns match count + up to 50 rows | cheap |
+| `get_company` | One company's metadata and current indicator values by ticker | cheap |
+| `get_fundamentals` | Full fundamentals payload for one company — triggers a live market-data fetch | expensive, tighter cap |
+
+Limits: anonymous per-IP daily caps (see env vars below); over the cap the endpoint
+answers HTTP 429 until midnight. Executor failures ("unknown symbol") come back as tool
+results with `isError: true`, never protocol errors, so a calling model can read them
+and adjust.
+
+### Developing it
+
+Implementation: `backend/assistant/mcp.py` — a single stateless JSON-RPC 2.0 view (no
+SSE, no sessions; every request is one POST answered with one JSON body). It serves
+`initialize` (protocol-version negotiation), `ping`, `tools/list`, and `tools/call`,
+and acknowledges notifications with 202. Tool schemas and executors are imported from
+`assistant/tools.py` — to add or change a tool, change it there and both the screening
+agent and the MCP surface pick it up together.
 
 | Env var | Default | Meaning |
 | --- | --- | --- |
@@ -259,16 +295,34 @@ Or in Claude (web/desktop): Settings → Connectors → Add custom connector →
 | `MCP_TOOL_CALLS_PER_DAY` | `200` | Per-IP daily cap across all `tools/call` requests |
 | `MCP_FUNDAMENTALS_CALLS_PER_DAY` | `25` | Per-IP daily sub-cap for `get_fundamentals` |
 
-Local testing: `python manage.py runserver`, then
-`npx @modelcontextprotocol/inspector http://localhost:8000/api/mcp/` — or plain curl:
+Rate-limit counters are date-keyed entries in the Redis cache (`mcp:<scope>:<ip_hash>:<day>`),
+so caps reset at midnight and need no schema or cron.
+
+Run it locally:
 
 ```bash
-curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+cd backend && python manage.py runserver
 ```
 
-Implementation: `backend/assistant/mcp.py` (single stateless JSON-RPC view — no SSE,
-no sessions), tests in `backend/tests/test_mcp_server.py`.
+Smoke-test with curl:
+
+```bash
+# list the tools
+curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# run a screen: P/E10 <= 10, cheapest first
+curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"screen_companies","arguments":{"filters":{"pe10":{"max":10}},"sort":"pe10"}}}'
+```
+
+Or drive it interactively with the MCP inspector
+(`npx @modelcontextprotocol/inspector http://localhost:8000/api/mcp/`), or point Claude
+Code at your dev server
+(`claude mcp add --transport http sponda-dev http://localhost:8000/api/mcp/`).
+
+Tests: `pytest tests/test_mcp_server.py` — transport, lifecycle, schema-sharing,
+all four tool paths, and the rate-limit caps.
 
 ## Stack
 
