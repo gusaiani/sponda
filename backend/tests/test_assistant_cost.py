@@ -1,6 +1,8 @@
 """Tests for token → USD cost calculation."""
 from decimal import Decimal
 
+import pytest
+
 from assistant.cost import calculate_cost
 
 
@@ -19,3 +21,12 @@ class TestCalculateCost:
 
     def test_zero_tokens_is_zero_cost(self):
         assert calculate_cost("gpt-4o", 0, 0) == Decimal("0")
+
+    def test_unknown_model_raises_value_error_naming_the_model(self):
+        """calculate_cost must fail loudly and legibly on an unpriced
+        model - a bare KeyError forces every caller to guess what broke.
+        The message names the offending model so a misconfigured
+        ASSISTANT_ANSWER_MODEL is obvious from the traceback alone.
+        """
+        with pytest.raises(ValueError, match="gpt-5-unpriced"):
+            calculate_cost("gpt-5-unpriced", input_tokens=1_000, output_tokens=500)

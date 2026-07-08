@@ -16,12 +16,19 @@ def assistant_access_tier(user) -> str:
     One of 'superuser' | 'paying' | 'trial' | 'denied'. Callers branch
     on the literal string so they don't need to know about User flags
     or settings - all that knowledge lives here.
+
+    `user` may be None, an AnonymousUser, or an authenticated User -
+    every call site (the view, tests, and a future anonymous screening
+    call site) can pass whatever it already has without pre-checking
+    `is_authenticated` itself.
     """
+    if user is None or not user.is_authenticated:
+        return "trial" if settings.ASSISTANT_FREE_TRIAL_PER_DAY > 0 else "denied"
     if user.is_superuser:
         return "superuser"
     if is_paying_user(user):
         return "paying"
-    return "denied"
+    return "trial" if settings.ASSISTANT_FREE_TRIAL_PER_DAY > 0 else "denied"
 
 def is_paying_user(user) -> bool:
     """Stub: returns False until a Subscription model exists.
@@ -32,12 +39,19 @@ def is_paying_user(user) -> bool:
     """
     return False
 
-def would_exceed_assistant_limit(user) -> bool:
+def would_exceed_assistant_limit(user, ip_hash=None) -> bool:
     """Return True if `user` is already at (or over) their daily cap.
 
-    Called by the  view before any OpenAI call so a blocked caller
-    costs us nothing. The singe seam: tier -> cap -> count. For
-    now only the 'denied' bdranch is wired; other tiers land in the next baby steps.
+    Called by the view before any OpenAI call so a blocked caller costs
+    us nothing. The single seam: tier -> cap -> count. Every tier
+    `assistant_access_tier` can return is handled explicitly, and the
+    function is total: anything it does not recognize fails closed
+    (True) rather than implicitly returning None.
+
+    `ip_hash` scopes the trial cap for anonymous callers (there is no
+    `user` to count against) - unused by every other tier. It is a
+    caller-supplied hash (see quotes.client_ip.client_ip_hash for the
+    established hashing approach); this module does not compute one.
     """
     tier = assistant_access_tier(user)
 
@@ -56,3 +70,28 @@ def would_exceed_assistant_limit(user) -> bool:
             created_at__date=today,
         ).count()
         return used_today >= settings.ASSISTANT_PAYING_PER_DAY
+    if tier == "trial":
+        # Same localdate rationale as the paying tier above: the cap
+        # boundary must track the project timezone, not UTC.
+        today = timezone.localdate()
+        is_authenticated_user = user is not None and user.is_authenticated
+        if is_authenticated_user:
+            used_today = LLMQuery.objects.filter(
+                user=user,
+                created_at__date=today,
+            ).count()
+        else:
+            # No IP to scope the cap by means no way to count this
+            # caller's usage - fail closed instead of granting a free,
+            # untracked question.
+            if not ip_hash:
+                return True
+            used_today = LLMQuery.objects.filter(
+                ip_hash=ip_hash,
+                created_at__date=today,
+            ).count()
+        return used_today >= settings.ASSISTANT_FREE_TRIAL_PER_DAY
+
+    # Unknown/future tier: fail closed rather than silently returning
+    # None (falsy, and would have let an unrecognized tier through).
+    return True
