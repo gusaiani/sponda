@@ -181,6 +181,16 @@ ASSISTANT_GLOBAL_DAILY_USD_CAP = env.float("ASSISTANT_GLOBAL_DAILY_USD_CAP", def
 ASSISTANT_MAX_HISTORY_TURNS = env.int("ASSISTANT_MAX_HISTORY_TURNS", default=4)
 ASSISTANT_MAX_HISTORY_ANSWER_CHARS = env.int("ASSISTANT_MAX_HISTORY_ANSWER_CHARS", default=2000)
 
+# Natural-language screening (the LLM Analyst). Feature-flagged off by
+# default; the flag is enforced server-side, the frontend gate is UX only.
+ASSISTANT_SCREENING_ENABLED = env.bool("ASSISTANT_SCREENING_ENABLED", default=False)
+ASSISTANT_SCREENING_MODEL = env("ASSISTANT_SCREENING_MODEL", default="gpt-4o")
+
+# Upper bound on tool-calling rounds per screening question. Each round is
+# one OpenAI call; the bound caps worst-case latency and cost, and when hit
+# the agent is forced to answer from the data it already has.
+ASSISTANT_MAX_TOOL_ROUNDS = env.int("ASSISTANT_MAX_TOOL_ROUNDS", default=6)
+
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight
 # requests on a fresh visit) so pool exhaustion does not become the bottleneck.
