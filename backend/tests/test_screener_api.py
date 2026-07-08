@@ -241,6 +241,122 @@ class TestScreenerCountryFilter:
 
 
 @pytest.mark.django_db
+class TestScreenerSortNullsAndTiebreak:
+    def test_nulls_sort_last_ascending(self, api_client, db):
+        Ticker.objects.create(symbol="HASA", name="HasA", market_cap=1)
+        Ticker.objects.create(symbol="HASNULL", name="HasNull", market_cap=1)
+        Ticker.objects.create(symbol="HASB", name="HasB", market_cap=1)
+        IndicatorSnapshot.objects.create(
+            ticker="HASA", debt_to_avg_fcf=Decimal("5.0"), market_cap=1,
+        )
+        IndicatorSnapshot.objects.create(
+            ticker="HASNULL", debt_to_avg_fcf=None, market_cap=1,
+        )
+        IndicatorSnapshot.objects.create(
+            ticker="HASB", debt_to_avg_fcf=Decimal("2.0"), market_cap=1,
+        )
+        response = api_client.get("/api/screener/?sort=debt_to_avg_fcf")
+        ordered = [r["ticker"] for r in response.json()["results"]]
+        # Ascending by value, but NULL always sorts last regardless of direction.
+        assert ordered == ["HASB", "HASA", "HASNULL"]
+
+    def test_nulls_sort_last_descending(self, api_client, db):
+        Ticker.objects.create(symbol="HASA", name="HasA", market_cap=1)
+        Ticker.objects.create(symbol="HASNULL", name="HasNull", market_cap=1)
+        Ticker.objects.create(symbol="HASB", name="HasB", market_cap=1)
+        IndicatorSnapshot.objects.create(
+            ticker="HASA", debt_to_avg_fcf=Decimal("5.0"), market_cap=1,
+        )
+        IndicatorSnapshot.objects.create(
+            ticker="HASNULL", debt_to_avg_fcf=None, market_cap=1,
+        )
+        IndicatorSnapshot.objects.create(
+            ticker="HASB", debt_to_avg_fcf=Decimal("2.0"), market_cap=1,
+        )
+        response = api_client.get("/api/screener/?sort=-debt_to_avg_fcf")
+        ordered = [r["ticker"] for r in response.json()["results"]]
+        # Descending by value, NULL still sorts last (nulls_last=True on both).
+        assert ordered == ["HASA", "HASB", "HASNULL"]
+
+    def test_ticker_tiebreaker_when_sort_values_equal(self, api_client, db):
+        Ticker.objects.create(symbol="BBB3", name="BBB", market_cap=1)
+        Ticker.objects.create(symbol="AAA3", name="AAA", market_cap=1)
+        IndicatorSnapshot.objects.create(
+            ticker="BBB3", pe10=Decimal("10.0"), market_cap=1,
+        )
+        IndicatorSnapshot.objects.create(
+            ticker="AAA3", pe10=Decimal("10.0"), market_cap=1,
+        )
+        response = api_client.get("/api/screener/?sort=pe10")
+        ordered = [r["ticker"] for r in response.json()["results"]]
+        assert ordered == ["AAA3", "BBB3"]
+
+        response_desc = api_client.get("/api/screener/?sort=-pe10")
+        ordered_desc = [r["ticker"] for r in response_desc.json()["results"]]
+        # Ticker tiebreaker is always ascending, even when the primary sort
+        # field is descending.
+        assert ordered_desc == ["AAA3", "BBB3"]
+
+
+@pytest.mark.django_db
+class TestScreenerErrorMessages:
+    def test_invalid_sort_field_error_message(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?sort=bogus")
+        assert response.status_code == 400
+        assert response.json() == {"error": "Invalid sort field: 'bogus'"}
+
+    def test_invalid_numeric_filter_error_message(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?pe10_max=not-a-number")
+        assert response.status_code == 400
+        assert response.json() == {
+            "error": "Invalid numeric value for pe10_max: 'not-a-number'",
+        }
+
+    def test_invalid_limit_returns_400(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?limit=not-a-number")
+        assert response.status_code == 400
+        assert response.json() == {"error": "limit and offset must be integers"}
+
+    def test_invalid_offset_returns_400(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?offset=not-a-number")
+        assert response.status_code == 400
+        assert response.json() == {"error": "limit and offset must be integers"}
+
+
+@pytest.mark.django_db
+class TestScreenerLimitOffsetClamping:
+    def test_limit_zero_clamped_to_one(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?limit=0")
+        assert len(response.json()["results"]) == 1
+
+    def test_limit_negative_clamped_to_one(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?limit=-5")
+        assert len(response.json()["results"]) == 1
+
+    def test_offset_negative_clamped_to_zero(self, api_client, snapshot_universe):
+        response = api_client.get("/api/screener/?sort=pe10&offset=-5")
+        with_negative = [r["ticker"] for r in response.json()["results"]]
+        baseline = api_client.get("/api/screener/?sort=pe10&offset=0")
+        assert with_negative == [r["ticker"] for r in baseline.json()["results"]]
+
+    def test_limit_above_max_is_capped_at_500(self, api_client, db):
+        tickers = [
+            Ticker(symbol=f"T{i:04d}", name=f"T{i}", market_cap=1)
+            for i in range(505)
+        ]
+        Ticker.objects.bulk_create(tickers)
+        snapshots = [
+            IndicatorSnapshot(ticker=f"T{i:04d}", pe10=Decimal("1.0"), market_cap=1)
+            for i in range(505)
+        ]
+        IndicatorSnapshot.objects.bulk_create(snapshots)
+        response = api_client.get("/api/screener/?limit=100000")
+        body = response.json()
+        assert body["count"] == 505
+        assert len(body["results"]) == 500
+
+
+@pytest.mark.django_db
 class TestScreenerCountriesAPI:
     def test_returns_distinct_countries_present_in_data(
         self, api_client, snapshot_universe,

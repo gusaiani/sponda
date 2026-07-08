@@ -17,8 +17,16 @@ TOKENS_PER_PRICE_UNIT = Decimal(1_000_000)
 
 
 def calculate_cost(model: str, input_tokens: int, output_tokens: int) -> Decimal:
-    """Return the USD cost of one OpenAI call as a Decimal."""
-    prices = MODEL_PRICES[model]
-    input_cost = prices["input"] * input_tokens / TOKENS_PER_PRICE_UNIT;
-    output_cost = prices["output"] * output_tokens / TOKENS_PER_PRICE_UNIT;
+    """Return the USD cost of one OpenAI call as a Decimal.
+
+    Raises ValueError (not a bare KeyError) for an unpriced model so a
+    misconfigured ASSISTANT_ANSWER_MODEL/ASSISTANT_GUARD_MODEL fails with
+    a message that names the offending model, instead of an opaque
+    traceback the caller has to decode.
+    """
+    prices = MODEL_PRICES.get(model)
+    if prices is None:
+        raise ValueError(f"No price entry for model {model!r} in MODEL_PRICES")
+    input_cost = prices["input"] * input_tokens / TOKENS_PER_PRICE_UNIT
+    output_cost = prices["output"] * output_tokens / TOKENS_PER_PRICE_UNIT
     return input_cost + output_cost

@@ -44,6 +44,8 @@ from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
 from .ratings import rate_company
+from . import screener as screener_module
+from .screener import ScreenerError, run_screener
 
 PE10_CACHE_TTL = 24 * 60 * 60  # 24 hours
 FUNDAMENTALS_CACHE_TTL = 24 * 60 * 60  # 24 hours
@@ -1576,30 +1578,14 @@ class SitemapView(APIView):
 # Screener
 # ---------------------------------------------------------------------------
 
-# Numeric indicator fields the screener can filter by. Explicit allow-list so
-# unknown query params are ignored safely. Market cap is deliberately excluded —
-# users rank by it (default sort) and read it in the results, but shouldn't
-# screen by it as a min/max bound.
-SCREENER_FILTERABLE_FIELDS = (
-    "pe10",
-    "pfcf10",
-    "peg",
-    "pfcf_peg",
-    "debt_to_equity",
-    "debt_ex_lease_to_equity",
-    "liabilities_to_equity",
-    "current_ratio",
-    "debt_to_avg_earnings",
-    "debt_to_avg_fcf",
-)
-
-# Sortable set is the filterable set plus market_cap (for the default ranking)
-# and ticker (alphabetical). Kept as a separate constant so the filter/sort
-# surfaces can diverge without tangling.
-SCREENER_SORTABLE_FIELDS = SCREENER_FILTERABLE_FIELDS + ("market_cap", "ticker")
-SCREENER_DEFAULT_SORT = "ticker"
-SCREENER_DEFAULT_LIMIT = 50
-SCREENER_MAX_LIMIT = 500
+# Constants live in quotes/screener.py (the plain-Python query service) and
+# are re-exported here so existing imports of quotes.views.SCREENER_* keep
+# working.
+SCREENER_FILTERABLE_FIELDS = screener_module.SCREENER_FILTERABLE_FIELDS
+SCREENER_SORTABLE_FIELDS = screener_module.SCREENER_SORTABLE_FIELDS
+SCREENER_DEFAULT_SORT = screener_module.SCREENER_DEFAULT_SORT
+SCREENER_DEFAULT_LIMIT = screener_module.SCREENER_DEFAULT_LIMIT
+SCREENER_MAX_LIMIT = screener_module.SCREENER_MAX_LIMIT
 
 
 def _parse_decimal_param(raw_value: str, field_name: str) -> Decimal:
@@ -1636,59 +1622,36 @@ class ScreenerView(APIView):
     """
 
     def get(self, request):
-        queryset = IndicatorSnapshot.objects.all()
-
         # Sector + country filters (categorical, multi-select). Comma-separated
         # list of Ticker.sector / Ticker.country values. Empty / missing param
-        # means "all". Implemented as one Ticker query with the filters AND'd
-        # together, then narrows the snapshot queryset by symbol — keeps the
-        # IndicatorSnapshot model free of denormalized columns.
+        # means "all".
         sector_param = request.query_params.get("sector") or ""
         sector_values = [s.strip() for s in sector_param.split(",") if s.strip()]
         country_param = request.query_params.get("country") or ""
         country_values = [c.strip() for c in country_param.split(",") if c.strip()]
-        if sector_values or country_values:
-            ticker_filter = Ticker.objects.all()
-            if sector_values:
-                ticker_filter = ticker_filter.filter(sector__in=sector_values)
-            if country_values:
-                ticker_filter = ticker_filter.filter(country__in=country_values)
-            allowed_symbols = list(ticker_filter.values_list("symbol", flat=True))
-            queryset = queryset.filter(ticker__in=allowed_symbols)
 
-        # Apply numeric min/max filters ---------------------------------------
+        # Parse numeric min/max bounds ------------------------------------
+        bounds: dict[str, dict[str, Decimal]] = {}
         for field in SCREENER_FILTERABLE_FIELDS:
-            for suffix, lookup in (("_min", "gte"), ("_max", "lte")):
+            field_bounds: dict[str, Decimal] = {}
+            for suffix, bound_key in (("_min", "min"), ("_max", "max")):
                 raw_value = request.query_params.get(f"{field}{suffix}")
                 if raw_value is None or raw_value == "":
                     continue
                 try:
-                    value = _parse_decimal_param(raw_value, f"{field}{suffix}")
+                    field_bounds[bound_key] = _parse_decimal_param(
+                        raw_value, f"{field}{suffix}",
+                    )
                 except ValueError as exc:
                     return Response(
                         {"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST,
                     )
-                queryset = queryset.filter(**{f"{field}__{lookup}": value})
+            if field_bounds:
+                bounds[field] = field_bounds
 
-        total_count = queryset.count()
-
-        # Sort ----------------------------------------------------------------
         sort_param = request.query_params.get("sort") or SCREENER_DEFAULT_SORT
-        sort_field = sort_param.lstrip("-")
-        if sort_field not in SCREENER_SORTABLE_FIELDS:
-            return Response(
-                {"error": f"Invalid sort field: {sort_param!r}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        # Nulls-last on DESC so rows with missing data don't dominate the top.
-        queryset = queryset.order_by(
-            F(sort_field).desc(nulls_last=True)
-            if sort_param.startswith("-")
-            else F(sort_field).asc(nulls_last=True),
-            "ticker",
-        )
 
-        # Paginate ------------------------------------------------------------
+        # Parse pagination params -------------------------------------------
         try:
             limit = int(request.query_params.get("limit", SCREENER_DEFAULT_LIMIT))
             offset = int(request.query_params.get("offset", 0))
@@ -1697,51 +1660,18 @@ class ScreenerView(APIView):
                 {"error": "limit and offset must be integers"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        limit = max(1, min(limit, SCREENER_MAX_LIMIT))
-        offset = max(0, offset)
-        page = list(queryset[offset:offset + limit])
 
-        # Hydrate ticker metadata in one query so the response is fully
-        # self-contained for the frontend table.
-        ticker_symbols = [snapshot.ticker for snapshot in page]
-        ticker_metadata = {
-            row["symbol"]: row
-            for row in Ticker.objects.filter(symbol__in=ticker_symbols).values(
-                "symbol", "name", "display_name", "sector", "logo",
+        try:
+            total_count, results = run_screener(
+                bounds=bounds,
+                sectors=sector_values,
+                countries=country_values,
+                sort=sort_param,
+                limit=limit,
+                offset=offset,
             )
-        }
-
-        results = []
-        for snapshot in page:
-            metadata = ticker_metadata.get(snapshot.ticker, {})
-            sector = metadata.get("sector") or ""
-            indicator_values = {
-                "pe10": snapshot.pe10,
-                "pfcf10": snapshot.pfcf10,
-                "peg": snapshot.peg,
-                "pfcf_peg": snapshot.pfcf_peg,
-                "debt_to_equity": snapshot.debt_to_equity,
-                "debt_ex_lease_to_equity": snapshot.debt_ex_lease_to_equity,
-                "liabilities_to_equity": snapshot.liabilities_to_equity,
-                "current_ratio": snapshot.current_ratio,
-                "debt_to_avg_earnings": snapshot.debt_to_avg_earnings,
-                "debt_to_avg_fcf": snapshot.debt_to_avg_fcf,
-            }
-            rated = rate_company(indicator_values, sector=sector or None)
-            results.append({
-                "ticker": snapshot.ticker,
-                "name": metadata.get("display_name") or metadata.get("name") or "",
-                "sector": sector,
-                "logo": metadata.get("logo") or "",
-                **indicator_values,
-                "market_cap": snapshot.market_cap,
-                "current_price": snapshot.current_price,
-                "ratings": {
-                    **rated["ratings"],
-                    "overall": rated["overall"],
-                    "methodology_version": rated["methodology_version"],
-                },
-            })
+        except ScreenerError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"count": total_count, "results": results})
 
