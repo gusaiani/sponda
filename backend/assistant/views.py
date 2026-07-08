@@ -18,14 +18,29 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from openai import APIError, APITimeoutError, RateLimitError
 
+from assistant.agent import (
+    AnswerToken,
+    Completed,
+    Failed,
+    InterpretedFilters,
+    ScreenResults,
+    ToolCallStarted,
+    run_screening_agent,
+)
 from assistant.context import build_company_context
 from assistant.cost import calculate_cost
-from assistant.guardrail import classify_question
+from assistant.guardrail import classify_question, classify_screening_question
 from assistant.history import build_history_messages
 from assistant.models import LLMQuery
 from assistant.openai_client import get_openai_client
-from assistant.prompts import ANSWER_SYSTEM_PROMPT, OFF_TOPIC_RESPONSE
+from assistant.prompts import (
+    ANSWER_SYSTEM_PROMPT,
+    OFF_TOPIC_RESPONSE,
+    SCREENING_OFF_TOPIC_RESPONSE,
+)
+from assistant.tools import json_safe
 from assistant.assistant_quota import would_exceed_assistant_limit
+from quotes.client_ip import client_ip_hash
 
 
 def _sse_frame(event: str, data: dict | str) -> bytes:
@@ -250,5 +265,163 @@ def ask(request):
 
     # nginx bypass - without this header the upstream buffers the
     # whole response and the client sees one big lump at the end.
+    response["X-Accel-Buffering"] = "no"
+    return response
+
+
+def _screen_event_stream(*, question, locale, history_messages, user, ip_hash):
+    """Yield the SSE frames for one screening request.
+
+    Mirrors _event_stream's shape (guardrail first, then the model work,
+    LLMQuery always written in `finally`), but drives assistant.agent's
+    tool-calling loop instead of a single chat completion, and maps its
+    typed events onto SSE frames one-to-one.
+    """
+    started_at = time.monotonic()
+    status = "ok"
+    classification = ""
+    interpreted_filters = None
+    input_tokens = 0
+    output_tokens = 0
+
+    try:
+        verdict = classify_screening_question(question, history_messages)
+        classification = verdict.classification
+
+        # Meta frame ships first, same rationale as ask(): the client can
+        # render its header before any tool call or token arrives.
+        yield _sse_frame("meta", {
+            "model": settings.ASSISTANT_SCREENING_MODEL,
+            "classification": verdict.classification,
+        })
+
+        if classification != "on_topic":
+            status = "off_topic"
+            redirect_text = SCREENING_OFF_TOPIC_RESPONSE.get(
+                locale, SCREENING_OFF_TOPIC_RESPONSE["en"]
+            )
+            yield _sse_frame("off_topic", redirect_text)
+            yield _sse_frame("done", {"input_tokens": 0, "output_tokens": 0})
+            return
+
+        for event in run_screening_agent(
+            question=question,
+            history_messages=history_messages,
+            locale=locale,
+        ):
+            if isinstance(event, ToolCallStarted):
+                yield _sse_frame("tool", {"name": event.name})
+            elif isinstance(event, InterpretedFilters):
+                # Keep the LAST filter set seen — a follow-up screen
+                # restates the full filter set, so the latest call is the
+                # one that reflects what was actually run.
+                interpreted_filters = event.arguments
+                yield _sse_frame("filters", {"filters": event.arguments})
+            elif isinstance(event, ScreenResults):
+                yield _sse_frame("results", {
+                    "count": event.count,
+                    "rows": json_safe(event.rows),
+                })
+            elif isinstance(event, AnswerToken):
+                yield _sse_frame("token", event.text)
+            elif isinstance(event, Completed):
+                input_tokens = event.input_tokens
+                output_tokens = event.output_tokens
+                yield _sse_frame("done", {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                })
+            elif isinstance(event, Failed):
+                # No `done` after an error - matches ask()'s contract so
+                # the client's single "did we get a terminal frame" check
+                # works the same way for both endpoints.
+                status = "error"
+                yield _sse_frame("error", {"code": event.code})
+    finally:
+        latency_ms = int((time.monotonic() - started_at) * 1000)
+
+        cost_usd = calculate_cost(
+            model=settings.ASSISTANT_SCREENING_MODEL,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
+
+        LLMQuery.objects.create(
+            feature=LLMQuery.FEATURE_SCREEN,
+            user=user,
+            ip_hash=ip_hash,
+            ticker="",
+            locale=locale,
+            question=question,
+            classification=classification,
+            model=settings.ASSISTANT_SCREENING_MODEL,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_usd=cost_usd,
+            latency_ms=latency_ms,
+            status=status,
+            interpreted_filters=interpreted_filters,
+        )
+
+
+@csrf_exempt
+# Same CSRF rationale as ask(): JSON POST + fetch, no browser form.
+@require_POST
+def screen(request):
+    """Stream a natural-language screening answer about the whole universe.
+
+    Unlike ask() (superuser-only in v1), screening is the trial-tier entry
+    point: anonymous callers are allowed, scoped by ip_hash, up to
+    ASSISTANT_FREE_TRIAL_PER_DAY per day. would_exceed_assistant_limit is
+    still the single seam enforcing that cap server-side.
+    """
+    if not settings.ASSISTANT_SCREENING_ENABLED:
+        return JsonResponse({"code": "screening_disabled"}, status=404)
+
+    ip_hash = client_ip_hash(request)
+    user = request.user if request.user.is_authenticated else None
+
+    if would_exceed_assistant_limit(user, ip_hash=ip_hash):
+        return HttpResponse(status=429)
+
+    try:
+        payload = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return HttpResponseBadRequest("invalid JSON body")
+
+    locale = (payload.get("locale") or "en").strip()
+    question = (payload.get("question") or "").strip()
+
+    if not question:
+        return HttpResponseBadRequest("question is required")
+    if len(question) > settings.ASSISTANT_MAX_QUESTION_CHARS:
+        return HttpResponseBadRequest("question exceeds max length")
+
+    # Same server-side memory ceiling as ask() - never trust the client to
+    # cap its own history.
+    history_messages = build_history_messages(
+        payload.get("history"),
+        max_turns=settings.ASSISTANT_MAX_HISTORY_TURNS,
+        max_question_chars=settings.ASSISTANT_MAX_QUESTION_CHARS,
+        max_answer_chars=settings.ASSISTANT_MAX_HISTORY_ANSWER_CHARS,
+    )
+
+    # Same fail-fast rationale as ask(): without a key both the guardrail
+    # and the agent loop would fail mid-generator, after the 200 already
+    # committed. Fail before streaming starts instead.
+    if not settings.OPENAI_API_KEY:
+        return JsonResponse({"code": "assistant_not_configured"}, status=503)
+
+    response = StreamingHttpResponse(
+        _screen_event_stream(
+            question=question,
+            locale=locale,
+            history_messages=history_messages,
+            user=user,
+            ip_hash=ip_hash,
+        ),
+        content_type="text/event-stream"
+    )
+
     response["X-Accel-Buffering"] = "no"
     return response

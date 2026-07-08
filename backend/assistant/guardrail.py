@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from django.conf import settings
 
 from assistant.openai_client import get_openai_client
-from assistant.prompts import GUARDRAIL_SYSTEM_PROMPT
+from assistant.prompts import GUARDRAIL_SYSTEM_PROMPT, SCREENING_GUARDRAIL_PROMPT
 
 # The three buckets the classifier sorts every question into. Only
 # `on_topic` advances to the answer model; the other two short-circuit
@@ -85,4 +85,41 @@ def classify_question(
 
     # The SDK already parsed the JSON into a GuardrailVerdict for us;
     # we just hand it back. Caller branches on .classification
+    return response.choices[0].message.parsed
+
+
+def classify_screening_question(
+    question: str,
+    history_messages: list[dict] | None = None,
+) -> GuardrailVerdict:
+    """Classify a screening request with the cheap model before the tool loop.
+
+    Mirrors classify_question, but there is no single company and thus no
+    <COMPANY_DATA> block to reason against — the screening guardrail judges
+    the bare request text (plus recent history for elliptical follow-ups)
+    against SCREENING_GUARDRAIL_PROMPT's definition of on_topic instead.
+
+    `question` is raw user text - treat as untrusted. `history_messages` is
+    the clamped prior conversation (already turned into chat messages); a
+    short follow-up like "now just Brazil" only reads as on-topic in light
+    of the previous screen, so it rides between the system prompt and the
+    current request, same shape as classify_question.
+
+    Returns the parsed `GuardrailVerdict` - the caller branches on
+    `.classification` and either runs the screening agent or sends the
+    fixed off-topic copy.
+    """
+    messages = [
+        {"role": "system", "content": SCREENING_GUARDRAIL_PROMPT},
+        *(history_messages or []),
+        {"role": "user", "content": question},
+    ]
+
+    client = get_openai_client()
+    response = client.beta.chat.completions.parse(
+        model=settings.ASSISTANT_GUARD_MODEL,
+        messages=messages,
+        response_format=GuardrailVerdict,
+    )
+
     return response.choices[0].message.parsed

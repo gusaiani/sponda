@@ -31,3 +31,13 @@ class TestAssistantSettings:
         # prompt size (and cost). A few turns is enough for natural follow-ups.
         assert settings.ASSISTANT_MAX_HISTORY_TURNS == 4
         assert settings.ASSISTANT_MAX_HISTORY_ANSWER_CHARS == 2000
+
+    def test_screening_defaults(self):
+        # Feature-flagged off by default; the flag is enforced server-side
+        # in assistant.views.screen, so a missing .env entry can never
+        # accidentally expose the trial-tier screening endpoint.
+        assert settings.ASSISTANT_SCREENING_ENABLED is False
+        assert settings.ASSISTANT_SCREENING_MODEL == "gpt-4o"
+        # Bounds worst-case latency/cost per screening question - each
+        # tool-calling round is one OpenAI call.
+        assert settings.ASSISTANT_MAX_TOOL_ROUNDS == 6
