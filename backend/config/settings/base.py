@@ -191,6 +191,13 @@ ASSISTANT_SCREENING_MODEL = env("ASSISTANT_SCREENING_MODEL", default="gpt-4o")
 # the agent is forced to answer from the data it already has.
 ASSISTANT_MAX_TOOL_ROUNDS = env.int("ASSISTANT_MAX_TOOL_ROUNDS", default=6)
 
+# Public MCP server (/api/mcp/): the assistant's tool layer exposed to any
+# MCP client. No LLM spend — the caps below bound database work and, for
+# get_fundamentals (live provider fetch), a tighter per-day sub-cap.
+MCP_ENABLED = env.bool("MCP_ENABLED", default=True)
+MCP_TOOL_CALLS_PER_DAY = env.int("MCP_TOOL_CALLS_PER_DAY", default=200)
+MCP_FUNDAMENTALS_CALLS_PER_DAY = env.int("MCP_FUNDAMENTALS_CALLS_PER_DAY", default=25)
+
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight
 # requests on a fresh visit) so pool exhaustion does not become the bottleneck.

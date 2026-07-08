@@ -232,6 +232,44 @@ Centered text-area at the bottom of the company page; streaming OpenAI-powered a
 guardrailed to Sponda's finance domain, with tiered per-day quotas. Superuser-only in v1.
 See [LLM_ASSISTANT.md](LLM_ASSISTANT.md).
 
+## MCP server
+
+Sponda's screening tools, exposed to any agent — Claude, Cursor, custom MCP clients —
+at `https://sponda.capital/api/mcp/` (Streamable HTTP, stateless, no auth). The tool
+surface is `assistant/tools.py` verbatim: the same JSON Schemas and executors the
+in-house screening agent uses, so the public MCP surface and the agent can never drift.
+
+Four tools: `list_available_indicators`, `screen_companies`, `get_company`, and
+`get_fundamentals` (the expensive one — live provider fetch — with its own tighter cap).
+Executor failures ("unknown symbol") come back as tool results with `isError: true`,
+never protocol errors, so a calling model can read them and adjust.
+
+Connect from Claude Code:
+
+```bash
+claude mcp add --transport http sponda https://sponda.capital/api/mcp/
+```
+
+Or in Claude (web/desktop): Settings → Connectors → Add custom connector →
+`https://sponda.capital/api/mcp/`.
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `MCP_ENABLED` | `true` | Serve the endpoint; `false` returns 404 |
+| `MCP_TOOL_CALLS_PER_DAY` | `200` | Per-IP daily cap across all `tools/call` requests |
+| `MCP_FUNDAMENTALS_CALLS_PER_DAY` | `25` | Per-IP daily sub-cap for `get_fundamentals` |
+
+Local testing: `python manage.py runserver`, then
+`npx @modelcontextprotocol/inspector http://localhost:8000/api/mcp/` — or plain curl:
+
+```bash
+curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+Implementation: `backend/assistant/mcp.py` (single stateless JSON-RPC view — no SSE,
+no sessions), tests in `backend/tests/test_mcp_server.py`.
+
 ## Stack
 
 - **Backend:** Django 5 + Django REST Framework + PostgreSQL + Redis

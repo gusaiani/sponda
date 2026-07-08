@@ -7,6 +7,8 @@ from django.contrib import admin
 from django.http import FileResponse, Http404, HttpResponse
 from django.urls import include, path, re_path
 
+from assistant.mcp import mcp_endpoint
+
 # Locales mirrored from frontend/src/lib/i18n-config.ts::SUPPORTED_LOCALES.
 _LOCALES = ("pt", "en", "es", "zh", "fr", "de", "it")
 _DEFAULT_LOCALE = "pt"
@@ -344,6 +346,7 @@ urlpatterns = [
     path("api/auth/", include("accounts.urls")),
     path("api/social/", include("social.urls")),
     path("api/assistant/", include("assistant.urls")),
+    path("api/mcp/", mcp_endpoint, name="mcp-server"),
     re_path(r"^(?P<filepath>assets/.*)$", _serve_frontend),
     re_path(r"^(?!api/|admin/)(?P<filepath>.*)$", _serve_frontend),
 ]
