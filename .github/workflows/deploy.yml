@@ -55,6 +55,85 @@ jobs:
         working-directory: frontend
         run: npm ci && npm test
 
+  # Live-LLM smoke gate for the screening agent. Cost controls, all three
+  # deliberate: (1) only runs when the PR touches backend/assistant/**
+  # (prompts/tools/agent are the only things that can move eval scores);
+  # (2) runs the 10-case smoke subset, not the full 76-case set;
+  # (3) runs on gpt-4o-mini (~$0.01/run). The mini gate catches harness
+  # and guardrail regressions cheaply — the authoritative accuracy numbers
+  # come from manual full runs on the production model (gpt-4o), recorded
+  # in backend/assistant/evals/latest_report.md.
+  screening-evals-smoke:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sponda
+          POSTGRES_PASSWORD: sponda
+          POSTGRES_DB: sponda_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether this PR touches the assistant
+        id: gate
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No OPENAI_API_KEY secret - skipping eval smoke."
+            exit 0
+          fi
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -q '^backend/assistant/'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "PR does not touch backend/assistant/ - skipping eval smoke."
+          fi
+
+      - uses: astral-sh/setup-uv@v6
+        if: steps.gate.outputs.run == 'true'
+      - name: Set up Python 3.12
+        if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Python dependencies
+        if: steps.gate.outputs.run == 'true'
+        run: uv pip install --system -r backend/requirements.txt
+
+      - name: Run screening eval smoke subset
+        if: steps.gate.outputs.run == 'true'
+        working-directory: backend
+        env:
+          DJANGO_SECRET_KEY: test-secret-key-for-ci
+          BRAPI_API_KEY: test-api-key-for-ci
+          DEV_DATABASE_URL: postgres://sponda:sponda@localhost:5432/sponda_test
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python manage.py migrate --noinput
+          python manage.py run_screening_evals --smoke --model gpt-4o-mini \
+            --min-passed 7 --require-all-refusals
+
+      - name: Upload eval report artifact
+        if: steps.gate.outputs.run == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screening-eval-smoke-report
+          path: backend/assistant/evals/latest_report.md
+
   e2e-tests:
     name: e2e-tests (${{ matrix.shard }})
     runs-on: ubuntu-latest
@@ -62,6 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         shard:
+          - test_e2e.py
           - test_e2e_auth.py
           - test_e2e_browser.py
           - test_e2e_favorites.py

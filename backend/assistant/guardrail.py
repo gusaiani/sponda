@@ -81,6 +81,10 @@ def classify_question(
         model=settings.ASSISTANT_GUARD_MODEL,
         messages=messages,
         response_format=GuardrailVerdict,
+        # A classifier must be deterministic: at the default temperature
+        # the same borderline question flip-flops between labels across
+        # calls (observed in the screening evals before this was pinned).
+        temperature=0,
     )
 
     # The SDK already parsed the JSON into a GuardrailVerdict for us;
@@ -120,6 +124,8 @@ def classify_screening_question(
         model=settings.ASSISTANT_GUARD_MODEL,
         messages=messages,
         response_format=GuardrailVerdict,
+        # Same determinism rationale as classify_question above.
+        temperature=0,
     )
 
     return response.choices[0].message.parsed
