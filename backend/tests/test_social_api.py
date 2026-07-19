@@ -497,6 +497,72 @@ class TestNotifications:
         r = c_alice.get("/api/social/notifications/")
         assert r.json()["unread_count"] == 0
 
+    def test_read_notifications_disappear_from_list(self, alice, bob, client_for):
+        spond = Spond.objects.create(author=alice, body="hi")
+        client_for(bob).post(f"/api/social/sponds/{spond.pk}/like/")
+        client_for(bob).post(f"/api/social/users/alice/follow/")
+        c_alice = client_for(alice)
+        c_alice.post(
+            "/api/social/notifications/mark-read/",
+            data={},
+            content_type="application/json",
+        )
+        body = c_alice.get("/api/social/notifications/").json()
+        assert body["unread_count"] == 0
+        assert body["notifications"] == []
+
+    def test_pending_follow_request_survives_mark_all_read(
+        self, alice, dave_private, client_for,
+    ):
+        client_for(alice).post(f"/api/social/users/dave/follow/")
+        c_dave = client_for(dave_private)
+        c_dave.post(
+            "/api/social/notifications/mark-read/",
+            data={},
+            content_type="application/json",
+        )
+        body = c_dave.get("/api/social/notifications/").json()
+        assert body["unread_count"] == 0
+        assert [n["verb"] for n in body["notifications"]] == ["follow_requested"]
+
+    def test_accepting_a_follow_request_erases_its_notification(
+        self, alice, dave_private, client_for,
+    ):
+        client_for(alice).post(f"/api/social/users/dave/follow/")
+        follow = Follow.objects.get(follower=alice, followee=dave_private)
+        c_dave = client_for(dave_private)
+        c_dave.post(f"/api/social/follow-requests/{follow.pk}/accept/")
+        body = c_dave.get("/api/social/notifications/").json()
+        assert "follow_requested" not in [n["verb"] for n in body["notifications"]]
+        assert not Notification.objects.filter(
+            recipient=dave_private, verb=Notification.VERB_FOLLOW_REQUESTED,
+        ).exists()
+
+    def test_rejecting_a_follow_request_erases_its_notification(
+        self, alice, dave_private, client_for,
+    ):
+        client_for(alice).post(f"/api/social/users/dave/follow/")
+        follow = Follow.objects.get(follower=alice, followee=dave_private)
+        c_dave = client_for(dave_private)
+        c_dave.post(f"/api/social/follow-requests/{follow.pk}/reject/")
+        body = c_dave.get("/api/social/notifications/").json()
+        assert body["notifications"] == []
+        assert not Notification.objects.filter(
+            recipient=dave_private, verb=Notification.VERB_FOLLOW_REQUESTED,
+        ).exists()
+
+    def test_dangling_follow_request_notification_is_hidden(
+        self, alice, dave_private, client_for,
+    ):
+        """A follow_requested row whose Follow is gone or no longer pending
+        (rows written before notifications were cleaned up on accept/reject)
+        must not be listed: its Accept/Reject buttons would 404."""
+        client_for(alice).post(f"/api/social/users/dave/follow/")
+        Follow.objects.get(follower=alice, followee=dave_private).delete()
+        body = client_for(dave_private).get("/api/social/notifications/").json()
+        assert body["notifications"] == []
+        assert body["unread_count"] == 0
+
 
 # ─── Autocomplete ─────────────────────────────────────────────────────────────
 

@@ -439,14 +439,21 @@ class FollowRequestActionView(APIView):
             Follow, pk=follow_id, followee=request.user,
             state=Follow.STATE_PENDING,
         )
+        if action not in ("accept", "reject"):
+            raise ValidationError({"detail": "Unknown action."})
+        # The request was acted on — its notification row has served its
+        # purpose, and leaving it would resurface dead Accept/Reject buttons.
+        Notification.objects.filter(
+            recipient=request.user,
+            verb=Notification.VERB_FOLLOW_REQUESTED,
+            target_object_id=str(follow.pk),
+        ).delete()
         if action == "accept":
             follow.accept()
             notifications.notify_followed(follow)
             return Response({"state": follow.state})
-        if action == "reject":
-            follow.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        raise ValidationError({"detail": "Unknown action."})
+        follow.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class FollowRequestListView(APIView):
@@ -509,14 +516,30 @@ class NotificationListView(APIView):
     throttle_classes = throttles.SOCIAL_READ_THROTTLES
 
     def get(self, request):
-        qs = (
-            Notification.objects.filter(recipient=request.user)
-            .select_related("actor")
-            .order_by("-created_at")[:100]
+        """List the recipient's *visible* notifications.
+
+        Read notifications are erased from the list — marking as seen is how
+        the user clears them. The one exception is ``follow_requested``: a
+        pending request stays visible until accepted or rejected (the bell is
+        the only accept/reject UI), and conversely a follow_requested row
+        whose Follow is gone or already accepted is hidden even when unread,
+        because its Accept/Reject buttons would 404.
+        """
+        pending_follow_ids = [
+            str(pk)
+            for pk in Follow.objects.filter(
+                followee=request.user, state=Follow.STATE_PENDING,
+            ).values_list("pk", flat=True)
+        ]
+        visible = Notification.objects.filter(recipient=request.user).filter(
+            Q(read_at__isnull=True) & ~Q(verb=Notification.VERB_FOLLOW_REQUESTED)
+            | Q(
+                verb=Notification.VERB_FOLLOW_REQUESTED,
+                target_object_id__in=pending_follow_ids,
+            ),
         )
-        unread = Notification.objects.filter(
-            recipient=request.user, read_at__isnull=True,
-        ).count()
+        unread = visible.filter(read_at__isnull=True).count()
+        qs = visible.select_related("actor").order_by("-created_at")[:100]
         return Response({
             "unread_count": unread,
             "notifications": NotificationSerializer(qs, many=True).data,
