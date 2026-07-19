@@ -6,7 +6,9 @@ from unittest.mock import patch
 import pytest
 from playwright.sync_api import Page
 
-from quotes.models import BalanceSheet
+from decimal import Decimal
+
+from quotes.models import BalanceSheet, IPCAIndex, Ticker
 from tests.conftest import seed_e2e_baseline
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
@@ -88,6 +90,13 @@ class TestE2EWithLiveServer:
         assert data["liabilitiesToEquity"] is not None
 
     def test_health_endpoint(self, page: Page, live_server):
+        # Health reports "ok" only when the newest Ticker was updated within
+        # 2 days and the newest IPCA reading is within 45 days. The baseline
+        # seed provides neither (no Ticker rows, IPCA ends at a fixed past
+        # year), so arrange both explicitly.
+        Ticker.objects.create(symbol="VALE3", name="Vale", type="stock")
+        IPCAIndex.objects.create(date=date.today(), annual_rate=Decimal("4.5"))
+
         response = page.request.get(f"{live_server.url}/api/health/")
         assert response.status == 200
         assert response.json()["status"] == "ok"
