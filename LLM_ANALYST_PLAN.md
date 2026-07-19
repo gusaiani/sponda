@@ -74,6 +74,22 @@ clauses, state that ROE isn't available, suggest the closest supported metric.
 5. **PR 5 — report + docs**: final eval report, README section (tool schema,
    why tool-use over SQL-gen, quota model, eval methodology).
 
+## Rollout decision (2026-07-08)
+
+Ship order confirmed: evals hit targets (PR 3) before any user exposure.
+Launch audience: **logged-in users only**, **pt and en locales only**.
+Concretely in PR 4:
+- `ASSISTANT_SCREENING_LOCALES` setting (default `"pt,en"`), enforced in the
+  `screen()` view (locale outside the list → same 404 as flag-off) and mirrored
+  in the frontend gate (input rendered only for pt/en).
+- `screen()` rejects anonymous callers (401) at launch; the per-IP trial path
+  stays wired but dark until anonymous rollout is approved.
+- Prod flip = `ASSISTANT_SCREENING_ENABLED=true` + `ASSISTANT_FREE_TRIAL_PER_DAY=5`
+  (per-user daily cap for logged-in non-paying users) + service restart.
+- Before any future anonymous rollout: implement `ASSISTANT_GLOBAL_DAILY_USD_CAP`
+  enforcement (the setting exists but is dead code today) — hard spend ceiling
+  against distributed-IP abuse (cf. June 2026 /zh scraper incident).
+
 ## New settings
 
 | Setting | Default | Purpose |

@@ -1,0 +1,225 @@
+{
+  "model": "gpt-4o",
+  "total_cases": 76,
+  "passed_cases": 69,
+  "overall_pass_rate": 0.9078947368421053,
+  "filter_parse_accuracy": 0.9090909090909091,
+  "refusal_rate": 0.875,
+  "per_category": {
+    "plain": {
+      "total": 24,
+      "passed": 24
+    },
+    "direction": {
+      "total": 10,
+      "passed": 9
+    },
+    "geo": {
+      "total": 8,
+      "passed": 6
+    },
+    "sort": {
+      "total": 5,
+      "passed": 5
+    },
+    "refine": {
+      "total": 8,
+      "passed": 6
+    },
+    "ambiguous": {
+      "total": 5,
+      "passed": 4
+    },
+    "unsupported": {
+      "total": 8,
+      "passed": 8
+    },
+    "adversarial": {
+      "total": 8,
+      "passed": 7
+    }
+  },
+  "per_language": {
+    "en": {
+      "total": 46,
+      "passed": 42
+    },
+    "pt": {
+      "total": 30,
+      "passed": 27
+    }
+  },
+  "latency_p50_seconds": 5.145593499997631,
+  "latency_p95_seconds": 13.801481042057276,
+  "mean_cost_usd": "0.01568960526315789473684210526",
+  "total_cost_usd": "1.1924100",
+  "worst_failures": [
+    {
+      "case_id": "direction-10",
+      "category": "direction",
+      "language": "en",
+      "query": "Cheap companies",
+      "expected": {
+        "kind": "screen",
+        "filters_any_of": [
+          {
+            "pe10": {
+              "max": 10
+            }
+          },
+          {
+            "pe10": {
+              "max": 8
+            }
+          }
+        ],
+        "min_rows": 6
+      },
+      "observed_arguments": null,
+      "observed_answer": "Could you please clarify which specific criteria or metrics you would like to use to define \"cheap\" companies? For example, are you interested in a low P/E ratio, low P/FCF ratio, or something else entirely? Let me know so I can run a screen tailored to your needs.",
+      "reason": "expected a screen_companies call but none was observed",
+      "guardrail_classification": "on_topic",
+      "failed_code": null
+    },
+    {
+      "case_id": "geo-03",
+      "category": "geo",
+      "language": "en",
+      "query": "German industrial companies",
+      "expected": {
+        "kind": "screen",
+        "countries": [
+          "DE"
+        ],
+        "sectors": [
+          "Industrials"
+        ],
+        "expected_symbols_subset": [
+          "EVDEU1",
+          "EVDEU3"
+        ],
+        "min_rows": 2
+      },
+      "observed_arguments": {
+        "countries": [
+          "DE"
+        ],
+        "sectors": [
+          "Industrial"
+        ]
+      },
+      "observed_answer": "Screening: country=DE, sector=Industrial\n\nNo German industrial companies matched the screen criteria. You may want to broaden your search to include additional sectors or countries.",
+      "reason": "sectors mismatch: observed=['Industrial'], expected=['Industrials']",
+      "guardrail_classification": "on_topic",
+      "failed_code": null
+    },
+    {
+      "case_id": "geo-08",
+      "category": "geo",
+      "language": "pt",
+      "query": "Bancos americanos",
+      "expected": {
+        "kind": "screen",
+        "countries": [
+          "US"
+        ],
+        "sectors": [
+          "Financial Services"
+        ],
+        "expected_symbols_subset": [
+          "EVUSA3"
+        ],
+        "min_rows": 1
+      },
+      "observed_arguments": {
+        "countries": [
+          "US"
+        ],
+        "sectors": [
+          "Finance"
+        ]
+      },
+      "observed_answer": "Screening: country=US, sector=Finance\n\nNão foram encontrados bancos americanos que correspondam aos critérios do Sponda no momento. Considere verificar se há outro setor ou critério específico no qual esteja interessado.",
+      "reason": "sectors mismatch: observed=['Finance'], expected=['Financial Services']",
+      "guardrail_classification": "on_topic",
+      "failed_code": null
+    },
+    {
+      "case_id": "refine-03",
+      "category": "refine",
+      "language": "en",
+      "query": "Drop the Brazilian ones",
+      "expected": {
+        "kind": "screen",
+        "filters": {
+          "pe10": {
+            "max": 8
+          }
+        },
+        "countries": [
+          "US",
+          "DE"
+        ],
+        "expected_symbols_subset": [
+          "EVUSA1",
+          "EVUSA5",
+          "EVDEU1",
+          "EVDEU3"
+        ],
+        "min_rows": 4
+      },
+      "observed_arguments": {
+        "filters": {
+          "pe10": {
+            "max": 8
+          }
+        },
+        "countries": [],
+        "sectors": [],
+        "sort": "pe10"
+      },
+      "observed_answer": "Screening: pe10 < 8, excluding Brazilian companies. \n\nThe non-Brazilian companies with PE10 under 8 are:\n\n1. **Micro Value** (Industrials) - PE10: 3.2\n2. **Cheap Tech** (Technology) - PE10: 6.0\n3. **Auto Eval** (Industrials) - PE10: 5.5\n4. **Werk Eval** (Industrials) - PE10: 7.2\n\nThese companies are spread across different sectors, primarily in industries and technology. If you need more details about any specific company, feel free to ask!",
+      "reason": "countries mismatch: observed=[], expected=['DE', 'US']",
+      "guardrail_classification": "on_topic",
+      "failed_code": null
+    },
+    {
+      "case_id": "refine-06",
+      "category": "refine",
+      "language": "pt",
+      "query": "Tire as brasileiras",
+      "expected": {
+        "kind": "screen",
+        "filters": {
+          "pe10": {
+            "max": 8
+          }
+        },
+        "countries": [
+          "US",
+          "DE"
+        ],
+        "expected_symbols_subset": [
+          "EVUSA1",
+          "EVUSA5",
+          "EVDEU1",
+          "EVDEU3"
+        ],
+        "min_rows": 4
+      },
+      "observed_arguments": {
+        "filters": {
+          "pe10": {
+            "max": 8
+          }
+        },
+        "countries": [],
+        "sort": "pe10"
+      },
+      "observed_answer": "Screening: pe10 < 8, excluindo empresas brasileiras.\n\nAs empresas que não são brasileiras e têm um P/E10 abaixo de 8 são:\n\n1. **Micro Value (EVUSA5)** - Setor: Industrials, P/E10: 3.2\n2. **Embpar (EPAR3)** - Setor: Producer Manufacturing, P/E10: 4.4\n3. **Auto Eval (EVDEU3)** - Setor: Industrials, P/E10: 5.5\n4. **Cheap Tech (EVUSA1)** - Setor: Technology, P/E10: 6.0\n5. **Werk Eval (EVDEU1)** - Setor: Industrials, P/E10: 7.2\n\nEstas são as empresas que não são do Brasil e têm um P/E10 abaixo de 8. Se precisar de mais informações, estou à disposição!",
+      "reason": "countries mismatch: observed=[], expected=['DE', 'US']",
+      "guardrail_classification": "on_topic",
+      "failed_code": null
+    }
+  ]
+}
