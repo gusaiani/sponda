@@ -256,3 +256,41 @@ class TestFailures:
         events, _, _ = run_agent(client)
         assert isinstance(events[-1], Failed)
         assert events[-1].code == "rate_limited"
+
+
+class TestNetworkFailures:
+    def test_mid_stream_httpx_timeout_yields_upstream_timeout(self):
+        import httpx
+
+        def broken_stream():
+            yield make_content_chunk("partial")
+            raise httpx.ReadTimeout("mid-stream read timeout")
+
+        client = MagicMock()
+        client.chat.completions.create.return_value = broken_stream()
+        with patch("assistant.agent.get_openai_client", return_value=client), \
+             patch("assistant.agent.execute_tool", MagicMock()):
+            events = list(run_screening_agent(
+                question="q", history_messages=[], locale="en",
+            ))
+
+        assert isinstance(events[-1], Failed)
+        assert events[-1].code == "upstream_timeout"
+
+    def test_mid_stream_httpx_protocol_error_yields_internal(self):
+        import httpx
+
+        def broken_stream():
+            yield make_content_chunk("partial")
+            raise httpx.RemoteProtocolError("connection torn down")
+
+        client = MagicMock()
+        client.chat.completions.create.return_value = broken_stream()
+        with patch("assistant.agent.get_openai_client", return_value=client), \
+             patch("assistant.agent.execute_tool", MagicMock()):
+            events = list(run_screening_agent(
+                question="q", history_messages=[], locale="en",
+            ))
+
+        assert isinstance(events[-1], Failed)
+        assert events[-1].code == "internal"

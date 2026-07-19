@@ -459,23 +459,66 @@ def _trim_row_for_model(row: dict) -> dict:
     return json_safe(trimmed)
 
 
+def _resolve_sectors(requested_sectors: list) -> tuple[list, Optional[str]]:
+    """Map model-provided sector names onto the exact DB values.
+
+    Case-insensitive: "utilities" resolves to "Utilities". A sector with no
+    match at any casing returns a corrective error naming the valid sectors,
+    so the agent can fix its next call instead of silently screening an
+    empty set (observed live: the model invented "Electric Utilities" and
+    "Finance - Diversified" and then reported zero matches to the user).
+    """
+    if not requested_sectors:
+        return [], None
+    valid_sectors = list(
+        Ticker.objects.exclude(sector="")
+        .values_list("sector", flat=True)
+        .distinct()
+        .order_by("sector"),
+    )
+    sector_by_lowercase = {sector.lower(): sector for sector in valid_sectors}
+    resolved: list = []
+    unknown: list = []
+    for requested in requested_sectors:
+        match = sector_by_lowercase.get((requested or "").strip().lower())
+        if match is None:
+            unknown.append(requested)
+        else:
+            resolved.append(match)
+    if unknown:
+        return [], (
+            f"Unknown sector(s): {', '.join(repr(s) for s in unknown)}. "
+            f"Valid sectors are: {', '.join(valid_sectors)}."
+        )
+    return resolved, None
+
+
+def _normalize_countries(requested_countries: list) -> list:
+    """Uppercase ISO-2 codes so "br" matches Ticker.country="BR"."""
+    return [(country or "").strip().upper() for country in requested_countries if country]
+
+
 def execute_screen_companies(arguments: dict) -> dict:
     """Run the screener in-process and shape the result for the tool loop.
 
     Returns ``{"count", "rows_for_model", "full_rows"}`` on success, or
     ``{"error": message}`` for a ScreenerError (e.g. an invalid sort field)
-    — never raises, so the agent loop can always feed the result straight
-    back to the model as a tool message.
+    or an unknown sector — never raises, so the agent loop can always feed
+    the result straight back to the model as a tool message.
     """
     arguments = arguments or {}
     bounds = _bounds_from_filters(arguments.get("filters"))
     limit = _clamp_screen_limit(arguments.get("limit"))
 
+    sectors, sector_error = _resolve_sectors(arguments.get("sectors") or [])
+    if sector_error:
+        return {"error": sector_error}
+
     try:
         total_count, rows = run_screener(
             bounds=bounds,
-            sectors=arguments.get("sectors") or [],
-            countries=arguments.get("countries") or [],
+            sectors=sectors,
+            countries=_normalize_countries(arguments.get("countries") or []),
             sort=arguments.get("sort") or SCREENER_DEFAULT_SORT,
             limit=limit,
         )

@@ -442,3 +442,36 @@ class TestExecuteToolDispatcher:
     def test_handles_none_arguments(self):
         result = execute_tool("list_available_indicators", None)
         assert "indicators" in result
+
+
+class TestScreenSectorResolution:
+    """screen_companies resolves sector names case-insensitively and turns
+    unknown sectors into a corrective error naming the valid ones, so the
+    agent can self-correct in its next tool round instead of silently
+    screening an empty set."""
+
+    def _seed(self):
+        Ticker.objects.create(
+            symbol="EVSEC1", name="Sector Co", sector="Utilities",
+            country="BR", type="stock",
+        )
+        IndicatorSnapshot.objects.create(ticker="EVSEC1", pe10=Decimal("5"))
+
+    def test_sector_matching_is_case_insensitive(self, db):
+        self._seed()
+        result = execute_screen_companies({"sectors": ["utilities"]})
+        assert "error" not in result
+        assert [row["ticker"] for row in result["rows_for_model"]] == ["EVSEC1"]
+
+    def test_unknown_sector_returns_error_listing_valid_sectors(self, db):
+        self._seed()
+        result = execute_screen_companies({"sectors": ["Electric Utilities"]})
+        assert "error" in result
+        assert "Electric Utilities" in result["error"]
+        assert "Utilities" in result["error"]
+
+    def test_country_codes_are_uppercased(self, db):
+        self._seed()
+        result = execute_screen_companies({"countries": ["br"]})
+        assert "error" not in result
+        assert [row["ticker"] for row in result["rows_for_model"]] == ["EVSEC1"]

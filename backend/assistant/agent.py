@@ -9,6 +9,7 @@ final answer, whose tokens stream out as they arrive.
 import json
 from dataclasses import dataclass, field
 
+import httpx
 from django.conf import settings
 from openai import APIError, APITimeoutError, RateLimitError
 
@@ -210,9 +211,15 @@ def run_screening_agent(*, question: str, history_messages: list, locale: str):
         # Defensive: the forced-final round returns above; reaching here
         # means the model somehow kept calling tools with tool_choice="none".
         yield totals
-    except APITimeoutError:
+    except (APITimeoutError, httpx.TimeoutException):
+        # httpx.TimeoutException covers mid-stream read timeouts, which the
+        # OpenAI SDK does not always wrap into APITimeoutError once the
+        # response stream is already being iterated.
         yield Failed("upstream_timeout")
     except RateLimitError:
         yield Failed("rate_limited")
-    except APIError:
+    except (APIError, httpx.HTTPError):
+        # Same rationale: a connection torn down mid-stream surfaces as a
+        # raw httpx error, and must end the event stream with a Failed
+        # event, not an exception that kills the SSE response mid-flight.
         yield Failed("internal")
