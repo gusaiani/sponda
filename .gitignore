@@ -39,3 +39,6 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Local working notes · this repo is public, keep strategy docs out of it
+marketing-strategy.md
