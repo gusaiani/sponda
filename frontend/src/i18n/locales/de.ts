@@ -616,6 +616,8 @@ export const de: TranslationDictionary = {
   "social.feed.login_to_post": "Melde dich an zum Sponden.",
   "social.spond.like": "Gefällt mir",
   "social.spond.unlike": "Gefällt mir nicht mehr",
+  "social.spond.login_to_like": "Melde dich an, um diesen Spond zu liken.",
+  "social.spond.login_to_reply": "Melde dich an, um auf diesen Spond zu antworten.",
   "social.spond.reply": "Antworten",
   "social.spond.edit": "Bearbeiten",
   "social.spond.delete": "Löschen",

@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslation } from "../../i18n";
 import { useAuth } from "../../hooks/useAuth";
+import { AuthModal } from "../AuthModal";
 import { useDeleteSpond, useLikeSpond } from "../../hooks/useSocialFeed";
 import { useSeenSponds } from "../../hooks/useSeenSponds";
 import type { SpondPayload } from "../../hooks/useProfile";
@@ -38,9 +40,14 @@ function relativeTime(iso: string, locale: string): string {
   return new Date(iso).toLocaleDateString(locale);
 }
 
+/** What a signed-out visitor was trying to do when we interrupted them
+ *  with the auth modal. Replayed once they are authenticated. */
+type GatedIntent = "like" | "reply";
+
 export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props) {
   const { t, locale } = useTranslation();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const router = useRouter();
   const likeSpond = useLikeSpond();
   const deleteSpond = useDeleteSpond();
   const { requireVerification } = useEmailVerification();
@@ -49,6 +56,7 @@ export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props)
   // When the server catches up (refetch matches our intent), the diff
   // collapses to zero automatically — no separate delta to reset.
   const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
+  const [gatedIntent, setGatedIntent] = useState<GatedIntent | null>(null);
 
   const isMine = user?.handle && user.handle === spond.author.handle;
   const liked = optimisticLiked ?? spond.viewer_has_liked;
@@ -59,7 +67,16 @@ export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props)
   );
 
   function handleLikeToggle() {
-    if (!user) return;
+    // Signed-out visitors get the login/signup cycle instead of a dead
+    // control; the like is carried out for them once they are in.
+    if (!user) {
+      setGatedIntent("like");
+      return;
+    }
+    submitLike();
+  }
+
+  function submitLike() {
     const next = !liked;
     // Optimistic UI runs immediately so the click feels responsive even
     // when verification is pending. The actual mutation only fires once
@@ -76,6 +93,31 @@ export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props)
         },
       );
     });
+  }
+
+  function handleReplyClick() {
+    if (!user) {
+      setGatedIntent("reply");
+      return;
+    }
+    openReplyComposer();
+  }
+
+  // With an inline composer available we just open it; otherwise the
+  // permalink owns the composer, and ?reply=1 opens it there focused.
+  function openReplyComposer() {
+    if (onReplyClick) onReplyClick();
+    else router.push(`/${locale}/spond/${spond.id}?reply=1`);
+  }
+
+  async function handleAuthenticated() {
+    const intent = gatedIntent;
+    setGatedIntent(null);
+    // The session cookie is already set, so the follow-up request is
+    // authenticated even before the auth query has caught up.
+    await refreshUser();
+    if (intent === "like") submitLike();
+    else if (intent === "reply") openReplyComposer();
   }
 
   function handleDelete() {
@@ -165,10 +207,13 @@ export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props)
         </div>
       )}
       <div style={{ display: "flex", gap: "14px", marginTop: "8px", color: "#666", fontSize: "12px" }}>
-        {onReplyClick ? (
+        {/* Signed-out visitors always get a button so the click can open
+          * the auth modal; the plain permalink is only for signed-in
+          * readers with no inline composer to toggle. */}
+        {onReplyClick || !user ? (
           <button
             type="button"
-            onClick={onReplyClick}
+            onClick={handleReplyClick}
             style={{
               background: "none", border: "none", padding: 0,
               cursor: "pointer", fontSize: "12px",
@@ -186,10 +231,9 @@ export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props)
         <button
           type="button"
           onClick={handleLikeToggle}
-          disabled={!user}
           style={{
             background: "none", border: "none", padding: 0,
-            cursor: user ? "pointer" : "default",
+            cursor: "pointer",
             color: liked ? "#a13a4a" : "inherit",
             fontWeight: liked ? 600 : 400,
             fontSize: "12px",
@@ -210,6 +254,15 @@ export function SpondCard({ spond, embedded, onReplyClick, replyActive }: Props)
           </button>
         )}
       </div>
+      {gatedIntent && (
+        <AuthModal
+          message={gatedIntent === "like"
+            ? t("social.spond.login_to_like")
+            : t("social.spond.login_to_reply")}
+          onClose={() => setGatedIntent(null)}
+          onSuccess={handleAuthenticated}
+        />
+      )}
     </article>
   );
 }

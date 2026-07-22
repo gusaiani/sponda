@@ -33,14 +33,20 @@ vi.mock("./SpondCard", () => ({
 
 vi.mock("./SpondComposer", () => ({
   SpondComposer: ({
-    parentId, parentHandle, inline, onSubmitted,
+    parentId, parentHandle, inline, onSubmitted, autoFocus,
   }: {
     parentId?: string;
     parentHandle?: string;
     inline?: boolean;
     onSubmitted?: () => void;
+    autoFocus?: boolean;
   }) => (
-    <div data-testid="composer" data-parent={parentId} data-inline={String(Boolean(inline))}>
+    <div
+      data-testid="composer"
+      data-parent={parentId}
+      data-inline={String(Boolean(inline))}
+      data-autofocus={String(Boolean(autoFocus))}
+    >
       {`composer for @${parentHandle}`}
       <button type="button" onClick={() => onSubmitted?.()}>fake-submit</button>
     </div>
@@ -98,6 +104,19 @@ describe("SpondThread", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "card-reply-active" }));
     expect(screen.queryByTestId("composer")).toBeNull();
+  });
+
+  it("opens the composer focused so the user can type straight away", () => {
+    wrap(<SpondThread spond={makeSpond()} replies={[]} inlineReply />);
+    fireEvent.click(screen.getByRole("button", { name: "card-reply" }));
+    expect(screen.getByTestId("composer")).toHaveAttribute("data-autofocus", "true");
+  });
+
+  it("starts with the composer open when startReplying is set", () => {
+    wrap(<SpondThread spond={makeSpond()} replies={[]} inlineReply startReplying />);
+    const composer = screen.getByTestId("composer");
+    expect(composer).toBeInTheDocument();
+    expect(composer).toHaveAttribute("data-autofocus", "true");
   });
 
   it("closes the composer and calls onChanged after a reply is submitted", () => {

@@ -18,10 +18,14 @@ interface Props {
   /** Drops the composer's own card chrome so it can sit inside a thread
    *  box (used for inline replies on the Spond page). */
   inline?: boolean;
+  /** Focuses the textarea on mount, already expanded. Used when the
+   *  composer is opened by an explicit "Reply" click so the user can
+   *  start typing without a second click. */
+  autoFocus?: boolean;
   onSubmitted?: () => void;
 }
 
-export function SpondComposer({ lockedTicker, parentId, parentHandle, inline, onSubmitted }: Props) {
+export function SpondComposer({ lockedTicker, parentId, parentHandle, inline, autoFocus, onSubmitted }: Props) {
   const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const createSpond = useCreateSpond();
@@ -33,7 +37,7 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, inline, on
   // Compact state: collapsed to a single visible row when the textarea
   // is empty AND not focused — saves vertical space in the right rail.
   // Expands the moment the user focuses or types something.
-  const [expanded, setExpanded] = useState(Boolean(parentHandle));
+  const [expanded, setExpanded] = useState(Boolean(parentHandle) || Boolean(autoFocus));
   const isExpanded = expanded || body.length > 0;
 
   // Signed-out users still see a small CTA — they can't compose at all.
@@ -109,6 +113,7 @@ export function SpondComposer({ lockedTicker, parentId, parentHandle, inline, on
             </div>
           )}
           <textarea
+            autoFocus={autoFocus}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             onFocus={() => setExpanded(true)}

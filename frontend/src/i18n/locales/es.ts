@@ -616,6 +616,8 @@ export const es: TranslationDictionary = {
   "social.feed.login_to_post": "Inicia sesión para Spondar.",
   "social.spond.like": "Me gusta",
   "social.spond.unlike": "Ya no me gusta",
+  "social.spond.login_to_like": "Inicia sesión para dar me gusta a este Spond.",
+  "social.spond.login_to_reply": "Inicia sesión para responder a este Spond.",
   "social.spond.reply": "Responder",
   "social.spond.edit": "Editar",
   "social.spond.delete": "Eliminar",

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { SpondCard } from "./SpondCard";
@@ -15,15 +15,38 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+const { mockUser, mockRefreshUser, mockLikeMutate, mockPush } = vi.hoisted(() => ({
+  mockUser: vi.fn(),
+  mockRefreshUser: vi.fn(),
+  mockLikeMutate: vi.fn(),
+  mockPush: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
 vi.mock("../../hooks/useAuth", () => ({
   useAuth: () => ({
-    user: { handle: "bob", display_name: "Bob", bio: "", is_private: false },
-    isAuthenticated: true,
+    user: mockUser(),
+    isAuthenticated: Boolean(mockUser()),
+    refreshUser: mockRefreshUser,
   }),
 }));
 
+// Stubbed so these tests exercise SpondCard's orchestration, not the
+// modal's own form (AuthModal has its own test file).
+vi.mock("../AuthModal", () => ({
+  AuthModal: ({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) => (
+    <div data-testid="auth-modal">
+      <button type="button" onClick={onSuccess}>stub-authenticate</button>
+      <button type="button" onClick={onClose}>stub-close</button>
+    </div>
+  ),
+}));
+
 vi.mock("../../hooks/useSocialFeed", () => ({
-  useLikeSpond: () => ({ mutate: vi.fn(), isPending: false }),
+  useLikeSpond: () => ({ mutate: mockLikeMutate, isPending: false }),
   useDeleteSpond: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
@@ -53,8 +76,14 @@ function wrap(ui: React.ReactNode) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
+const signedInUser = { handle: "bob", display_name: "Bob", bio: "", is_private: false };
+
 beforeEach(() => {
   client?.clear();
+  mockUser.mockReturnValue(signedInUser);
+  mockRefreshUser.mockClear();
+  mockLikeMutate.mockClear();
+  mockPush.mockClear();
 });
 
 describe("SpondCard", () => {
@@ -84,6 +113,81 @@ describe("SpondCard", () => {
     const button = screen.getByRole("button", { name: /Reply/i });
     fireEvent.click(button);
     expect(onReplyClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("likes straight away for a signed-in user, with no auth modal", () => {
+    wrap(<SpondCard spond={spond} />);
+    fireEvent.click(screen.getByRole("button", { name: /Like/i }));
+    expect(screen.queryByTestId("auth-modal")).toBeNull();
+    expect(mockLikeMutate).toHaveBeenCalledWith(
+      { id: "spond-1", like: true },
+      expect.anything(),
+    );
+  });
+
+  describe("signed out", () => {
+    beforeEach(() => {
+      mockUser.mockReturnValue(null);
+    });
+
+    it("offers Like as a live control rather than a disabled one", () => {
+      wrap(<SpondCard spond={spond} />);
+      expect(screen.getByRole("button", { name: /Like/i })).not.toBeDisabled();
+    });
+
+    it("opens the auth modal on Like instead of liking", () => {
+      wrap(<SpondCard spond={spond} />);
+      fireEvent.click(screen.getByRole("button", { name: /Like/i }));
+      expect(screen.getByTestId("auth-modal")).toBeInTheDocument();
+      expect(mockLikeMutate).not.toHaveBeenCalled();
+    });
+
+    it("completes the like once authentication succeeds", async () => {
+      wrap(<SpondCard spond={spond} />);
+      fireEvent.click(screen.getByRole("button", { name: /Like/i }));
+      fireEvent.click(screen.getByText("stub-authenticate"));
+
+      expect(mockRefreshUser).toHaveBeenCalled();
+      await waitFor(() =>
+        expect(mockLikeMutate).toHaveBeenCalledWith(
+          { id: "spond-1", like: true },
+          expect.anything(),
+        ),
+      );
+      expect(screen.queryByTestId("auth-modal")).toBeNull();
+    });
+
+    it("abandons the pending like when the modal is dismissed", () => {
+      wrap(<SpondCard spond={spond} />);
+      fireEvent.click(screen.getByRole("button", { name: /Like/i }));
+      fireEvent.click(screen.getByText("stub-close"));
+
+      expect(screen.queryByTestId("auth-modal")).toBeNull();
+      expect(mockLikeMutate).not.toHaveBeenCalled();
+    });
+
+    it("opens the auth modal on Reply, then opens the composer on success", async () => {
+      const onReplyClick = vi.fn();
+      wrap(<SpondCard spond={spond} onReplyClick={onReplyClick} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Reply/i }));
+      expect(screen.getByTestId("auth-modal")).toBeInTheDocument();
+      expect(onReplyClick).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByText("stub-authenticate"));
+      await waitFor(() => expect(onReplyClick).toHaveBeenCalledTimes(1));
+    });
+
+    it("sends Reply without an inline composer to the permalink ready to reply", async () => {
+      wrap(<SpondCard spond={spond} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Reply/i }));
+      fireEvent.click(screen.getByText("stub-authenticate"));
+
+      await waitFor(() =>
+        expect(mockPush).toHaveBeenCalledWith("/en/spond/spond-1?reply=1"),
+      );
+    });
   });
 
   it("marks the reply control active when replyActive is set", () => {
