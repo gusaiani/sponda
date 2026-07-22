@@ -157,6 +157,32 @@ describe("LayoutShell", () => {
     expect(header!.textContent).toContain("screener.link_label");
   });
 
+  it("stops reserving sidebar gutters on auth pages", () => {
+    mockPathname.mockReturnValue("/en/login");
+
+    render(
+      <LayoutShell>
+        <div>Login content</div>
+      </LayoutShell>,
+    );
+
+    const body = document.querySelector(".app-body")!;
+    expect(body.classList.contains("app-body-full-width")).toBe(true);
+    expect(document.querySelector('[data-testid="left-nav"]')).toBeNull();
+    expect(document.querySelector('[data-testid="social-sidebar"]')).toBeNull();
+  });
+
+  it("keeps the sidebar gutters on non-auth pages", () => {
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
+
+    const body = document.querySelector(".app-body")!;
+    expect(body.classList.contains("app-body-full-width")).toBe(false);
+  });
+
   it("renders the assistant bar for a superuser on a company page", () => {
     mockIsSuperuser.mockReturnValue(true);
     mockPathname.mockReturnValue("/en/PETR4");
