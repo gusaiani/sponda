@@ -136,7 +136,9 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
         </header>
       )}
       {!isOnAuthPage && <LeftNav />}
-      <div className="app-body">
+      {/* Auth pages render neither sidebar, so the gutters .app-body
+        * reserves for them would push the centered card off-centre. */}
+      <div className={isOnAuthPage ? "app-body app-body-full-width" : "app-body"}>
         <main className="app-main">{children}</main>
       </div>
       {!isOnAuthPage && <SocialSidebar />}
