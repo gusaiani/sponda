@@ -99,6 +99,18 @@ describe("SpondComposer", () => {
     expect(screen.queryByRole("button", { name: /Spond/i })).toBeNull();
   });
 
+  it("leaves focus alone by default", () => {
+    wrap(<SpondComposer />);
+    expect(document.activeElement).not.toBe(document.querySelector("textarea"));
+  });
+
+  it("focuses the textarea, expanded, when autoFocus is set", () => {
+    wrap(<SpondComposer autoFocus />);
+    const textarea = document.querySelector("textarea")!;
+    expect(document.activeElement).toBe(textarea);
+    expect(screen.getByText("500 characters left")).toBeInTheDocument();
+  });
+
   it("calls mutateAsync when submitted with valid body", async () => {
     wrap(<SpondComposer />);
     fireEvent.change(document.querySelector("textarea")!, { target: { value: "hi there" } });

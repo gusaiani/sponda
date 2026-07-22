@@ -620,6 +620,8 @@ export interface TranslationDictionary {
   "social.feed.login_to_post": string;
   "social.spond.like": string;
   "social.spond.unlike": string;
+  "social.spond.login_to_like": string;
+  "social.spond.login_to_reply": string;
   "social.spond.reply": string;
   "social.spond.edit": string;
   "social.spond.delete": string;

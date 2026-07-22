@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "../../../../i18n";
 import type { SpondPayload } from "../../../../hooks/useProfile";
@@ -26,6 +27,9 @@ export default function SpondPermalinkPage({ params }: Props) {
   const { id } = use(params);
   const { t } = useTranslation();
   const [refresh, setRefresh] = useState(0);
+  // Set when the visitor clicked Reply on a card without an inline
+  // composer (and possibly logged in on the way here).
+  const wantsToReply = useSearchParams().get("reply") === "1";
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["social-thread", id, refresh],
@@ -61,6 +65,7 @@ export default function SpondPermalinkPage({ params }: Props) {
           spond={data.spond}
           replies={data.replies}
           inlineReply
+          startReplying={wantsToReply}
           onChanged={() => setRefresh((n) => n + 1)}
         />
       </div>

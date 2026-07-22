@@ -616,6 +616,8 @@ export const zh: TranslationDictionary = {
   "social.feed.login_to_post": "登录以发布 Spond。",
   "social.spond.like": "喜欢",
   "social.spond.unlike": "取消喜欢",
+  "social.spond.login_to_like": "登录后即可喜欢该 Spond。",
+  "social.spond.login_to_reply": "登录后即可回复该 Spond。",
   "social.spond.reply": "回复",
   "social.spond.edit": "编辑",
   "social.spond.delete": "删除",

@@ -20,6 +20,10 @@ interface Props {
   /** When true, the root "Responder" toggles an inline composer inside
    *  this box instead of linking to the permalink (Spond page). */
   inlineReply?: boolean;
+  /** Opens the inline composer immediately, focused. Used when the user
+   *  arrives already intending to reply (e.g. ?reply=1 after logging in
+   *  from a Spond's Reply control elsewhere). */
+  startReplying?: boolean;
   /** Refresh callback after a reply is posted (page refetch). */
   onChanged?: () => void;
 }
@@ -40,9 +44,9 @@ async function fetchThread(id: string): Promise<ThreadResponse> {
  *  - Lazy (feed/sidebar): only the root and a "show replies" toggle show;
  *    the thread is fetched on demand and nested in the same box.
  */
-export function SpondThread({ spond, replies, inlineReply, onChanged }: Props) {
+export function SpondThread({ spond, replies, inlineReply, startReplying, onChanged }: Props) {
   const { t } = useTranslation();
-  const [replying, setReplying] = useState(false);
+  const [replying, setReplying] = useState(Boolean(startReplying));
   const [expanded, setExpanded] = useState(false);
 
   const eager = replies !== undefined;
@@ -71,6 +75,7 @@ export function SpondThread({ spond, replies, inlineReply, onChanged }: Props) {
         <div style={composerWrapStyle}>
           <SpondComposer
             inline
+            autoFocus
             parentId={spond.id}
             parentHandle={spond.author.handle}
             onSubmitted={() => {
