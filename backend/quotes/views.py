@@ -910,6 +910,7 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
         "pe10Label": pe10_result["label"],
         "pe10Error": pe10_result["error"],
         "pe10AnnualData": pe10_result["annual_data_flag"],
+        "pe10PeriodsPerYear": pe10_result["periods_per_year"],
         "pe10CalculationDetails": pe10_result["calculation_details"],
         # PFCF10
         "pfcf10": pfcf10_result["pfcf10"],
@@ -918,6 +919,7 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
         "pfcf10Label": pfcf10_result["label"],
         "pfcf10Error": pfcf10_result["error"],
         "pfcf10AnnualData": pfcf10_result["annual_data_flag"],
+        "pfcf10PeriodsPerYear": pfcf10_result["periods_per_year"],
         "pfcf10CalculationDetails": pfcf10_result["calculation_details"],
         # Leverage
         "debtToEquity": leverage_result["debtToEquity"],

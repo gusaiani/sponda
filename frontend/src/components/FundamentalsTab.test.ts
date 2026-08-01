@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { computeShillerPERatios, augmentWithPERatios } from "./FundamentalsTab";
+import {
+  computeTrailingPERatios,
+  augmentWithPERatios,
+  type TrailingRatioSource,
+} from "./FundamentalsTab";
 import { formatNumber } from "../utils/format";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
 
@@ -41,182 +45,192 @@ function makeYear(
   };
 }
 
-describe("computeShillerPERatios", () => {
-  it("returns null for both ratios when marketCap is null", () => {
-    const data = [makeYear(2024, { marketCap: null, netIncomeAdjusted: 100, fcfAdjusted: 100 })];
-    const result = computeShillerPERatios(data, 5);
-    expect(result.get(2024)).toEqual({ pe: null, pfcf: null });
-  });
+/** Build a quote-payload-like source from per-year period values.
+ *  `periodValues[year]` lists that year's filings, oldest first. */
+function makeSource(
+  periodValues: Record<number, number[]>,
+  periodsPerYear: 1 | 2 | 4 = 4,
+): TrailingRatioSource {
+  const yearsDescending = Object.keys(periodValues)
+    .map(Number)
+    .sort((a, b) => b - a);
+  const endDateFor = (year: number, index: number, count: number): string => {
+    if (periodsPerYear === 2) return `${year}-${index === 0 && count > 1 ? "06-30" : "12-31"}`;
+    if (periodsPerYear === 1) return `${year}-12-31`;
+    return `${year}-${String((index + 1) * 3).padStart(2, "0")}-30`;
+  };
+  return {
+    pe10PeriodsPerYear: periodsPerYear,
+    pfcf10PeriodsPerYear: periodsPerYear,
+    pe10CalculationDetails: yearsDescending.map((year) => ({
+      year,
+      ipcaFactor: 1,
+      quarters: periodValues[year].length,
+      quarterlyDetail: periodValues[year].map((value, index) => ({
+        end_date: endDateFor(year, index, periodValues[year].length),
+        net_income: value,
+      })),
+    })),
+    pfcf10CalculationDetails: yearsDescending.map((year) => ({
+      year,
+      ipcaFactor: 1,
+      quarters: periodValues[year].length,
+      quarterlyDetail: periodValues[year].map((value, index) => ({
+        end_date: endDateFor(year, index, periodValues[year].length),
+        fcf: value / 2,
+      })),
+    })),
+  };
+}
 
-  it("returns null when netIncomeAdjusted and fcfAdjusted are null for all years", () => {
-    const data = [
-      makeYear(2024, { marketCap: 1000, netIncomeAdjusted: null, fcfAdjusted: null }),
+describe("computeTrailingPERatios", () => {
+  it("computes each year's ratio from the trailing window anchored at that year", () => {
+    // Every year earns 100 (4 × 25). Market caps differ per year, so the
+    // ratio tracks the historical market cap over the same 100 average.
+    const source = makeSource({
+      2020: [25, 25, 25, 25],
+      2021: [25, 25, 25, 25],
+      2022: [25, 25, 25, 25],
+      2023: [25, 25, 25, 25],
+      2024: [25, 25, 25, 25],
+    });
+    const rows = [
+      makeYear(2024, { marketCapAdjusted: 500 }),
+      makeYear(2022, { marketCapAdjusted: 300 }),
     ];
-    const result = computeShillerPERatios(data, 5);
-    expect(result.get(2024)).toEqual({ pe: null, pfcf: null });
-  });
-
-  it("computes negative P/E when average earnings are negative", () => {
-    const data = [
-      makeYear(2024, { marketCap: 1000, netIncomeAdjusted: -100 }),
-      makeYear(2023, { marketCap: 1000, netIncomeAdjusted: -200 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
-    // avg earnings = (-100 + -200) / 2 = -150, PE = 1000 / -150 = -6.7
-    expect(result.get(2024)!.pe).toBe(-6.7);
-  });
-
-  it("computes PE using up to N years of data", () => {
-    const data = [
-      makeYear(2024, { marketCap: 500, netIncomeAdjusted: 100 }),
-      makeYear(2023, { marketCap: 400, netIncomeAdjusted: 100 }),
-      makeYear(2022, { marketCap: 300, netIncomeAdjusted: 100 }),
-      makeYear(2021, { marketCap: 200, netIncomeAdjusted: 100 }),
-      makeYear(2020, { marketCap: 100, netIncomeAdjusted: 100 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
+    const result = computeTrailingPERatios(rows, source, 3);
     expect(result.get(2024)!.pe).toBe(5.0);
-  });
-
-  it("PE5 only considers the last 5 years even when more data exists", () => {
-    const years = [
-      makeYear(2024, { marketCap: 1000, netIncomeAdjusted: 200 }),
-      makeYear(2023, { marketCap: 900, netIncomeAdjusted: 200 }),
-      makeYear(2022, { marketCap: 800, netIncomeAdjusted: 200 }),
-      makeYear(2021, { marketCap: 700, netIncomeAdjusted: 200 }),
-      makeYear(2020, { marketCap: 600, netIncomeAdjusted: 200 }),
-      makeYear(2019, { marketCap: 500, netIncomeAdjusted: 10 }),
-      makeYear(2018, { marketCap: 400, netIncomeAdjusted: 10 }),
-    ];
-    const result = computeShillerPERatios(years, 5);
-    // PE5(2024) = 1000 / 200 = 5.0 (only 2020-2024)
-    expect(result.get(2024)!.pe).toBe(5.0);
-  });
-
-  it("uses available years when fewer than window size exist", () => {
-    const data = [
-      makeYear(2024, { marketCap: 300, netIncomeAdjusted: 100 }),
-      makeYear(2023, { marketCap: 200, netIncomeAdjusted: 100 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
-    // Only 2 years available, avg = 100, PE = 300/100 = 3.0
-    expect(result.get(2024)!.pe).toBe(3.0);
-  });
-
-  it("rounds to one decimal place", () => {
-    const data = [
-      makeYear(2024, { marketCap: 1000, netIncomeAdjusted: 300 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
-    // 1000 / 300 = 3.333... → 3.3
-    expect(result.get(2024)!.pe).toBe(3.3);
-  });
-
-  it("handles descending-order input correctly", () => {
-    const data = [
-      makeYear(2024, { marketCap: 500, netIncomeAdjusted: 100 }),
-      makeYear(2023, { marketCap: 400, netIncomeAdjusted: 100 }),
-      makeYear(2022, { marketCap: 300, netIncomeAdjusted: 100 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
-    expect(result.get(2024)!.pe).toBe(5.0);
+    // 2022's window is 2020-2022 — anchored at 2022, not at the latest year.
     expect(result.get(2022)!.pe).toBe(3.0);
   });
 
-  it("PE5 and PE10 differ when earnings vary across windows", () => {
-    const years = [
-      makeYear(2024, { marketCap: 1000, netIncomeAdjusted: 200 }),
-      makeYear(2023, { marketCap: 900, netIncomeAdjusted: 200 }),
-      makeYear(2022, { marketCap: 800, netIncomeAdjusted: 200 }),
-      makeYear(2021, { marketCap: 700, netIncomeAdjusted: 200 }),
-      makeYear(2020, { marketCap: 600, netIncomeAdjusted: 200 }),
-      makeYear(2019, { marketCap: 500, netIncomeAdjusted: 50 }),
-      makeYear(2018, { marketCap: 400, netIncomeAdjusted: 50 }),
-      makeYear(2017, { marketCap: 300, netIncomeAdjusted: 50 }),
-      makeYear(2016, { marketCap: 200, netIncomeAdjusted: 50 }),
-      makeYear(2015, { marketCap: 100, netIncomeAdjusted: 50 }),
-    ];
-    expect(computeShillerPERatios(years, 5).get(2024)!.pe).toBe(5.0);
-    expect(computeShillerPERatios(years, 10).get(2024)!.pe).toBe(8.0);
+  it("weights a partial current year by its filings instead of counting it as a full year", () => {
+    // 2026 has only Q1 ($10); 2023-2025 earn $40 each. The 3-year window
+    // anchored at 2026 must trail into 2023 for 12 full quarters:
+    // (10 + 40 + 40 + 30) ÷ 3 = 40 → PE = 400/40 = 10.
+    // The old calendar-year average said (10+40+40)/3 = 30 → PE 13.3.
+    const source = makeSource({
+      2023: [10, 10, 10, 10],
+      2024: [10, 10, 10, 10],
+      2025: [10, 10, 10, 10],
+      2026: [10],
+    });
+    const rows = [makeYear(2026, { quarters: 1, marketCapAdjusted: 400 })];
+    const result = computeTrailingPERatios(rows, source, 3);
+    expect(result.get(2026)!.pe).toBe(10);
   });
 
-  it("skips null netIncomeAdjusted years but still computes average from available data", () => {
-    const data = [
-      makeYear(2024, { marketCap: 600, netIncomeAdjusted: 200 }),
-      makeYear(2023, { marketCap: 500, netIncomeAdjusted: null }),
-      makeYear(2022, { marketCap: 400, netIncomeAdjusted: 100 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
-    // avg of non-null: (200 + 100) / 2 = 150, PE = 600/150 = 4.0
-    expect(result.get(2024)!.pe).toBe(4.0);
+  it("handles semi-annual reporters: an N-year window is N×2 filings", () => {
+    // RIO-style: 2 filings per year worth $10 each → $20/year average.
+    const source = makeSource(
+      {
+        2020: [10, 10],
+        2021: [10, 10],
+        2022: [10, 10],
+        2023: [10, 10],
+        2024: [10, 10],
+        2025: [10, 10],
+      },
+      2,
+    );
+    const rows = [makeYear(2025, { quarters: 2, marketCapAdjusted: 400 })];
+    const result = computeTrailingPERatios(rows, source, 6);
+    expect(result.get(2025)!.pe).toBe(20);
   });
 
-  it("computes P/FCF using up to N years of fcfAdjusted data", () => {
-    const data = [
-      makeYear(2024, { marketCap: 500, fcfAdjusted: 50 }),
-      makeYear(2023, { marketCap: 400, fcfAdjusted: 50 }),
-      makeYear(2022, { marketCap: 300, fcfAdjusted: 50 }),
-      makeYear(2021, { marketCap: 200, fcfAdjusted: 50 }),
-      makeYear(2020, { marketCap: 100, fcfAdjusted: 50 }),
+  it("returns null when the anchored window lacks enough filings", () => {
+    const source = makeSource({
+      2023: [25, 25, 25, 25],
+      2024: [25, 25, 25, 25],
+    });
+    const rows = [
+      makeYear(2024, { marketCapAdjusted: 500 }),
+      makeYear(2023, { marketCapAdjusted: 400 }),
     ];
-    const result = computeShillerPERatios(data, 5);
-    // avg FCF = 50, PFCF = 500/50 = 10.0
+    const result = computeTrailingPERatios(rows, source, 3);
+    // Only 2 years of filings exist — a 3-year window is not computable
+    // for either row. No silently-shrunk averages.
+    expect(result.get(2024)!.pe).toBeNull();
+    expect(result.get(2023)!.pe).toBeNull();
+  });
+
+  it("returns null ratios when market cap is missing", () => {
+    const source = makeSource({ 2024: [25, 25, 25, 25] });
+    const rows = [makeYear(2024, { marketCapAdjusted: null, marketCap: null })];
+    const result = computeTrailingPERatios(rows, source, 1);
+    expect(result.get(2024)).toEqual({ pe: null, pfcf: null });
+  });
+
+  it("returns null ratios when the quote payload is unavailable", () => {
+    const rows = [makeYear(2024, { marketCapAdjusted: 500 })];
+    const result = computeTrailingPERatios(rows, null, 3);
+    expect(result.get(2024)).toEqual({ pe: null, pfcf: null });
+  });
+
+  it("computes negative PE when the window average is negative", () => {
+    const source = makeSource({ 2024: [-25, -25, -25, -25] });
+    const rows = [makeYear(2024, { marketCapAdjusted: 1000 })];
+    const result = computeTrailingPERatios(rows, source, 1);
+    expect(result.get(2024)!.pe).toBe(-10);
+  });
+
+  it("returns null when the window average is exactly zero", () => {
+    const source = makeSource({ 2024: [50, -50, 25, -25] });
+    const rows = [makeYear(2024, { marketCapAdjusted: 1000 })];
+    const result = computeTrailingPERatios(rows, source, 1);
+    expect(result.get(2024)!.pe).toBeNull();
+  });
+
+  it("computes P/FCL from the cash-flow details", () => {
+    // makeSource sets each FCF filing to half the earnings filing:
+    // avg FCF = 50 → PFCF = 500/50 = 10.
+    const source = makeSource({
+      2022: [25, 25, 25, 25],
+      2023: [25, 25, 25, 25],
+      2024: [25, 25, 25, 25],
+    });
+    const rows = [makeYear(2024, { marketCapAdjusted: 500 })];
+    const result = computeTrailingPERatios(rows, source, 3);
     expect(result.get(2024)!.pfcf).toBe(10.0);
   });
 
-  it("computes negative P/FCF when average FCF is negative", () => {
-    const data = [
-      makeYear(2024, { marketCap: 1000, fcfAdjusted: -100 }),
-      makeYear(2023, { marketCap: 1000, fcfAdjusted: -200 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
-    // avg = -150, PFCF = 1000/-150 = -6.7
-    expect(result.get(2024)!.pfcf).toBe(-6.7);
-  });
-
-  it("returns null when average is exactly zero (division by zero)", () => {
-    const data = [
-      makeYear(2024, { marketCap: 1000, netIncomeAdjusted: 100, fcfAdjusted: 50 }),
-      makeYear(2023, { marketCap: 1000, netIncomeAdjusted: -100, fcfAdjusted: -50 }),
-    ];
-    const result = computeShillerPERatios(data, 5);
-    expect(result.get(2024)!.pe).toBeNull();
-    expect(result.get(2024)!.pfcf).toBeNull();
+  it("falls back to nominal market cap when the adjusted value is missing", () => {
+    const source = makeSource({ 2024: [25, 25, 25, 25] });
+    const rows = [makeYear(2024, { marketCapAdjusted: null, marketCap: 500 })];
+    const result = computeTrailingPERatios(rows, source, 1);
+    expect(result.get(2024)!.pe).toBe(5.0);
   });
 });
 
 describe("augmentWithPERatios", () => {
+  const source = makeSource({
+    2020: [25, 25, 25, 25],
+    2021: [25, 25, 25, 25],
+    2022: [25, 25, 25, 25],
+    2023: [25, 25, 25, 25],
+    2024: [25, 25, 25, 25],
+  });
+
   it("always returns data sorted by year descending (latest first)", () => {
     const ascendingData = [
-      makeYear(2020, { marketCap: 100, netIncomeAdjusted: 50 }),
-      makeYear(2021, { marketCap: 200, netIncomeAdjusted: 60 }),
-      makeYear(2022, { marketCap: 300, netIncomeAdjusted: 70 }),
-      makeYear(2023, { marketCap: 400, netIncomeAdjusted: 80 }),
-      makeYear(2024, { marketCap: 500, netIncomeAdjusted: 90 }),
+      makeYear(2020, { marketCapAdjusted: 100 }),
+      makeYear(2021, { marketCapAdjusted: 200 }),
+      makeYear(2022, { marketCapAdjusted: 300 }),
+      makeYear(2023, { marketCapAdjusted: 400 }),
+      makeYear(2024, { marketCapAdjusted: 500 }),
     ];
-    const result = augmentWithPERatios(ascendingData, 5);
+    const result = augmentWithPERatios(ascendingData, 5, source);
     const years = result.map((row) => row.year);
     expect(years).toEqual([2024, 2023, 2022, 2021, 2020]);
   });
 
-  it("preserves descending order when data is already sorted correctly", () => {
-    const descendingData = [
-      makeYear(2024, { marketCap: 500 }),
-      makeYear(2023, { marketCap: 400 }),
-      makeYear(2022, { marketCap: 300 }),
-    ];
-    const result = augmentWithPERatios(descendingData, 5);
-    const years = result.map((row) => row.year);
-    expect(years).toEqual([2024, 2023, 2022]);
-  });
-
   it("attaches pe and pfcf for the requested window", () => {
     const data = [
-      makeYear(2024, { marketCap: 500, netIncomeAdjusted: 100, fcfAdjusted: 50 }),
-      makeYear(2023, { marketCap: 400, netIncomeAdjusted: 100, fcfAdjusted: 50 }),
-      makeYear(2022, { marketCap: 300, netIncomeAdjusted: 100, fcfAdjusted: 50 }),
+      makeYear(2024, { marketCapAdjusted: 500 }),
+      makeYear(2023, { marketCapAdjusted: 400 }),
+      makeYear(2022, { marketCapAdjusted: 300 }),
     ];
-    const result = augmentWithPERatios(data, 3);
+    const result = augmentWithPERatios(data, 3, source);
     expect(result[0].pe).toBe(5.0);
     expect(result[0].pfcf).toBe(10.0);
   });
@@ -225,13 +239,13 @@ describe("augmentWithPERatios", () => {
 describe("formatNumber formatting", () => {
   it("uses en-dash (U+2013) for negative numbers", () => {
     const formatted = formatNumber(-1234.56, 2, "pt");
-    expect(formatted).toContain("\u2013");
+    expect(formatted).toContain("–");
     expect(formatted).not.toContain("-");
   });
 
   it("does not alter positive numbers", () => {
     const formatted = formatNumber(1234.56, 2, "pt");
-    expect(formatted).not.toContain("\u2013");
+    expect(formatted).not.toContain("–");
     expect(formatted).not.toContain("-");
   });
 });

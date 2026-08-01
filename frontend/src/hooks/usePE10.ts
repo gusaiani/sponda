@@ -55,6 +55,10 @@ interface QuoteResult {
   pe10Label: string;
   pe10Error: string | null;
   pe10AnnualData: boolean;
+  /** Filings per year (4 = quarterly, 2 = semi-annual like RIO, 1 = annual).
+   * Optional because cached payloads predate the field; consumers fall back
+   * to inferring it from the calculation details. */
+  pe10PeriodsPerYear?: number;
   pe10CalculationDetails: PE10YearlyBreakdown[];
   // PFCF10
   pfcf10: number | null;
@@ -63,6 +67,8 @@ interface QuoteResult {
   pfcf10Label: string;
   pfcf10Error: string | null;
   pfcf10AnnualData: boolean;
+  /** See pe10PeriodsPerYear. */
+  pfcf10PeriodsPerYear?: number;
   pfcf10CalculationDetails: PFCF10YearlyBreakdown[];
   // Leverage
   debtToEquity: number | null;

@@ -1,11 +1,12 @@
 """PE10 (Shiller P/E) calculation logic — pure functions.
 
-The N-year window covers exactly N×4 trailing quarters. When the most
-recent fiscal year only has a partial set of quarters reported (e.g.
-mid-year, with only Q1 in), we backfill from older years so the
-denominator divides an honest N years of earnings — instead of
-treating the partial-current year as if it were a full year and
-under-weighting the average.
+The N-year window covers exactly N × periods_per_year trailing filings
+(4 for quarterly reporters, 2 for semi-annual ones like Rio Tinto,
+1 for annual-only reporters). When the most recent fiscal year only
+has a partial set of periods reported (e.g. mid-year, with only Q1
+in), we backfill from older years so the denominator divides an honest
+N years of earnings — instead of treating the partial-current year as
+if it were a full year and under-weighting the average.
 """
 from collections import defaultdict
 from decimal import Decimal
@@ -13,6 +14,7 @@ from decimal import Decimal
 from .fx import market_cap_in_reported_currency
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyEarnings
+from .reporting_frequency import QUARTERLY_PERIODS_PER_YEAR, infer_periods_per_year
 
 
 def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
@@ -77,15 +79,18 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
             "label": "PE0",
             "error": "Sem dados de lucro disponíveis",
             "annual_data_flag": False,
+            "periods_per_year": QUARTERLY_PERIODS_PER_YEAR,
             "calculation_details": [],
         }
 
     # Cap the window to the largest whole-year count this ticker can
-    # actually fill. A 13-quarter company with max_years=10 yields a
-    # PE3 (12 trailing quarters / 3 years), not PE10 averaged over a
-    # short partial sample.
-    total_quarters = sum(d["quarters"] for d in annual_data)
-    effective_years = min(max_years, total_quarters // 4)
+    # actually fill, honouring its filing frequency. A 13-quarter
+    # quarterly reporter with max_years=10 yields a PE3 (12 trailing
+    # quarters / 3 years); a semi-annual reporter with 26 filings
+    # yields a PE13, not a PE6.
+    periods_per_year = infer_periods_per_year(annual_data)
+    total_periods = sum(d["quarters"] for d in annual_data)
+    effective_years = min(max_years, total_periods // periods_per_year)
     if effective_years == 0:
         return {
             "pe10": None,
@@ -94,9 +99,10 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
             "label": "PE0",
             "error": "Sem dados de lucro disponíveis",
             "annual_data_flag": False,
+            "periods_per_year": periods_per_year,
             "calculation_details": [],
         }
-    target_quarters = effective_years * 4
+    target_periods = effective_years * periods_per_year
 
     years = [d["year"] for d in annual_data]
     ipca_factors = get_inflation_adjustment_factors(ticker, years)
@@ -106,9 +112,9 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
     collected = 0
 
     for year_data in annual_data:
-        if collected >= target_quarters:
+        if collected >= target_periods:
             break
-        remaining = target_quarters - collected
+        remaining = target_periods - collected
         year = year_data["year"]
         factor = ipca_factors.get(year, Decimal("1"))
 
@@ -125,7 +131,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
             })
             collected += year_data["quarters"]
         else:
-            # Partial tail: most recent `remaining` quarters of this year
+            # Partial tail: most recent `remaining` periods of this year
             taken = year_data["quarterly_detail"][-remaining:]
             partial_nominal = sum(
                 (Decimal(str(q["net_income"])) for q in taken),
@@ -141,15 +147,12 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
                 "quarters": len(taken),
                 "quarterlyDetail": taken,
             })
-            collected = target_quarters
+            collected = target_periods
 
     years_of_data = effective_years
     label = f"PE{years_of_data}"
 
-    # Detect annual (1 record/year) vs quarterly (4 records/year) reporters
-    # using the slice that actually fed the average, not the full annual_data.
-    avg_quarters = sum(b["quarters"] for b in yearly_breakdown) / len(yearly_breakdown)
-    annual_data_flag = avg_quarters < 2
+    annual_data_flag = periods_per_year == 1
 
     avg_adjusted = sum(adjusted_values) / Decimal(str(years_of_data))
 
@@ -157,6 +160,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
         "years_of_data": years_of_data,
         "label": label,
         "annual_data_flag": annual_data_flag,
+        "periods_per_year": periods_per_year,
         "calculation_details": yearly_breakdown,
     }
 

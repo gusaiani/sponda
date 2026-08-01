@@ -391,7 +391,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
 
       {/* Fundamentals tab */}
       {activeTab === "fundamentals" && (
-        <FundamentalsTab ticker={upperTicker} years={effectiveYears} valueMode={inflationMode} />
+        <FundamentalsTab
+          ticker={upperTicker}
+          years={effectiveYears}
+          valueMode={inflationMode}
+          quote={fullData ?? null}
+        />
       )}
 
       {/* Compare tab */}

@@ -1,55 +1,112 @@
 import { useMemo } from "react";
 import { useFundamentals, type FundamentalsYear } from "../hooks/useFundamentals";
+import { inferPeriodsPerYear, trailingQuartersAverage } from "../hooks/deriveForYears";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n";
 import { formatNumber } from "../utils/format";
 import type { InflationMode } from "./InflationToggle";
 import "../styles/fundamentals.css";
 
-/* ── Augmented row with Shiller PE ratios for a given window ── */
+/* ── Augmented row with trailing-window PE ratios ── */
 
 interface AugmentedFundamentalsYear extends FundamentalsYear {
   pe: number | null;
   pfcf: number | null;
 }
 
-interface ShillerRatios {
+interface TrailingRatios {
   pe: number | null;
   pfcf: number | null;
 }
 
-export function computeShillerPERatios(
-  data: FundamentalsYear[],
-  windowYears: number,
-): Map<number, ShillerRatios> {
-  const sortedAscending = [...data].sort((a, b) => a.year - b.year);
-  const result = new Map<number, ShillerRatios>();
+interface EarningsQuarterDetail {
+  end_date: string;
+  net_income: number;
+}
 
-  for (const row of sortedAscending) {
-    if (row.marketCap === null) {
+interface CashFlowQuarterDetail {
+  end_date: string;
+  fcf: number;
+}
+
+interface YearDetail<QuarterDetail> {
+  year: number;
+  ipcaFactor: number;
+  quarters: number;
+  quarterlyDetail: QuarterDetail[];
+}
+
+/** The slice of the quote payload the ratio columns need — satisfied
+ *  structurally by QuoteResult. */
+export interface TrailingRatioSource {
+  pe10CalculationDetails: YearDetail<EarningsQuarterDetail>[];
+  pfcf10CalculationDetails: YearDetail<CashFlowQuarterDetail>[];
+  pe10PeriodsPerYear?: number;
+  pfcf10PeriodsPerYear?: number;
+}
+
+function anchoredTrailingAverage<QuarterDetail extends { end_date: string }>(
+  details: YearDetail<QuarterDetail>[],
+  anchorYear: number,
+  windowYears: number,
+  periodsPerYear: number,
+  getPeriodNominal: (quarter: QuarterDetail) => number,
+): number | null {
+  const anchoredDescending = details
+    .filter((yearDetail) => yearDetail.year <= anchorYear)
+    .sort((a, b) => b.year - a.year);
+  const trail = trailingQuartersAverage(
+    anchoredDescending,
+    windowYears,
+    periodsPerYear,
+    getPeriodNominal,
+    (yearDetail, taken) => ({ ...yearDetail, quarters: taken.length, quarterlyDetail: taken }),
+  );
+  return trail.hasEnoughData ? trail.avg : null;
+}
+
+/**
+ * P/L{N} and P/FCL{N} per historical year, computed with the same
+ * trailing-window math the Indicadores tab uses — each year's window is
+ * exactly N × periodsPerYear filings ending at that year's last filed
+ * period. A year without enough trailing history gets null (rendered
+ * as "—") instead of a silently-shrunk average. Both the market cap
+ * and the averaged figures are in today's purchasing power, which is
+ * equivalent to comparing both in that year's money.
+ */
+export function computeTrailingPERatios(
+  data: FundamentalsYear[],
+  source: TrailingRatioSource | null,
+  windowYears: number,
+): Map<number, TrailingRatios> {
+  const result = new Map<number, TrailingRatios>();
+  const earningsDetails = source?.pe10CalculationDetails ?? [];
+  const cashFlowDetails = source?.pfcf10CalculationDetails ?? [];
+  const earningsPeriodsPerYear =
+    source?.pe10PeriodsPerYear ?? inferPeriodsPerYear(earningsDetails);
+  const cashFlowPeriodsPerYear =
+    source?.pfcf10PeriodsPerYear ?? inferPeriodsPerYear(cashFlowDetails);
+
+  for (const row of data) {
+    const marketCap = row.marketCapAdjusted ?? row.marketCap;
+    if (marketCap === null) {
       result.set(row.year, { pe: null, pfcf: null });
       continue;
     }
 
-    const getAverageValues = (
-      accessor: (r: FundamentalsYear) => number | null,
-    ): number | null => {
-      const relevantValues = sortedAscending
-        .filter((r) => r.year <= row.year && r.year > row.year - windowYears)
-        .map(accessor)
-        .filter((value): value is number => value !== null);
-      if (relevantValues.length === 0) return null;
-      const average =
-        relevantValues.reduce((sum, value) => sum + value, 0) /
-        relevantValues.length;
-      return average !== 0 ? average : null;
-    };
-
-    const averageEarnings = getAverageValues((r) => r.netIncomeAdjusted);
-    const averageFcf = getAverageValues((r) => r.fcfAdjusted);
+    const averageEarnings = anchoredTrailingAverage(
+      earningsDetails, row.year, windowYears, earningsPeriodsPerYear,
+      (quarter) => quarter.net_income,
+    );
+    const averageFcf = anchoredTrailingAverage(
+      cashFlowDetails, row.year, windowYears, cashFlowPeriodsPerYear,
+      (quarter) => quarter.fcf,
+    );
 
     const computeRatio = (average: number | null): number | null =>
-      average !== null ? Math.round((row.marketCap! / average) * 10) / 10 : null;
+      average !== null && average !== 0
+        ? Math.round((marketCap / average) * 100) / 100
+        : null;
 
     result.set(row.year, {
       pe: computeRatio(averageEarnings),
@@ -63,8 +120,9 @@ export function computeShillerPERatios(
 export function augmentWithPERatios(
   data: FundamentalsYear[],
   windowYears: number,
+  source: TrailingRatioSource | null,
 ): AugmentedFundamentalsYear[] {
-  const peRatios = computeShillerPERatios(data, windowYears);
+  const peRatios = computeTrailingPERatios(data, source, windowYears);
   return [...data]
     .sort((a, b) => b.year - a.year)
     .map((row) => {
@@ -188,17 +246,27 @@ interface Props {
   ticker: string;
   years: number;
   valueMode: ValueMode;
+  /** Quote payload holding the per-filing calculation details the
+   *  ratio columns are computed from. Null while it loads. */
+  quote: TrailingRatioSource | null;
 }
 
-export function FundamentalsTab({ ticker, years, valueMode }: Props) {
+export function FundamentalsTab({ ticker, years, valueMode, quote }: Props) {
   const { data: response, isLoading, error } = useFundamentals(ticker, true);
   const rawData = response?.years;
   const { t, locale } = useTranslation();
   const columns = useMemo(() => getTranslatedColumns(t, years, locale), [t, years, locale]);
   const data = useMemo(
-    () => (rawData ? augmentWithPERatios(rawData, years) : null),
-    [rawData, years],
+    () => (rawData ? augmentWithPERatios(rawData, years, quote) : null),
+    [rawData, years, quote],
   );
+  // A "partial year" depends on the filing frequency: 3 quarters is
+  // partial for a quarterly reporter, but 2 filings IS a complete year
+  // for a semi-annual one like RIO (whose rows all wore a bogus "2T"
+  // badge before).
+  const periodsPerYear =
+    quote?.pe10PeriodsPerYear ?? (rawData ? inferPeriodsPerYear(rawData) : 4);
+  const partialYearSuffix = periodsPerYear === 2 ? "S" : "T";
 
   if (isLoading) return <FundamentalsTabLoading />;
   if (error) {
@@ -247,8 +315,8 @@ export function FundamentalsTab({ ticker, years, valueMode }: Props) {
               <tr key={row.year}>
                 <td className="fundamentals-sticky-col">
                   <span className="fundamentals-year">{row.year}</span>
-                  {row.quarters > 0 && row.quarters < 4 && (
-                    <span className="fundamentals-partial">{row.quarters}T</span>
+                  {row.quarters > 0 && row.quarters < periodsPerYear && (
+                    <span className="fundamentals-partial">{row.quarters}{partialYearSuffix}</span>
                   )}
                 </td>
                 {columns.map((col, index) => {

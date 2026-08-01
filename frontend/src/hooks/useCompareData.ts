@@ -3,14 +3,17 @@ import { useQueries } from "@tanstack/react-query";
 import { type QuoteResult } from "./usePE10";
 import { fetchFundamentals, type FundamentalsYear } from "./useFundamentals";
 import { deriveForYears, effectiveYearsForCompany } from "./deriveForYears";
-import { computeShillerPERatios } from "../components/FundamentalsTab";
 import { useQuotesBatch } from "./useQuotesBatch";
 
 export interface CompareEntry {
   ticker: string;
   data: QuoteResult | null;
   recent: FundamentalsYear | null;
+  /** Window-aware trailing-periods P/L — identical to the Indicadores
+   *  tab's value for the same window. Null when the company lacks
+   *  enough filings for the window. */
   pe: number | null;
+  /** Same for P/FCL. */
   pfcf: number | null;
   isLoading: boolean;
   error: Error | null;
@@ -66,15 +69,12 @@ export function useCompareData(
         const fundamentals = fundamentalsQueries[index];
         const recentYear = fundamentals?.data?.years?.[0] ?? null;
 
-        let pe: number | null = null;
-        let pfcf: number | null = null;
-        if (fundamentals?.data?.years && recentYear) {
-          const ratios = computeShillerPERatios(fundamentals.data.years, years).get(
-            recentYear.year,
-          );
-          pe = ratios?.pe ?? null;
-          pfcf = ratios?.pfcf ?? null;
-        }
+        // P/L and P/FCL come from the same window-aware derivation the
+        // Indicadores tab uses, so the two views can never disagree. A
+        // partial current year is weighted by its actual filings (the
+        // window trails into older periods), never counted as a full year.
+        const pe = data?.pe10 ?? null;
+        const pfcf = data?.pfcf10 ?? null;
 
         const isLoading =
           batchQuery.isLoading || (withFundamentals && (fundamentals?.isLoading ?? false));

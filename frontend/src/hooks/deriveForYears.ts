@@ -77,21 +77,57 @@ export function effectiveYearsForCompany(
   return Math.max(1, Math.min(sliderYears, maxYearsAvailable));
 }
 
-/* ── Trailing-quarters helpers ──
+/* ── Trailing-periods helpers ──
  *
- * The N-year window must cover exactly N×4 quarters of data, not "the
- * top N calendar years". When the most recent fiscal year only has a
- * partial set of quarters reported (e.g. TFCO4 mid-2026 with only Q1
- * 2026 in), the old logic would slice the top N calendar years —
- * (partial 2026 + 2025 + 2024) — sum them, and divide by N. That
- * understated the denominator because year 2026 contributed 1 quarter
- * pretending to be a full year.
+ * The N-year window must cover exactly N × periodsPerYear filings of
+ * data, not "the top N calendar years". When the most recent fiscal
+ * year only has a partial set of quarters reported (e.g. TFCO4
+ * mid-2026 with only Q1 2026 in), the old logic would slice the top N
+ * calendar years — (partial 2026 + 2025 + 2024) — sum them, and divide
+ * by N. That understated the denominator because year 2026 contributed
+ * 1 quarter pretending to be a full year.
  *
- * Correct behaviour: trail back into older years to gather exactly N×4
- * quarters, then divide that adjusted sum by N. The oldest year is
- * synthesised as a partial-tail row so the modal table still adds up
- * to the average it shows.
+ * Correct behaviour: trail back into older years to gather exactly
+ * N × periodsPerYear filings, then divide that adjusted sum by N. The
+ * oldest year is synthesised as a partial-tail row so the modal table
+ * still adds up to the average it shows.
+ *
+ * periodsPerYear honours the company's filing frequency: 4 for
+ * quarterly reporters, 2 for semi-annual ones (RIO files H1 + full
+ * year), 1 for annual-only reporters. Hard-coding 4 made a "6-year"
+ * RIO window silently consume 12 real years of earnings.
  */
+
+const QUARTERLY_PERIODS_PER_YEAR = 4;
+
+/**
+ * Infer the filing frequency from per-year filing counts when the
+ * payload predates the explicit periods-per-year field (cached
+ * quotes). The most recent year is excluded — it may be in progress;
+ * without a complete prior year, assume quarterly so a partial year is
+ * never presented as a full one. Mirrors
+ * backend/quotes/reporting_frequency.py.
+ */
+export function inferPeriodsPerYear(details: readonly { quarters: number }[]): number {
+  const priorYearCounts = details.slice(1).map((yearData) => yearData.quarters);
+  if (priorYearCounts.length === 0) return QUARTERLY_PERIODS_PER_YEAR;
+
+  const frequencies = new Map<number, number>();
+  for (const count of priorYearCounts) {
+    frequencies.set(count, (frequencies.get(count) ?? 0) + 1);
+  }
+  let mostCommonCount = 0;
+  let bestFrequency = 0;
+  for (const [count, frequency] of frequencies) {
+    if (frequency > bestFrequency || (frequency === bestFrequency && count > mostCommonCount)) {
+      mostCommonCount = count;
+      bestFrequency = frequency;
+    }
+  }
+
+  if (mostCommonCount >= 3) return QUARTERLY_PERIODS_PER_YEAR;
+  return mostCommonCount === 2 ? 2 : 1;
+}
 
 interface YearAggregateLike {
   year: number;
@@ -102,12 +138,13 @@ interface YearAggregateLike {
 
 interface TrailingQuartersResult<Y> {
   /** Sum of adjusted (IPCA-applied) quarterly values over the trailing
-   *  N×4 window. Includes pro-rata contribution from a partial oldest
-   *  year when the window does not align with a calendar boundary. */
+   *  N × periodsPerYear window. Includes pro-rata contribution from a
+   *  partial oldest year when the window does not align with a
+   *  calendar boundary. */
   adjustedSum: number;
   /** adjustedSum / years — the average annual figure used for PE/PFCF. */
   avg: number;
-  /** True when the company has at least N×4 quarters of data. */
+  /** True when the company has at least N × periodsPerYear filings of data. */
   hasEnoughData: boolean;
   /** Year-grouped breakdown for display. The oldest entry may be a
    *  synthesised partial-tail year holding only the contributing
@@ -115,9 +152,10 @@ interface TrailingQuartersResult<Y> {
   sliced: Y[];
 }
 
-function trailingQuartersAverage<Y extends YearAggregateLike>(
+export function trailingQuartersAverage<Y extends YearAggregateLike>(
   details: readonly Y[],
   years: number,
+  periodsPerYear: number,
   getQuarterNominal: (q: Y["quarterlyDetail"][number]) => number,
   buildPartialYear: (
     year: Y,
@@ -126,7 +164,7 @@ function trailingQuartersAverage<Y extends YearAggregateLike>(
     partialAdjusted: number,
   ) => Y,
 ): TrailingQuartersResult<Y> {
-  const target = years * 4;
+  const target = years * periodsPerYear;
   let collected = 0;
   let adjustedSum = 0;
   const sliced: Y[] = [];
@@ -178,10 +216,13 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   const marketCapForRatios =
     full.marketCapInReportedCurrency ?? full.marketCap;
 
-  // PE — trailing N×4 quarters
+  // PE — trailing N × periodsPerYear filings
+  const earningsPeriodsPerYear =
+    full.pe10PeriodsPerYear ?? inferPeriodsPerYear(full.pe10CalculationDetails);
   const earningsTrail = trailingQuartersAverage(
     full.pe10CalculationDetails,
     years,
+    earningsPeriodsPerYear,
     (q) => q.net_income,
     (year, taken, partialNominal, partialAdjusted) => ({
       ...year,
@@ -204,10 +245,13 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   }
   const earningsSlice = earningsTrail.hasEnoughData ? earningsTrail.sliced : [];
 
-  // PFCF — trailing N×4 quarters
+  // PFCF — trailing N × periodsPerYear filings
+  const fcfPeriodsPerYear =
+    full.pfcf10PeriodsPerYear ?? inferPeriodsPerYear(full.pfcf10CalculationDetails);
   const fcfTrail = trailingQuartersAverage(
     full.pfcf10CalculationDetails,
     years,
+    fcfPeriodsPerYear,
     (q) => q.fcf,
     (year, taken, partialNominal, partialAdjusted) => ({
       ...year,
@@ -248,7 +292,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   // bogus number like "-76% YoY" when the latest year only has Q1
   // reported. A TTM-endpoint rewrite is a follow-up.
   const earningsCAGRInput: [number, number][] = earningsSlice
-    .filter((y) => y.quarters >= 4)
+    .filter((y) => y.quarters >= earningsPeriodsPerYear)
     .map((y) => [y.year, y.adjustedNetIncome]);
   const earningsCagr = computeCAGR(earningsCAGRInput);
 
@@ -269,7 +313,7 @@ export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
 
   // CAGR (FCF) — same partial-year filter as earnings, see above.
   const fcfCAGRInput: [number, number][] = fcfSlice
-    .filter((y) => y.quarters >= 4)
+    .filter((y) => y.quarters >= fcfPeriodsPerYear)
     .map((y) => [y.year, y.adjustedFCF]);
   const fcfCagr = computeCAGR(fcfCAGRInput);
 
