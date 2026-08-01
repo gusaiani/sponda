@@ -113,6 +113,53 @@ class TestCalculatePFCF10:
         assert "quarterlyDetail" in details[0]
 
 
+class TestFCFDefinition:
+    """The FCL shown everywhere must be one number. fundamentals.py already
+    prefers the provider's explicit free_cash_flow (OCF − CapEx) and falls
+    back to OCF + investing CF; pfcf10 must use the same rule instead of
+    always summing OCF + investing CF."""
+
+    def test_prefers_provider_free_cash_flow(self, db):
+        QuarterlyCashFlow.objects.create(
+            ticker="FMP3", end_date=date(2025, 12, 31),
+            operating_cash_flow=100_000_000,
+            investment_cash_flow=-80_000_000,  # includes securities purchases
+            free_cash_flow=70_000_000,          # OCF − CapEx from the provider
+        )
+        result = get_annual_fcf("FMP3")
+        assert float(result[0]["fcf"]) == 70_000_000.0
+        assert result[0]["quarterly_detail"][0]["fcf"] == 70_000_000.0
+
+    def test_falls_back_to_ocf_plus_icf_without_provider_fcf(self, db):
+        QuarterlyCashFlow.objects.create(
+            ticker="BRA3", end_date=date(2025, 12, 31),
+            operating_cash_flow=100_000_000,
+            investment_cash_flow=-30_000_000,
+            free_cash_flow=None,
+        )
+        result = get_annual_fcf("BRA3")
+        assert float(result[0]["fcf"]) == 70_000_000.0
+
+
+class TestPFCF10ReportingFrequency:
+    """Mirror of the pe10 semi-annual regression — see test_pe10."""
+
+    def test_semi_annual_reporter_counts_years_correctly(self, db):
+        for year in range(2020, 2026):
+            for month, day in [(6, 30), (12, 31)]:
+                QuarterlyCashFlow.objects.create(
+                    ticker="RIO", end_date=date(year, month, day),
+                    operating_cash_flow=10_000_000, investment_cash_flow=0,
+                )
+        result = calculate_pfcf10("RIO", Decimal("300_000_000"), max_years=50)
+        assert result["periods_per_year"] == 2
+        assert result["years_of_data"] == 6
+        assert result["label"] == "PFCF6"
+        # 12 half-years × 10M = 120M ÷ 6 = 20M avg. PFCF = 300M/20M = 15.
+        assert result["avg_adjusted_fcf"] == 20_000_000.0
+        assert result["pfcf10"] == 15.0
+
+
 class TestPFCF10TrailingQuarters:
     """Same partial-current-year regression as pe10: trailing N×4
     quarters must include a partial-tail year when the most recent

@@ -255,3 +255,95 @@ class TestPe10TrailingQuarters:
         assert result["years_of_data"] == 2
         assert result["label"] == "PE2"
         assert result["pe10"] == 4.0
+
+
+def create_semi_annual_earnings(ticker, years, net_income_per_half=10_000_000):
+    """Half-year reporters (e.g. Rio Tinto) file H1 (June 30) and FY (Dec 31)."""
+    for year in years:
+        for month, day in [(6, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker=ticker, end_date=date(year, month, day),
+                net_income=net_income_per_half,
+            )
+
+
+class TestPe10ReportingFrequency:
+    """RIO regression: semi-annual reporters (H1 + FY filings only) were
+    treated as quarterly reporters. ``total_filings // 4`` halved
+    ``years_of_data`` (capping the slider at 6 for ~13 years of history)
+    and the "N-year" window silently consumed 2N real years of earnings."""
+
+    def test_semi_annual_reporter_counts_years_correctly(self, db):
+        # 6 years × 2 filings = 12 periods → 6 years of data, not 3.
+        create_semi_annual_earnings("RIO", range(2020, 2026))
+        result = calculate_pe10("RIO", Decimal("300_000_000"), max_years=50)
+        assert result["periods_per_year"] == 2
+        assert result["years_of_data"] == 6
+        assert result["label"] == "PE6"
+
+    def test_semi_annual_window_covers_n_years_not_2n(self, db):
+        # Old years earn 100× more; a 4-year window that leaks into them
+        # would produce a wildly different average.
+        create_semi_annual_earnings("RIO", range(2022, 2026), net_income_per_half=10_000_000)
+        create_semi_annual_earnings("RIO", range(2018, 2022), net_income_per_half=1_000_000_000)
+        result = calculate_pe10("RIO", Decimal("400_000_000"), max_years=4)
+        # 8 latest half-years × 10M = 80M ÷ 4 years = 20M avg. PE = 400M/20M = 20.
+        assert result["avg_adjusted_net_income"] == 20_000_000.0
+        assert result["pe10"] == 20.0
+        assert result["years_of_data"] == 4
+
+    def test_semi_annual_partial_year_backfills_half_year(self, db):
+        # Current year has only H1 filed. A 3-year window (6 half-years)
+        # must trail one extra half-year into the oldest year.
+        QuarterlyEarnings.objects.create(
+            ticker="RIO", end_date=date(2026, 6, 30), net_income=10_000_000,
+        )
+        create_semi_annual_earnings("RIO", [2023, 2024, 2025])
+        result = calculate_pe10("RIO", Decimal("400_000_000"), max_years=3)
+        # 6 half-years × 10M = 60M ÷ 3 = 20M avg. PE = 400M/20M = 20.
+        assert result["avg_adjusted_net_income"] == 20_000_000.0
+        assert result["pe10"] == 20.0
+        details = result["calculation_details"]
+        # Oldest row is a synthetic partial tail holding only H2 2023.
+        assert details[-1]["year"] == 2023
+        assert details[-1]["quarters"] == 1
+        assert [q["end_date"] for q in details[-1]["quarterlyDetail"]] == ["2023-12-31"]
+
+    def test_semi_annual_reporter_is_not_flagged_annual(self, db):
+        create_semi_annual_earnings("RIO", range(2020, 2026))
+        result = calculate_pe10("RIO", Decimal("300_000_000"))
+        assert result["annual_data_flag"] is False
+
+    def test_annual_reporter_counts_years_correctly(self, db):
+        # 1 filing per year → periods_per_year=1; 5 filings = 5 years.
+        for year in range(2021, 2026):
+            QuarterlyEarnings.objects.create(
+                ticker="ANUAL3", end_date=date(year, 12, 31),
+                net_income=10_000_000,
+            )
+        result = calculate_pe10("ANUAL3", Decimal("200_000_000"), max_years=50)
+        assert result["periods_per_year"] == 1
+        assert result["years_of_data"] == 5
+        assert result["annual_data_flag"] is True
+        # 5 years × 10M ÷ 5 = 10M avg. PE = 200M/10M = 20.
+        assert result["avg_adjusted_net_income"] == 10_000_000.0
+        assert result["pe10"] == 20.0
+
+    def test_quarterly_reporter_reports_four_periods_per_year(self, sample_earnings):
+        result = calculate_pe10("PETR4", Decimal("585_000_000_000"))
+        assert result["periods_per_year"] == 4
+        assert result["years_of_data"] == 10
+
+    def test_lone_partial_year_defaults_to_quarterly(self, db):
+        # Only the in-progress year exists (2 quarters). Without a
+        # complete prior year the frequency is unknowable; assume
+        # quarterly so a half-year is never presented as a full year.
+        for month, day in [(3, 31), (6, 30)]:
+            QuarterlyEarnings.objects.create(
+                ticker="NEW3", end_date=date(2026, month, day),
+                net_income=10_000_000,
+            )
+        result = calculate_pe10("NEW3", Decimal("100_000_000"))
+        assert result["periods_per_year"] == 4
+        assert result["years_of_data"] == 0
+        assert result["pe10"] is None

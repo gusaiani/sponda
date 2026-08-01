@@ -612,6 +612,135 @@ describe("deriveForYears", () => {
       expect(derived.earningsCAGR).toBeCloseTo(100, 1);
     });
 
+    it("respects periods-per-year for semi-annual reporters (RIO regression)", () => {
+      // Rio Tinto files H1 + full year (2 filings/year). A 6-year window
+      // must consume 12 half-years, NOT 24 (= 12 real years).
+      // Recent 6 years earn $10/half; older years earn $1000/half, so a
+      // window that leaks into them produces a wildly different average.
+      const halfYearValue = (year: number) => (year >= 2020 ? 10 : 1000);
+      const details = Array.from({ length: 12 }, (_, i) => {
+        const year = 2025 - i;
+        const value = halfYearValue(year);
+        return {
+          year,
+          nominalNetIncome: value * 2,
+          ipcaFactor: 1,
+          adjustedNetIncome: value * 2,
+          quarters: 2,
+          quarterlyDetail: [
+            { end_date: `${year}-06-30`, net_income: value },
+            { end_date: `${year}-12-31`, net_income: value },
+          ],
+        };
+      });
+      const full = makeFullData({ years: 1, marketCap: 400 });
+      full.pe10CalculationDetails = details;
+      full.pe10PeriodsPerYear = 2;
+      full.maxYearsAvailable = 12;
+
+      const derived = deriveForYears(full, 6);
+
+      // 12 trailing half-years × $10 = $120 ÷ 6 years = $20 avg. PE = 400/20 = 20.
+      expect(derived.avgAdjustedNetIncome).toBeCloseTo(20, 5);
+      expect(derived.pe10).toBe(20);
+    });
+
+    it("infers semi-annual frequency from the details when the payload field is missing", () => {
+      // Cached payloads predate pe10PeriodsPerYear. The mode of the
+      // filing counts across prior years (2) must be used, so a company
+      // with 6 years × 2 filings still passes a 6-year window.
+      const details = Array.from({ length: 6 }, (_, i) => {
+        const year = 2025 - i;
+        return {
+          year,
+          nominalNetIncome: 20,
+          ipcaFactor: 1,
+          adjustedNetIncome: 20,
+          quarters: 2,
+          quarterlyDetail: [
+            { end_date: `${year}-06-30`, net_income: 10 },
+            { end_date: `${year}-12-31`, net_income: 10 },
+          ],
+        };
+      });
+      const full = makeFullData({ years: 1, marketCap: 400 });
+      full.pe10CalculationDetails = details;
+      delete full.pe10PeriodsPerYear;
+      full.maxYearsAvailable = 6;
+
+      const derived = deriveForYears(full, 6);
+
+      // 12 half-years available = exactly the 6-year window. With the old
+      // hard-coded ×4 target this returned null (24 quarters "missing").
+      expect(derived.pe10).not.toBeNull();
+      expect(derived.avgAdjustedNetIncome).toBeCloseTo(20, 5);
+    });
+
+    it("backfills a half-year when a semi-annual reporter's current year has only H1", () => {
+      const detailsYears = [
+        { year: 2026, halves: [10] },
+        { year: 2025, halves: [10, 10] },
+        { year: 2024, halves: [10, 10] },
+        { year: 2023, halves: [10, 10] },
+      ];
+      const details = detailsYears.map((y) => ({
+        year: y.year,
+        nominalNetIncome: y.halves.reduce((s, v) => s + v, 0),
+        ipcaFactor: 1,
+        adjustedNetIncome: y.halves.reduce((s, v) => s + v, 0),
+        quarters: y.halves.length,
+        quarterlyDetail: y.halves.map((v, i) => ({
+          end_date: `${y.year}-${i === 0 ? "06-30" : "12-31"}`,
+          net_income: v,
+        })),
+      }));
+      const full = makeFullData({ years: 1, marketCap: 400 });
+      full.pe10CalculationDetails = details;
+      full.pe10PeriodsPerYear = 2;
+      full.maxYearsAvailable = 3;
+
+      const derived = deriveForYears(full, 3);
+
+      // Trailing 6 half-years: H1'26 + 2×'25 + 2×'24 + H2'23 = $60 ÷ 3 = $20.
+      expect(derived.avgAdjustedNetIncome).toBeCloseTo(20, 5);
+      expect(derived.pe10).toBe(20);
+      const tail = derived.pe10CalculationDetails[3];
+      expect(tail.year).toBe(2023);
+      expect(tail.quarters).toBe(1);
+      expect(tail.quarterlyDetail.map((q) => q.end_date)).toEqual(["2023-12-31"]);
+    });
+
+    it("CAGR treats a 2-filing year of a semi-annual reporter as full", () => {
+      // quarters=2 is a COMPLETE year for a semi-annual reporter; the
+      // partial-year CAGR filter must compare against periods-per-year,
+      // not against a hard-coded 4.
+      const detailsYears = [
+        { year: 2025, halves: [80, 80] },  // = 160
+        { year: 2024, halves: [40, 40] },  // = 80
+        { year: 2023, halves: [20, 20] },  // = 40
+      ];
+      const details = detailsYears.map((y) => ({
+        year: y.year,
+        nominalNetIncome: y.halves.reduce((s, v) => s + v, 0),
+        ipcaFactor: 1,
+        adjustedNetIncome: y.halves.reduce((s, v) => s + v, 0),
+        quarters: y.halves.length,
+        quarterlyDetail: y.halves.map((v, i) => ({
+          end_date: `${y.year}-${i === 0 ? "06-30" : "12-31"}`,
+          net_income: v,
+        })),
+      }));
+      const full = makeFullData({ years: 1, marketCap: 400 });
+      full.pe10CalculationDetails = details;
+      full.pe10PeriodsPerYear = 2;
+      full.maxYearsAvailable = 3;
+
+      const derived = deriveForYears(full, 3);
+
+      // 160/40 over 2 years → CAGR = 100%.
+      expect(derived.earningsCAGR).toBeCloseTo(100, 1);
+    });
+
     it("falls through unchanged when every year in the window is already full", () => {
       // No partial-current-year — the slicing should match the old behaviour.
       const full = makeFullData({ years: 5, marketCap: 500_000, earnings: [100_000, 100_000, 100_000, 100_000, 100_000] });

@@ -140,6 +140,17 @@ Subsector inference is pattern-based: a per-sector list of regexes in `SUBSECTOR
 
 **API:** `GET /api/tickers/<symbol>/peers/`
 
+## Valuation ratios: one definition everywhere
+
+P/L{N} and P/FCL{N} are computed by a single method across the Indicadores tile, the Fundamentos table, and the Comparar tab (July 2026 unification — the three views previously used three different formulas and disagreed visibly for companies like RIO):
+
+1. **Trailing filings, not calendar years.** An N-year window covers exactly N × periods-per-year trailing filings. When the current year is partial (e.g. only Q1 reported), the window backfills from older periods — a partial year is weighted by what it actually filed, never counted as a full year. Backend: `backend/quotes/pe10.py` / `pfcf10.py`; frontend port: `frontend/src/hooks/deriveForYears.ts` (`trailingQuartersAverage`).
+2. **Filing frequency is detected per company** (`backend/quotes/reporting_frequency.py`, mirrored in `deriveForYears.ts`): 4 filings/year for quarterly reporters, 2 for semi-annual ones (Rio Tinto files H1 + full year), 1 for annual-only reporters. The frequency is inferred from the mode of filings per completed calendar year and shipped in the quote payload as `pe10PeriodsPerYear` / `pfcf10PeriodsPerYear`; older cached payloads fall back to client-side inference. This also fixes `maxYearsAvailable` (the PRAZO slider ceiling), which previously divided a semi-annual reporter's history by 4 and halved its horizon.
+3. **One FCL definition.** Free cash flow prefers the provider's explicit figure (OCF − CapEx) and falls back to OCF + investing cash flow, both in `backend/quotes/fundamentals.py` and `backend/quotes/pfcf10.py`.
+4. **Fundamentos rows are anchored windows.** Each historical year's P/L{N} uses the trailing window ending at that year's last filed period (`computeTrailingPERatios` in `frontend/src/components/FundamentalsTab.tsx`), with the year's inflation-adjusted market cap over inflation-adjusted average earnings. Years without enough trailing history show "—" instead of a silently-shrunk average. The Comparar tab reads the same `deriveForYears` values as the Indicadores tile, so the two can never diverge.
+
+No new environment variables. To test locally: open `/pt/RIO` (a semi-annual reporter), check that the PRAZO slider reaches ~13 years and that the P/L and P/FCL values match across Indicadores, Fundamentos (latest row), and Comparar for the same window.
+
 ## Comparison chart (expanded indicator view)
 
 Clicking the expand button on any indicator card opens a full-window chart for that single indicator. Beyond the larger view it adds three things:

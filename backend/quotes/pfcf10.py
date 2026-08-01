@@ -1,7 +1,7 @@
 """PFCF10 (Price/Free Cash Flow 10-year) calculation logic.
 
-The N-year window covers exactly N×4 trailing quarters; see the docstring
-on ``pe10.calculate_pe10`` for the rationale.
+The N-year window covers exactly N × periods_per_year trailing filings;
+see the docstring on ``pe10.calculate_pe10`` for the rationale.
 """
 from collections import defaultdict
 from decimal import Decimal
@@ -9,6 +9,25 @@ from decimal import Decimal
 from .fx import market_cap_in_reported_currency
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyCashFlow
+from .reporting_frequency import QUARTERLY_PERIODS_PER_YEAR, infer_periods_per_year
+
+
+def _quarter_free_cash_flow(quarter: QuarterlyCashFlow) -> Decimal | None:
+    """
+    One FCF definition for the whole app, matching fundamentals.py:
+    prefer the provider's explicit free cash flow (OCF − CapEx); fall
+    back to OCF + investing CF when the provider doesn't send it.
+    The fallback overstates outflows for companies that park cash in
+    securities (their purchases sit in investing CF), which is why the
+    explicit figure wins when available.
+    """
+    if quarter.free_cash_flow is not None:
+        return Decimal(str(quarter.free_cash_flow))
+    if quarter.operating_cash_flow is not None:
+        operating = Decimal(str(quarter.operating_cash_flow))
+        investing = Decimal(str(quarter.investment_cash_flow or 0))
+        return operating + investing
+    return None
 
 
 def get_annual_fcf(ticker: str, max_years: int = 10) -> list[dict]:
@@ -24,11 +43,9 @@ def get_annual_fcf(ticker: str, max_years: int = 10) -> list[dict]:
 
     yearly = defaultdict(lambda: {"fcf": Decimal("0"), "quarters": 0, "quarterly_detail": []})
     for q in quarters:
-        if q.operating_cash_flow is None:
+        fcf = _quarter_free_cash_flow(q)
+        if fcf is None:
             continue
-        ocf = Decimal(str(q.operating_cash_flow))
-        icf = Decimal(str(q.investment_cash_flow or 0))
-        fcf = ocf + icf
         year = q.end_date.year
         yearly[year]["fcf"] += fcf
         yearly[year]["quarters"] += 1
@@ -54,7 +71,8 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
     """
     Calculate PFCF10 for a given ticker using Market Cap / Avg Adjusted FCF.
 
-    FCF = Operating Cash Flow + Investing Cash Flow
+    FCF = provider free cash flow (OCF − CapEx), falling back to
+    Operating Cash Flow + Investing Cash Flow.
     PFCF10 = Market Cap / Average Inflation-Adjusted Annual FCF (10 years)
     """
     annual_data = get_annual_fcf(ticker, max_years=max_years)
@@ -67,11 +85,13 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
             "label": "PFCF0",
             "error": "Sem dados de fluxo de caixa disponíveis",
             "annual_data_flag": False,
+            "periods_per_year": QUARTERLY_PERIODS_PER_YEAR,
             "calculation_details": [],
         }
 
-    total_quarters = sum(d["quarters"] for d in annual_data)
-    effective_years = min(max_years, total_quarters // 4)
+    periods_per_year = infer_periods_per_year(annual_data)
+    total_periods = sum(d["quarters"] for d in annual_data)
+    effective_years = min(max_years, total_periods // periods_per_year)
     if effective_years == 0:
         return {
             "pfcf10": None,
@@ -80,9 +100,10 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
             "label": "PFCF0",
             "error": "Sem dados de fluxo de caixa disponíveis",
             "annual_data_flag": False,
+            "periods_per_year": periods_per_year,
             "calculation_details": [],
         }
-    target_quarters = effective_years * 4
+    target_periods = effective_years * periods_per_year
 
     years = [d["year"] for d in annual_data]
     ipca_factors = get_inflation_adjustment_factors(ticker, years)
@@ -92,9 +113,9 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
     collected = 0
 
     for year_data in annual_data:
-        if collected >= target_quarters:
+        if collected >= target_periods:
             break
-        remaining = target_quarters - collected
+        remaining = target_periods - collected
         year = year_data["year"]
         factor = ipca_factors.get(year, Decimal("1"))
 
@@ -126,13 +147,12 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
                 "quarters": len(taken),
                 "quarterlyDetail": taken,
             })
-            collected = target_quarters
+            collected = target_periods
 
     years_of_data = effective_years
     label = f"PFCF{years_of_data}"
 
-    avg_quarters = sum(b["quarters"] for b in yearly_breakdown) / len(yearly_breakdown)
-    annual_data_flag = avg_quarters < 2
+    annual_data_flag = periods_per_year == 1
 
     avg_adjusted = sum(adjusted_values) / Decimal(str(years_of_data))
 
@@ -140,6 +160,7 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
         "years_of_data": years_of_data,
         "label": label,
         "annual_data_flag": annual_data_flag,
+        "periods_per_year": periods_per_year,
         "calculation_details": yearly_breakdown,
     }
 
