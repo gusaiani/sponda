@@ -1,13 +1,549 @@
 # Sponda
 
-Financial indicators and analytics for global public companies. Over 23,000 companies listed across the U.S. and Brazil. Live at
-<a href="https://sponda.capital" target="_blank" rel="noopener noreferrer">sponda.capital</a>.
+Financial indicators and analytics for global public companies. Over 23,000 companies listed across the U.S. and Brazil.
+
+**Live at [sponda.capital](https://sponda.capital)**
 
 ![Sponda homepage](docs/screenshot.png)
+
+## Index
+
+**Start here**
+
+- [Architecture](#architecture)
+- [Stack](#stack)
+
+**Product**
+
+- [Screener](#screener)
+- [Assistant (LLM Q&A)](#assistant-llm-qa)
+- [MCP server](#mcp-server)
+- [Valuation ratios: one definition everywhere](#valuation-ratios-one-definition-everywhere)
+- [Cross-currency indicators](#cross-currency-indicators)
+- [Comparison chart (expanded indicator view)](#comparison-chart-expanded-indicator-view)
+- [Peer comparison](#peer-comparison)
+- [Learning Mode](#learning-mode)
+- [Indicator Alerts](#indicator-alerts)
+- [Favorites](#favorites)
+- [Social (Sponds)](#social-sponds)
+- [Lookup limits](#lookup-limits)
+- [Localized account emails](#localized-account-emails)
+- [Logos](#logos)
+- [Blog](#blog)
+
+**Engineering**
+
+- [Performance](#performance)
+- [Observability](#observability)
+- [Scheduled Tasks](#scheduled-tasks)
+
+**Operations**
+
+- [Deployment](#deployment)
+- [Local Development](#local-development)
 
 ## Architecture
 
 A one-page system architecture overview · stack, apps, data flows, and the reasoning behind each technology choice · lives at [`docs/architecture.html`](docs/architecture.html). GitHub shows HTML as source, so use the [rendered version](https://gusaiani.github.io/sponda/architecture.html) (GitHub Pages, published from `main:/docs`), or open the file locally in a browser.
+
+## Stack
+
+- **Backend:** Django 5 + Django REST Framework + PostgreSQL + Redis + Celery
+- **Frontend:** React 19 + TypeScript + Next.js 16 + TanStack Query
+- **Styling:** Tailwind CSS v4 (`@apply` only -- no utility classes in JSX)
+- **Deploy:** GitHub Actions CI/CD → DigitalOcean VPS (nginx + systemd)
+
+## Screener
+
+The screener page at `/[locale]/screener` lets users filter the whole B3 + US universe (~23K companies) by any of the indicators shown on a company's main page and sort the results. Backed by a dedicated `IndicatorSnapshot` table so filtering and sorting are one DB query instead of recomputing indicators for every ticker on every request.
+
+### Supported filters
+
+All are numeric `min` / `max` bounds (either side optional):
+
+- `pe10`, `pfcf10` · valuation multiples (10-year rolling)
+- `peg`, `pfcf_peg` · growth-adjusted valuation
+- `debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`, `current_ratio` · leverage / liquidity
+- `debt_to_avg_earnings`, `debt_to_avg_fcf` · debt vs. cash generation
+- `market_cap` · absolute currency amount
+
+### How it works
+
+1. **Snapshot table.** `IndicatorSnapshot` (one row per ticker) stores the latest value of every screened indicator. The table is kept current by a **three-layer refresh strategy** designed to respect BRAPI Pro and FMP Starter monthly budgets:
+   - **Persist-on-view.** Any time a user opens a company page, the `PE10View` endpoint writes the freshly computed indicators back into `IndicatorSnapshot` and updates `Ticker.market_cap` as a side-effect (wrapped in `try/except` so a write failure never breaks the page). This keeps actively viewed tickers perpetually fresh without any scheduled work.
+   - **Rolling price refresh** (`refresh_snapshot_prices`, every 15 min while B3 or NYSE is open · see [Scheduled Tasks](#scheduled-tasks)). For every ticker with a market cap, fetches the current quote (one API call) and recomputes only the price-dependent indicators — PE10, PFCF10, PEG, P/FCF PEG — against existing DB fundamentals. Leverage and debt-coverage fields are left alone.
+   - **Weekly fundamentals refresh** (`refresh_snapshot_fundamentals`, Sunday 06:00 UTC). Resyncs quarterly earnings / cash flows / balance sheets (three API calls per ticker) and then recomputes the full indicator set via `compute_company_indicators` — the same service the company page uses, so the screener and the company page can never disagree.
+   - **Bootstrap.** `sync_market_caps` routes Brazilian tickers through BRAPI and US tickers through FMP to backfill `Ticker.market_cap` for rows that are missing it. Run once after adding new tickers; both refresh jobs skip tickers without a market cap.
+2. **Query.** `GET /api/screener/` takes `<field>_min` / `<field>_max` params, a `sort` (prefix `-` for descending; nulls always last), `limit` (max 500), and `offset`. Returns `{ count, results[] }`.
+3. **Frontend.** The `useScreener` hook (`frontend/src/hooks/useScreener.ts`) wraps the endpoint in React Query with `staleTime: 60s`. The page is `frontend/src/app/[locale]/screener/page.tsx` — sticky filter sidebar + results table with click-to-sort column headers and cursor-based "load more" pagination.
+
+**Example:** `GET /api/screener/?pe10_max=10&debt_to_equity_max=1&sort=-market_cap&limit=50` returns the 50 largest Brazilian companies with PE10 ≤ 10 and D/E ≤ 1.
+
+### Slider scales
+
+Most screener sliders are linear — track position maps directly to value. The leverage filters (`debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`) instead use a piecewise log-like scale defined in `frontend/src/utils/sliderScale.ts` (`LEVERAGE_SCALE`):
+
+- Range `0..100`. The `0..1` band — where most companies sit — gets the first 55% of the track. The `1..100` tail is log-compressed across the remaining 45%, so a few distressed-balance outliers (D/E up to ~100) don't squash the useful resolution out of the slider.
+- Snap precision is band-aware: `0.05` below 1, `0.5` between 1 and 20, `5` at 20+. Handle labels track that precision (two decimals below 1, one decimal up to 10, integer above).
+
+`DualRangeSlider` accepts an optional `scale: SliderScale` prop with `toValue` / `toPosition` / `snap`. When supplied, the underlying `<input type="range">` runs in normalized position space (integer stops 0..1000) and the component converts on every change. Without `scale`, behavior is unchanged.
+
+## Assistant (LLM Q&A)
+
+Centered text-area at the bottom of the company page; streaming OpenAI-powered answers,
+guardrailed to Sponda's finance domain, with tiered per-day quotas. Superuser-only in v1.
+See [LLM_ASSISTANT.md](LLM_ASSISTANT.md).
+
+## MCP server
+
+Sponda's screening tools, exposed to any agent — Claude, Cursor, custom MCP clients —
+at `https://sponda.capital/api/mcp/` (Streamable HTTP, stateless, no auth). The tool
+surface is `assistant/tools.py` verbatim: the same JSON Schemas and executors the
+in-house screening agent uses, so the public MCP surface and the agent can never drift.
+
+### Using it (any MCP client)
+
+**Claude Code** — one command, then just ask:
+
+```bash
+claude mcp add --transport http sponda https://sponda.capital/api/mcp/
+```
+
+**Claude (web/desktop):** Settings → Connectors → Add custom connector →
+`https://sponda.capital/api/mcp/`.
+
+**Cursor** (`~/.cursor/mcp.json`) or any client that takes a JSON server config:
+
+```json
+{
+  "mcpServers": {
+    "sponda": { "url": "https://sponda.capital/api/mcp/" }
+  }
+}
+```
+
+Then ask things like:
+
+> Brazilian companies with P/E10 under 8 and debt payable from average FCF in under 3 years
+>
+> Of those, which has the most conservative leverage? Pull WEGE3's full fundamentals.
+
+Four tools, designed to be called in this order:
+
+| Tool | What it does | Cost |
+| --- | --- | --- |
+| `list_available_indicators` | Indicator catalogue (keys, definitions, direction), plus live country/sector lists and examples of metrics Sponda does *not* have | cheap |
+| `screen_companies` | Filter/sort/rank the ~23k-company universe by indicator bounds, country, sector; returns match count + up to 50 rows | cheap |
+| `get_company` | One company's metadata and current indicator values by ticker | cheap |
+| `get_fundamentals` | Full fundamentals payload for one company — triggers a live market-data fetch | expensive, tighter cap |
+
+Limits: anonymous per-IP daily caps (see env vars below); over the cap the endpoint
+answers HTTP 429 until midnight. Executor failures ("unknown symbol") come back as tool
+results with `isError: true`, never protocol errors, so a calling model can read them
+and adjust.
+
+### Developing it
+
+Implementation: `backend/assistant/mcp.py` — a single stateless JSON-RPC 2.0 view (no
+SSE, no sessions; every request is one POST answered with one JSON body). It serves
+`initialize` (protocol-version negotiation), `ping`, `tools/list`, and `tools/call`,
+and acknowledges notifications with 202. Tool schemas and executors are imported from
+`assistant/tools.py` — to add or change a tool, change it there and both the screening
+agent and the MCP surface pick it up together.
+
+| Env var | Default | Meaning |
+| --- | --- | --- |
+| `MCP_ENABLED` | `true` | Serve the endpoint; `false` returns 404 |
+| `MCP_TOOL_CALLS_PER_DAY` | `200` | Per-IP daily cap across all `tools/call` requests |
+| `MCP_FUNDAMENTALS_CALLS_PER_DAY` | `25` | Per-IP daily sub-cap for `get_fundamentals` |
+
+Rate-limit counters are date-keyed entries in the Redis cache (`mcp:<scope>:<ip_hash>:<day>`),
+so caps reset at midnight and need no schema or cron.
+
+Run it locally:
+
+```bash
+cd backend && python manage.py runserver
+```
+
+Smoke-test with curl:
+
+```bash
+# list the tools
+curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# run a screen: P/E10 <= 10, cheapest first
+curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"screen_companies","arguments":{"filters":{"pe10":{"max":10}},"sort":"pe10"}}}'
+```
+
+Or drive it interactively with the MCP inspector
+(`npx @modelcontextprotocol/inspector http://localhost:8000/api/mcp/`), or point Claude
+Code at your dev server
+(`claude mcp add --transport http sponda-dev http://localhost:8000/api/mcp/`).
+
+Tests: `pytest tests/test_mcp_server.py` — transport, lifecycle, schema-sharing,
+all four tool paths, and the rate-limit caps.
+
+## Valuation ratios: one definition everywhere
+
+P/L{N} and P/FCL{N} are computed by a single method across the Indicadores tile, the Fundamentos table, and the Comparar tab (July 2026 unification — the three views previously used three different formulas and disagreed visibly for companies like RIO):
+
+1. **Trailing filings, not calendar years.** An N-year window covers exactly N × periods-per-year trailing filings. When the current year is partial (e.g. only Q1 reported), the window backfills from older periods — a partial year is weighted by what it actually filed, never counted as a full year. Backend: `backend/quotes/pe10.py` / `pfcf10.py`; frontend port: `frontend/src/hooks/deriveForYears.ts` (`trailingQuartersAverage`).
+2. **Filing frequency is detected per company** (`backend/quotes/reporting_frequency.py`, mirrored in `deriveForYears.ts`): 4 filings/year for quarterly reporters, 2 for semi-annual ones (Rio Tinto files H1 + full year), 1 for annual-only reporters. The frequency is inferred from the mode of filings per completed calendar year and shipped in the quote payload as `pe10PeriodsPerYear` / `pfcf10PeriodsPerYear`; older cached payloads fall back to client-side inference. This also fixes `maxYearsAvailable` (the PRAZO slider ceiling), which previously divided a semi-annual reporter's history by 4 and halved its horizon.
+3. **One FCL definition.** Free cash flow prefers the provider's explicit figure (OCF − CapEx) and falls back to OCF + investing cash flow, both in `backend/quotes/fundamentals.py` and `backend/quotes/pfcf10.py`.
+4. **Fundamentos rows are anchored windows.** Each historical year's P/L{N} uses the trailing window ending at that year's last filed period (`computeTrailingPERatios` in `frontend/src/components/FundamentalsTab.tsx`), with the year's inflation-adjusted market cap over inflation-adjusted average earnings. Years without enough trailing history show "—" instead of a silently-shrunk average. The Comparar tab reads the same `deriveForYears` values as the Indicadores tile, so the two can never diverge.
+
+No new environment variables. To test locally: open `/pt/RIO` (a semi-annual reporter), check that the PRAZO slider reaches ~13 years and that the P/L and P/FCL values match across Indicadores, Fundamentos (latest row), and Comparar for the same window.
+
+## Cross-currency indicators
+
+Foreign-domiciled companies (NVO, ASML, TM, BABA, ...) trade in USD on US exchanges but file their financials in their home currency (DKK, EUR, JPY, CNY, ...). Any market-cap-based indicator (PE10, PFCF10, PEG, P/FCF PEG, multiples-history chart) translates the market cap into the **statement currency** before dividing by earnings/FCF, so the ratio is dimensionally coherent.
+
+**Pipeline:**
+
+- `Ticker.reported_currency` is populated by `fmp.sync_earnings` from each statement's `reportedCurrency` (BRL hardcoded for Brazilian tickers).
+- `FxRate` stores daily USD↔X close rates from FMP, back to 2010. Refreshed daily by `sync_fx_rates` (timer: `sponda-refresh-fx.timer`).
+- `CountryCPIIndex` stores monthly per-country CPI YoY rates from FRED for inflation-adjusting historical fundamentals in non-USD/non-BRL currencies. Currency→FRED-series mapping in `quotes/fred.py::CURRENCY_TO_SERIES_ID`.
+- `quotes/fx.py::market_cap_in_reported_currency` is the bridge used by every indicator calculator.
+- `quotes/inflation.py::get_inflation_adjustment_factors` dispatches: BRL → IPCA, USD → USCPI, everything else → CountryCPIIndex.
+
+**Coverage audit:** `python manage.py audit_currencies` lists every (listing, reported) pair, flags reporting currencies missing FX history, and flags currencies missing a FRED series mapping.
+
+**Multiples-history chart:** when historical FX is unavailable for any year on the chart, falls back to the latest FX rate uniformly and surfaces `currency_warning=true` in the API; the frontend renders a banner explaining the approximation.
+
+Full design rationale, scope, and the bug it fixes: `docs/cross-currency-fix-plan.md`.
+
+## Comparison chart (expanded indicator view)
+
+Clicking the expand button on any indicator card opens a full-window chart for that single indicator. Beyond the larger view it adds three things:
+
+1. **Term slider** — the same `PRAZO/TERM` slider from the page, rendered inside the modal and bound to the page's `years`. Moving it re-derives the series (for rolling indicators like P/L10 the term is the rolling window, so the curve changes, matching the headline number).
+2. **Overlay other companies** — a ticker search adds companies to the chart. Each added company's series is built with the *same* math as the primary (`deriveForYears` → `buildChartData` in `frontend/src/components/CompanyMetricsCard.tsx`), fetched on demand via `useComparisonSeries`.
+3. **Indicator-aware normalization** — how series are combined depends on the indicator's kind (`frontend/src/utils/indicatorKinds.ts`):
+
+| Kind | Indicators | Overlay behavior |
+|---|---|---|
+| `currency-abs-level` | current price | Rebased: arbitrary share-price levels and currency units are neutralized by indexing each series to 100 at a common origin. |
+| `currency-abs-size` | market cap | Rebased (growth) or FX-converted to a common currency, then rebased. |
+| `ratio` | P/L10, P/FCL10, PEG, D/E, current ratio, debt coverage, … | Overlaid raw — already currency-neutral. Optional log scale for outliers. |
+| `percent` | earnings/FCF CAGR | Overlaid raw. |
+
+For currency indicators with two or more companies, a scale toggle offers **Absolute** (single-currency only), **Base 100** (rebased in each company's local currency — price *performance*), and **Base 100 · common currency** (FX-converted to the primary company's listing currency before rebasing — *investor return*). Absolute is disabled when the companies span more than one currency, since a shared currency axis there is misleading. The alignment, rebasing, and FX-conversion math lives in `frontend/src/utils/normalizeSeries.ts`.
+
+The common-currency mode reads a historical FX path from a new endpoint. Dates without an FX anchor fall back to the latest rate, and the chart shows a note when that happens.
+
+**API:** `GET /api/fx/series/?from=<ISO>&to=<ISO>[&start=YYYY-MM-DD]` → `{ from, to, rates: [{ date, rate }] }`, where `rate` is units of `to` per 1 unit of `from`, computed via the USD pivot (see [Cross-currency indicators](#cross-currency-indicators)). Public and currency-only — no ticker, no quota.
+
+No new environment variables. To test locally: open a company page, expand any indicator, drag the term slider, and add a peer (for a cross-currency check, overlay a US ticker on a Brazilian one and switch to Base 100 · common currency).
+
+## Peer comparison
+
+The Compare tab on each company page lists up to 10 peer tickers ranked by how close they are to the source company. Ranking uses four tiers of signal, applied in order:
+
+1. **Subsector within the same sector** — companies whose business line maps to the same subsector as the source (e.g. VALE3 and GGBR4 both map to *Mineração e Siderurgia*, while KLBN4 maps to *Papel e Celulose*).
+2. **Other subsectors in the same sector** — fills remaining slots when subsector peers aren't enough.
+3. **Adjacent sectors** — only considered when the sector itself has too few candidates (see `ADJACENT_SECTORS` in `backend/quotes/views.py`).
+4. **Country, then market cap** — within a tier, same-country peers come first; within same-country, larger market cap comes first.
+
+Subsector inference is pattern-based: a per-sector list of regexes in `SUBSECTOR_RULES` (Finance, Non-Energy Minerals, Process Industries, Retail Trade, Transportation, Utilities, etc.) matches against the company name. Unmatched companies fall back to a default subsector label per sector. No schema change — the subsector is derived at query time.
+
+**API:** `GET /api/tickers/<symbol>/peers/`
+
+## Learning Mode
+
+A toggleable view that attaches a 1–5 color-coded rating to every fundamental indicator on a company page (P/E10, P/FCF10, PEG, P/FCF-PEG, the four leverage ratios, current ratio, debt/avg-earnings, debt/avg-FCF) plus an overall company grade. Designed for newcomers who can't yet calibrate "is debt/equity of 1 good?". Off by default — when off, pages render exactly as before.
+
+**Available to every visitor.** Authenticated users persist the preference server-side via `/api/auth/preferences/`; anonymous visitors persist it locally via the `sponda-learning-mode` localStorage key.
+
+### How it works
+
+1. **Rating engine** — `backend/quotes/ratings.py` defines `RATING_THRESHOLDS` (per-indicator, optional per-sector overrides) and a `BETTER` direction flag (`lower` for valuation/leverage, `higher` for current ratio). Four cuts produce five tiers. `rate_indicator(indicator, value, sector)` is a pure function; `rate_company({...})` returns `{ ratings, overall, methodology_version }`. An overall grade is only emitted when at least 4 indicators rated (`MIN_INDICATORS_FOR_GRADE`).
+2. **API surface** — `PE10View` adds a camelCase `ratings` block to the `/api/quote/<ticker>/` response; `ScreenerView` adds a snake_case `ratings` block to each `/api/screener/` row. Sector lookup feeds into the threshold table. Computed at serialization time (microsecond cost), no migration.
+3. **Frontend** — `LearningModeContext` (`frontend/src/learning/LearningModeContext.tsx`) reads `useAuth().user.learning_mode_enabled`, exposes `{ enabled, available, setEnabled }`. `setEnabled` PATCHes `/api/auth/preferences/`. `LearningModeToggle` (header pill, hides itself when `available` is false), `RatingChip` (per-indicator), `CompanyGradeCard` (top of metrics tab) all return `null` when learning mode is off.
+4. **Pages affected** — `CompanyMetricsCard` (chips + grade card), `ScreenerView` (chips per cell). The `usePE10` `QuoteResult` and `useScreener` `ScreenerRow` types carry the `ratings` block as an optional field.
+5. **i18n** — 35 keys per locale, all 7 supported locales (`pt`, `en`, `es`, `zh`, `fr`, `de`, `it`). Tier labels (`learning.tier.1..5`), per-indicator titles + one-line descriptions, toggle copy, grade card copy.
+6. **Color tokens** — `--color-rating-1..5` in `frontend/src/styles/global.css`. Chips use a numeral inside a colored block so the signal is not color-only (works under color-blindness and grayscale).
+
+### Tuning thresholds (follow-up work)
+
+The shipped thresholds are placeholders. Edit `RATING_THRESHOLDS` in `backend/quotes/ratings.py` to adjust cuts; add a sector key under any indicator (e.g. `"Utilities": { "direction": "lower", "cuts": [2.0, 3.0, 4.0, 5.0] }`) to override per sector. `INDICATOR_WEIGHTS` is currently equal-weighted; tune for the overall grade. No migration is needed for any of this — changes ship by deploying.
+
+### Local testing
+
+1. Open any `/<locale>/<ticker>` page; the **Learn** pill sits next to the language toggle in the header.
+2. Click it. Each rated indicator gains a colored numeral chip; the company header gains an `Avaliação: [N] Tier` summary. Hover any chip to read the criteria for tiers 1–5.
+3. Open the screener — every rated cell shows a chip too.
+4. Reload the page. Logged-in users persist via `/api/auth/preferences/`; guests persist via the `sponda-learning-mode` localStorage key.
+
+## Indicator Alerts
+
+Signed-in users can save thresholds on any screened indicator per ticker. When an indicator crosses a threshold, they get an email plus an on-screen entry at `/[locale]/notificacoes`.
+
+### UX
+
+- A small bell button sits next to each indicator label on the company page (`AlertButton` in `frontend/src/components/AlertButton.tsx`). Click it to pick a comparison (`≤` or `≥`) and a threshold value.
+- Existing alerts for that (ticker, indicator) pair are listed inline so the popover is the single source of truth — no separate "manage alerts" page. Delete an alert with the `×` button.
+- The `/notificacoes` page has a **Triggered alerts** section above the revisit reminders; each row links back to the company and can be dismissed (which deletes the alert).
+
+### Data model
+
+`IndicatorAlert` (in `backend/accounts/models.py`) holds `user`, `ticker`, `indicator`, `comparison` (`lte` / `gte`), `threshold` (Decimal), `active`, and `triggered_at`. The unique constraint `(user, ticker, indicator, comparison)` means a user can set both a floor and a ceiling for the same indicator, but not two overlapping alerts. `model.clean()` validates the indicator against `IndicatorAlert.ALLOWED_INDICATORS` — the same 11 fields the screener supports.
+
+### Evaluation loop
+
+`check_indicator_alerts` (daily 07:30 UTC via `sponda-check-alerts.timer`, right after the snapshot refresh):
+
+1. Batch-loads every active alert's latest snapshot in one query.
+2. For each alert, compares the indicator value to the threshold using the stored comparison operator (`None` values are skipped — no snapshot means no evaluation).
+3. On a **false → true** transition sets `triggered_at = now()` and sends one email per alert. Re-triggers only happen after a `true → false` reset, so users aren't spammed on consecutive runs while the condition holds.
+4. Emails use Django's `send_mail` with a plain + HTML body (`_build_alert_email` in `backend/accounts/tasks.py`); the subject includes the ticker, indicator label, and threshold.
+
+### API
+
+| Method | URL | Purpose |
+|---|---|---|
+| `GET` | `/api/auth/alerts/` | List current user's alerts. Optional `?ticker=PETR4` filter. |
+| `POST` | `/api/auth/alerts/` | Create an alert: `{ ticker, indicator, comparison, threshold }`. 400 on duplicates. |
+| `PATCH` | `/api/auth/alerts/<id>/` | Update `active`, `threshold`, or `comparison`. |
+| `DELETE` | `/api/auth/alerts/<id>/` | Delete. Scoped to owner — other users get 404. |
+
+Tickers are uppercased on write; thresholds are `DecimalField(max_digits=20, decimal_places=6)` so precision matches the snapshot fields. Auth is session-based with CSRF (`frontend/src/utils/csrf.ts::csrfHeaders`).
+
+## Favorites
+
+Signed-up users can favorite companies to pin them on the home page grid.
+
+- **Unverified users** are capped at 20 favorites total, and the home page renders only the first 8.
+- **Verified users** (those who confirmed their email) have no cap — they can add unlimited favorites and every favorite shows on the home page grid.
+
+The backend cap lives in `accounts.views.FavoriteListView` (`MAX_FAVORITES = 20`). The home page render logic lives in `getHomepageTickers` in `frontend/src/components/HomepageGrid.tsx`.
+
+### Resending the verification email
+
+Users whose email is not verified see a notice on the account page (`/[locale]/account`) with a "Resend verification email" button. The button calls `POST /api/auth/resend-verification/` (in `accounts.views.ResendVerificationView`), which re-sends the branded verification link via `_send_verification_email`. The endpoint requires an authenticated session and returns 400 if the email is already verified. The UI lives in `EmailVerificationSection` inside `frontend/src/app/[locale]/account/page.tsx`.
+
+## Social (Sponds)
+
+Users can post short messages — **Sponds** — follow each other, mute, block, and reply to threads. The feature lives under `/api/social/` (backend) and `frontend/src/components/social/` (frontend).
+
+### What it does
+
+- **Compose**: 500-char Sponds with optional `$TICKER` tag and `@handle` mentions. Mentions are extracted server-side and trigger notifications.
+- **Engage**: like, reply (one-level threads), edit within 5 minutes, soft-delete with thread tombstones. A Spond and its replies render nested inside one box (`SpondThread`). On the permalink page the reply composer is hidden until "Responder" is clicked; in feeds/sidebar replies are collapsed behind a "show replies" toggle that lazy-loads the thread. The composer opens focused, so "Responder" is a single click to typing.
+- **Signed-out engagement**: Like and Responder are live controls for signed-out visitors, not disabled ones. Clicking either opens the `AuthModal` login/signup cycle, and `SpondCard` remembers the intent and replays it on success — the like is submitted, or the reply composer opens focused. Where the card has no inline composer (nested replies, profile pages), the replay navigates to `/<locale>/spond/<id>?reply=1`, which the permalink page reads to open its composer focused (`SpondThread startReplying`). Unverified accounts still pass through the existing email-verification gate, which replays the action after verification.
+- **Follow graph**: follow public accounts immediately; follow private accounts via approval (pending → accepted). Mute (one-way) hides someone from the muter's feeds. Block (symmetric) hides each side from the other and removes any existing follows.
+- **Feeds**: home page shows `Following | Global` tabs; each company page gets a `Sponds` tab with a locked-ticker composer and per-ticker thread.
+- **Profile**: every user gets `@handle`, `display_name`, `bio`, `is_private`, with a public profile at `/<locale>/user/<handle>` and a Spond permalink at `/<locale>/spond/<id>`.
+- **Identity**: avatars are initials-on-color circles (no uploads in v1). Handles auto-derive from email on signup; users may change once per 30 days.
+- **Notifications**: reply / mention / like / follow / follow-request notifications, polled every 60s in a separate bell next to the existing alerts bell.
+- **SEO**: anonymous reads work, but `/user/`, `/spond/`, and `/api/social/` are `Disallow`'d in `robots.txt` and rendered with `<meta name="robots" content="noindex,follow">` until moderation matures.
+
+### Rate limits
+
+Limits are intentionally tight — 5× more stringent than typical defaults. With a small user base we'd rather see a 429 than tolerate a runaway script. They live in `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` in `backend/config/settings/base.py`.
+
+| Action | Per minute | Per hour | Per day |
+|---|---|---|---|
+| Compose Spond / reply | 4 | 24 | 80 |
+| Like / unlike | 12 | 120 | 600 |
+| Follow / unfollow | 6 | 20 | 60 |
+| Mute / block / unmute / unblock | 8 | 20 | — |
+| Profile edits | — | 6 | — |
+| Notifications mark-read | 24 | — | — |
+| Anonymous reads (per IP) | 60 | — | — |
+| Authenticated reads (per user) | 300 | — | — |
+
+Plus three application-level burst guards: a 5-min duplicate-body check, a hard cap of 8 distinct `@handle`s per Spond, and a rolling 1-hour cap of 20 unique follows per user. Handle changes are limited to once per 30 days, enforced in the serializer.
+
+429 responses include `Retry-After` and a JSON body identifying the scope; the frontend shows a localized toast.
+
+### Data model
+
+Backend app `social/`:
+- `Spond` — UUID-keyed posts with author, body, optional ticker, optional parent, soft-delete.
+- `SpondMention` / `SpondTickerMention` — denormalized lookup tables populated from the body so per-ticker and per-user feeds stay fast.
+- `SpondLike` — unique per `(user, spond)`.
+- `Follow` — with `state ∈ {pending, accepted}`; CHECK constraint forbids self-follow.
+- `Mute` and `Block` — separate one-way relations; blocking auto-removes any existing follows.
+- `Notification` — generic FK to Spond/Follow, with verbs `followed`, `follow_requested`, `replied`, `mentioned`, `liked`.
+
+Profile fields added to the existing `accounts.User`: `handle` (unique, nullable), `display_name`, `bio`, `is_private`, `handle_changed_at`. Migration `accounts/0015_social_profile_fields.py` adds the columns and backfills `handle` from each user's email local-part with collision suffixes.
+
+Visibility filtering for every Spond queryset and every profile lookup is centralized in `social/querysets.py::visible_sponds` and `is_user_visible`.
+
+### Local testing
+
+```bash
+# Backend
+cd backend
+python manage.py migrate
+python -m pytest tests/test_social_api.py tests/test_social_models.py tests/test_social_visibility.py tests/test_social_mentions.py tests/test_user_profile.py
+
+# Frontend
+cd frontend
+npm run test
+npm run build
+```
+
+### Seeding sample data
+
+`python manage.py seed_social` populates the local DB with 5 users (`alice`, `bruno`, `carla`, `diego`, `elena` — the last is private), 7 supported tickers, 15 Sponds with `$TICKER` and `@handle` mentions, 5 replies, ~20 likes, a small follow graph, and one pending follow request. The command is idempotent; pass `--reset` to wipe seeded users (and their cascaded data) before re-seeding, or `--password=<pw>` to override the default `sponda`.
+
+Login emails: `<handle>@seed.sponda.local`. So you can log in as Alice with `alice@seed.sponda.local` / `sponda` and immediately see the home feed populated. Logging in as Elena (private) lets you accept the pending follow request from Bruno.
+
+Two-account smoke test (after `python manage.py runserver`):
+1. Sign up two accounts (`alice@x.com`, `bob@x.com`); verify each via the link in the dev console / mailcatcher.
+2. As Alice, click the new initials-circle in the header → "Edit profile" → set a handle and bio.
+3. Go to a company page (e.g. `/pt/PETR4`) and click the **Sponds** tab; compose `$PETR4 looks cheap @bob`.
+4. Open Bob's session in another browser; the home page **Global** tab shows the post; click the bell to see the mention.
+5. As Bob, follow Alice. Switch tab to **Following** — Alice's Spond shows.
+6. Toggle Alice's account to **private** in the edit-profile modal; have a third user request to follow — accept/reject from the bell.
+7. Mute and block flows: from Bob's view, mute Alice (her Sponds disappear from his feed) → unmute → block (Alice's profile and Sponds disappear, and Bob disappears from Alice's view too).
+
+### Environment variables
+
+No new env vars in v1 (avatars are not uploaded; handles are derived from email). When uploaded avatars ship in v2, an `AVATAR_BACKEND` env var will select between local `MEDIA_ROOT` and S3.
+
+## Lookup limits
+
+A freemium gate on company detail pages (`GET /api/quote/<ticker>/`),
+counting **distinct companies viewed per day**. Re-viewing a company
+already seen that day is always free, so the cap never traps a user on
+content they have already opened.
+
+| Visitor | Daily cap | Scope |
+|---|---|---|
+| Anonymous | `SPONDA_ANON_LOOKUPS_PER_DAY` (20) | Client IP (SHA-256 hashed) |
+| Logged in, email **not** verified | `SPONDA_UNVERIFIED_LOOKUPS_PER_DAY` (50) | User |
+| Logged in, email verified | Unlimited | — |
+
+**How it works**
+
+- `quotes.lookup_quota` is the single source of truth. `PE10View`
+  (enforcement) and `QuotaView` (the `/api/auth/quota/` meter) call it,
+  so the number a user sees can never disagree with the one that blocks
+  them.
+- The cap guards **every** heavy ticker-payload endpoint, not just the
+  main quote page. `PE10View`, `MultiplesHistoryView` (`charts`) and
+  `FundamentalsView` (`fundamentals`) share the
+  `quotes.lookup_enforcement.LookupQuotaEnforcedView` mixin
+  (`enforce_lookup_quota` + `record_lookup`). Without this, a client
+  could enumerate the whole catalogue through the data sub-endpoints —
+  hammering the providers once per ticker — while never tripping the cap
+  on the main page. Loading one ticker's tabs stays free: re-counting a
+  company already seen today is a no-op, so the multiple endpoints a page
+  fires for the **same** ticker don't multiply the cost. This is
+  defense-in-depth against per-IP enumeration; a distributed scraper that
+  rotates a fresh IP per ticker is an edge problem (Cloudflare WAF rate
+  limit on `CF-Connecting-IP` + Bot Fight Mode), not a per-IP-cap one.
+- Anonymous scope is per **IP**, resolved via `CF-Connecting-IP` →
+  `X-Forwarded-For` → `REMOTE_ADDR` (`quotes.client_ip`) and stored only
+  as a salted hash (`LookupLog.ip_hash`). A cleared session cookie no
+  longer resets the cap.
+- Over-cap requests get `429` with `{"code": "lookup_limit", ...}` and
+  `Cache-Control: no-store`; no payload is computed and no quota is
+  burned. Because the response now varies by IP/quota state,
+  `/api/quote/*` is **not** edge-cacheable — keep it off any Cloudflare
+  Cache Rule.
+- Frontend: a `429 lookup_limit` throws `LookupLimitError`. Anonymous
+  users get the login/signup modal; logged-in-unverified users get the
+  email-verification prompt (they already have an account).
+
+## Localized account emails
+
+Welcome and email-verification messages are rendered in the new user's preferred language. The `User.language` field (`accounts.models.User`, one of `pt`, `en`, `es`, `zh`, `fr`, `de`, `it`, default `en`) drives template selection.
+
+At signup the frontend (`AuthModal.tsx` and `[locale]/login/page.tsx`) sends the current UI locale as `language` in the POST body. If the field is missing, `SignupView._parse_accept_language` picks the highest-q supported locale from the `Accept-Language` header, falling back to `en`. Any later verification resend (`/api/auth/resend-verification/`, change-email flow) reuses the value stored on the user.
+
+Templates live under `backend/accounts/templates/emails/`:
+
+- `welcome_base.html` / `verification_base.html` — shared HTML shell with `{% block %}` placeholders for every translatable string.
+- `welcome_<lang>.html` / `verification_<lang>.html` — per-locale overrides (`extends` the base, fills blocks).
+- `welcome_<lang>.txt` / `verification_<lang>.txt` — plain-text bodies per locale.
+
+Subjects and localized share-link copy live in `accounts/email_subjects.py`. The sender (`accounts.views._send_welcome_email` / `_send_verification_email`) resolves the language via `_resolve_language`, renders the matching templates with `render_to_string`, and passes the localized subject.
+
+To add a new locale: register it in `SUPPORTED_LANGUAGES` (`accounts/models.py`), add a row to both subject dicts and `share_strings` in `email_subjects.py`, and create the four template files (`welcome_<lang>.html`, `welcome_<lang>.txt`, `verification_<lang>.html`, `verification_<lang>.txt`).
+
+## Logos
+
+Company logos are served through `GET /api/logos/<symbol>.png`. The resolution chain is designed so that missing logos are recoverable without code changes:
+
+1. **Manual overrides** (`backend/quotes/logo_overrides.py::LOGO_OVERRIDE_URLS`) — highest priority. Add `"<SYMBOL>": "https://..."` for any ticker whose auto-fetched logo is wrong or missing.
+2. **Ticker.logo URL** from the database — skipped entirely if the URL is a known provider placeholder (e.g. BRAPI's generic `BRAPI.svg`). Provider placeholders are also stripped at sync time in `brapi.sync_tickers`.
+3. **BRAPI direct URL** — `https://icons.brapi.dev/icons/<SYMBOL>.svg`.
+4. **Generated fallback SVG** — colored circle with the ticker's first letter. Never written to disk.
+
+Real logos are cached to disk at `LOGO_CACHE_DIR` for 30 days. When all sources return placeholders or fail, the symbol is added to a 24-hour negative cache (in Redis) so subsequent requests don't re-hit the network.
+
+**Commands:**
+
+| Command | What it does |
+|---|---|
+| `./manage.py warm_logo_cache [--region ...]` | Pre-warm the disk cache for popular tickers. |
+| `./manage.py audit_logos [--limit N] [--symbols ...]` | List tickers whose logo resolution ends in the generated fallback — use the output to populate `LOGO_OVERRIDE_URLS`. |
+
+## Blog
+
+The blog at [blog.sponda.capital](https://blog.sponda.capital) is a [Hugo](https://gohugo.io/) static site living in `blog/` in this repo. It serves flat HTML from nginx — no runtime, no database, no JavaScript.
+
+### Writing a post
+
+```bash
+cd blog
+hugo new content/posts/2026-04-15-my-post.md
+```
+
+Frontmatter supports `tags`, `categories`, and an explicit `slug` (recommended when the title has accents):
+
+```yaml
+---
+title: "Exemplo"
+slug: "exemplo"
+date: 2026-04-15
+tags: ["petrobras", "dividendos"]
+categories: ["análise"]
+---
+
+Markdown goes here. YouTube embeds use Hugo's built-in shortcode:
+
+{{< youtube dQw4w9WgXcQ >}}
+```
+
+Commit and push to `main`; the deploy workflow builds the site on the server.
+
+### Local preview
+
+```bash
+cd blog
+hugo server
+# open http://localhost:1313/
+```
+
+### Layout
+
+- `blog/content/posts/` · Markdown posts.
+- `blog/layouts/` · custom DF-minimal HTML templates (no theme dependency).
+- `blog/assets/css/main.css` · site CSS (fingerprinted and minified at build).
+- `blog/static/` · favicon and fonts, copied verbatim to the output.
+- `blog/hugo.toml` · site config.
+
+Tags and categories auto-generate index pages at `/tags/*` and `/categories/*`. RSS feed is auto-generated at `/index.xml`.
+
+### One-time server setup
+
+Before `blog.sponda.capital` is reachable, the droplet needs:
+
+1. DNS: `A` record `blog.sponda.capital → 159.203.108.19`.
+2. `certbot --nginx -d blog.sponda.capital` (after DNS propagates).
+3. `ln -sf /etc/nginx/sites-available/blog.sponda.capital.conf /etc/nginx/sites-enabled/`.
+4. `nginx -t && systemctl reload nginx`.
+
+Hugo itself is auto-installed by the deploy workflow if missing — no manual `apt install` needed.
+
+Every subsequent `git push` to `main` rebuilds and publishes automatically.
 
 ## Performance
 
@@ -130,220 +666,82 @@ Two sitemaps are emitted; both advertise URLs with full `xhtml:link rel="alterna
 
 Both use shared constants: canonical tab keys (`charts`, `fundamentals`, `compare`) map to localized slugs in `SITEMAP_TAB_SLUGS` (backend) and `tabSlugForLocale` (frontend). Keep these in sync when adding a new locale.
 
-## Peer comparison
+## Observability
 
-The Compare tab on each company page lists up to 10 peer tickers ranked by how close they are to the source company. Ranking uses four tiers of signal, applied in order:
-
-1. **Subsector within the same sector** — companies whose business line maps to the same subsector as the source (e.g. VALE3 and GGBR4 both map to *Mineração e Siderurgia*, while KLBN4 maps to *Papel e Celulose*).
-2. **Other subsectors in the same sector** — fills remaining slots when subsector peers aren't enough.
-3. **Adjacent sectors** — only considered when the sector itself has too few candidates (see `ADJACENT_SECTORS` in `backend/quotes/views.py`).
-4. **Country, then market cap** — within a tier, same-country peers come first; within same-country, larger market cap comes first.
-
-Subsector inference is pattern-based: a per-sector list of regexes in `SUBSECTOR_RULES` (Finance, Non-Energy Minerals, Process Industries, Retail Trade, Transportation, Utilities, etc.) matches against the company name. Unmatched companies fall back to a default subsector label per sector. No schema change — the subsector is derived at query time.
-
-**API:** `GET /api/tickers/<symbol>/peers/`
-
-## Valuation ratios: one definition everywhere
-
-P/L{N} and P/FCL{N} are computed by a single method across the Indicadores tile, the Fundamentos table, and the Comparar tab (July 2026 unification — the three views previously used three different formulas and disagreed visibly for companies like RIO):
-
-1. **Trailing filings, not calendar years.** An N-year window covers exactly N × periods-per-year trailing filings. When the current year is partial (e.g. only Q1 reported), the window backfills from older periods — a partial year is weighted by what it actually filed, never counted as a full year. Backend: `backend/quotes/pe10.py` / `pfcf10.py`; frontend port: `frontend/src/hooks/deriveForYears.ts` (`trailingQuartersAverage`).
-2. **Filing frequency is detected per company** (`backend/quotes/reporting_frequency.py`, mirrored in `deriveForYears.ts`): 4 filings/year for quarterly reporters, 2 for semi-annual ones (Rio Tinto files H1 + full year), 1 for annual-only reporters. The frequency is inferred from the mode of filings per completed calendar year and shipped in the quote payload as `pe10PeriodsPerYear` / `pfcf10PeriodsPerYear`; older cached payloads fall back to client-side inference. This also fixes `maxYearsAvailable` (the PRAZO slider ceiling), which previously divided a semi-annual reporter's history by 4 and halved its horizon.
-3. **One FCL definition.** Free cash flow prefers the provider's explicit figure (OCF − CapEx) and falls back to OCF + investing cash flow, both in `backend/quotes/fundamentals.py` and `backend/quotes/pfcf10.py`.
-4. **Fundamentos rows are anchored windows.** Each historical year's P/L{N} uses the trailing window ending at that year's last filed period (`computeTrailingPERatios` in `frontend/src/components/FundamentalsTab.tsx`), with the year's inflation-adjusted market cap over inflation-adjusted average earnings. Years without enough trailing history show "—" instead of a silently-shrunk average. The Comparar tab reads the same `deriveForYears` values as the Indicadores tile, so the two can never diverge.
-
-No new environment variables. To test locally: open `/pt/RIO` (a semi-annual reporter), check that the PRAZO slider reaches ~13 years and that the P/L and P/FCL values match across Indicadores, Fundamentos (latest row), and Comparar for the same window.
-
-## Comparison chart (expanded indicator view)
-
-Clicking the expand button on any indicator card opens a full-window chart for that single indicator. Beyond the larger view it adds three things:
-
-1. **Term slider** — the same `PRAZO/TERM` slider from the page, rendered inside the modal and bound to the page's `years`. Moving it re-derives the series (for rolling indicators like P/L10 the term is the rolling window, so the curve changes, matching the headline number).
-2. **Overlay other companies** — a ticker search adds companies to the chart. Each added company's series is built with the *same* math as the primary (`deriveForYears` → `buildChartData` in `frontend/src/components/CompanyMetricsCard.tsx`), fetched on demand via `useComparisonSeries`.
-3. **Indicator-aware normalization** — how series are combined depends on the indicator's kind (`frontend/src/utils/indicatorKinds.ts`):
-
-| Kind | Indicators | Overlay behavior |
-|---|---|---|
-| `currency-abs-level` | current price | Rebased: arbitrary share-price levels and currency units are neutralized by indexing each series to 100 at a common origin. |
-| `currency-abs-size` | market cap | Rebased (growth) or FX-converted to a common currency, then rebased. |
-| `ratio` | P/L10, P/FCL10, PEG, D/E, current ratio, debt coverage, … | Overlaid raw — already currency-neutral. Optional log scale for outliers. |
-| `percent` | earnings/FCF CAGR | Overlaid raw. |
-
-For currency indicators with two or more companies, a scale toggle offers **Absolute** (single-currency only), **Base 100** (rebased in each company's local currency — price *performance*), and **Base 100 · common currency** (FX-converted to the primary company's listing currency before rebasing — *investor return*). Absolute is disabled when the companies span more than one currency, since a shared currency axis there is misleading. The alignment, rebasing, and FX-conversion math lives in `frontend/src/utils/normalizeSeries.ts`.
-
-The common-currency mode reads a historical FX path from a new endpoint. Dates without an FX anchor fall back to the latest rate, and the chart shows a note when that happens.
-
-**API:** `GET /api/fx/series/?from=<ISO>&to=<ISO>[&start=YYYY-MM-DD]` → `{ from, to, rates: [{ date, rate }] }`, where `rate` is units of `to` per 1 unit of `from`, computed via the USD pivot (see [Cross-currency indicators](#cross-currency-indicators)). Public and currency-only — no ticker, no quota.
-
-No new environment variables. To test locally: open a company page, expand any indicator, drag the term slider, and add a peer (for a cross-currency check, overlay a US ticker on a Brazilian one and switch to Base 100 · common currency).
-
-## Logos
-
-Company logos are served through `GET /api/logos/<symbol>.png`. The resolution chain is designed so that missing logos are recoverable without code changes:
-
-1. **Manual overrides** (`backend/quotes/logo_overrides.py::LOGO_OVERRIDE_URLS`) — highest priority. Add `"<SYMBOL>": "https://..."` for any ticker whose auto-fetched logo is wrong or missing.
-2. **Ticker.logo URL** from the database — skipped entirely if the URL is a known provider placeholder (e.g. BRAPI's generic `BRAPI.svg`). Provider placeholders are also stripped at sync time in `brapi.sync_tickers`.
-3. **BRAPI direct URL** — `https://icons.brapi.dev/icons/<SYMBOL>.svg`.
-4. **Generated fallback SVG** — colored circle with the ticker's first letter. Never written to disk.
-
-Real logos are cached to disk at `LOGO_CACHE_DIR` for 30 days. When all sources return placeholders or fail, the symbol is added to a 24-hour negative cache (in Redis) so subsequent requests don't re-hit the network.
-
-**Commands:**
-
-| Command | What it does |
-|---|---|
-| `./manage.py warm_logo_cache [--region ...]` | Pre-warm the disk cache for popular tickers. |
-| `./manage.py audit_logos [--limit N] [--symbols ...]` | List tickers whose logo resolution ends in the generated fallback — use the output to populate `LOGO_OVERRIDE_URLS`. |
-
-## Lookup limits
-
-A freemium gate on company detail pages (`GET /api/quote/<ticker>/`),
-counting **distinct companies viewed per day**. Re-viewing a company
-already seen that day is always free, so the cap never traps a user on
-content they have already opened.
-
-| Visitor | Daily cap | Scope |
-|---|---|---|
-| Anonymous | `SPONDA_ANON_LOOKUPS_PER_DAY` (20) | Client IP (SHA-256 hashed) |
-| Logged in, email **not** verified | `SPONDA_UNVERIFIED_LOOKUPS_PER_DAY` (50) | User |
-| Logged in, email verified | Unlimited | — |
+Unified error, performance, and cron monitoring through Sentry (free tier) plus UptimeRobot for external health checks. Full plan and rollout status: `docs/observability-plan.md`.
 
 **How it works**
 
-- `quotes.lookup_quota` is the single source of truth. `PE10View`
-  (enforcement) and `QuotaView` (the `/api/auth/quota/` meter) call it,
-  so the number a user sees can never disagree with the one that blocks
-  them.
-- The cap guards **every** heavy ticker-payload endpoint, not just the
-  main quote page. `PE10View`, `MultiplesHistoryView` (`charts`) and
-  `FundamentalsView` (`fundamentals`) share the
-  `quotes.lookup_enforcement.LookupQuotaEnforcedView` mixin
-  (`enforce_lookup_quota` + `record_lookup`). Without this, a client
-  could enumerate the whole catalogue through the data sub-endpoints —
-  hammering the providers once per ticker — while never tripping the cap
-  on the main page. Loading one ticker's tabs stays free: re-counting a
-  company already seen today is a no-op, so the multiple endpoints a page
-  fires for the **same** ticker don't multiply the cost. This is
-  defense-in-depth against per-IP enumeration; a distributed scraper that
-  rotates a fresh IP per ticker is an edge problem (Cloudflare WAF rate
-  limit on `CF-Connecting-IP` + Bot Fight Mode), not a per-IP-cap one.
-- Anonymous scope is per **IP**, resolved via `CF-Connecting-IP` →
-  `X-Forwarded-For` → `REMOTE_ADDR` (`quotes.client_ip`) and stored only
-  as a salted hash (`LookupLog.ip_hash`). A cleared session cookie no
-  longer resets the cap.
-- Over-cap requests get `429` with `{"code": "lookup_limit", ...}` and
-  `Cache-Control: no-store`; no payload is computed and no quota is
-  burned. Because the response now varies by IP/quota state,
-  `/api/quote/*` is **not** edge-cacheable — keep it off any Cloudflare
-  Cache Rule.
-- Frontend: a `429 lookup_limit` throws `LookupLimitError`. Anonymous
-  users get the login/signup modal; logged-in-unverified users get the
-  email-verification prompt (they already have an account).
+- **Django + Celery.** `config.observability.init_sentry` runs from `settings/base.py`. It is a no-op when `SENTRY_DSN` is unset, so dev and tests stay quiet. `before_send` scrubs `Authorization`, `Cookie`, `Set-Cookie`, `DATABASE_URL`, and `SECRET_KEY` from events. Integrations: `DjangoIntegration`, `CeleryIntegration`, `LoggingIntegration` (INFO breadcrumbs, ERROR-level events).
+- **Systemd-timer commands.** Subclass `config.monitored_command.MonitoredCommand` and implement `run()` instead of `handle()`. The base class captures any unhandled exception to Sentry and re-raises (so systemd still marks the unit as failed). Setting `sentry_monitor_slug` wraps execution in `sentry_sdk.crons.monitor`, so Sentry Crons alerts you when a timer misses or fails. All six timer-invoked commands (`refresh_ipca`, `refresh_tickers`, `refresh_snapshot_prices`, `refresh_snapshot_fundamentals`, `check_indicator_alerts`, `send_revisit_reminders`) use this base.
+- **Next.js.** `@sentry/nextjs` is wired up via `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, all delegating to `src/lib/sentry.ts`. `withSentryConfig` in `next.config.ts` handles source-map upload at build time. Session Replay: 10% of sessions + 100% of error sessions (within free-tier quota).
+- **Request IDs.** `config.middleware.request_id.RequestIDMiddleware` attaches a UUID to every request (or honors an inbound `X-Request-ID`, capped at 128 chars). The ID is echoed back in the `X-Request-ID` response header, tagged on the Sentry scope, and included in every JSON log line emitted during the request.
+- **Structured logging.** `config.logging_formatter.JSONLogFormatter` emits one JSON object per log record (`timestamp`, `level`, `logger`, `message`, `request_id`, `exception`). Writes to stderr → captured by journald on production. No external log shipping yet; when we want it, point Promtail/Vector at the journal.
+- **External uptime.** UptimeRobot (free) hits `https://sponda.capital/` and `https://sponda.capital/api/health/` every 5 minutes. Setup is manual, outside the repo.
 
-## Assistant (LLM Q&A)
+**Environment variables**
 
-Centered text-area at the bottom of the company page; streaming OpenAI-powered answers,
-guardrailed to Sponda's finance domain, with tiered per-day quotas. Superuser-only in v1.
-See [LLM_ASSISTANT.md](LLM_ASSISTANT.md).
+| Name | Where | Purpose |
+|---|---|---|
+| `SENTRY_DSN` | backend `.env` | Django + Celery DSN. Unset → Sentry is inactive. |
+| `SENTRY_ENVIRONMENT` | backend | `production` / `development`. Defaults to `development`. |
+| `SENTRY_RELEASE` | backend | Git SHA for release-tagged events. Optional. |
+| `SENTRY_TRACES_SAMPLE_RATE` | backend | Perf trace sampling. Defaults to `1.0`; lower when traffic grows. |
+| `NEXT_PUBLIC_SENTRY_DSN` | frontend build | Browser DSN. Baked into the client bundle at build time. |
+| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | frontend | Same semantics as backend, but client-side. |
+| `NEXT_PUBLIC_SENTRY_RELEASE` | frontend | Client release tag. |
+| `SENTRY_DSN_NEXTJS` | frontend runtime | DSN used by the Next.js Node + edge runtimes. Separate from Django's `SENTRY_DSN` so server-rendered and API-route errors reach the `javascript-nextjs` project. Falls back to `SENTRY_DSN` when unset. |
+| `SENTRY_AUTH_TOKEN` | frontend build / CI | Source-map upload. Build succeeds without it, source maps just aren't uploaded. |
+| `SENTRY_ORG`, `SENTRY_PROJECT` | frontend build | Target for source-map upload. |
 
-## MCP server
-
-Sponda's screening tools, exposed to any agent — Claude, Cursor, custom MCP clients —
-at `https://sponda.capital/api/mcp/` (Streamable HTTP, stateless, no auth). The tool
-surface is `assistant/tools.py` verbatim: the same JSON Schemas and executors the
-in-house screening agent uses, so the public MCP surface and the agent can never drift.
-
-### Using it (any MCP client)
-
-**Claude Code** — one command, then just ask:
+**Local testing**
 
 ```bash
-claude mcp add --transport http sponda https://sponda.capital/api/mcp/
+# Backend: tests run green with no DSN (init is a no-op).
+cd backend && .venv/bin/pytest tests/test_observability.py tests/test_monitored_command.py tests/test_request_id_middleware.py tests/test_json_log_formatter.py
+
+# Frontend: vitest covers the initSentry helper.
+cd frontend && npx vitest run src/lib/sentry.test.ts
+
+# End-to-end smoke (optional): export SENTRY_DSN=<dev-dsn> before running
+# the dev server and trigger a 500 from any view to verify delivery.
 ```
 
-**Claude (web/desktop):** Settings → Connectors → Add custom connector →
-`https://sponda.capital/api/mcp/`.
+## Scheduled Tasks
 
-**Cursor** (`~/.cursor/mcp.json`) or any client that takes a JSON server config:
-
-```json
-{
-  "mcpServers": {
-    "sponda": { "url": "https://sponda.capital/api/mcp/" }
-  }
-}
-```
-
-Then ask things like:
-
-> Brazilian companies with P/E10 under 8 and debt payable from average FCF in under 3 years
->
-> Of those, which has the most conservative leverage? Pull WEGE3's full fundamentals.
-
-Four tools, designed to be called in this order:
-
-| Tool | What it does | Cost |
-| --- | --- | --- |
-| `list_available_indicators` | Indicator catalogue (keys, definitions, direction), plus live country/sector lists and examples of metrics Sponda does *not* have | cheap |
-| `screen_companies` | Filter/sort/rank the ~23k-company universe by indicator bounds, country, sector; returns match count + up to 50 rows | cheap |
-| `get_company` | One company's metadata and current indicator values by ticker | cheap |
-| `get_fundamentals` | Full fundamentals payload for one company — triggers a live market-data fetch | expensive, tighter cap |
-
-Limits: anonymous per-IP daily caps (see env vars below); over the cap the endpoint
-answers HTTP 429 until midnight. Executor failures ("unknown symbol") come back as tool
-results with `isError: true`, never protocol errors, so a calling model can read them
-and adjust.
-
-### Developing it
-
-Implementation: `backend/assistant/mcp.py` — a single stateless JSON-RPC 2.0 view (no
-SSE, no sessions; every request is one POST answered with one JSON body). It serves
-`initialize` (protocol-version negotiation), `ping`, `tools/list`, and `tools/call`,
-and acknowledges notifications with 202. Tool schemas and executors are imported from
-`assistant/tools.py` — to add or change a tool, change it there and both the screening
-agent and the MCP surface pick it up together.
-
-| Env var | Default | Meaning |
-| --- | --- | --- |
-| `MCP_ENABLED` | `true` | Serve the endpoint; `false` returns 404 |
-| `MCP_TOOL_CALLS_PER_DAY` | `200` | Per-IP daily cap across all `tools/call` requests |
-| `MCP_FUNDAMENTALS_CALLS_PER_DAY` | `25` | Per-IP daily sub-cap for `get_fundamentals` |
-
-Rate-limit counters are date-keyed entries in the Redis cache (`mcp:<scope>:<ip_hash>:<day>`),
-so caps reset at midnight and need no schema or cron.
-
-Run it locally:
+Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
 
 ```bash
-cd backend && python manage.py runserver
+systemctl list-timers --all              # all timers, next/last run
+journalctl -u sponda-refresh.service     # last run logs for a unit
 ```
 
-Smoke-test with curl:
+| Command | Timer | Purpose | Frequency |
+|---|---|---|---|
+| `refresh_ipca` + `refresh_tickers` | `sponda-refresh.timer` | Sync IPCA inflation index and the B3 + US ticker lists from BRAPI / FMP | Daily 06:00 UTC |
+| `refresh_snapshot_prices` (+ `check_indicator_alerts` post-run) | `sponda-refresh-snapshots.timer` | Rolling 15-minute refresh while either B3 or NYSE is open. Updates market cap + current price and recomputes PE10 / PFCF10 / PEG / P/FCF PEG against existing fundamentals, then re-evaluates alert thresholds. The command short-circuits with "No exchange open" outside market hours, so off-hours ticks are cheap no-ops. | Every 15 min Mon-Fri |
+| `refresh_snapshot_fundamentals` | `sponda-refresh-fundamentals.timer` | Full refresh: resyncs quarterly earnings, cash flows, balance sheets, then recomputes the entire `IndicatorSnapshot` row. Four API calls per ticker. | Weekly Sun 06:00 UTC |
+| `check_indicator_alerts` | `sponda-check-alerts.timer` | Daily safety-net pass over user alerts (the in-market 15-min run already covers weekday hours) | Daily 07:30 UTC |
+| `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
+| `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
+
+The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
+
+## Deployment
+
+Pushes to `main` trigger a GitHub Actions workflow that runs all test suites, builds the Next.js bundle in CI, then SSHs to `poe.ma`: pulls the latest code, installs backend deps into the venv (`uv pip install`), runs `npm ci` against the prebuilt bundle, migrates, installs the systemd units and timers, reloads nginx, and restarts `sponda`, `sponda-celery`, and `sponda-frontend`. (Docker Compose exists for local development only · see `docker-compose.yml`.)
+
+### Manual Deploy
 
 ```bash
-# list the tools
-curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
-
-# run a screen: P/E10 <= 10, cheapest first
-curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"screen_companies","arguments":{"filters":{"pe10":{"max":10}},"sort":"pe10"}}}'
+ssh root@poe.ma
+cd /opt/sponda
+git pull
+source venv/bin/activate && uv pip install -r backend/requirements.txt
+cd backend && python manage.py migrate --noinput && cd ..
+cd frontend && npm ci && npm run build && cd ..
+systemctl restart sponda sponda-celery sponda-frontend
 ```
-
-Or drive it interactively with the MCP inspector
-(`npx @modelcontextprotocol/inspector http://localhost:8000/api/mcp/`), or point Claude
-Code at your dev server
-(`claude mcp add --transport http sponda-dev http://localhost:8000/api/mcp/`).
-
-Tests: `pytest tests/test_mcp_server.py` — transport, lifecycle, schema-sharing,
-all four tool paths, and the rate-limit caps.
-
-## Stack
-
-- **Backend:** Django 5 + Django REST Framework + PostgreSQL + Redis
-- **Frontend:** React 19 + TypeScript + Next.js 15 + TanStack Query
-- **Styling:** Tailwind CSS v4 (`@apply` only -- no utility classes in JSX)
-- **Deploy:** GitHub Actions CI/CD → DigitalOcean VPS
 
 ## Local Development
 
@@ -393,365 +791,8 @@ The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
 | `SPONDA_ANON_LOOKUPS_PER_DAY` | Anonymous per-IP daily company-lookup cap (default `20`) |
 | `SPONDA_UNVERIFIED_LOOKUPS_PER_DAY` | Per-user daily cap for logged-in but email-unverified accounts (default `50`) |
 | `DATABASE_URL` | PostgreSQL connection string (production only) |
+| `REDIS_URL` | Redis for the cache layers and the Celery broker (default `redis://127.0.0.1:6379/0`) |
+| `OPENAI_API_KEY` | OpenAI key for the LLM assistant (unset disables the feature) |
+| `RESEND_API_KEY` | Resend SMTP key for transactional email |
 | `ALLOWED_HOSTS` | Comma-separated allowed hosts |
 | `DEBUG` | `True` for development, `False` for production |
-
-## Deployment
-
-Pushes to `main` trigger a GitHub Actions workflow that SSHs to `poe.ma`, pulls the latest code, rebuilds Docker containers, runs migrations, and restarts services.
-
-### Manual Deploy
-
-```bash
-ssh root@poe.ma
-cd /opt/sponda
-git pull
-docker compose build
-docker compose run --rm web python manage.py migrate --noinput
-docker compose up -d
-```
-
-## Blog
-
-The blog at [blog.sponda.capital](https://blog.sponda.capital) is a [Hugo](https://gohugo.io/) static site living in `blog/` in this repo. It serves flat HTML from nginx — no runtime, no database, no JavaScript.
-
-### Writing a post
-
-```bash
-cd blog
-hugo new content/posts/2026-04-15-my-post.md
-```
-
-Frontmatter supports `tags`, `categories`, and an explicit `slug` (recommended when the title has accents):
-
-```yaml
----
-title: "Exemplo"
-slug: "exemplo"
-date: 2026-04-15
-tags: ["petrobras", "dividendos"]
-categories: ["análise"]
----
-
-Markdown goes here. YouTube embeds use Hugo's built-in shortcode:
-
-{{< youtube dQw4w9WgXcQ >}}
-```
-
-Commit and push to `main`; the deploy workflow builds the site on the server.
-
-### Local preview
-
-```bash
-cd blog
-hugo server
-# open http://localhost:1313/
-```
-
-### Layout
-
-- `blog/content/posts/` · Markdown posts.
-- `blog/layouts/` · custom DF-minimal HTML templates (no theme dependency).
-- `blog/assets/css/main.css` · site CSS (fingerprinted and minified at build).
-- `blog/static/` · favicon and fonts, copied verbatim to the output.
-- `blog/hugo.toml` · site config.
-
-Tags and categories auto-generate index pages at `/tags/*` and `/categories/*`. RSS feed is auto-generated at `/index.xml`.
-
-### One-time server setup
-
-Before `blog.sponda.capital` is reachable, the droplet needs:
-
-1. DNS: `A` record `blog.sponda.capital → 159.203.108.19`.
-2. `certbot --nginx -d blog.sponda.capital` (after DNS propagates).
-3. `ln -sf /etc/nginx/sites-available/blog.sponda.capital.conf /etc/nginx/sites-enabled/`.
-4. `nginx -t && systemctl reload nginx`.
-
-Hugo itself is auto-installed by the deploy workflow if missing — no manual `apt install` needed.
-
-Every subsequent `git push` to `main` rebuilds and publishes automatically.
-
-## Scheduled Tasks
-
-Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
-
-```bash
-systemctl list-timers --all              # all timers, next/last run
-journalctl -u sponda-refresh.service     # last run logs for a unit
-```
-
-| Command | Timer | Purpose | Frequency |
-|---|---|---|---|
-| `refresh_ipca` + `refresh_tickers` | `sponda-refresh.timer` | Sync IPCA inflation index and the B3 + US ticker lists from BRAPI / FMP | Daily 06:00 UTC |
-| `refresh_snapshot_prices` (+ `check_indicator_alerts` post-run) | `sponda-refresh-snapshots.timer` | Rolling 15-minute refresh while either B3 or NYSE is open. Updates market cap + current price and recomputes PE10 / PFCF10 / PEG / P/FCF PEG against existing fundamentals, then re-evaluates alert thresholds. The command short-circuits with "No exchange open" outside market hours, so off-hours ticks are cheap no-ops. | Every 15 min Mon-Fri |
-| `refresh_snapshot_fundamentals` | `sponda-refresh-fundamentals.timer` | Full refresh: resyncs quarterly earnings, cash flows, balance sheets, then recomputes the entire `IndicatorSnapshot` row. Four API calls per ticker. | Weekly Sun 06:00 UTC |
-| `check_indicator_alerts` | `sponda-check-alerts.timer` | Daily safety-net pass over user alerts (the in-market 15-min run already covers weekday hours) | Daily 07:30 UTC |
-| `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
-| `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
-
-The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
-
-## Cross-currency indicators
-
-Foreign-domiciled companies (NVO, ASML, TM, BABA, ...) trade in USD on US exchanges but file their financials in their home currency (DKK, EUR, JPY, CNY, ...). Any market-cap-based indicator (PE10, PFCF10, PEG, P/FCF PEG, multiples-history chart) translates the market cap into the **statement currency** before dividing by earnings/FCF, so the ratio is dimensionally coherent.
-
-**Pipeline:**
-
-- `Ticker.reported_currency` is populated by `fmp.sync_earnings` from each statement's `reportedCurrency` (BRL hardcoded for Brazilian tickers).
-- `FxRate` stores daily USD↔X close rates from FMP, back to 2010. Refreshed daily by `sync_fx_rates` (timer: `sponda-refresh-fx.timer`).
-- `CountryCPIIndex` stores monthly per-country CPI YoY rates from FRED for inflation-adjusting historical fundamentals in non-USD/non-BRL currencies. Currency→FRED-series mapping in `quotes/fred.py::CURRENCY_TO_SERIES_ID`.
-- `quotes/fx.py::market_cap_in_reported_currency` is the bridge used by every indicator calculator.
-- `quotes/inflation.py::get_inflation_adjustment_factors` dispatches: BRL → IPCA, USD → USCPI, everything else → CountryCPIIndex.
-
-**Coverage audit:** `python manage.py audit_currencies` lists every (listing, reported) pair, flags reporting currencies missing FX history, and flags currencies missing a FRED series mapping.
-
-**Multiples-history chart:** when historical FX is unavailable for any year on the chart, falls back to the latest FX rate uniformly and surfaces `currency_warning=true` in the API; the frontend renders a banner explaining the approximation.
-
-Full design rationale, scope, and the bug it fixes: `docs/cross-currency-fix-plan.md`.
-
-## Observability
-
-Unified error, performance, and cron monitoring through Sentry (free tier) plus UptimeRobot for external health checks. Full plan and rollout status: `docs/observability-plan.md`.
-
-**How it works**
-
-- **Django + Celery.** `config.observability.init_sentry` runs from `settings/base.py`. It is a no-op when `SENTRY_DSN` is unset, so dev and tests stay quiet. `before_send` scrubs `Authorization`, `Cookie`, `Set-Cookie`, `DATABASE_URL`, and `SECRET_KEY` from events. Integrations: `DjangoIntegration`, `CeleryIntegration`, `LoggingIntegration` (INFO breadcrumbs, ERROR-level events).
-- **Systemd-timer commands.** Subclass `config.monitored_command.MonitoredCommand` and implement `run()` instead of `handle()`. The base class captures any unhandled exception to Sentry and re-raises (so systemd still marks the unit as failed). Setting `sentry_monitor_slug` wraps execution in `sentry_sdk.crons.monitor`, so Sentry Crons alerts you when a timer misses or fails. All six timer-invoked commands (`refresh_ipca`, `refresh_tickers`, `refresh_snapshot_prices`, `refresh_snapshot_fundamentals`, `check_indicator_alerts`, `send_revisit_reminders`) use this base.
-- **Next.js.** `@sentry/nextjs` is wired up via `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, all delegating to `src/lib/sentry.ts`. `withSentryConfig` in `next.config.ts` handles source-map upload at build time. Session Replay: 10% of sessions + 100% of error sessions (within free-tier quota).
-- **Request IDs.** `config.middleware.request_id.RequestIDMiddleware` attaches a UUID to every request (or honors an inbound `X-Request-ID`, capped at 128 chars). The ID is echoed back in the `X-Request-ID` response header, tagged on the Sentry scope, and included in every JSON log line emitted during the request.
-- **Structured logging.** `config.logging_formatter.JSONLogFormatter` emits one JSON object per log record (`timestamp`, `level`, `logger`, `message`, `request_id`, `exception`). Writes to stderr → captured by journald on production. No external log shipping yet; when we want it, point Promtail/Vector at the journal.
-- **External uptime.** UptimeRobot (free) hits `https://sponda.capital/` and `https://sponda.capital/api/health/` every 5 minutes. Setup is manual, outside the repo.
-
-**Environment variables**
-
-| Name | Where | Purpose |
-|---|---|---|
-| `SENTRY_DSN` | backend `.env` | Django + Celery DSN. Unset → Sentry is inactive. |
-| `SENTRY_ENVIRONMENT` | backend | `production` / `development`. Defaults to `development`. |
-| `SENTRY_RELEASE` | backend | Git SHA for release-tagged events. Optional. |
-| `SENTRY_TRACES_SAMPLE_RATE` | backend | Perf trace sampling. Defaults to `1.0`; lower when traffic grows. |
-| `NEXT_PUBLIC_SENTRY_DSN` | frontend build | Browser DSN. Baked into the client bundle at build time. |
-| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | frontend | Same semantics as backend, but client-side. |
-| `NEXT_PUBLIC_SENTRY_RELEASE` | frontend | Client release tag. |
-| `SENTRY_DSN_NEXTJS` | frontend runtime | DSN used by the Next.js Node + edge runtimes. Separate from Django's `SENTRY_DSN` so server-rendered and API-route errors reach the `javascript-nextjs` project. Falls back to `SENTRY_DSN` when unset. |
-| `SENTRY_AUTH_TOKEN` | frontend build / CI | Source-map upload. Build succeeds without it, source maps just aren't uploaded. |
-| `SENTRY_ORG`, `SENTRY_PROJECT` | frontend build | Target for source-map upload. |
-
-**Local testing**
-
-```bash
-# Backend: tests run green with no DSN (init is a no-op).
-cd backend && .venv/bin/pytest tests/test_observability.py tests/test_monitored_command.py tests/test_request_id_middleware.py tests/test_json_log_formatter.py
-
-# Frontend: vitest covers the initSentry helper.
-cd frontend && npx vitest run src/lib/sentry.test.ts
-
-# End-to-end smoke (optional): export SENTRY_DSN=<dev-dsn> before running
-# the dev server and trigger a 500 from any view to verify delivery.
-```
-
-## Screener
-
-The screener page at `/[locale]/screener` lets users filter the whole B3 universe by any of the indicators shown on a company's main page and sort the results. Backed by a dedicated `IndicatorSnapshot` table so filtering and sorting are one DB query instead of recomputing indicators for every ticker on every request.
-
-### Supported filters
-
-All are numeric `min` / `max` bounds (either side optional):
-
-- `pe10`, `pfcf10` · valuation multiples (10-year rolling)
-- `peg`, `pfcf_peg` · growth-adjusted valuation
-- `debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`, `current_ratio` · leverage / liquidity
-- `debt_to_avg_earnings`, `debt_to_avg_fcf` · debt vs. cash generation
-- `market_cap` · absolute currency amount
-
-### How it works
-
-1. **Snapshot table.** `IndicatorSnapshot` (one row per ticker) stores the latest value of every screened indicator. The table is kept current by a **three-layer refresh strategy** designed to respect BRAPI Pro and FMP Starter monthly budgets:
-   - **Persist-on-view.** Any time a user opens a company page, the `PE10View` endpoint writes the freshly computed indicators back into `IndicatorSnapshot` and updates `Ticker.market_cap` as a side-effect (wrapped in `try/except` so a write failure never breaks the page). This keeps actively viewed tickers perpetually fresh without any scheduled work.
-   - **Daily price refresh** (`refresh_snapshot_prices`, 07:00 UTC). For every ticker with a market cap, fetches the current quote (one API call) and recomputes only the price-dependent indicators — PE10, PFCF10, PEG, P/FCF PEG — against existing DB fundamentals. Leverage and debt-coverage fields are left alone.
-   - **Weekly fundamentals refresh** (`refresh_snapshot_fundamentals`, Sunday 06:00 UTC). Resyncs quarterly earnings / cash flows / balance sheets (three API calls per ticker) and then recomputes the full indicator set via `compute_company_indicators` — the same service the company page uses, so the screener and the company page can never disagree.
-   - **Bootstrap.** `sync_market_caps` routes Brazilian tickers through BRAPI and US tickers through FMP to backfill `Ticker.market_cap` for rows that are missing it. Run once after adding new tickers; both refresh jobs skip tickers without a market cap.
-2. **Query.** `GET /api/screener/` takes `<field>_min` / `<field>_max` params, a `sort` (prefix `-` for descending; nulls always last), `limit` (max 500), and `offset`. Returns `{ count, results[] }`.
-3. **Frontend.** The `useScreener` hook (`frontend/src/hooks/useScreener.ts`) wraps the endpoint in React Query with `staleTime: 60s`. The page is `frontend/src/app/[locale]/screener/page.tsx` — sticky filter sidebar + results table with click-to-sort column headers and cursor-based "load more" pagination.
-
-**Example:** `GET /api/screener/?pe10_max=10&debt_to_equity_max=1&sort=-market_cap&limit=50` returns the 50 largest Brazilian companies with PE10 ≤ 10 and D/E ≤ 1.
-
-### Slider scales
-
-Most screener sliders are linear — track position maps directly to value. The leverage filters (`debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`) instead use a piecewise log-like scale defined in `frontend/src/utils/sliderScale.ts` (`LEVERAGE_SCALE`):
-
-- Range `0..100`. The `0..1` band — where most companies sit — gets the first 55% of the track. The `1..100` tail is log-compressed across the remaining 45%, so a few distressed-balance outliers (D/E up to ~100) don't squash the useful resolution out of the slider.
-- Snap precision is band-aware: `0.05` below 1, `0.5` between 1 and 20, `5` at 20+. Handle labels track that precision (two decimals below 1, one decimal up to 10, integer above).
-
-`DualRangeSlider` accepts an optional `scale: SliderScale` prop with `toValue` / `toPosition` / `snap`. When supplied, the underlying `<input type="range">` runs in normalized position space (integer stops 0..1000) and the component converts on every change. Without `scale`, behavior is unchanged.
-
-## Learning Mode
-
-A toggleable view that attaches a 1–5 color-coded rating to every fundamental indicator on a company page (P/E10, P/FCF10, PEG, P/FCF-PEG, the four leverage ratios, current ratio, debt/avg-earnings, debt/avg-FCF) plus an overall company grade. Designed for newcomers who can't yet calibrate "is debt/equity of 1 good?". Off by default — when off, pages render exactly as before.
-
-**Available to every visitor.** Authenticated users persist the preference server-side via `/api/auth/preferences/`; anonymous visitors persist it locally via the `sponda-learning-mode` localStorage key.
-
-### How it works
-
-1. **Rating engine** — `backend/quotes/ratings.py` defines `RATING_THRESHOLDS` (per-indicator, optional per-sector overrides) and a `BETTER` direction flag (`lower` for valuation/leverage, `higher` for current ratio). Four cuts produce five tiers. `rate_indicator(indicator, value, sector)` is a pure function; `rate_company({...})` returns `{ ratings, overall, methodology_version }`. An overall grade is only emitted when at least 4 indicators rated (`MIN_INDICATORS_FOR_GRADE`).
-2. **API surface** — `PE10View` adds a camelCase `ratings` block to the `/api/quote/<ticker>/` response; `ScreenerView` adds a snake_case `ratings` block to each `/api/screener/` row. Sector lookup feeds into the threshold table. Computed at serialization time (microsecond cost), no migration.
-3. **Frontend** — `LearningModeContext` (`frontend/src/learning/LearningModeContext.tsx`) reads `useAuth().user.learning_mode_enabled`, exposes `{ enabled, available, setEnabled }`. `setEnabled` PATCHes `/api/auth/preferences/`. `LearningModeToggle` (header pill, hides itself when `available` is false), `RatingChip` (per-indicator), `CompanyGradeCard` (top of metrics tab) all return `null` when learning mode is off.
-4. **Pages affected** — `CompanyMetricsCard` (chips + grade card), `ScreenerView` (chips per cell). The `usePE10` `QuoteResult` and `useScreener` `ScreenerRow` types carry the `ratings` block as an optional field.
-5. **i18n** — 35 keys per locale, all 7 supported locales (`pt`, `en`, `es`, `zh`, `fr`, `de`, `it`). Tier labels (`learning.tier.1..5`), per-indicator titles + one-line descriptions, toggle copy, grade card copy.
-6. **Color tokens** — `--color-rating-1..5` in `frontend/src/styles/global.css`. Chips use a numeral inside a colored block so the signal is not color-only (works under color-blindness and grayscale).
-
-### Tuning thresholds (follow-up work)
-
-The shipped thresholds are placeholders. Edit `RATING_THRESHOLDS` in `backend/quotes/ratings.py` to adjust cuts; add a sector key under any indicator (e.g. `"Utilities": { "direction": "lower", "cuts": [2.0, 3.0, 4.0, 5.0] }`) to override per sector. `INDICATOR_WEIGHTS` is currently equal-weighted; tune for the overall grade. No migration is needed for any of this — changes ship by deploying.
-
-### Local testing
-
-1. Open any `/<locale>/<ticker>` page; the **Learn** pill sits next to the language toggle in the header.
-2. Click it. Each rated indicator gains a colored numeral chip; the company header gains an `Avaliação: [N] Tier` summary. Hover any chip to read the criteria for tiers 1–5.
-3. Open the screener — every rated cell shows a chip too.
-4. Reload the page. Logged-in users persist via `/api/auth/preferences/`; guests persist via the `sponda-learning-mode` localStorage key.
-
-## Indicator Alerts
-
-Signed-in users can save thresholds on any screened indicator per ticker. When an indicator crosses a threshold, they get an email plus an on-screen entry at `/[locale]/notificacoes`.
-
-### UX
-
-- A small bell button sits next to each indicator label on the company page (`AlertButton` in `frontend/src/components/AlertButton.tsx`). Click it to pick a comparison (`≤` or `≥`) and a threshold value.
-- Existing alerts for that (ticker, indicator) pair are listed inline so the popover is the single source of truth — no separate "manage alerts" page. Delete an alert with the `×` button.
-- The `/notificacoes` page has a **Triggered alerts** section above the revisit reminders; each row links back to the company and can be dismissed (which deletes the alert).
-
-### Data model
-
-`IndicatorAlert` (in `backend/accounts/models.py`) holds `user`, `ticker`, `indicator`, `comparison` (`lte` / `gte`), `threshold` (Decimal), `active`, and `triggered_at`. The unique constraint `(user, ticker, indicator, comparison)` means a user can set both a floor and a ceiling for the same indicator, but not two overlapping alerts. `model.clean()` validates the indicator against `IndicatorAlert.ALLOWED_INDICATORS` — the same 11 fields the screener supports.
-
-### Evaluation loop
-
-`check_indicator_alerts` (daily 07:30 UTC via `sponda-check-alerts.timer`, right after the snapshot refresh):
-
-1. Batch-loads every active alert's latest snapshot in one query.
-2. For each alert, compares the indicator value to the threshold using the stored comparison operator (`None` values are skipped — no snapshot means no evaluation).
-3. On a **false → true** transition sets `triggered_at = now()` and sends one email per alert. Re-triggers only happen after a `true → false` reset, so users aren't spammed on consecutive runs while the condition holds.
-4. Emails use Django's `send_mail` with a plain + HTML body (`_build_alert_email` in `backend/accounts/tasks.py`); the subject includes the ticker, indicator label, and threshold.
-
-### API
-
-| Method | URL | Purpose |
-|---|---|---|
-| `GET` | `/api/auth/alerts/` | List current user's alerts. Optional `?ticker=PETR4` filter. |
-| `POST` | `/api/auth/alerts/` | Create an alert: `{ ticker, indicator, comparison, threshold }`. 400 on duplicates. |
-| `PATCH` | `/api/auth/alerts/<id>/` | Update `active`, `threshold`, or `comparison`. |
-| `DELETE` | `/api/auth/alerts/<id>/` | Delete. Scoped to owner — other users get 404. |
-
-Tickers are uppercased on write; thresholds are `DecimalField(max_digits=20, decimal_places=6)` so precision matches the snapshot fields. Auth is session-based with CSRF (`frontend/src/utils/csrf.ts::csrfHeaders`).
-
-## Favorites
-
-Signed-up users can favorite companies to pin them on the home page grid.
-
-- **Unverified users** are capped at 20 favorites total, and the home page renders only the first 8.
-- **Verified users** (those who confirmed their email) have no cap — they can add unlimited favorites and every favorite shows on the home page grid.
-
-The backend cap lives in `accounts.views.FavoriteListView` (`MAX_FAVORITES = 20`). The home page render logic lives in `getHomepageTickers` in `frontend/src/components/HomepageGrid.tsx`.
-
-### Resending the verification email
-
-Users whose email is not verified see a notice on the account page (`/[locale]/account`) with a "Resend verification email" button. The button calls `POST /api/auth/resend-verification/` (in `accounts.views.ResendVerificationView`), which re-sends the branded verification link via `_send_verification_email`. The endpoint requires an authenticated session and returns 400 if the email is already verified. The UI lives in `EmailVerificationSection` inside `frontend/src/app/[locale]/account/page.tsx`.
-
-## Localized account emails
-
-Welcome and email-verification messages are rendered in the new user's preferred language. The `User.language` field (`accounts.models.User`, one of `pt`, `en`, `es`, `zh`, `fr`, `de`, `it`, default `en`) drives template selection.
-
-At signup the frontend (`AuthModal.tsx` and `[locale]/login/page.tsx`) sends the current UI locale as `language` in the POST body. If the field is missing, `SignupView._parse_accept_language` picks the highest-q supported locale from the `Accept-Language` header, falling back to `en`. Any later verification resend (`/api/auth/resend-verification/`, change-email flow) reuses the value stored on the user.
-
-Templates live under `backend/accounts/templates/emails/`:
-
-- `welcome_base.html` / `verification_base.html` — shared HTML shell with `{% block %}` placeholders for every translatable string.
-- `welcome_<lang>.html` / `verification_<lang>.html` — per-locale overrides (`extends` the base, fills blocks).
-- `welcome_<lang>.txt` / `verification_<lang>.txt` — plain-text bodies per locale.
-
-Subjects and localized share-link copy live in `accounts/email_subjects.py`. The sender (`accounts.views._send_welcome_email` / `_send_verification_email`) resolves the language via `_resolve_language`, renders the matching templates with `render_to_string`, and passes the localized subject.
-
-To add a new locale: register it in `SUPPORTED_LANGUAGES` (`accounts/models.py`), add a row to both subject dicts and `share_strings` in `email_subjects.py`, and create the four template files (`welcome_<lang>.html`, `welcome_<lang>.txt`, `verification_<lang>.html`, `verification_<lang>.txt`).
-
-## Social (Sponds)
-
-Users can post short messages — **Sponds** — follow each other, mute, block, and reply to threads. The feature lives under `/api/social/` (backend) and `frontend/src/components/social/` (frontend).
-
-### What it does
-
-- **Compose**: 500-char Sponds with optional `$TICKER` tag and `@handle` mentions. Mentions are extracted server-side and trigger notifications.
-- **Engage**: like, reply (one-level threads), edit within 5 minutes, soft-delete with thread tombstones. A Spond and its replies render nested inside one box (`SpondThread`). On the permalink page the reply composer is hidden until "Responder" is clicked; in feeds/sidebar replies are collapsed behind a "show replies" toggle that lazy-loads the thread. The composer opens focused, so "Responder" is a single click to typing.
-- **Signed-out engagement**: Like and Responder are live controls for signed-out visitors, not disabled ones. Clicking either opens the `AuthModal` login/signup cycle, and `SpondCard` remembers the intent and replays it on success — the like is submitted, or the reply composer opens focused. Where the card has no inline composer (nested replies, profile pages), the replay navigates to `/<locale>/spond/<id>?reply=1`, which the permalink page reads to open its composer focused (`SpondThread startReplying`). Unverified accounts still pass through the existing email-verification gate, which replays the action after verification.
-- **Follow graph**: follow public accounts immediately; follow private accounts via approval (pending → accepted). Mute (one-way) hides someone from the muter's feeds. Block (symmetric) hides each side from the other and removes any existing follows.
-- **Feeds**: home page shows `Following | Global` tabs; each company page gets a `Sponds` tab with a locked-ticker composer and per-ticker thread.
-- **Profile**: every user gets `@handle`, `display_name`, `bio`, `is_private`, with a public profile at `/<locale>/user/<handle>` and a Spond permalink at `/<locale>/spond/<id>`.
-- **Identity**: avatars are initials-on-color circles (no uploads in v1). Handles auto-derive from email on signup; users may change once per 30 days.
-- **Notifications**: reply / mention / like / follow / follow-request notifications, polled every 60s in a separate bell next to the existing alerts bell.
-- **SEO**: anonymous reads work, but `/user/`, `/spond/`, and `/api/social/` are `Disallow`'d in `robots.txt` and rendered with `<meta name="robots" content="noindex,follow">` until moderation matures.
-
-### Rate limits
-
-Limits are intentionally tight — 5× more stringent than typical defaults. With a small user base we'd rather see a 429 than tolerate a runaway script. They live in `REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]` in `backend/config/settings/base.py`.
-
-| Action | Per minute | Per hour | Per day |
-|---|---|---|---|
-| Compose Spond / reply | 4 | 24 | 80 |
-| Like / unlike | 12 | 120 | 600 |
-| Follow / unfollow | 6 | 20 | 60 |
-| Mute / block / unmute / unblock | 8 | 20 | — |
-| Profile edits | — | 6 | — |
-| Notifications mark-read | 24 | — | — |
-| Anonymous reads (per IP) | 60 | — | — |
-| Authenticated reads (per user) | 300 | — | — |
-
-Plus three application-level burst guards: a 5-min duplicate-body check, a hard cap of 8 distinct `@handle`s per Spond, and a rolling 1-hour cap of 20 unique follows per user. Handle changes are limited to once per 30 days, enforced in the serializer.
-
-429 responses include `Retry-After` and a JSON body identifying the scope; the frontend shows a localized toast.
-
-### Data model
-
-Backend app `social/`:
-- `Spond` — UUID-keyed posts with author, body, optional ticker, optional parent, soft-delete.
-- `SpondMention` / `SpondTickerMention` — denormalized lookup tables populated from the body so per-ticker and per-user feeds stay fast.
-- `SpondLike` — unique per `(user, spond)`.
-- `Follow` — with `state ∈ {pending, accepted}`; CHECK constraint forbids self-follow.
-- `Mute` and `Block` — separate one-way relations; blocking auto-removes any existing follows.
-- `Notification` — generic FK to Spond/Follow, with verbs `followed`, `follow_requested`, `replied`, `mentioned`, `liked`.
-
-Profile fields added to the existing `accounts.User`: `handle` (unique, nullable), `display_name`, `bio`, `is_private`, `handle_changed_at`. Migration `accounts/0015_social_profile_fields.py` adds the columns and backfills `handle` from each user's email local-part with collision suffixes.
-
-Visibility filtering for every Spond queryset and every profile lookup is centralized in `social/querysets.py::visible_sponds` and `is_user_visible`.
-
-### Local testing
-
-```bash
-# Backend
-cd backend
-python manage.py migrate
-python -m pytest tests/test_social_api.py tests/test_social_models.py tests/test_social_visibility.py tests/test_social_mentions.py tests/test_user_profile.py
-
-# Frontend
-cd frontend
-npm run test
-npm run build
-```
-
-### Seeding sample data
-
-`python manage.py seed_social` populates the local DB with 5 users (`alice`, `bruno`, `carla`, `diego`, `elena` — the last is private), 7 supported tickers, 15 Sponds with `$TICKER` and `@handle` mentions, 5 replies, ~20 likes, a small follow graph, and one pending follow request. The command is idempotent; pass `--reset` to wipe seeded users (and their cascaded data) before re-seeding, or `--password=<pw>` to override the default `sponda`.
-
-Login emails: `<handle>@seed.sponda.local`. So you can log in as Alice with `alice@seed.sponda.local` / `sponda` and immediately see the home feed populated. Logging in as Elena (private) lets you accept the pending follow request from Bruno.
-
-Two-account smoke test (after `python manage.py runserver`):
-1. Sign up two accounts (`alice@x.com`, `bob@x.com`); verify each via the link in the dev console / mailcatcher.
-2. As Alice, click the new initials-circle in the header → "Edit profile" → set a handle and bio.
-3. Go to a company page (e.g. `/pt/PETR4`) and click the **Sponds** tab; compose `$PETR4 looks cheap @bob`.
-4. Open Bob's session in another browser; the home page **Global** tab shows the post; click the bell to see the mention.
-5. As Bob, follow Alice. Switch tab to **Following** — Alice's Spond shows.
-6. Toggle Alice's account to **private** in the edit-profile modal; have a third user request to follow — accept/reject from the bell.
-7. Mute and block flows: from Bob's view, mute Alice (her Sponds disappear from his feed) → unmute → block (Alice's profile and Sponds disappear, and Bob disappears from Alice's view too).
-
-### Environment variables
-
-No new env vars in v1 (avatars are not uploaded; handles are derived from email). When uploaded avatars ship in v2, an `AVATAR_BACKEND` env var will select between local `MEDIA_ROOT` and S3.
