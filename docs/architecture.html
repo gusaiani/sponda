@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sponda · System Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Code+Pro:wght@300;400&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --ink: #0c1829;
+    --accent: #1e40af;
+    --muted: #5570a0;
+    --border: #d0daea;
+    --bg: #f5f7fb;
+    --card-bg: #ffffff;
+    --card-quotes: #eef3ff;
+    --card-accounts: #f0f7f0;
+    --card-data: #fff8ee;
+    --card-external: #fef2f2;
+    --card-infra: #f3f0ff;
+    --card-test: #f0f7f7;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 40px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 36px;
+  }
+  .logo {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 500;
+    font-size: 32px;
+    color: var(--ink);
+    letter-spacing: 0.5px;
+  }
+  .subtitle {
+    font-size: 15px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 400;
+  }
+  .meta {
+    text-align: right;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .meta a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  /* ── Sections ── */
+  section {
+    margin-bottom: 32px;
+  }
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .section-label {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .section-tech {
+    font-size: 14px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+
+  /* ── Card grid ── */
+  .cards {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 18px;
+    flex: 1;
+    min-width: 200px;
+  }
+  .card h3 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 7px;
+  }
+  .card .tech {
+    font-size: 15px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .card hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 18px 0;
+  }
+  .card p, .card li {
+    font-size: 15px;
+    color: #3d4f6f;
+    line-height: 1.4;
+    margin-bottom: 16px;
+  }
+  .card li:last-child, .card p:last-child {
+    margin-bottom: 0;
+  }
+  .card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .card .label {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .card .note {
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 6px;
+  }
+  .card code {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 13px;
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent);
+  }
+
+  /* ── Color-coded cards ── */
+  .card.quotes { background: var(--card-quotes); border-color: #c7d7f7; }
+  .card.accounts { background: var(--card-accounts); border-color: #c7e0c7; }
+  .card.data { background: var(--card-data); border-color: #e8d9b8; }
+  .card.external { background: var(--card-external); border-color: #e8c8c8; }
+  .card.infra { background: var(--card-infra); border-color: #d0c8e8; }
+  .card.testing { background: var(--card-test); border-color: #b8dede; }
+
+  /* ── Card sizing ── */
+  .card-wide { flex: 2; min-width: 340px; }
+  .card-narrow { flex: 0.7; min-width: 170px; }
+  .card-columns {
+    display: flex;
+    gap: 24px;
+  }
+  .card-columns > div { flex: 1; }
+
+  /* ── Flow arrow ── */
+  .flow {
+    text-align: center;
+    margin: 8px 0 4px;
+  }
+  .flow-arrow {
+    color: var(--border);
+    font-size: 18px;
+    letter-spacing: 3px;
+  }
+  .flow-label {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  /* ── Subsection label inside card ── */
+  .sub-label {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* ── Footer ── */
+  footer {
+    border-top: 2px solid var(--border);
+    padding-top: 16px;
+    margin-top: 36px;
+  }
+  footer p {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  /* ── Why section ── */
+  .why-footnote {
+    font-size: 13px;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 8px;
+  }
+  .why-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .why-group {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 24px;
+  }
+  .why-group-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .why-item {
+    margin-bottom: 20px;
+  }
+  .why-item:last-child {
+    margin-bottom: 0;
+  }
+  .why-tech {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .why-reason {
+    font-size: 15px;
+    color: #3d4f6f;
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+  .why-tradeoff {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+    padding-left: 14px;
+    border-left: 2px solid var(--border);
+  }
+  .why-tradeoff code, .why-reason code {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 13px;
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent);
+  }
+
+  /* ── Data flow diagrams ── */
+  .flow-diagram {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin-bottom: 14px;
+  }
+  .flow-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 16px;
+  }
+  .flow-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .flow-step {
+    padding: 10px 14px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    min-width: 120px;
+  }
+  .flow-step .step-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+  .flow-step .step-detail {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .step-frontend { background: var(--card-quotes); border-color: #c7d7f7; }
+  .step-backend { background: var(--card-accounts); border-color: #c7e0c7; }
+  .step-data { background: var(--card-data); border-color: #e8d9b8; }
+  .step-external { background: var(--card-external); border-color: #e8c8c8; }
+  .step-infra { background: var(--card-infra); border-color: #d0c8e8; }
+  .flow-connector {
+    font-size: 20px;
+    color: var(--border);
+    padding: 0 10px;
+    font-weight: 300;
+    user-select: none;
+  }
+  .flow-connector.fork {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+    font-size: 16px;
+    padding: 0 6px;
+  }
+  .flow-branch {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* ── Print ── */
+  @media print {
+    body { padding: 20px; background: white; }
+    .card { break-inside: avoid; }
+    .card.quotes, .card.accounts, .card.data,
+    .card.external, .card.infra, .card.testing {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">SPONDA</div>
+    <div class="subtitle">Equity analytics · PE10, PFCF10, PEG, leverage ratios across a ~23,000-company universe (B3 + US-listed)</div>
+  </div>
+  <div class="meta">
+    <a href="https://sponda.capital">sponda.capital</a><br>
+    System Architecture · August 2026
+  </div>
+</header>
+
+<!-- ════════════════════════════════════ -->
+<!-- CLIENTS -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Clients</span>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <h3>Browser</h3>
+      <hr>
+      <p>Next.js application served via standalone server on port 3100</p>
+      <p>Locale-prefixed URLs (<code>/pt</code>, <code>/en</code>, … 7 locales)</p>
+      <p>Session cookie for auth state</p>
+    </div>
+    <div class="card">
+      <h3>MCP Clients</h3>
+      <div class="tech">Claude · Cursor · any MCP client</div>
+      <hr>
+      <p><code>/api/mcp/</code> · Streamable HTTP, stateless JSON-RPC 2.0, no auth</p>
+      <p>4 screening tools shared verbatim with the in-house assistant agent</p>
+      <p class="note">Per-IP daily caps: 200 tool calls, 25 fundamentals</p>
+    </div>
+    <div class="card">
+      <h3>Authorization Tiers</h3>
+      <hr>
+      <ul>
+        <li><span class="label">Anonymous</span> · 20 distinct companies/day (per hashed IP)</li>
+        <li><span class="label">Unverified</span> · 50 distinct companies/day</li>
+        <li><span class="label">Verified</span> · unlimited</li>
+        <li><span class="label">Admin</span> · dashboard access</li>
+      </ul>
+      <p class="note">Re-viewing a company already seen that day is always free</p>
+    </div>
+    <div class="card">
+      <h3>Session Auth</h3>
+      <hr>
+      <p>CSRF-exempt for same-origin API</p>
+      <p>CORS middleware for cross-origin</p>
+      <p>Secure cookies in production (SSL-only)</p>
+    </div>
+  </div>
+</section>
+
+<div class="flow">
+  <div class="flow-arrow">▼</div>
+  <div class="flow-label">renders pages</div>
+</div>
+<hr class="section-divider">
+
+<!-- ════════════════════════════════════ -->
+<!-- FRONTEND -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Frontend</span>
+    <span class="section-tech">Next.js 16 · React 19 · TypeScript 5.7</span>
+  </div>
+  <div class="cards">
+    <div class="card quotes">
+      <h3>Routing</h3>
+      <div class="tech">Next.js App Router · locale-prefixed</div>
+      <hr>
+      <ul>
+        <li><code>/[locale]</code> · home, favorites, lists</li>
+        <li><code>/[locale]/[ticker]</code> · metrics + <code>fundamentos</code> · <code>graficos</code> · <code>comparar</code> (slugs localized)</li>
+        <li><code>/screener</code> · indicator screener</li>
+        <li><code>/spond</code> · <code>/notificacoes</code> · social feed</li>
+        <li><code>/alertas</code> · <code>/visitas</code> · alerts, revisits</li>
+        <li><code>/listas</code> · <code>/shared/[token]</code></li>
+        <li><code>/account</code> · <code>/admin-dashboard</code></li>
+      </ul>
+      <p class="note">SSR shell prefetches home data; hreflang alternates across indexable locales</p>
+    </div>
+    <div class="card quotes">
+      <h3>Server State</h3>
+      <div class="tech">TanStack React Query 5</div>
+      <hr>
+      <ul>
+        <li>SSR prefetch + <code>HydrationBoundary</code> (home paints with data in first byte)</li>
+        <li>Persisted cache → localStorage, 24h maxAge</li>
+        <li>30-min staleTime; prefetch on tab hover</li>
+        <li>usePE10 · useQuotesBatch · useFavorites · useSavedLists · useQuota …</li>
+      </ul>
+    </div>
+    <div class="card quotes">
+      <h3>Search</h3>
+      <div class="tech">Server-side · pg_trgm</div>
+      <hr>
+      <p>300ms-debounced queries to the tickers search API</p>
+      <p>Trigram-indexed ILIKE across 23K+ tickers, sub-millisecond</p>
+      <p class="note">Results cached 2 min in Redis; replaced the old client-side Fuse.js index</p>
+    </div>
+    <div class="card quotes">
+      <h3>Charts</h3>
+      <div class="tech">Recharts 3.8</div>
+      <hr>
+      <p>Historical price line chart</p>
+      <p>Year-end multiples (P/L, P/FCL)</p>
+      <p class="note">Dynamically imported (~100KB) · loads only when the Charts tab opens</p>
+    </div>
+    <div class="card quotes">
+      <h3>Styling</h3>
+      <div class="tech">Tailwind CSS v4 · PostCSS</div>
+      <hr>
+      <p>Component-scoped CSS files</p>
+      <p>Responsive, mobile-first</p>
+      <p><code>@apply</code> only · no utility in JSX</p>
+    </div>
+    <div class="card quotes">
+      <h3>Monitoring</h3>
+      <div class="tech">@sentry/nextjs</div>
+      <hr>
+      <p>Web Vitals (LCP · INP · CLS) via browser tracing</p>
+      <p>Frontend transactions stitch to backend spans</p>
+    </div>
+  </div>
+</section>
+
+<div class="flow">
+  <div class="flow-arrow">▼</div>
+  <div class="flow-label">JSON / REST</div>
+</div>
+<hr class="section-divider">
+
+<!-- ════════════════════════════════════ -->
+<!-- BACKEND -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Backend</span>
+    <span class="section-tech">Django 5.1 · DRF 3.15 · Celery 5.6 · Gunicorn 23 · Python 3.12</span>
+  </div>
+  <div class="cards">
+    <div class="card accounts card-wide">
+      <h3>quotes</h3>
+      <div class="tech">Core financial data &amp; indicator engines</div>
+      <hr>
+      <div class="card-columns">
+        <div>
+          <div class="sub-label">Indicators</div>
+          <ul>
+            <li><span class="label">PE10</span> · Shiller P/E, 10yr inflation-adjusted</li>
+            <li><span class="label">PFCF10</span> · 10yr avg free cash flow multiple</li>
+            <li><span class="label">PEG</span> · earnings CAGR-adjusted PE</li>
+            <li><span class="label">PFCF PEG</span> · FCF CAGR-adjusted PFCF</li>
+            <li><span class="label">Leverage</span> · debt/PL, passivo/PL, debt/earnings</li>
+          </ul>
+        </div>
+        <div>
+          <div class="sub-label">Modules</div>
+          <ul>
+            <li><span class="label">providers</span> · BRAPI/FMP routing + provider cache</li>
+            <li><span class="label">fx · inflation · fred</span> · cross-currency pipeline (IPCA / US CPI / country CPI)</li>
+            <li><span class="label">screener</span> · filter/sort the IndicatorSnapshot universe</li>
+            <li><span class="label">circuit_breaker</span> · open after N provider failures</li>
+            <li><span class="label">tasks</span> · Celery stale-while-revalidate refresh</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="card accounts card-wide">
+      <h3>accounts</h3>
+      <div class="tech">User lifecycle, quotas, alerts, analytics</div>
+      <hr>
+      <div class="card-columns">
+        <div>
+          <div class="sub-label">Models</div>
+          <ul>
+            <li><span class="label">User</span> · custom AbstractUser, email verification</li>
+            <li><span class="label">FavoriteCompany · SavedList</span> · starred tickers, shareable lists</li>
+            <li><span class="label">SavedScreenerFilter</span> · named screener presets</li>
+            <li><span class="label">CompanyVisit · RevisitSchedule</span> · visit tracking + reminders</li>
+            <li><span class="label">IndicatorAlert · AlertNotification</span> · threshold alerts</li>
+          </ul>
+        </div>
+        <div>
+          <div class="sub-label">Operations</div>
+          <ul>
+            <li><span class="label">LookupLog</span> · distinct-companies-per-day quota (20 anon / 50 unverified / ∞ verified)</li>
+            <li><span class="label">PageView</span> · SHA-256 hashed IPs, privacy-first</li>
+            <li><span class="label">PasswordResetToken</span> · 24hr expiry</li>
+            <li><span class="label">EmailVerificationToken</span> · 72hr expiry</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="cards" style="margin-top: 14px;">
+    <div class="card accounts">
+      <h3>social</h3>
+      <div class="tech">"Sponds" · posts &amp; graph</div>
+      <hr>
+      <ul>
+        <li><span class="label">Spond</span> · posts, replies, likes</li>
+        <li><span class="label">Mentions</span> · @user + $ticker</li>
+        <li><span class="label">Follow · Mute · Block</span></li>
+        <li><span class="label">Notification</span> · read-and-erase</li>
+      </ul>
+    </div>
+    <div class="card accounts">
+      <h3>assistant</h3>
+      <div class="tech">LLM Q&amp;A + MCP server</div>
+      <hr>
+      <ul>
+        <li>Streaming answers (OpenAI), finance-domain guardrail</li>
+        <li><span class="label">tools.py</span> · screening tools shared by agent + <code>/api/mcp/</code></li>
+        <li><span class="label">LLMQuery</span> · per-tier daily quotas, global USD cost cap</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>config</h3>
+      <div class="tech">Settings &amp; URL routing</div>
+      <hr>
+      <ul>
+        <li><span class="label">Settings</span> · base / dev / prod</li>
+        <li><span class="label">Middleware</span> · request ID · Server-Timing · public-cache strip · CORS · Session · CSRF</li>
+      </ul>
+      <hr>
+      <div class="sub-label">API endpoints</div>
+      <ul>
+        <li><code>/api/quote/&lt;ticker&gt;/</code> · <code>/api/quotes/batch/</code></li>
+        <li><code>/api/tickers/</code> · <code>/api/screener/</code></li>
+        <li><code>/api/auth/*</code> · <code>/api/social/*</code></li>
+        <li><code>/api/assistant/*</code> · <code>/api/mcp/</code></li>
+        <li><code>/api/health/</code></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="flow">
+  <div class="flow-arrow">▼</div>
+  <div class="flow-label">ORM · cache · HTTPS</div>
+</div>
+<hr class="section-divider">
+
+<!-- ════════════════════════════════════ -->
+<!-- DATA & EXTERNAL SERVICES -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Data &amp; External Services</span>
+  </div>
+  <div class="cards">
+    <div class="card data card-wide">
+      <h3>PostgreSQL 15</h3>
+      <div class="tech">psycopg2 2.9 · pg_trgm · pg_stat_statements · SQLite in dev</div>
+      <hr>
+      <div class="card-columns">
+        <div>
+          <div class="sub-label">Financial data</div>
+          <ul>
+            <li>Ticker (~23K B3 + US-listed)</li>
+            <li>QuarterlyEarnings · QuarterlyCashFlow · BalanceSheet</li>
+            <li>IndicatorSnapshot (screener universe)</li>
+            <li>IPCAIndex · USCPIIndex · CountryCPIIndex · FxRate</li>
+            <li>CompanyAnalysis</li>
+          </ul>
+        </div>
+        <div>
+          <div class="sub-label">User &amp; social</div>
+          <ul>
+            <li>User · tokens · FavoriteCompany · SavedList</li>
+            <li>CompanyVisit · RevisitSchedule</li>
+            <li>IndicatorAlert · AlertNotification</li>
+            <li>Spond · Follow · Notification</li>
+            <li>LookupLog · PageView · LLMQuery</li>
+          </ul>
+        </div>
+      </div>
+      <p class="note">Trigram indexes on symbol + display_name power search; tuned for SSD + 2 GB RAM</p>
+    </div>
+    <div class="card data">
+      <h3>Redis</h3>
+      <div class="tech">django-redis cache · Celery broker</div>
+      <hr>
+      <ul>
+        <li><span class="label">Provider cache</span> · raw BRAPI/FMP responses, 15 min – 1h TTL</li>
+        <li><span class="label">View cache</span> · PE10 4h · fundamentals 6h · search 2 min</li>
+        <li><span class="label">Warming</span> · <code>warm_cache</code> pre-populates top + favorited tickers</li>
+        <li><span class="label">Counters</span> · MCP per-IP rate limits</li>
+      </ul>
+    </div>
+    <div class="card data">
+      <h3>Market Data APIs</h3>
+      <div class="tech">requests 2.32 · circuit breakers</div>
+      <hr>
+      <ul>
+        <li><span class="label">BRAPI</span> · B3 quotes, quarterly statements, IPCA, ticker catalog</li>
+        <li><span class="label">FMP</span> · US tickers, statements, market caps, daily FX rates</li>
+        <li><span class="label">FRED</span> · per-country CPI for cross-currency inflation adjustment</li>
+      </ul>
+      <p class="note">Lazy refresh: stale after 24h → served stale, re-pulled by Celery</p>
+    </div>
+    <div class="card external">
+      <h3>OpenAI</h3>
+      <div class="tech">gpt-4o · gpt-4o-mini guard</div>
+      <hr>
+      <p>Assistant answers + screening agent (tool calls)</p>
+      <p>Per-tier daily quotas; global daily USD cap</p>
+    </div>
+    <div class="card external">
+      <h3>Resend</h3>
+      <div class="tech">SMTP · smtp.resend.com</div>
+      <hr>
+      <ul>
+        <li>Welcome + verification + password reset (localized)</li>
+        <li>Revisit reminders · alert emails</li>
+        <li>Feedback forwarding</li>
+      </ul>
+    </div>
+    <div class="card external">
+      <h3>Sentry &amp; OAuth</h3>
+      <hr>
+      <ul>
+        <li><span class="label">Sentry</span> · errors, tracing (Django + Celery + Next.js), cron monitoring; UptimeRobot for external health checks</li>
+        <li><span class="label">Google OAuth 2.0</span> · optional login provider, hidden until configured</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ════════════════════════════════════ -->
+<!-- INFRASTRUCTURE -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Infrastructure</span>
+  </div>
+  <div class="cards">
+    <div class="card infra">
+      <h3>Production Server</h3>
+      <div class="tech">DigitalOcean · 159.203.108.19 · /opt/sponda</div>
+      <hr>
+      <ul>
+        <li><span class="label">Nginx</span> → reverse proxy + TLS (certbot)</li>
+        <li><span class="label">Gunicorn</span> → WSGI, 5 workers, port 8710</li>
+        <li><span class="label">Next.js</span> → standalone server, port 3100</li>
+        <li><span class="label">Celery</span> → worker, concurrency 2</li>
+        <li><span class="label">Redis</span> → cache + broker</li>
+      </ul>
+      <p class="note">systemd: sponda · sponda-frontend · sponda-celery, all Restart=always</p>
+    </div>
+    <div class="card infra">
+      <h3>Scheduled Jobs</h3>
+      <div class="tech">6 systemd timers</div>
+      <hr>
+      <ul>
+        <li><span class="label">Snapshot prices + alerts</span> · every 15 min while B3/NYSE open</li>
+        <li><span class="label">IPCA + ticker lists</span> · daily 06:00 UTC</li>
+        <li><span class="label">FX rates + country CPI</span> · daily 05:30 UTC</li>
+        <li><span class="label">Alert safety net</span> · daily 07:30 UTC</li>
+        <li><span class="label">Revisit reminders</span> · daily 11:00 UTC</li>
+        <li><span class="label">Full fundamentals resync</span> · weekly Sun 06:00 UTC</li>
+      </ul>
+    </div>
+    <div class="card infra">
+      <h3>CI / CD</h3>
+      <div class="tech">GitHub Actions</div>
+      <hr>
+      <ul>
+        <li><span class="label">Trigger</span> · push to main</li>
+        <li><span class="label">Test</span> · pytest (unit, split from E2E) · vitest · Playwright</li>
+        <li><span class="label">Build</span> · Next.js bundle built in CI</li>
+        <li><span class="label">Deploy</span> · SSH → pull, <code>uv pip install</code> into venv, npm ci, migrate, install systemd units, reload nginx, restart sponda + celery + frontend</li>
+        <li><span class="label">Blog</span> · Hugo static build</li>
+      </ul>
+    </div>
+    <div class="card card-narrow">
+      <h3>Domains</h3>
+      <hr>
+      <ul>
+        <li><span class="label">sponda.capital</span></li>
+        <li><span class="label">blog.sponda.capital</span> · Hugo static via nginx</li>
+        <li><span class="label">sponda.poe.ma</span></li>
+      </ul>
+      <hr>
+      <div class="sub-label">Key env vars</div>
+      <ul>
+        <li><code>DATABASE_URL</code> · <code>REDIS_URL</code></li>
+        <li><code>BRAPI_API_KEY</code> · <code>FMP_API_KEY</code> · <code>FRED_API_KEY</code></li>
+        <li><code>OPENAI_API_KEY</code> · <code>RESEND_API_KEY</code></li>
+        <li><code>SENTRY_DSN</code> · <code>DJANGO_SECRET_KEY</code></li>
+        <li><code>GOOGLE_CLIENT_ID/SECRET</code></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ════════════════════════════════════ -->
+<!-- TESTING -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Testing</span>
+    <span class="section-tech">TDD · tests first, always</span>
+  </div>
+  <div class="cards">
+    <div class="card testing">
+      <h3>Backend Unit / Integration</h3>
+      <div class="tech">pytest 8.3 · pytest-django 4.9 · factory-boy 3.3</div>
+      <hr>
+      <p>Models, indicator calculations, API views, auth flows, MCP server, quotas</p>
+    </div>
+    <div class="card testing">
+      <h3>E2E</h3>
+      <div class="tech">Playwright 1.49 · pytest-playwright 0.6</div>
+      <hr>
+      <p>Full browser flows · auth, favorites, page navigation</p>
+      <p class="note">Split from unit tests in CI; pytest-rerunfailures + timeout guard flakes</p>
+    </div>
+    <div class="card testing">
+      <h3>Frontend Unit</h3>
+      <div class="tech">Vitest 4.1 · Testing Library</div>
+      <hr>
+      <p>Hooks, utilities, components, i18n config, data derivations</p>
+    </div>
+    <div class="card testing">
+      <h3>HTTP Mocks</h3>
+      <div class="tech">responses 0.25</div>
+      <hr>
+      <p>BRAPI / FMP / FRED API stubs for deterministic tests</p>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════ -->
+<!-- DATA FLOW -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Data Flow</span>
+  </div>
+
+  <!-- Ticker Lookup (primary flow) -->
+  <div class="flow-diagram">
+    <div class="flow-title">Ticker Lookup</div>
+    <div class="flow-steps">
+      <div class="flow-step step-frontend">
+        <div class="step-name">Browser</div>
+        <div class="step-detail">User searches ticker</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-frontend">
+        <div class="step-name">React Query</div>
+        <div class="step-detail">Persisted cache check</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">PE10View</div>
+        <div class="step-detail">Quota check → 429 if over cap</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-data">
+        <div class="step-name">Redis view cache</div>
+        <div class="step-detail">4h TTL · hit returns instantly</div>
+      </div>
+      <div class="flow-connector fork">
+        <div>↗</div>
+        <div>↘</div>
+      </div>
+      <div class="flow-branch">
+        <div class="flow-step step-external">
+          <div class="step-name">Stale (&gt;24h)</div>
+          <div class="step-detail">Serve stale, Celery re-pulls BRAPI/FMP in background</div>
+        </div>
+        <div class="flow-step step-data">
+          <div class="step-name">Cold</div>
+          <div class="step-detail">Synchronous provider fetch → PostgreSQL</div>
+        </div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">Indicator engines</div>
+        <div class="step-detail">PE10 · PFCF10 · PEG · Leverage (FX-translated)</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-frontend">
+        <div class="step-name">Recharts</div>
+        <div class="step-detail">Render metrics &amp; charts</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scheduled refresh -->
+  <div class="flow-diagram">
+    <div class="flow-title">Scheduled Refresh</div>
+    <div class="flow-steps">
+      <div class="flow-step step-infra">
+        <div class="step-name">systemd timer</div>
+        <div class="step-detail">Every 15 min, market hours</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">refresh_snapshot_prices</div>
+        <div class="step-detail">No-op if no exchange open</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-external">
+        <div class="step-name">BRAPI / FMP</div>
+        <div class="step-detail">Prices + market caps</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-data">
+        <div class="step-name">IndicatorSnapshot</div>
+        <div class="step-detail">Recompute PE10 · PFCF10 · PEG</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">check_indicator_alerts</div>
+        <div class="step-detail">Thresholds crossed → Resend email</div>
+      </div>
+    </div>
+    <div class="flow-steps" style="margin-top: 12px;">
+      <div class="flow-step step-infra">
+        <div class="step-name">systemd timers</div>
+        <div class="step-detail">Daily 05:30–07:30 UTC</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">refresh_ipca · refresh_tickers · sync_fx_rates · sync_country_cpi</div>
+        <div class="step-detail">Management commands</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-external">
+        <div class="step-name">BRAPI · FMP · FRED</div>
+        <div class="step-detail">Inflation, ticker lists, FX, CPI</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-data">
+        <div class="step-name">PostgreSQL</div>
+        <div class="step-detail">Reference tables updated</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MCP tool call -->
+  <div class="flow-diagram">
+    <div class="flow-title">MCP Tool Call</div>
+    <div class="flow-steps">
+      <div class="flow-step step-frontend">
+        <div class="step-name">MCP client</div>
+        <div class="step-detail">Claude / Cursor asks a screen</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">POST /api/mcp/</div>
+        <div class="step-detail">JSON-RPC tools/call</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-data">
+        <div class="step-name">Redis counters</div>
+        <div class="step-detail">Per-IP daily caps → 429 over cap</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">assistant/tools.py</div>
+        <div class="step-detail">screen_companies · get_fundamentals …</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-data">
+        <div class="step-name">IndicatorSnapshot</div>
+        <div class="step-detail">Filter/sort ~23K universe</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-frontend">
+        <div class="step-name">Tool result</div>
+        <div class="step-detail">Errors as isError, never protocol faults</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Flow -->
+  <div class="flow-diagram">
+    <div class="flow-title">User Signup</div>
+    <div class="flow-steps">
+      <div class="flow-step step-frontend">
+        <div class="step-name">Signup form</div>
+        <div class="step-detail">Email + password</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">POST /api/auth/signup/</div>
+        <div class="step-detail">Create User (unverified)</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-external">
+        <div class="step-name">Resend SMTP</div>
+        <div class="step-detail">Welcome + verification email (localized)</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-frontend">
+        <div class="step-name">User clicks link</div>
+        <div class="step-detail">/verify-email?token=…</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-backend">
+        <div class="step-name">POST /api/auth/verify-email/</div>
+        <div class="step-detail">Mark email_verified = true</div>
+      </div>
+      <div class="flow-connector">→</div>
+      <div class="flow-step step-frontend">
+        <div class="step-name">Full access</div>
+        <div class="step-detail">Unlimited lookups</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ════════════════════════════════════ -->
+<!-- WHY? -->
+<!-- ════════════════════════════════════ -->
+<section>
+  <div class="section-head">
+    <span class="section-label">Why?</span>
+    <span class="section-tech">Technology choices and trade-offs</span>
+  </div>
+
+  <div class="why-grid">
+
+    <div class="why-group">
+      <div class="why-group-title">Backend</div>
+
+      <div class="why-item">
+        <div class="why-tech">Django + DRF</div>
+        <div class="why-reason">Batteries-included: ORM, migrations, auth, admin · all built in. Python is natural for financial math (inflation adjustment, CAGR, weighted averages, FX translation). DRF gives serialization and viewsets with minimal boilerplate.</div>
+        <div class="why-tradeoff">Trade-off: Synchronous views. Acceptable because slow provider work moved off the request path · stale data is served immediately and refreshed by a Celery worker; only outright cold tickers pay the synchronous fetch.</div>
+        <div class="why-footnote">DRF (Django REST Framework) · the standard library for building REST APIs in Django. Provides serializers, viewsets, authentication, and content negotiation.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">PostgreSQL</div>
+        <div class="why-reason">Financial data is inherently relational · earnings belong to tickers, tickers have balance sheets, users own favorites. ACID guarantees matter when writing quarterly financials. Trigram indexes (pg_trgm) give sub-millisecond fuzzy search over 23K+ tickers; unique constraints prevent duplicate data on re-sync.</div>
+        <div class="why-tradeoff">Trade-off: Heavier than SQLite for a single-server app. Worth it for concurrent writes, proper indexing on LookupLog for quota queries, and production reliability. SQLite used in dev for zero-config convenience.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Redis</div>
+        <div class="why-reason">One process, three jobs: three-layer response cache (raw provider payloads → computed view payloads → pre-warmed popular tickers), Celery broker, and date-keyed rate-limit counters for the MCP endpoint. Eliminates most external API calls entirely.</div>
+        <div class="why-tradeoff">Trade-off: One more service to run. Cheap · a single instance with a 50-connection pool covers the peak home-page fanout.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Gunicorn</div>
+        <div class="why-reason">Standard WSGI server. Simple. Battle-tested. Five workers behind nginx · no configuration complexity.</div>
+        <div class="why-tradeoff">Trade-off: No WebSocket support. Not needed · all data flows are request/response.</div>
+        <div class="why-footnote">WSGI (Web Server Gateway Interface) · the standard protocol between Python web apps and web servers. Gunicorn spawns worker processes that each run a copy of the Django app, handling concurrent requests.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Session auth (not JWT)</div>
+        <div class="why-reason">Next.js proxies API calls to Django · sessions just work. No token refresh logic, no client-side token storage, no JWT library. CSRF exempted for same-origin API calls; CORS handles cross-origin.</div>
+        <div class="why-tradeoff">Trade-off: Sessions are server-side state. Fine for a single-server deployment. Redis is already in place as a session store if horizontal scaling ever becomes necessary.</div>
+      </div>
+    </div>
+
+    <div class="why-group">
+      <div class="why-group-title">Frontend</div>
+
+      <div class="why-item">
+        <div class="why-tech">Next.js 16 + React 19 + TypeScript</div>
+        <div class="why-reason">Full-stack React framework with file-based routing, server-side rendering, and built-in optimizations. The home page is an async Server Component that prefetches from Django and hydrates React Query · populated cards in the first byte. Locale-prefixed routes with localized slugs drive international SEO across 7 locales. TypeScript catches shape mismatches in API responses (financial data has many optional fields).</div>
+        <div class="why-tradeoff">Trade-off: Heavier framework than a plain Vite SPA. Runs as a standalone Node.js server in production (port 3100) alongside Django. Worth it for SSR, SEO, and hreflang/i18n machinery.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">TanStack Query (+ persistence)</div>
+        <div class="why-reason">Financial data is server state, not client state. Query handles caching, deduplication, background refetch, and stale-while-revalidate. The cache is also mirrored to localStorage (24h), so returning visitors paint instantly from disk while a soft revalidation runs.</div>
+        <div class="why-tradeoff">Trade-off: Another abstraction layer. But eliminates entire categories of bugs (stale data, race conditions, cache invalidation) that would otherwise need manual management.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Server-side search (not Fuse.js)</div>
+        <div class="why-reason">The universe grew ~30× (from ~800 B3 stocks to 23K+ B3 + US listings) · an in-memory client-side index no longer made sense. Postgres trigram indexes answer fuzzy ILIKE queries in under a millisecond, results are cached 2 minutes in Redis, and the input debounces at 300ms.</div>
+        <div class="why-tradeoff">Trade-off: A server round-trip per (debounced) keystroke instead of zero. Negligible against a warm cache, and the client no longer downloads the whole catalog upfront.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Recharts</div>
+        <div class="why-reason">React-native charting · components compose naturally. Good defaults for line charts (historical prices, year-end multiples). Responsive out of the box. Dynamically imported so its ~100KB loads only when the Charts tab opens.</div>
+        <div class="why-tradeoff">Trade-off: Less customizable than D3. Can't do every exotic visualization. Sufficient for the chart types Sponda needs.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Tailwind CSS v4</div>
+        <div class="why-reason">Rapid styling with design constraints built in (spacing scale, color palette). Component-scoped CSS files with <code>@apply</code> keep JSX clean · no utility class soup in templates. Integrated via PostCSS.</div>
+        <div class="why-tradeoff">Trade-off: <code>@apply</code>-only usage loses some of Tailwind's composability benefits. But gains readability · styles live in CSS files, not inline.</div>
+      </div>
+    </div>
+
+    <div class="why-group">
+      <div class="why-group-title">External Services</div>
+
+      <div class="why-item">
+        <div class="why-tech">BRAPI + FMP + FRED</div>
+        <div class="why-reason">BRAPI is the only viable API for B3 (Brazilian exchange) data; FMP covers US tickers, statements, and daily FX rates; FRED supplies per-country CPI for inflation-adjusting foreign-currency financials. A routing layer (<code>providers.py</code>) picks the source per ticker so indicator code never knows which API fed it.</div>
+        <div class="why-tradeoff">Trade-off: Three external dependencies for all financial data. Mitigated by layered caching (users see yesterday's data during an outage, not an error page) and per-provider circuit breakers with tight timeouts, so a hung API can't pin Gunicorn workers.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">OpenAI (assistant)</div>
+        <div class="why-reason">Streaming Q&amp;A on company pages plus a tool-calling screening agent, guardrailed to Sponda's finance domain by a cheap gpt-4o-mini pre-check before the gpt-4o answer.</div>
+        <div class="why-tradeoff">Trade-off: Per-token cost with unpredictable usage. Contained by per-tier daily quotas, a question length cap, and a global daily USD spend cap that shuts the feature off rather than running up a bill.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Resend</div>
+        <div class="why-reason">Modern email API with good deliverability. SMTP integration means Django's built-in email backend works unchanged · verification, password reset, revisit reminders, and alert emails, localized per user. Simple pricing, no vendor lock-in on the code side.</div>
+        <div class="why-tradeoff">Trade-off: Another SaaS dependency. But email delivery is not a problem worth solving in-house.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Sentry</div>
+        <div class="why-reason">One pane for errors, performance traces (frontend spans stitched to Django/Celery spans), Web Vitals, and cron monitoring · on the free tier. UptimeRobot covers the outside-in health check.</div>
+        <div class="why-tradeoff">Trade-off: Sampling is tuned (hot routes at 1.0, everything else 0.2) to stay inside free-tier quota, so cold paths have thinner trace coverage.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Google OAuth (optional)</div>
+        <div class="why-reason">Reduces signup friction for users who don't want yet another password. Hidden by default · only appears when environment variables are configured.</div>
+        <div class="why-tradeoff">Trade-off: Google dependency for auth. Mitigated by being optional · email/password always works. Users aren't locked in.</div>
+      </div>
+    </div>
+
+    <div class="why-group">
+      <div class="why-group-title">Infrastructure</div>
+
+      <div class="why-item">
+        <div class="why-tech">systemd timers + Celery (split by shape)</div>
+        <div class="why-reason">Cron-shaped work (daily syncs, the 15-minute market-hours snapshot loop, weekly fundamentals) runs on systemd timers · visible in <code>systemctl list-timers</code>, logged in journald, persistent across reboots. Request-path background work (refreshing a stale ticker without making the user wait) runs on a Celery worker with retries and backoff, using the Redis that already serves the cache as its broker.</div>
+        <div class="why-tradeoff">Trade-off: Two execution mechanisms instead of one. Each is the simplest tool for its half · moving the timers into Celery beat would add scheduling state for no gain, and doing stale-refresh in timers would leave users waiting on cold data.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Single server (not Kubernetes)</div>
+        <div class="why-reason">Four processes · Gunicorn, Next.js standalone, Celery worker, Redis · behind nginx on one DigitalOcean droplet. Deployment is <code>git pull</code>, install, restart via systemd · simple, fast, debuggable.</div>
+        <div class="why-tradeoff">Trade-off: Single point of failure. No auto-scaling. Acceptable for the current user base. Vertical scaling (bigger server) is the first move if needed.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">venv deploys (Docker for local dev only)</div>
+        <div class="why-reason">Production runs straight on the host: CI builds the Next.js bundle, the server does <code>uv pip install</code> into a venv and <code>npm ci</code>, and systemd restarts the services. No image registry, no container runtime in the hot path. <code>docker-compose</code> (web + postgres:15) remains for spinning up a clean local environment.</div>
+        <div class="why-tradeoff">Trade-off: Host state (Python version, system packages) is not pinned by an image. Acceptable on a single long-lived droplet where the deploy script is the source of truth.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">GitHub Actions</div>
+        <div class="why-reason">CI/CD lives next to the code. Free for public repos. Runs the three test suites in parallel jobs, builds the frontend bundle once in CI, deploys via SSH, and rebuilds the Hugo blog. No Jenkins server to maintain.</div>
+        <div class="why-tradeoff">Trade-off: Vendor lock-in to GitHub. Workflows are YAML, not code. Acceptable · migration to another CI is straightforward if needed.</div>
+      </div>
+    </div>
+
+    <div class="why-group">
+      <div class="why-group-title">Testing</div>
+
+      <div class="why-item">
+        <div class="why-tech">pytest + factory-boy</div>
+        <div class="why-reason">pytest's fixtures and parametrize are ideal for testing indicator calculations across many input scenarios. factory-boy generates realistic model instances · no fragile JSON fixtures to maintain.</div>
+        <div class="why-tradeoff">Trade-off: factory-boy has a learning curve. Worth it · test data stays in sync with model changes automatically.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Playwright (not Selenium/Cypress)</div>
+        <div class="why-reason">Reliable auto-waiting, multi-browser support, and first-class Python integration via pytest-playwright. Tests auth flows, favorites, and page navigation end-to-end.</div>
+        <div class="why-tradeoff">Trade-off: E2E tests are slow and occasionally flaky. Split from unit tests in CI to avoid session state leakage; pytest-rerunfailures and per-test timeouts keep flakes from blocking deploys.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">Vitest (not Jest)</div>
+        <div class="why-reason">Fast, modern test runner with native TypeScript support. Compatible Jest API. Fast startup, watch mode works instantly.</div>
+        <div class="why-tradeoff">Trade-off: Smaller ecosystem than Jest. Compatible API means migration is trivial if ever needed.</div>
+      </div>
+
+      <div class="why-item">
+        <div class="why-tech">responses (HTTP mocking)</div>
+        <div class="why-reason">Mocks the <code>requests</code> library at the transport level. BRAPI/FMP/FRED tests run without network access · deterministic, fast, no API keys needed in CI.</div>
+        <div class="why-tradeoff">Trade-off: Mocks can drift from the real API. Mitigated by lazy refresh in production · if a provider changes its response shape, the real app surfaces the error quickly.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ════════════════════════════════════ -->
+<!-- FOOTER -->
+<!-- ════════════════════════════════════ -->
+<footer>
+  <p>
+    <span class="label">Background work is hybrid:</span> systemd timers for cron-shaped jobs (daily syncs, 15-min market-hours snapshots), Celery over Redis for request-path refresh (stale-while-revalidate · users get instant responses, workers re-pull providers behind the scenes). Nginx fronts everything: Next.js serves pages (port 3100), Django serves the API (Gunicorn, port 8710), Hugo serves the blog as flat HTML.
+  </p>
+</footer>
+
+</body>
+</html>

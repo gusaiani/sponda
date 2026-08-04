@@ -2,9 +2,12 @@
 
 Financial indicators and analytics for global public companies. Over 23,000 companies listed across the U.S. and Brazil. Live at
 <a href="https://sponda.capital" target="_blank" rel="noopener noreferrer">sponda.capital</a>.
-.
 
 ![Sponda homepage](docs/screenshot.png)
+
+## Architecture
+
+A one-page system architecture overview · stack, apps, data flows, and the reasoning behind each technology choice · lives at [`docs/architecture.html`](docs/architecture.html). GitHub shows HTML as source, so use the [rendered version](https://htmlpreview.github.io/?https://github.com/gusaiani/sponda/blob/main/docs/architecture.html), or open the file locally in a browser.
 
 ## Performance
 
