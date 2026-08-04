@@ -7,7 +7,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 
 ## Architecture
 
-A one-page system architecture overview · stack, apps, data flows, and the reasoning behind each technology choice · lives at [`docs/architecture.html`](docs/architecture.html). GitHub shows HTML as source, so use the [rendered version](https://htmlpreview.github.io/?https://github.com/gusaiani/sponda/blob/main/docs/architecture.html), or open the file locally in a browser.
+A one-page system architecture overview · stack, apps, data flows, and the reasoning behind each technology choice · lives at [`docs/architecture.html`](docs/architecture.html). GitHub shows HTML as source, so use the [rendered version](https://gusaiani.github.io/sponda/architecture.html) (GitHub Pages, published from `main:/docs`), or open the file locally in a browser.
 
 ## Performance
 
