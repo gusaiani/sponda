@@ -23,6 +23,7 @@ from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 
 from quotes.cvm import CvmParseError, download_itr_archive, extract_quarter_statements
+from quotes.derived_data import refresh_derived_data
 from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
 
 logger = logging.getLogger(__name__)
@@ -168,6 +169,7 @@ class Command(BaseCommand):
                 "current_liabilities": statements.current_liabilities,
             },
         )
+        refresh_derived_data(ticker)
         logger.info("Seeded %s %s from CVM ITR", ticker, statements.quarter_end)
 
 

@@ -19,16 +19,14 @@ from rest_framework.views import APIView
 
 from config.middleware.server_timing import record_server_timing
 
-logger = logging.getLogger(__name__)
-
-# Browser cache TTL for /api/quote/<T>/ — short relative to the 24h
-# server-side TTL because clients re-render on every navigation and the
-# server cache is the real source of truth. One hour is enough to absorb
-# multi-tab opens and quick re-visits without making a stale dataset
-# stick to a session.
-PE10_CLIENT_CACHE_TTL = 60 * 60
-
 from .client_ip import client_ip_hash
+from .derived_data import (
+    STATEMENT_DERIVED_CACHE_CONTROL,
+    fundamentals_cache_key,
+    invalidate_statement_caches,
+    multiples_history_cache_key,
+    pe10_cache_key,
+)
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .lookup_enforcement import LookupQuotaEnforcedView
@@ -45,6 +43,16 @@ from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
 from .ratings import rate_company
 from . import screener as screener_module
+
+logger = logging.getLogger(__name__)
+
+# Browser cache TTL for the batch quotes endpoint. That is a POST, so no
+# edge caches it and this only governs the client's own reuse; an hour is
+# enough to absorb multi-tab opens and quick re-visits. The per-ticker GETs
+# use STATEMENT_DERIVED_CACHE_CONTROL instead, which is short because those
+# responses *are* edge-cached and would otherwise put an hour-long floor
+# under how fresh a newly filed quarter can appear.
+PE10_CLIENT_CACHE_TTL = 60 * 60
 from .screener import ScreenerError, run_screener
 
 PE10_CACHE_TTL = 24 * 60 * 60  # 24 hours
@@ -720,6 +728,12 @@ def _ensure_fresh_data(ticker: str) -> None:
                 sync_balance_sheets(ticker)
             except ProviderError:
                 pass
+        # The caller is about to recompute its own payload, but the sibling
+        # endpoints still hold pre-sync ones. Caches only: recomputing the
+        # snapshot here would put ten years of arithmetic on a request path
+        # that has already paid for three provider calls. The background
+        # task and the weekly command own snapshot freshness.
+        invalidate_statement_caches(ticker)
         return
 
     if not (has_fresh_earnings and has_fresh_cf and has_fresh_bs):
@@ -804,7 +818,7 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
     Raises ``_QuoteError`` for HTTP-mappable failures (ticker not found,
     market data unavailable, provider down).
     """
-    cache_key = f"pe10:{ticker}"
+    cache_key = pe10_cache_key(ticker)
     cache_started = time.perf_counter()
     cached_result = cache.get(cache_key)
     cache_lookup_ms = (time.perf_counter() - cache_started) * 1000.0
@@ -988,7 +1002,7 @@ class PE10View(LookupQuotaEnforcedView, APIView):
 
         self.record_lookup(request, ticker)
         response = Response(result)
-        response["Cache-Control"] = f"public, max-age={PE10_CLIENT_CACHE_TTL}"
+        response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
         return response
 
 
@@ -1118,12 +1132,12 @@ class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
         if blocked is not None:
             return blocked
 
-        cache_key = f"multiples_history:{ticker}"
+        cache_key = multiples_history_cache_key(ticker)
         cached_result = cache.get(cache_key)
         if cached_result is not None:
             self.record_lookup(request, ticker)
             response = Response(cached_result)
-            response["Cache-Control"] = "public, max-age=3600"
+            response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
             return response
 
         _ensure_fresh_data(ticker)
@@ -1177,7 +1191,7 @@ class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
         cache.set(cache_key, result, MULTIPLES_HISTORY_CACHE_TTL)
         self.record_lookup(request, ticker)
         response = Response(result)
-        response["Cache-Control"] = "public, max-age=3600"
+        response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
         return response
 
 
@@ -1194,12 +1208,12 @@ class FundamentalsView(LookupQuotaEnforcedView, APIView):
         if blocked is not None:
             return blocked
 
-        cache_key = f"fundamentals:{ticker}"
+        cache_key = fundamentals_cache_key(ticker)
         cached_result = cache.get(cache_key)
         if cached_result is not None:
             self.record_lookup(request, ticker)
             response = Response(cached_result)
-            response["Cache-Control"] = "public, max-age=3600"
+            response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
             return response
 
         _ensure_fresh_data(ticker)
@@ -1272,7 +1286,7 @@ class FundamentalsView(LookupQuotaEnforcedView, APIView):
         cache.set(cache_key, result, FUNDAMENTALS_CACHE_TTL)
         self.record_lookup(request, ticker)
         response = Response(result)
-        response["Cache-Control"] = "public, max-age=3600"
+        response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
         return response
 
 

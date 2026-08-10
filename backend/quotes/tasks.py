@@ -14,6 +14,7 @@ import logging
 
 from celery import shared_task
 
+from .derived_data import refresh_derived_data
 from .providers import ProviderError, sync_balance_sheets, sync_cash_flows, sync_earnings
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,11 @@ def refresh_provider_data(ticker: str) -> None:
 
     Tolerates per-call ProviderError so an outage on one source does not
     take down the entire refresh of the others.
+
+    Refreshing derived data at the end is what makes stale-while-revalidate
+    actually revalidate: without it the freshly synced quarter would sit
+    behind a 24h cached payload, so "tomorrow's request sees today's data"
+    would not hold.
     """
     for label, fn in (
         ("earnings", sync_earnings),
@@ -44,3 +50,5 @@ def refresh_provider_data(ticker: str) -> None:
                 "refresh_provider_data: %s sync_%s failed: %s",
                 ticker, label, error,
             )
+
+    refresh_derived_data(ticker)
