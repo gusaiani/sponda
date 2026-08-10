@@ -11,6 +11,7 @@ valuation multiples fresh without hammering the statement endpoints.
 import logging
 
 from config.monitored_command import MonitoredCommand
+from quotes.derived_data import invalidate_statement_caches
 from quotes.indicators import compute_company_indicators
 from quotes.models import IndicatorSnapshot, Ticker
 from quotes.providers import (
@@ -93,6 +94,9 @@ class Command(MonitoredCommand):
                     ticker=symbol, defaults=indicators,
                 )
                 Ticker.objects.filter(symbol=symbol).update(market_cap=int(market_cap))
+                # The snapshot above already used this run's fresh quote, so
+                # only the cached payloads still need dropping.
+                invalidate_statement_caches(symbol)
                 success_count += 1
             except ProviderError as error:
                 logger.warning("Fundamentals refresh failed for %s: %s", symbol, error)

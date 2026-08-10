@@ -569,15 +569,43 @@ Three-layer caching strategy eliminates redundant external API calls:
 
 **Layer 2 · View cache**: computed results for each API endpoint.
 
-| Endpoint | TTL | What it avoids |
-|---|---|---|
-| Ticker list (27K rows) | 1 hour | Full table scan on every page load |
-| Search results | 2 min | Trigram query + sorting per keystroke |
-| PE10 metrics | 4 hours | 6+ DB queries + external API call + inflation adjustment |
-| Fundamentals | 6 hours | All balance sheets, earnings, cash flows + IPCA table + external API |
-| Multiples history | 6 hours | 2 sequential external API calls (was 8s uncached) |
+| Endpoint | TTL | Cache key | What it avoids |
+|---|---|---|---|
+| Ticker list (27K rows) | 1 hour | `ticker_list` | Full table scan on every page load |
+| Search results | 2 min | `search:<md5>` | Trigram query + sorting per keystroke |
+| PE10 metrics | 24 hours | `pe10:<T>` | 6+ DB queries + external API call + inflation adjustment |
+| Fundamentals | 24 hours | `fundamentals:<T>` | All balance sheets, earnings, cash flows + IPCA table + external API |
+| Multiples history | 24 hours | `multiples_history:<T>` | 2 sequential external API calls (was 8s uncached) |
 
 **Layer 3 · Cache warming**: `python manage.py warm_cache` pre-populates all three endpoints for the top 50 most-queried tickers. Run every 4 hours via cron so popular tickers are always served from cache.
+
+### Invalidation on statement writes
+
+The bottom three entries above are computed from quarterly statements, so a 24 hour TTL used to mean a newly written quarter stayed invisible for a day. `quotes/derived_data.py` closes that: every path that writes statements calls it, and it recomputes the screener's `IndicatorSnapshot` and then drops the three cached payloads.
+
+| Writer | Calls | Why |
+|---|---|---|
+| `quotes.tasks.refresh_provider_data` (Celery) | `refresh_derived_data` | Stale-while-revalidate cannot revalidate anything if the payload stays cached |
+| `seed_quarter_from_cvm` | `refresh_derived_data` | A seeded quarter is useless behind a day-old payload |
+| `refresh_snapshot_fundamentals` (weekly) | `invalidate_statement_caches` | It already recomputed the snapshot from a fresh quote |
+| `_ensure_fresh_data` cold path | `invalidate_statement_caches` | Caches only · ten years of arithmetic does not belong on a request thread |
+
+Snapshot first, caches second. A request arriving in the gap either hits a cache that is still warm or rebuilds from a snapshot that is already correct; the reverse order would let it repopulate the cache from a snapshot that has not caught up.
+
+Company metadata (`ticker_detail_<T>`) and peer lists (`ticker_peers_<T>`) are deliberately **not** invalidated · they hold names, sectors and logos, none of which a filing changes.
+
+### Edge cache TTL for statement-derived endpoints
+
+With the server-side caches dropped on write, the `Cache-Control` header became the only remaining staleness between a filing and the page. It was `max-age=3600`, which put a one hour floor under how fresh the site could ever be no matter how fast ingestion got. `/api/quote/<T>/`, `/api/quote/<T>/fundamentals/` and `/api/quote/<T>/multiples-history/` now send `public, max-age=300`.
+
+Two measurements made that safe:
+
+- **Quota is unaffected.** `lookup_quota` counts *distinct tickers per day*, not requests, so extra origin hits cannot exhaust an allowance. Repeat views of the same ticker add duplicate `LookupLog` rows and nothing else.
+- **Load is negligible.** Origin traffic for these three endpoints is ~48 requests/hour. Even the theoretical 12x worst case stays well under one request per second, and each is a Redis read.
+
+Sub-minute freshness would need a Cloudflare purge on write, which requires an API token in `/opt/sponda/.env` (none is configured today).
+
+The cache keys are defined once in `derived_data.py` and imported by the views, `warm_cache`, and the invalidator. An invalidator that clears a key nobody sets fails silently, which is the worst way for this to break, so the shared definition is load-bearing rather than tidiness.
 
 ### Home page fanout (May 2026 rewrite)
 
@@ -591,7 +619,7 @@ The current architecture, in the order each layer fires:
 4. **Persisted React Query cache** — `@tanstack/react-query-persist-client` mirrors the cache to `localStorage` with a 24h `maxAge`. Returning visitors paint from disk instantly while a soft revalidation runs in the background.
 5. **Cache warming, favorites-aware** — `python manage.py warm_cache` now sources tickers from every active user's favorites + saved lists (in addition to LookupLog popularity), runs across 8 worker threads, and skips tickers whose `pe10:<T>` cache is already warm. The 0.5s `time.sleep` per ticker is gone.
 6. **Provider circuit breakers + tight timeouts** — every BRAPI/FMP/FRED call goes through `quotes.circuit_breaker.CircuitBreaker` with `(connect, read) = (3, 8)` timeouts. After N consecutive failures the breaker opens for ~60s, short-circuiting subsequent calls instead of pinning a worker for 30s on each one.
-7. **`Cache-Control: public, max-age=3600`** on PE10View + the batch endpoint, so repeat-tab visits skip the round-trip entirely. Logos bumped to `max-age=31536000, stale-while-revalidate=604800` since they rotate at most once a year.
+7. **`Cache-Control`** so repeat-tab visits skip the round-trip entirely. The batch endpoint keeps `public, max-age=3600` (it is a POST, so no edge caches it and the header only governs the client's own reuse). The three statement-derived GETs use `public, max-age=300` · see below. Logos are `max-age=31536000, stale-while-revalidate=604800` since they rotate at most once a year.
 8. **DB connection pooling** — `CONN_MAX_AGE=600` + `CONN_HEALTH_CHECKS=True` in `production.py` so 30 parallel batch workers reuse the same pool of warm Postgres connections.
 9. **Redis pool** — `CONNECTION_POOL_KWARGS={"max_connections": 50}` on the cache backend, sized for the peak fanout.
 10. **`LookupLog(ticker, timestamp)` index** — added because `warm_cache` filters by ticker + recent timestamp on every run.

@@ -26,6 +26,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from accounts.models import FavoriteCompany, SavedList
+from quotes.derived_data import pe10_cache_key
 from quotes.models import LookupLog
 from quotes.views import _compute_quote_payload
 
@@ -61,7 +62,7 @@ class Command(BaseCommand):
         workers = options["workers"]
 
         candidates = self._gather_candidate_tickers(limit)
-        cold = [t for t in candidates if cache.get(f"pe10:{t}") is None]
+        cold = [t for t in candidates if cache.get(pe10_cache_key(t)) is None]
 
         self.stdout.write(
             f"Warming cache for {len(cold)} tickers "

@@ -7,6 +7,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
+from quotes.derived_data import STATEMENT_DERIVED_CACHE_CONTROL
 from quotes.models import IndicatorSnapshot, IPCAIndex, LookupLog, Ticker
 from quotes.views import _clean_company_name, format_display_name
 
@@ -694,7 +695,33 @@ class TestFundamentalsEndpoint:
     ):
         mock_quote.return_value = mock_brapi_quote
         response = api_client.get("/api/quote/PETR4/fundamentals/")
-        assert "max-age=3600" in response["Cache-Control"]
+        assert response["Cache-Control"] == STATEMENT_DERIVED_CACHE_CONTROL
+
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_caches_under_the_shared_key_the_invalidator_clears(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        """Anti-drift: the view and derived_data must agree on the key.
+
+        If they diverge, invalidation silently clears nothing and a written
+        quarter stays hidden for a day.
+        """
+        from django.core.cache import cache
+
+        from quotes.derived_data import fundamentals_cache_key, invalidate_statement_caches
+
+        mock_quote.return_value = mock_brapi_quote
+        cache.delete(fundamentals_cache_key("PETR4"))
+
+        api_client.get("/api/quote/PETR4/fundamentals/")
+        assert cache.get(fundamentals_cache_key("PETR4")) is not None
+
+        invalidate_statement_caches("PETR4")
+        assert cache.get(fundamentals_cache_key("PETR4")) is None
 
     @patch("quotes.views.fetch_quote")
     @patch("quotes.views.sync_balance_sheets")
@@ -897,7 +924,7 @@ class TestMultiplesHistoryEndpoint:
         mock_quote.return_value = mock_brapi_quote
         mock_hist.return_value = MOCK_HISTORICAL_PRICES
         response = api_client.get("/api/quote/PETR4/multiples-history/")
-        assert "max-age=3600" in response["Cache-Control"]
+        assert response["Cache-Control"] == STATEMENT_DERIVED_CACHE_CONTROL
 
     @patch("quotes.views.fetch_historical_prices")
     @patch("quotes.views.fetch_quote")
