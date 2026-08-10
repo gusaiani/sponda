@@ -35,6 +35,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 
 - [Performance](#performance)
 - [Observability](#observability)
+- [Seeding a quarter from CVM](#seeding-a-quarter-from-cvm)
 - [Scheduled Tasks](#scheduled-tasks)
 
 **Operations**
@@ -706,6 +707,72 @@ cd frontend && npx vitest run src/lib/sentry.test.ts
 # End-to-end smoke (optional): export SENTRY_DSN=<dev-dsn> before running
 # the dev server and trigger a 500 from any view to verify delivery.
 ```
+
+## Seeding a quarter from CVM
+
+BRAPI is the only provider of Brazilian quarterly statements, and it lags the filing. Measured on 2026-08-10, BRAPI carried 2Q26 for every issuer that reported by ~30 July (ABEV3, VALE3, WEGE3, USIM5, VIVT3) and none that reported from 4 August on (GGBR3/4, PETR3/4, ITUB4, BBAS3, CSNA3, EMBR3, JBSS3, LREN3, RENT3, SUZB3). During earnings season that lag lands exactly when the Fundamentos tab is worth opening.
+
+The CVM publishes the same filings as open data within days. `seed_quarter_from_cvm` reads that archive and writes one quarter of `QuarterlyEarnings`, `QuarterlyCashFlow`, and `BalanceSheet` rows, ahead of BRAPI.
+
+```bash
+cd backend
+python manage.py seed_quarter_from_cvm --quarter 2026-06-30 \
+    --ticker GGBR3 --ticker GGBR4 --ticker PETR3 --ticker PETR4
+
+# Parse and print the figures without touching the database
+python manage.py seed_quarter_from_cvm --quarter 2026-06-30 --ticker GGBR3 --dry-run
+```
+
+| Flag | Meaning |
+|---|---|
+| `--quarter` | Quarter end, ISO format. Must be 03-31, 06-30 or 09-30 · Q4 is filed as a DFP, not an ITR, and is rejected. |
+| `--ticker` | Ticker to seed. Repeat the flag for several. Rejected up front if absent from `TICKER_TO_CVM_CODE` in the command module. |
+| `--dry-run` | Parse and report, write nothing. |
+
+No new environment variables · the CVM archive (`dados.cvm.gov.br/dados/CIA_ABERTA/DOC/ITR/DADOS/itr_cia_aberta_<year>.zip`, ~13 MB) is public and unauthenticated. It is downloaded once per invocation and shared across every requested ticker.
+
+### Why the seed is safe to overwrite
+
+The write is deliberately BRAPI-compatible, not a replacement. `sync_earnings` / `sync_cash_flows` / `sync_balance_sheets` upsert on `(ticker, end_date)`, so BRAPI silently replaces these rows once it catches up. Nothing needs undoing.
+
+Compatibility is not assumed, it is calibrated: `quotes/cvm.py` reproduces BRAPI's own stored 2026-03-31 values for Gerdau and Petrobras across all ten fields, exactly. Two fields are left unset on purpose · `free_cash_flow`, because BRAPI never reports it and `fundamentals.py` derives FCF as operating + investing for exactly that case, and `eps`, because a differenced year-to-date EPS would misstate the quarter's weighted share count (nothing reads the field).
+
+### Period arithmetic
+
+Three filing conventions, three treatments:
+
+| Statement | CVM files | Command does |
+|---|---|---|
+| Income (DRE) | Both a year-to-date and a standalone three-month column | Reads the three-month column directly; differences YTD only if it is missing |
+| Cash flow (DFC, indirect or direct) | Year-to-date only | Differences against the previous quarter's filing in the same annual archive |
+| Balance sheet (BPA/BPP) | Point-in-time snapshot | Reads as filed |
+
+Restatements are handled by keeping the highest `VERSAO` per document, and prior-year comparatives (`ORDEM_EXERC = PENÚLTIMO`) are discarded.
+
+### Account mapping
+
+| Field | CVM account |
+|---|---|
+| `revenue` | 3.01 |
+| `net_income` | 3.11 (consolidated, including minority interest · matches BRAPI) |
+| `operating_cash_flow` | 6.01 |
+| `investment_cash_flow` | 6.02 |
+| `dividends_paid` | 6.03.* lines whose description names dividends or interest on equity |
+| `total_debt` | 2.01.04 + 2.02.01 |
+| `total_lease` | 2.01.04.03 + 2.02.01.03 |
+| `total_liabilities` | 2.01 + 2.02 |
+| `stockholders_equity` | 2.03 |
+| `current_assets` | 1.01 |
+| `current_liabilities` | 2.01 |
+
+### Local testing
+
+```bash
+cd backend
+.venv/bin/pytest tests/test_cvm.py tests/test_seed_quarter_from_cvm.py
+```
+
+The suites use synthetic in-memory archives, so they never touch the network.
 
 ## Scheduled Tasks
 

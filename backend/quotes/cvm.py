@@ -1,0 +1,325 @@
+"""Parser for CVM ITR open data (quarterly filings of Brazilian issuers).
+
+BRAPI is the primary source of Brazilian quarterly statements, but it lags the
+filing by one to three weeks. The CVM publishes the same filings as open data
+within a few days, so this module lets a freshly filed quarter be seeded ahead
+of BRAPI. Every account mapping below was calibrated against BRAPI's own stored
+values for 2026-03-31 (Gerdau and Petrobras) and reproduces them exactly, so a
+CVM-sourced quarter is interchangeable with a BRAPI-sourced one and is safely
+overwritten once BRAPI catches up.
+
+Two period conventions matter:
+
+* **Income statement (DRE)** is filed with both a year-to-date column and a
+  standalone three-month column, so the quarter can be read directly.
+* **Cash flow (DFC)** is filed year-to-date only, so the quarter is the delta
+  against the previous quarter's filing in the same annual archive.
+* **Balance sheet (BPA/BPP)** is a point-in-time snapshot; no arithmetic.
+"""
+import csv
+import io
+import unicodedata
+import zipfile
+from dataclasses import dataclass, fields
+from datetime import date, timedelta
+
+import requests
+
+ONE_DAY = timedelta(days=1)
+
+ITR_ARCHIVE_URL_TEMPLATE = (
+    "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/ITR/DADOS/"
+    "itr_cia_aberta_{year}.zip"
+)
+
+DOWNLOAD_TIMEOUT_SECONDS = 120
+
+# CVM's standard account taxonomy (CD_CONTA).
+ACCOUNT_CURRENT_ASSETS = "1.01"
+ACCOUNT_CURRENT_LIABILITIES = "2.01"
+ACCOUNT_NONCURRENT_LIABILITIES = "2.02"
+ACCOUNT_EQUITY = "2.03"
+ACCOUNT_CURRENT_BORROWINGS = "2.01.04"
+ACCOUNT_NONCURRENT_BORROWINGS = "2.02.01"
+ACCOUNT_CURRENT_LEASE = "2.01.04.03"
+ACCOUNT_NONCURRENT_LEASE = "2.02.01.03"
+ACCOUNT_REVENUE = "3.01"
+ACCOUNT_NET_INCOME = "3.11"
+ACCOUNT_OPERATING_CASH_FLOW = "6.01"
+ACCOUNT_INVESTMENT_CASH_FLOW = "6.02"
+ACCOUNT_FINANCING_ACTIVITIES_PREFIX = "6.03."
+
+# ORDEM_EXERC discriminates the current period from the prior-year comparative.
+CURRENT_PERIOD_MARKER = "ÚLTIMO"
+
+THOUSANDS_SCALE_MARKER = "MIL"
+THOUSANDS_MULTIPLIER = 1000
+
+QUARTER_END_MONTH_DAYS = {(3, 31), (6, 30), (9, 30), (12, 31)}
+FOURTH_QUARTER_MONTH = 12
+
+DIVIDEND_KEYWORD = "dividendo"
+INTEREST_ON_EQUITY_KEYWORDS = ("juros sobre o capital", "juros sobre capital")
+DIVIDEND_INFLOW_KEYWORD = "recebid"
+
+
+class CvmParseError(Exception):
+    """The requested company/period cannot be read from the archive."""
+
+
+@dataclass
+class QuarterStatements:
+    """One quarter of consolidated statements, in whole units of the currency."""
+
+    cvm_code: str
+    quarter_end: date
+    revenue: int | None = None
+    net_income: int | None = None
+    operating_cash_flow: int | None = None
+    investment_cash_flow: int | None = None
+    dividends_paid: int | None = None
+    total_debt: int | None = None
+    total_lease: int | None = None
+    total_liabilities: int | None = None
+    stockholders_equity: int | None = None
+    current_assets: int | None = None
+    current_liabilities: int | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        """True when the archive held no usable line for this company/period."""
+        value_fields = [
+            field.name for field in fields(self)
+            if field.name not in ("cvm_code", "quarter_end")
+        ]
+        return all(getattr(self, name) is None for name in value_fields)
+
+
+def build_itr_archive_url(year: int) -> str:
+    return ITR_ARCHIVE_URL_TEMPLATE.format(year=year)
+
+
+def download_itr_archive(year: int) -> bytes:
+    """Fetch the annual ITR archive published by the CVM."""
+    response = requests.get(
+        build_itr_archive_url(year), timeout=DOWNLOAD_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def _normalize(text: str) -> str:
+    """Lowercase and strip accents so description matching is robust."""
+    decomposed = unicodedata.normalize("NFKD", text.lower())
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
+
+
+def _quarter_start(quarter_end: date) -> date:
+    return date(quarter_end.year, quarter_end.month - 2, 1)
+
+
+def _previous_quarter_end(quarter_end: date) -> date:
+    return _quarter_start(quarter_end) - ONE_DAY
+
+
+def _year_start(quarter_end: date) -> date:
+    return date(quarter_end.year, 1, 1)
+
+
+def _scaled_amount(row: dict) -> int:
+    """Convert VL_CONTA to whole currency units, honouring ESCALA_MOEDA."""
+    amount = float(row["VL_CONTA"])
+    if row.get("ESCALA_MOEDA", "").strip().upper() == THOUSANDS_SCALE_MARKER:
+        amount *= THOUSANDS_MULTIPLIER
+    return int(round(amount))
+
+
+def _statement_rows(archive: zipfile.ZipFile, filename: str):
+    """Yield the current-period rows of the latest version of each document."""
+    try:
+        raw = archive.read(filename)
+    except KeyError:
+        return
+
+    reader = csv.DictReader(
+        io.TextIOWrapper(io.BytesIO(raw), encoding="latin-1"), delimiter=";",
+    )
+    rows = [row for row in reader if row.get("ORDEM_EXERC") == CURRENT_PERIOD_MARKER]
+
+    latest_version: dict[tuple[str, str], int] = {}
+    for row in rows:
+        document = (row["CD_CVM"], row["DT_REFER"])
+        version = int(row["VERSAO"])
+        if version > latest_version.get(document, -1):
+            latest_version[document] = version
+
+    for row in rows:
+        document = (row["CD_CVM"], row["DT_REFER"])
+        if int(row["VERSAO"]) == latest_version[document]:
+            yield row
+
+
+def _company_rows(archive: zipfile.ZipFile, filename: str, cvm_code: str) -> list[dict]:
+    wanted = cvm_code.lstrip("0")
+    return [
+        row for row in _statement_rows(archive, filename)
+        if row["CD_CVM"].lstrip("0") == wanted
+    ]
+
+
+def _index_flows(rows: list[dict]) -> dict[tuple[str, date, date], int]:
+    """Key flow-statement rows by (account, period start, period end)."""
+    indexed: dict[tuple[str, date, date], int] = {}
+    for row in rows:
+        start = date.fromisoformat(row["DT_INI_EXERC"])
+        end = date.fromisoformat(row["DT_FIM_EXERC"])
+        indexed[(row["CD_CONTA"], start, end)] = _scaled_amount(row)
+    return indexed
+
+
+def _index_balances(rows: list[dict], quarter_end: date) -> dict[str, int]:
+    """Key balance-sheet rows by account, keeping only the quarter-end snapshot."""
+    return {
+        row["CD_CONTA"]: _scaled_amount(row)
+        for row in rows
+        if date.fromisoformat(row["DT_FIM_EXERC"]) == quarter_end
+    }
+
+
+def _quarter_flow(
+    flows: dict[tuple[str, date, date], int], account: str, quarter_end: date,
+) -> int | None:
+    """Return one quarter of a flow account, differencing YTD when needed."""
+    quarter_start = _quarter_start(quarter_end)
+    year_start = _year_start(quarter_end)
+
+    standalone = flows.get((account, quarter_start, quarter_end))
+    if standalone is not None:
+        return standalone
+
+    year_to_date = flows.get((account, year_start, quarter_end))
+    if year_to_date is None:
+        return None
+    if quarter_start == year_start:
+        return year_to_date
+
+    previous_year_to_date = flows.get(
+        (account, year_start, _previous_quarter_end(quarter_end))
+    )
+    if previous_year_to_date is None:
+        return None
+    return year_to_date - previous_year_to_date
+
+
+def _is_dividend_payment(description: str) -> bool:
+    normalized = _normalize(description)
+    if DIVIDEND_INFLOW_KEYWORD in normalized:
+        return False
+    if DIVIDEND_KEYWORD in normalized:
+        return True
+    return any(keyword in normalized for keyword in INTEREST_ON_EQUITY_KEYWORDS)
+
+
+def _dividend_accounts(rows: list[dict]) -> set[str]:
+    return {
+        row["CD_CONTA"] for row in rows
+        if row["CD_CONTA"].startswith(ACCOUNT_FINANCING_ACTIVITIES_PREFIX)
+        and _is_dividend_payment(row["DS_CONTA"])
+    }
+
+
+def _quarter_dividends(
+    rows: list[dict], flows: dict[tuple[str, date, date], int], quarter_end: date,
+) -> int | None:
+    amounts = [
+        _quarter_flow(flows, account, quarter_end)
+        for account in sorted(_dividend_accounts(rows))
+    ]
+    resolved = [amount for amount in amounts if amount is not None]
+    if not resolved:
+        return None
+    return sum(resolved)
+
+
+def _sum_present(balances: dict[str, int], *accounts: str) -> int | None:
+    """Sum the accounts that are present; None when none of them are."""
+    values = [balances[account] for account in accounts if account in balances]
+    if not values:
+        return None
+    return sum(values)
+
+
+def _lease_total(balances: dict[str, int]) -> int | None:
+    """Leases default to 0 once a borrowings line exists but no lease line does."""
+    lease = _sum_present(balances, ACCOUNT_CURRENT_LEASE, ACCOUNT_NONCURRENT_LEASE)
+    if lease is not None:
+        return lease
+    has_borrowings = (
+        ACCOUNT_CURRENT_BORROWINGS in balances
+        or ACCOUNT_NONCURRENT_BORROWINGS in balances
+    )
+    return 0 if has_borrowings else None
+
+
+def _validate_quarter_end(quarter_end: date) -> None:
+    if (quarter_end.month, quarter_end.day) not in QUARTER_END_MONTH_DAYS:
+        raise CvmParseError(
+            f"{quarter_end} is not a quarter end (expected 03-31, 06-30, "
+            f"09-30 or 12-31)."
+        )
+    if quarter_end.month == FOURTH_QUARTER_MONTH:
+        raise CvmParseError(
+            "The fourth quarter is not filed as an ITR; it must be derived "
+            "from the annual DFP archive."
+        )
+
+
+def extract_quarter_statements(
+    archive_bytes: bytes, cvm_code: str, quarter_end: date,
+) -> QuarterStatements:
+    """Read one company's consolidated statements for a single quarter."""
+    _validate_quarter_end(quarter_end)
+
+    year = quarter_end.year
+    archive = zipfile.ZipFile(io.BytesIO(archive_bytes))
+
+    income_rows = _company_rows(archive, f"itr_cia_aberta_DRE_con_{year}.csv", cvm_code)
+    cash_flow_rows = _company_rows(
+        archive, f"itr_cia_aberta_DFC_MI_con_{year}.csv", cvm_code,
+    )
+    if not cash_flow_rows:
+        cash_flow_rows = _company_rows(
+            archive, f"itr_cia_aberta_DFC_MD_con_{year}.csv", cvm_code,
+        )
+    asset_rows = _company_rows(archive, f"itr_cia_aberta_BPA_con_{year}.csv", cvm_code)
+    liability_rows = _company_rows(
+        archive, f"itr_cia_aberta_BPP_con_{year}.csv", cvm_code,
+    )
+
+    income_flows = _index_flows(income_rows)
+    cash_flows = _index_flows(cash_flow_rows)
+    balances = _index_balances(asset_rows + liability_rows, quarter_end)
+
+    return QuarterStatements(
+        cvm_code=cvm_code,
+        quarter_end=quarter_end,
+        revenue=_quarter_flow(income_flows, ACCOUNT_REVENUE, quarter_end),
+        net_income=_quarter_flow(income_flows, ACCOUNT_NET_INCOME, quarter_end),
+        operating_cash_flow=_quarter_flow(
+            cash_flows, ACCOUNT_OPERATING_CASH_FLOW, quarter_end,
+        ),
+        investment_cash_flow=_quarter_flow(
+            cash_flows, ACCOUNT_INVESTMENT_CASH_FLOW, quarter_end,
+        ),
+        dividends_paid=_quarter_dividends(cash_flow_rows, cash_flows, quarter_end),
+        total_debt=_sum_present(
+            balances, ACCOUNT_CURRENT_BORROWINGS, ACCOUNT_NONCURRENT_BORROWINGS,
+        ),
+        total_lease=_lease_total(balances),
+        total_liabilities=_sum_present(
+            balances, ACCOUNT_CURRENT_LIABILITIES, ACCOUNT_NONCURRENT_LIABILITIES,
+        ),
+        stockholders_equity=balances.get(ACCOUNT_EQUITY),
+        current_assets=balances.get(ACCOUNT_CURRENT_ASSETS),
+        current_liabilities=balances.get(ACCOUNT_CURRENT_LIABILITIES),
+    )
