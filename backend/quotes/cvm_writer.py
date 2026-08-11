@@ -42,18 +42,25 @@ class StatementRejected(Exception):
     """The parsed quarter did not survive validation and was not written."""
 
 
-def existing_source(ticker: str, quarter_end) -> str | None:
-    """Which provider already holds this quarter, or None if nobody does."""
+def is_writable(ticker: str, quarter_end, filed_at=None) -> bool:
+    """True when CVM should write this quarter.
+
+    Three cases. Nobody holds it, so write. Another provider holds it, so
+    leave it · BRAPI's series is the baseline. Or CVM holds it already, in
+    which case write only when a later filing exists, because rewriting an
+    unchanged quarter re-parses the company, recomputes ten years of
+    indicators and drops three caches to arrive back where it started.
+    """
     row = QuarterlyEarnings.objects.filter(
         ticker=ticker, end_date=quarter_end,
-    ).first()
-    return None if row is None else row.source
-
-
-def is_writable(ticker: str, quarter_end) -> bool:
-    """True when CVM may write this quarter without displacing another source."""
-    source = existing_source(ticker, quarter_end)
-    return source is None or source == SOURCE_CVM
+    ).only("source", "filed_at").first()
+    if row is None:
+        return True
+    if row.source != SOURCE_CVM:
+        return False
+    if filed_at is None or row.filed_at is None:
+        return False
+    return filed_at > row.filed_at
 
 
 def check_equity_continuity(ticker: str, statements) -> None:
@@ -88,7 +95,7 @@ def check_equity_continuity(ticker: str, statements) -> None:
 
 
 @transaction.atomic
-def write_quarter(ticker: str, statements, *, force: bool = False) -> None:
+def write_quarter(ticker: str, statements, *, filed_at=None, force: bool = False) -> None:
     """Write one quarter and bring every derived artifact back in line.
 
     ``force`` overrides the continuity check only, and only for a caller who
@@ -113,6 +120,7 @@ def write_quarter(ticker: str, statements, *, force: bool = False) -> None:
             "net_income": statements.net_income,
             "eps": EPS_IS_UNUSED,
             "source": SOURCE_CVM,
+            "filed_at": filed_at,
         },
     )
     QuarterlyCashFlow.objects.update_or_create(
@@ -124,6 +132,7 @@ def write_quarter(ticker: str, statements, *, force: bool = False) -> None:
             "free_cash_flow": FREE_CASH_FLOW_IS_DERIVED_DOWNSTREAM,
             "dividends_paid": statements.dividends_paid,
             "source": SOURCE_CVM,
+            "filed_at": filed_at,
         },
     )
     BalanceSheet.objects.update_or_create(
@@ -137,6 +146,7 @@ def write_quarter(ticker: str, statements, *, force: bool = False) -> None:
             "current_assets": statements.current_assets,
             "current_liabilities": statements.current_liabilities,
             "source": SOURCE_CVM,
+            "filed_at": filed_at,
         },
     )
     refresh_derived_data(ticker)

@@ -65,7 +65,7 @@ class Command(MonitoredCommand):
             return
 
         self.stdout.write(f"CVM {year}: {len(pending)} quarter(s) to write")
-        for ticker, quarter, _ in pending[:REPORTED_ROWS]:
+        for ticker, quarter, _, _ in pending[:REPORTED_ROWS]:
             self.stdout.write(f"  {ticker} {quarter}")
 
         if options["dry_run"]:
@@ -74,8 +74,8 @@ class Command(MonitoredCommand):
 
         self._ingest(year, pending)
 
-    def _pending(self, year: int) -> list[tuple[str, date, str]]:
-        """Every (ticker, quarter, cvm_code) this run should write.
+    def _pending(self, year: int) -> list[tuple[str, date, str, date | None]]:
+        """Every (ticker, quarter, cvm_code, filed_at) this run should write.
 
         Derived from what the poll already recorded, so an empty season is one
         query rather than a download.
@@ -95,18 +95,18 @@ class Command(MonitoredCommand):
                 continue
             for symbol in tickers_by_code[filing.cvm_code]:
                 key = (symbol, quarter)
-                if key in seen or not is_writable(symbol, quarter):
+                if key in seen or not is_writable(symbol, quarter, filing.filed_at):
                     continue
                 seen.add(key)
-                pending.append((symbol, quarter, filing.cvm_code))
+                pending.append((symbol, quarter, filing.cvm_code, filing.filed_at))
         return pending
 
-    def _ingest(self, year: int, pending: list[tuple[str, date, str]]) -> None:
+    def _ingest(self, year: int, pending) -> None:
         archive = download_itr_archive(year)
         parsed: dict[tuple[str, date], object] = {}
         written = failed = rejected = 0
 
-        for symbol, quarter, cvm_code in pending:
+        for symbol, quarter, cvm_code, filed_at in pending:
             key = (cvm_code, quarter)
             if key not in parsed:
                 parsed[key] = self._parse(archive, cvm_code, quarter)
@@ -115,7 +115,7 @@ class Command(MonitoredCommand):
                 failed += 1
                 continue
             try:
-                write_quarter(symbol, statements)
+                write_quarter(symbol, statements, filed_at=filed_at)
                 written += 1
             except StatementRejected as rejection:
                 rejected += 1

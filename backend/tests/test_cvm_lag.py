@@ -5,7 +5,7 @@ how long the CVM takes to publish a filing it has received, and how often it
 republishes at all. The second dominates — a one-day publication lag is
 irrelevant if the archive is only rebuilt weekly.
 """
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 
 import pytest
@@ -257,3 +257,72 @@ def test_command_reports_the_ceiling_without_double_counting_the_wait():
     assert "worst observed filing to published: 4d" in output
     assert "waits up to 7d for the next one" in output
     assert "11d" not in output, "the rebuild wait must not be counted twice"
+
+
+# --- Filing to live: the goal as a number -----------------------------------
+
+def make_cvm_row(ticker, quarter, filed_at, written_on):
+    from quotes.models import QuarterlyEarnings, SOURCE_CVM
+    row = QuarterlyEarnings.objects.create(
+        ticker=ticker, end_date=quarter, net_income=1,
+        source=SOURCE_CVM, filed_at=filed_at,
+    )
+    # fetched_at is auto_now, so it has to be set past the ORM.
+    QuarterlyEarnings.objects.filter(pk=row.pk).update(fetched_at=written_on)
+    return row
+
+
+@pytest.mark.django_db
+def test_filing_to_live_measures_receipt_to_the_row_being_written():
+    from quotes.cvm_lag import build_freshness_report
+
+    make_cvm_row("GGBR3", date(2026, 6, 30), date(2026, 8, 4),
+                 datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc))
+
+    report = build_freshness_report()
+
+    assert report.days_to_live == [7]
+    assert report.median_days_to_live == 7
+
+
+@pytest.mark.django_db
+def test_filing_to_live_ignores_rows_from_other_providers():
+    """BRAPI rows have no filing date and are not what this measures."""
+    from quotes.models import QuarterlyEarnings, SOURCE_BRAPI
+
+    QuarterlyEarnings.objects.create(
+        ticker="VALE3", end_date=date(2026, 6, 30), net_income=1,
+        source=SOURCE_BRAPI,
+    )
+    from quotes.cvm_lag import build_freshness_report
+
+    assert build_freshness_report().days_to_live == []
+
+
+@pytest.mark.django_db
+def test_filing_to_live_reports_the_tail_not_just_the_middle():
+    from quotes.cvm_lag import build_freshness_report
+
+    for index, day in enumerate((2, 3, 3, 4, 4, 5, 5, 6, 9, 14)):
+        # Midday UTC: midnight would fall on the previous day in Sao Paulo,
+        # which is the timezone a filing date is expressed in.
+        make_cvm_row(f"AA{index:02d}3", date(2026, 6, 30),
+                     date(2026, 8, 1),
+                     datetime(2026, 8, 1, 12, tzinfo=timezone.utc)
+                     + timedelta(days=day))
+
+    report = build_freshness_report()
+
+    assert report.median_days_to_live == 4
+    assert report.p90_days_to_live == 9
+    assert report.max_days_to_live == 14
+
+
+@pytest.mark.django_db
+def test_filing_to_live_says_nothing_without_rows():
+    from quotes.cvm_lag import build_freshness_report
+
+    report = build_freshness_report()
+
+    assert report.row_count == 0
+    assert report.median_days_to_live is None

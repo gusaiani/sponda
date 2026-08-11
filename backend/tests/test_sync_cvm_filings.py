@@ -115,14 +115,21 @@ def test_leaves_a_quarter_of_unrecorded_provenance_alone():
 
 
 @pytest.mark.django_db
-def test_refreshes_a_quarter_it_wrote_itself(gerdau):
-    """A restatement should reach the page; only other sources are protected."""
-    QuarterlyEarnings.objects.create(
-        ticker="GGBR3", end_date=QUARTER, net_income=1, source=SOURCE_CVM,
-    )
-    run()
+def test_leaves_its_own_row_alone_when_no_later_filing_exists(gerdau):
+    """Holding a quarter is not a reason to rewrite it.
 
-    assert QuarterlyEarnings.objects.get(ticker="GGBR3").net_income != 1
+    Only a later filing is new information. Rewriting on every run re-parses
+    the company and recomputes ten years of indicators to arrive back where it
+    started · see the idempotency tests below.
+    """
+    QuarterlyEarnings.objects.create(
+        ticker="GGBR3", end_date=QUARTER, net_income=1,
+        source=SOURCE_CVM, filed_at=date(2026, 8, 4),
+    )
+    _, download = run()
+
+    assert QuarterlyEarnings.objects.get(ticker="GGBR3").net_income == 1
+    download.assert_not_called()
 
 
 # --- Scope ------------------------------------------------------------------
@@ -237,3 +244,53 @@ def test_a_build_with_no_new_filings_is_a_cheap_no_op():
 
     download.assert_not_called()
     assert "0" in output
+
+
+# --- Not rewriting what has not changed -------------------------------------
+
+@pytest.mark.django_db
+def test_a_second_run_rewrites_nothing(gerdau):
+    """Rewriting an unchanged quarter is not harmless.
+
+    Every rewrite re-parses the company, recomputes ten years of indicators and
+    drops three caches. Four runs a day over a season is a great deal of work
+    to arrive back where it started, and it churns the timestamp that answers
+    "when did this go live".
+    """
+    run()
+    output, download = run()
+
+    download.assert_not_called()
+    assert "0 quarter" in output
+
+
+@pytest.mark.django_db
+def test_the_filing_that_produced_a_row_is_recorded_on_it(gerdau):
+    run()
+
+    assert QuarterlyEarnings.objects.get(ticker="GGBR3").filed_at == date(2026, 8, 4)
+
+
+@pytest.mark.django_db
+def test_a_restatement_is_written_over_the_earlier_filing(gerdau):
+    """A later DT_RECEB for the same quarter is new information."""
+    run()
+    CvmFiling.objects.create(
+        cvm_code=GERDAU_CODE, reference_date=QUARTER, version=2,
+        filed_at=date(2026, 8, 20), document_id="160999",
+    )
+    output, download = run()
+
+    download.assert_called_once()
+    assert QuarterlyEarnings.objects.get(ticker="GGBR3").filed_at == date(2026, 8, 20)
+    assert "1 quarter" in output
+
+
+@pytest.mark.django_db
+def test_a_filing_with_no_received_date_does_not_cause_endless_rewrites(gerdau):
+    """Without a date there is nothing to compare, so once written it rests."""
+    CvmFiling.objects.filter(pk=gerdau.pk).update(filed_at=None)
+    run()
+    _, download = run()
+
+    download.assert_not_called()
