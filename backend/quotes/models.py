@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class QuarterlyEarnings(models.Model):
@@ -327,3 +328,81 @@ class LookupLog(models.Model):
 
     def __str__(self):
         return f"{self.session_key or self.user} → {self.ticker} @ {self.timestamp}"
+
+
+class CvmArchiveBuild(models.Model):
+    """One published build of the CVM's annual document archive.
+
+    The CVM rebuilds every document dataset in a single batch and serves the
+    result with a Last-Modified header, so successive values of that header
+    are the rebuild history. The gaps between them put a floor under how fresh
+    Sponda can be: a filing received the day after a rebuild cannot reach any
+    consumer, however often it is polled, until the next one.
+    """
+
+    year = models.IntegerField(db_index=True)
+    last_modified = models.DateTimeField(
+        help_text="Last-Modified reported for the archive, i.e. when CVM built it",
+    )
+    etag = models.CharField(max_length=128, blank=True)
+    filing_count = models.IntegerField(
+        null=True, blank=True, help_text="Rows in the filing index for this build",
+    )
+    first_observed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("year", "last_modified")
+        ordering = ["-last_modified"]
+
+    def __str__(self):
+        return f"ITR {self.year} built {self.last_modified:%Y-%m-%d %H:%M}"
+
+
+class CvmFiling(models.Model):
+    """A filing as listed in the CVM index, with the build that first carried it.
+
+    This is a record of publication timing, not of accounting: it says who
+    filed what and when it became visible, which is what the ingestion latency
+    is measured against. The company identifiers it carries are also the raw
+    material for mapping CVM codes onto tickers.
+    """
+
+    cvm_code = models.CharField(max_length=10, db_index=True)
+    company_name = models.CharField(max_length=255, blank=True)
+    cnpj = models.CharField(max_length=20, blank=True, db_index=True)
+    reference_date = models.DateField(
+        db_index=True, help_text="DT_REFER — the quarter the filing reports on",
+    )
+    filed_at = models.DateField(
+        null=True, blank=True, help_text="DT_RECEB — when CVM received the filing",
+    )
+    version = models.IntegerField(
+        default=1, help_text="VERSAO — a restatement is a new version, and a new row",
+    )
+    document_id = models.CharField(max_length=20, blank=True)
+    first_seen_in = models.ForeignKey(
+        CvmArchiveBuild, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="filings",
+    )
+    first_seen_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("cvm_code", "reference_date", "version")
+        ordering = ["-filed_at", "cvm_code"]
+        indexes = [models.Index(fields=["reference_date", "filed_at"])]
+
+    def __str__(self):
+        return f"{self.company_name or self.cvm_code} {self.reference_date} v{self.version}"
+
+    @property
+    def publication_lag_days(self) -> int | None:
+        """Days from the CVM receiving this filing to publishing it.
+
+        Measured against the archive's own build timestamp rather than when we
+        happened to poll, so the figure does not shift if the polling interval
+        changes.
+        """
+        if self.filed_at is None or self.first_seen_in_id is None:
+            return None
+        published_on = timezone.localtime(self.first_seen_in.last_modified).date()
+        return (published_on - self.filed_at).days

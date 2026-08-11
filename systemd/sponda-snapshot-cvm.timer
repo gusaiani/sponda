@@ -1,0 +1,14 @@
+[Unit]
+Description=Poll the CVM archive hourly for newly published filings
+
+# Hourly rather than daily because the run costs one HEAD request when nothing
+# has changed, and the CVM rebuilds its archive on a cadence nobody has
+# measured. Polling finely is what establishes that cadence; a daily poll
+# would blur a rebuild to within 24 hours of when it actually happened.
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

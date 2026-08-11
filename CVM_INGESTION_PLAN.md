@@ -21,12 +21,25 @@ With CVM as the fast path and the caches fixed:
 
 | Hop | Cost |
 |---|---|
-| Issuer files → present in CVM archive | ≤5 days observed, true figure unmeasured (see PR 1) |
-| CVM archive → DB row | ≤24h (daily timer) |
-| DB row → API payload | 0 (invalidate on write) |
-| API payload → browser | 0 to 1h (purge or shorten TTL) |
+| Issuer files → included in the next archive rebuild | ~2 days observed |
+| Archive rebuild cadence | **the binding constraint** · likely weekly, see below |
+| CVM archive → DB row | ≤1h (hourly poll, PR 1b) |
+| DB row → API payload | 0 (invalidate on write · **done**, PR 2) |
+| API payload → browser | ≤5 min (**done**, PR 2) |
 
-Target ≈ **2 to 3 days**, floored by CVM's own publication cadence. Measuring that floor is the first task, because if CVM turns out to publish same-day the whole design should chase it, and if it publishes weekly the payoff shrinks and PR 5 is not worth building.
+Target ≈ **3 to 4 days median, 7 worst case**, floored entirely by CVM's rebuild cadence.
+
+### What PR 1b already established (2026-08-11)
+
+- All six CVM document datasets (ITR, DFP, FCA, IPE, VLMO, FRE) carried the same `Last-Modified` of Sunday 2026-08-09, 10:00–11:40 GMT · one batch rebuild across the tree. It was untouched through Monday and Tuesday, while the separately-built company registry was stamped that Tuesday. This points to a **weekly Sunday** cadence, inferred from a single 2-day gap · a hypothesis, not a finding.
+- Within a build the publication lag is short: the newest filing was 2 days old, with 52 filings each at 3 and 4 days.
+- The archive honours `If-None-Match` (304, 0 bytes) and `Accept-Ranges`, so the index can be polled hourly for nothing and read from a 256 KB ranged fetch rather than 12 MB.
+
+**This downgrades the plan's original promise.** A 2-day publication lag matters little if the archive is only rebuilt weekly: a filing received the day after a rebuild waits for the next one however often it is polled. Against BRAPI's measured 7–21 days that is a halving, not the near-elimination the 2-day figure alone suggests. PR 1b's gate (reconsider if the median exceeds ~7 days) still passes, so PR 5 survives with a smaller prize.
+
+### A correction to the original design
+
+PR 5 below proposed reading "the index CSV first (180 KB)" and downloading the archive only when it changed. **There is no standalone index file** · it exists only as the first entry inside the zip. The conditional-request and byte-range mechanics above replace that idea and are strictly cheaper: zero bytes on an unchanged poll rather than 180 KB.
 
 ## Non-goals
 
@@ -46,13 +59,17 @@ Precedent: n=2 (Gerdau, Petrobras) matched exactly across all ten fields, within
 
 **Gate:** if disagreement on `net_income`, `stockholders_equity` or `operating_cash_flow` exceeds ~2% of tickers beyond rounding, stop and diagnose before PR 5. A CVM-primary path that silently disagrees with the existing series is worse than a slow one.
 
-**1b. CVM publication lag.** Daily job snapshotting `itr_cia_aberta_<year>.csv` (the 180 KB index, not the 13 MB archive) into a small table: `(cvm_code, dt_refer, dt_receb, first_seen_at)`. After one earnings season this yields the true distribution of filing-to-archive lag.
+**1b. CVM publication lag · SHIPPED.** `snapshot_cvm_filings` polls the archive hourly, recording each distinct build (`CvmArchiveBuild`) and each filing with the build that first carried it (`CvmFiling`). `report_cvm_lag` summarises rebuild cadence and publication lag. An unchanged poll costs one HEAD request; a changed one reads the index from a 256 KB ranged fetch.
+
+Hourly rather than daily because the rebuild cadence is the quantity being measured, and a daily poll would only locate a rebuild to within 24 hours.
+
+**Backfill is excluded from the measurement.** The first poll records everything published that year so far, attributed to whatever build was current · counting that gap as lag would have reported a median of 87 days on day one. A lag counts only when the filing first appeared in a build *later* than the earliest one recorded, so an observation exists that could have carried it and did not. Note this is deliberately not a test on the receipt date: a filing received before polling began but absent from the first observed build was still watched into existence, and those are exactly the slow ones · excluding them would bias the distribution toward flattering the CVM.
 
 **Gate:** if the median exceeds ~7 days, CVM buys little over BRAPI and PR 5 should be reconsidered.
 
-Ships alone, runs for a full quarter while later PRs proceed.
+Timing: the Q2 deadline is 2026-08-14 and the archive held only 196 of ~662 expected Q2 filings (29.6%) on 08-11, so roughly 70% of Brazilian issuers file into the Sunday 08-16 rebuild. That is the single most informative observation of the year, which is why this shipped before PRs 3 and 4.
 
-### PR 2 · Close the 25-hour cache gap
+### PR 2 · Close the 25-hour cache gap · SHIPPED
 
 Independent of everything above and worth doing regardless of whether CVM ever becomes primary.
 
@@ -90,9 +107,9 @@ Tests: Banco do Brasil and an insurer as real fixtures alongside the existing in
 
 ### PR 5 · Continuous ingestion
 
-`sync_cvm_filings` plus `sponda-sync-cvm.timer`, daily.
+`sync_cvm_filings` plus `sponda-sync-cvm.timer`.
 
-- Read the index CSV first (180 KB). Only when it lists a `DT_RECEB` newer than last seen does the run download the 13 MB archive.
+- Trigger off `CvmFiling` rows created by PR 1b's poll rather than re-deriving what is new · the index read, conditional request and dedup already exist there. Only when a *mapped* ticker has a new filing does the run download the 12 MB archive.
 - For each newly filed company: resolve ticker via `Ticker.cvm_code`, parse, validate (PR 4), write only quarters BRAPI does not already have.
 - Migration: `source` column on `QuarterlyEarnings`, `QuarterlyCashFlow`, `BalanceSheet` (`brapi` / `fmp` / `cvm`). Without provenance there is no way to audit a disagreement or roll back a bad parse.
 - Precedence: BRAPI still wins on conflict, since its rows are the ten-year baseline. CVM fills gaps only. Revisit once PR 1a's numbers are in.
@@ -113,19 +130,20 @@ Record `filed_at` (`DT_RECEB`) alongside each CVM-sourced row and publish a sing
 
 ## Sequencing and effort
 
-| PR | Depends on | Estimate |
-|---|---|---|
-| 1 · Measure | none | 0.5 day, then one quarter of observation |
-| 2 · Cache gap | none | 0.5 day |
-| 3 · Ticker bridge | none | 1 day, plus manual review of ~150 pairs |
-| 4 · Sector taxonomy | none | 1 day |
-| 5 · Continuous ingestion | 1a, 3, 4 | 1 day |
-| 6 · Q4 via DFP | 5 | 1 day |
-| 7 · Metric | 5 | 0.5 day |
+| PR | Depends on | Estimate | Status |
+|---|---|---|---|
+| 1a · At-scale calibration | 3, in practice | 0.5 day | Blocked · needs the ticker bridge to reach n=348 |
+| 1b · Publication lag | none | 0.5 day, then observation | **Shipped**, accruing observations |
+| 2 · Cache gap | none | 0.5 day | **Shipped** |
+| 3 · Ticker bridge | none | 1 day, plus manual review of ~150 pairs | Next |
+| 4 · Sector taxonomy | none | 1 day | |
+| 5 · Continuous ingestion | 1a, 1b, 3, 4 | 1 day | |
+| 6 · Q4 via DFP | 5 | 1 day | |
+| 7 · Metric | 5 | 0.5 day | |
 
-Roughly **5.5 days**. PRs 1, 2, 3 and 4 are mutually independent and can land in any order.
+Roughly **4.5 days** remaining. PRs 3 and 4 are mutually independent.
 
-Start with 2. It is half a day, needs nothing else, and removes 25 hours of latency from every ticker in the system including the US ones.
+1a was listed as depending on nothing, which was wrong: it calibrates "every mapped Brazilian ticker", and only six are mapped. Its exact-match baseline of 200/348 is reachable without PR 3, but the full n=348 run needs the bridge, so 3 should come first.
 
 ## Risks
 
@@ -133,7 +151,8 @@ Start with 2. It is half a day, needs nothing else, and removes 25 hours of late
 |---|---|
 | CVM and BRAPI disagree at scale | PR 1a gates PR 5 before any dependency is built on the assumption |
 | Silent wrong values for banks and insurers | PR 4's balance and continuity checks refuse the write rather than log a warning |
-| CVM's lag turns out no better than BRAPI's | PR 1b measures it against real filings before PR 5 is written |
+| CVM's lag turns out no better than BRAPI's | PR 1b measures it against real filings before PR 5 is written · early evidence says the rebuild cadence, not the publication lag, is the constraint |
+| A backfill is mistaken for a measurement | Lag counts only for filings that first appeared in a build later than the earliest recorded one; everything else is reported as backfill, and an empty sample prints "not enough observations yet" rather than a number |
 | Ticker map rots as companies rename or list | Stored in DB, monthly unmapped-ticker report |
 | CVM changes the archive layout | Real-filing fixtures in tests; the command fails loudly rather than writing nulls |
 | Mixed-source series drift | `source` column plus no historical backfill · CVM writes only quarters BRAPI lacks |
