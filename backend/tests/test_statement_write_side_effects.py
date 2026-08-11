@@ -43,6 +43,7 @@ def assert_caches_cleared(keys):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_seeding_from_cvm_clears_the_statement_caches(warm_statement_caches):
     with patch(f"{SEED_COMMAND_MODULE}.download_itr_archive") as download:
         download.return_value = gerdau_archive()
@@ -54,6 +55,7 @@ def test_seeding_from_cvm_clears_the_statement_caches(warm_statement_caches):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_seeding_dry_run_leaves_caches_intact(warm_statement_caches):
     """Nothing was written, so nothing derived is stale."""
     with patch(f"{SEED_COMMAND_MODULE}.download_itr_archive") as download:
@@ -67,6 +69,7 @@ def test_seeding_dry_run_leaves_caches_intact(warm_statement_caches):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_background_provider_refresh_clears_the_statement_caches(warm_statement_caches):
     """The whole point of stale-while-revalidate is defeated by a 24h cache."""
     with patch("quotes.tasks.sync_earnings"), \
@@ -78,12 +81,14 @@ def test_background_provider_refresh_clears_the_statement_caches(warm_statement_
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_weekly_fundamentals_refresh_clears_the_statement_caches(warm_statement_caches):
     IPCAIndex.objects.update_or_create(
         date=date(2026, 12, 31), defaults={"annual_rate": Decimal("0")},
     )
-    Ticker.objects.create(
-        symbol=TICKER, name="Gerdau", type="stock", market_cap=400_000_000,
+    Ticker.objects.update_or_create(
+        symbol=TICKER,
+        defaults={"name": "Gerdau", "type": "stock", "market_cap": 400_000_000},
     )
     QuarterlyEarnings.objects.create(
         ticker=TICKER, end_date=date(2025, 12, 31), net_income=1_000_000,
@@ -100,10 +105,12 @@ def test_weekly_fundamentals_refresh_clears_the_statement_caches(warm_statement_
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_seeding_recomputes_the_screener_snapshot():
     """The screener reads IndicatorSnapshot, not the statements directly."""
-    Ticker.objects.create(
-        symbol=TICKER, name="Gerdau", type="stock", market_cap=400_000_000,
+    Ticker.objects.update_or_create(
+        symbol=TICKER,
+        defaults={"name": "Gerdau", "type": "stock", "market_cap": 400_000_000},
     )
     IndicatorSnapshot.objects.create(
         ticker=TICKER, pe10=Decimal("99"), market_cap=400_000_000,

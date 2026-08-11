@@ -24,20 +24,10 @@ from django.core.management.base import BaseCommand, CommandError
 
 from quotes.cvm import CvmParseError, download_itr_archive, extract_quarter_statements
 from quotes.cvm_writer import StatementRejected, write_quarter
+from quotes.models import Ticker
 
 logger = logging.getLogger(__name__)
 
-# Ticker to CVM registrant code. Share classes of one company (ON/PN) file a
-# single set of statements, so they share a code. Extend as needed — this is a
-# manual seeding tool, not the steady-state ingestion path.
-TICKER_TO_CVM_CODE = {
-    "GGBR3": "3980",   # Gerdau S.A.
-    "GGBR4": "3980",   # Gerdau S.A.
-    "GOAU3": "8656",   # Metalúrgica Gerdau S.A.
-    "GOAU4": "8656",   # Metalúrgica Gerdau S.A.
-    "PETR3": "9512",   # Petróleo Brasileiro S.A. (Petrobras)
-    "PETR4": "9512",   # Petróleo Brasileiro S.A. (Petrobras)
-}
 
 # QuarterlyCashFlow.free_cash_flow stays unset: BRAPI never reports it, and
 # fundamentals.py derives FCF as operating + investing for exactly that case.
@@ -86,11 +76,17 @@ class Command(BaseCommand):
         tickers = [ticker.upper() for ticker in options["tickers"]]
         dry_run = options["dry_run"]
 
-        unknown = [ticker for ticker in tickers if ticker not in TICKER_TO_CVM_CODE]
+        codes = dict(
+            Ticker.objects.filter(symbol__in=tickers)
+            .exclude(cvm_code=None).exclude(cvm_code="")
+            .values_list("symbol", "cvm_code")
+        )
+        unknown = [ticker for ticker in tickers if ticker not in codes]
         if unknown:
             raise CommandError(
                 f"No CVM code registered for {', '.join(unknown)}. "
-                f"Add it to TICKER_TO_CVM_CODE."
+                f"Run map_tickers_to_cvm, or set one by hand with "
+                f"map_tickers_to_cvm --set SYMBOL=CVM_CODE."
             )
 
         self.stdout.write(f"Downloading CVM ITR archive for {quarter_end.year}...")
@@ -99,7 +95,7 @@ class Command(BaseCommand):
         seeded_count = 0
         skipped_count = 0
         for ticker in tickers:
-            statements = self._extract(archive_bytes, ticker, quarter_end)
+            statements = self._extract(archive_bytes, codes[ticker], quarter_end)
             if statements.is_empty:
                 self.stdout.write(
                     self.style.WARNING(
@@ -128,10 +124,10 @@ class Command(BaseCommand):
         except ValueError as error:
             raise CommandError(f"--quarter must be an ISO date: {error}") from error
 
-    def _extract(self, archive_bytes: bytes, ticker: str, quarter_end: date):
+    def _extract(self, archive_bytes: bytes, cvm_code: str, quarter_end: date):
         try:
             return extract_quarter_statements(
-                archive_bytes, TICKER_TO_CVM_CODE[ticker], quarter_end,
+                archive_bytes, cvm_code, quarter_end,
             )
         except CvmParseError as error:
             raise CommandError(str(error)) from error

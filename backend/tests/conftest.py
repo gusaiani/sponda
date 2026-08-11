@@ -202,3 +202,25 @@ def sample_balance_sheet(db):
     )
 
 
+
+
+# The CVM seeder resolves a ticker's registrant code from Ticker.cvm_code,
+# which map_tickers_to_cvm populates from CVM's own published data. Tests that
+# seed a quarter need the mapping present, exactly as production does.
+CVM_CODES_UNDER_TEST = {
+    "GGBR3": "3980", "GGBR4": "3980",   # Gerdau S.A.
+    "GOAU3": "8656", "GOAU4": "8656",   # Metalurgica Gerdau S.A.
+    "PETR3": "9512", "PETR4": "9512",   # Petrobras
+}
+
+
+@pytest.fixture
+def mapped_cvm_tickers(db):
+    from quotes.models import Ticker
+
+    for symbol, cvm_code in CVM_CODES_UNDER_TEST.items():
+        Ticker.objects.update_or_create(
+            symbol=symbol,
+            defaults={"type": "stock", "cvm_code": cvm_code},
+        )
+    return CVM_CODES_UNDER_TEST

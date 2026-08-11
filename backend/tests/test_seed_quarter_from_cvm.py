@@ -58,6 +58,7 @@ def archive_download():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_seeds_earnings_cash_flow_and_balance_sheet(archive_download):
     call_command("seed_quarter_from_cvm", "--quarter", SECOND_QUARTER, "--ticker", "GGBR3")
 
@@ -77,6 +78,7 @@ def test_seeds_earnings_cash_flow_and_balance_sheet(archive_download):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_leaves_free_cash_flow_unset_so_fundamentals_derives_it(archive_download):
     """BRAPI never reports FCF; fundamentals.py falls back to OCF + investing."""
     call_command("seed_quarter_from_cvm", "--quarter", SECOND_QUARTER, "--ticker", "GGBR3")
@@ -86,6 +88,7 @@ def test_leaves_free_cash_flow_unset_so_fundamentals_derives_it(archive_download
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_seeds_every_requested_ticker_from_one_download(archive_download):
     call_command(
         "seed_quarter_from_cvm", "--quarter", SECOND_QUARTER,
@@ -97,6 +100,7 @@ def test_seeds_every_requested_ticker_from_one_download(archive_download):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_rerunning_updates_in_place_instead_of_duplicating(archive_download):
     QuarterlyEarnings.objects.create(
         ticker="GGBR3", end_date=date(2026, 6, 30), revenue=1, net_income=1,
@@ -110,6 +114,7 @@ def test_rerunning_updates_in_place_instead_of_duplicating(archive_download):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_dry_run_writes_nothing(archive_download):
     call_command(
         "seed_quarter_from_cvm", "--quarter", SECOND_QUARTER,
@@ -122,6 +127,7 @@ def test_dry_run_writes_nothing(archive_download):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_unknown_ticker_is_rejected_before_any_download():
     with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
         with pytest.raises(CommandError, match="XXXX3"):
@@ -132,6 +138,7 @@ def test_unknown_ticker_is_rejected_before_any_download():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_skips_a_company_absent_from_the_archive():
     with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
         download.return_value = build_archive()
@@ -144,6 +151,7 @@ def test_skips_a_company_absent_from_the_archive():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_rejects_a_non_quarter_end_date(archive_download):
     with pytest.raises(CommandError, match="quarter end"):
         call_command(
@@ -178,6 +186,7 @@ def _equity_continuity_archive(equity_thousands):
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_refuses_equity_that_jumped_by_an_order_of_magnitude():
     """A tenfold move in one quarter is a parse fault, not a corporate event.
 
@@ -203,6 +212,7 @@ def test_refuses_equity_that_jumped_by_an_order_of_magnitude():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_accepts_an_ordinary_quarterly_move_in_equity():
     BalanceSheet.objects.create(
         ticker="GGBR3", end_date=date(2026, 3, 31),
@@ -220,6 +230,7 @@ def test_accepts_an_ordinary_quarterly_move_in_equity():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_the_first_quarter_ever_seeded_has_nothing_to_compare_against():
     with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
         download.return_value = _equity_continuity_archive(55_000_000)
@@ -233,6 +244,7 @@ def test_the_first_quarter_ever_seeded_has_nothing_to_compare_against():
 # --- Admitting a verified corporate event -----------------------------------
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_force_admits_a_move_the_continuity_gate_refuses():
     """The gate cannot tell a parse fault from a real corporate event.
 
@@ -262,6 +274,7 @@ def test_force_admits_a_move_the_continuity_gate_refuses():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_forcing_says_which_check_was_overridden():
     """An override that leaves no trace is indistinguishable from no check."""
     BalanceSheet.objects.create(
@@ -280,6 +293,7 @@ def test_forcing_says_which_check_was_overridden():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_force_does_not_bypass_the_parser_gates():
     """Only continuity is a judgement call. A balance sheet that does not
     balance is a parse fault whoever is asking."""
@@ -297,4 +311,42 @@ def test_force_does_not_bypass_the_parser_gates():
             call_command(
                 "seed_quarter_from_cvm", "--quarter", "2026-06-30",
                 "--ticker", "GGBR3", "--force",
+            )
+
+
+# --- Resolving the CVM code -------------------------------------------------
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
+def test_the_cvm_code_comes_from_the_ticker_row():
+    """The mapping lives in the database, not in a dict in this file.
+
+    360 tickers are mapped there. A hardcoded table of six made the manual
+    seeder unusable for every other company — including SAUD3, the one case
+    the --force override exists for.
+    """
+    from quotes.models import Ticker
+
+    Ticker.objects.create(symbol="XPTO3", type="stock", cvm_code="3980")
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = gerdau_archive()
+        call_command(
+            "seed_quarter_from_cvm", "--quarter", "2026-06-30", "--ticker", "XPTO3",
+        )
+
+    assert QuarterlyEarnings.objects.filter(ticker="XPTO3").exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
+def test_an_unmapped_ticker_says_how_to_map_it():
+    from quotes.models import Ticker
+
+    Ticker.objects.create(symbol="NOPE3", type="stock")
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = gerdau_archive()
+        with pytest.raises(CommandError, match="map_tickers_to_cvm"):
+            call_command(
+                "seed_quarter_from_cvm", "--quarter", "2026-06-30",
+                "--ticker", "NOPE3",
             )

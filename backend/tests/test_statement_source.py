@@ -32,6 +32,7 @@ QUARTER = date(2026, 6, 30)
 # --- The default ------------------------------------------------------------
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_a_row_written_without_a_source_is_marked_unknown():
     """Historical rows predate provenance; they must not claim one."""
     earnings = QuarterlyEarnings.objects.create(
@@ -52,6 +53,7 @@ def test_every_statement_model_records_a_source(model):
 # --- BRAPI stamps its own ---------------------------------------------------
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_brapi_stamps_its_own_source_on_a_new_row():
     from quotes import brapi
 
@@ -64,6 +66,7 @@ def test_brapi_stamps_its_own_source_on_a_new_row():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_brapi_corrects_the_provenance_of_a_row_it_overwrites():
     """BRAPI winning on conflict is intended; leaving the row labelled 'cvm'
     afterwards would make the audit trail assert something false."""
@@ -83,6 +86,7 @@ def test_brapi_corrects_the_provenance_of_a_row_it_overwrites():
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_brapi_stamps_cash_flows_and_balance_sheets_too():
     from quotes import brapi
 
@@ -103,6 +107,7 @@ def test_brapi_stamps_cash_flows_and_balance_sheets_too():
 # --- FMP stamps its own -----------------------------------------------------
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_fmp_stamps_its_own_source():
     from quotes import fmp
 
@@ -118,6 +123,7 @@ def test_fmp_stamps_its_own_source():
 # --- The seeder stamps CVM --------------------------------------------------
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
 def test_the_cvm_seeder_stamps_cvm():
     from tests.test_seed_quarter_from_cvm import gerdau_archive
     from django.core.management import call_command
