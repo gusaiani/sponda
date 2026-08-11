@@ -68,6 +68,14 @@ class Command(BaseCommand):
             help="Ticker to seed; repeat the flag for several",
         )
         parser.add_argument(
+            "--force", action="store_true",
+            help=(
+                "Write even when equity moved by an order of magnitude. For a "
+                "verified corporate event (a merger genuinely can multiply "
+                "equity); never for an unexplained jump."
+            ),
+        )
+        parser.add_argument(
             "--dry-run",
             action="store_true",
             help="Parse and report without writing to the database",
@@ -103,7 +111,7 @@ class Command(BaseCommand):
 
             self._report(ticker, statements)
             if not dry_run:
-                self._write(ticker, statements)
+                self._write(ticker, statements, force=options["force"])
             seeded_count += 1
 
         verb = "Would seed" if dry_run else "Seeded"
@@ -137,11 +145,19 @@ class Command(BaseCommand):
             f"PL={_billions(statements.stockholders_equity)}"
         )
 
-    def _write(self, ticker: str, statements) -> None:
+    def _write(self, ticker: str, statements, *, force: bool = False) -> None:
+        if force:
+            self.stdout.write(self.style.WARNING(
+                f"  {ticker}: overriding the equity continuity check on request"
+            ))
         try:
-            write_quarter(ticker, statements)
+            write_quarter(ticker, statements, force=force)
         except StatementRejected as rejection:
-            raise CommandError(str(rejection)) from rejection
+            raise CommandError(
+                f"{rejection}\n"
+                f"If you have checked the filing and this is a real corporate "
+                f"event, re-run with --force."
+            ) from rejection
 
 
 def _billions(amount: int | None) -> str:
