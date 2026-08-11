@@ -36,6 +36,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Performance](#performance)
 - [Observability](#observability)
 - [Seeding a quarter from CVM](#seeding-a-quarter-from-cvm)
+- [Measuring CVM publication latency](#measuring-cvm-publication-latency)
 - [Scheduled Tasks](#scheduled-tasks)
 
 **Operations**
@@ -802,6 +803,55 @@ cd backend
 
 The suites use synthetic in-memory archives, so they never touch the network.
 
+## Measuring CVM publication latency
+
+How quickly a filing can appear on Sponda is capped by something outside our control: how long the CVM takes to publish it. `snapshot_cvm_filings` records the evidence, `report_cvm_lag` summarises it.
+
+### Why it is polled hourly
+
+The CVM does not publish its filing index (`itr_cia_aberta_<year>.csv`) as a standalone file · it exists only as the first entry inside the 12 MB annual archive. Two properties of CVM's server make polling cheap anyway:
+
+| Property | Used for |
+|---|---|
+| `Last-Modified` / `ETag` on the archive | A HEAD request says whether anything was rebuilt, transferring no payload. An unchanged poll downloads **0 bytes**. |
+| `Accept-Ranges: bytes` | When it *has* changed, a 256 KB ranged read covers the index alone, which is inflated directly from the first zip entry. Measured: the full 859-row index recovered from 0.7% of the archive. |
+
+The command falls back to the full download whenever the archive's layout is not the one this shortcut assumes, so an unexpected layout costs bandwidth rather than correctness.
+
+Hourly rather than daily because a daily poll would only locate a rebuild to within 24 hours, and the rebuild cadence is the very thing being measured.
+
+### What is recorded
+
+| Model | Row per | Purpose |
+|---|---|---|
+| `CvmArchiveBuild` | Distinct `Last-Modified` seen for an archive year | Successive rows are the rebuild history; the gaps are the cadence |
+| `CvmFiling` | `(cvm_code, reference_date, version)` | Who filed what, when CVM received it (`DT_RECEB`), and which build first carried it |
+
+`CvmFiling.publication_lag_days` measures against the build's own timestamp rather than our poll time, so the figure does not move if the polling interval changes. A restatement is a new `version`, hence its own row and its own lag.
+
+### Backfill is not a measurement
+
+The first poll records every filing published so far that year, all attributed to whichever build was current. Those filings were not watched into existence · one received in April and first recorded in August may well have been published in April. Counting that gap as lag invents months of latency that never happened.
+
+A lag therefore counts as measured only when the filing was received *after* the earliest recorded build, so an earlier observation exists that could have carried it and did not. Everything else is reported as `already published when polling began`, and the report prints `not enough observations yet` rather than a number.
+
+```bash
+cd backend
+python manage.py snapshot_cvm_filings          # hourly via timer; safe to run by hand
+python manage.py report_cvm_lag --year 2026
+python manage.py report_cvm_lag --reference-date 2026-06-30   # one earnings season
+```
+
+### What is already known
+
+Measured 2026-08-11, before any observation window had opened:
+
+- Every CVM document dataset (ITR, DFP, FCA, IPE, VLMO, FRE) carried the same `Last-Modified` of Sunday 2026-08-09, 10:00–11:40 GMT · one batch rebuild across the whole tree. The company registry (`cad_cia_aberta.csv`) is rebuilt separately and daily.
+- That archive was untouched through Monday and Tuesday, which suggests a **weekly Sunday** cadence. Inferred from a single 2-day gap, so it is a hypothesis · confirming or refuting it is what the timer is for.
+- Within a build, the newest filing was 2 days old (`DT_RECEB` 2026-08-07 in an 2026-08-09 build), with 52 filings each at 3 and 4 days.
+
+If the weekly hypothesis holds, filing-to-live is roughly 1 day at best and 7 at worst, median around 3.5 · better than BRAPI's measured 7–21 days, but a halving rather than the near-elimination a 2-day publication lag on its own would imply. The rebuild cadence, not the publication lag, is the binding constraint.
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
@@ -819,6 +869,7 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `check_indicator_alerts` | `sponda-check-alerts.timer` | Daily safety-net pass over user alerts (the in-market 15-min run already covers weekday hours) | Daily 07:30 UTC |
 | `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
 | `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
+| `snapshot_cvm_filings` | `sponda-snapshot-cvm.timer` | Record which quarterly filings the CVM has published and when, to measure how fast a filing can reach the site. Costs one HEAD request when the archive is unchanged. | Hourly |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 

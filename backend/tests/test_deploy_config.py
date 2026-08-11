@@ -42,3 +42,43 @@ class TestCeleryWorkerDeploy:
             "deploy must restart sponda-celery so the worker picks up new code; "
             "otherwise the long-running worker serves stale code forever"
         )
+
+
+def repo_timers():
+    return sorted(path.name for path in (REPO_ROOT / "systemd").glob("*.timer"))
+
+
+class TestTimersAreWiredIntoDeploy:
+    """Adding a timer means touching three places; forgetting one is silent.
+
+    A timer that is committed but never copied and enabled simply never runs.
+    Nothing errors, no unit fails, and the job it was meant to do quietly does
+    not happen — which is indistinguishable from the job having nothing to do.
+    """
+
+    @pytest.mark.parametrize("timer", repo_timers())
+    def test_every_timer_has_a_service_to_run(self, timer):
+        service = REPO_ROOT / "systemd" / timer.replace(".timer", ".service")
+        assert service.is_file(), f"{timer} has no matching {service.name}"
+
+    @pytest.mark.parametrize("timer", repo_timers())
+    def test_deploy_installs_every_timer(self, timer):
+        deploy = DEPLOY_WORKFLOW.read_text()
+        service = timer.replace(".timer", ".service")
+        assert f"{timer} /etc/systemd/system/" in deploy, (
+            f"deploy must copy {timer} into /etc/systemd/system/"
+        )
+        assert f"{service} /etc/systemd/system/" in deploy, (
+            f"deploy must copy {service} into /etc/systemd/system/"
+        )
+
+    @pytest.mark.parametrize("timer", repo_timers())
+    def test_deploy_enables_every_timer(self, timer):
+        deploy = DEPLOY_WORKFLOW.read_text()
+        assert f"systemctl enable --now {timer}" in deploy, (
+            f"deploy must enable {timer}; a copied but unenabled timer never fires"
+        )
+
+    def test_the_cvm_snapshot_timer_is_among_them(self):
+        """Pins that the parametrized guards above actually cover this PR."""
+        assert "sponda-snapshot-cvm.timer" in repo_timers()

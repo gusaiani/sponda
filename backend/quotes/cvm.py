@@ -20,8 +20,10 @@ import csv
 import io
 import unicodedata
 import zipfile
+import zlib
 from dataclasses import dataclass, fields
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 import requests
 
@@ -31,8 +33,25 @@ ITR_ARCHIVE_URL_TEMPLATE = (
     "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/ITR/DADOS/"
     "itr_cia_aberta_{year}.zip"
 )
+ITR_INDEX_FILENAME_TEMPLATE = "itr_cia_aberta_{year}.csv"
 
 DOWNLOAD_TIMEOUT_SECONDS = 120
+HEAD_TIMEOUT_SECONDS = 30
+
+# The index is the archive's first entry and compresses to roughly 25 KB per
+# quarter of filings, so a quarter of a megabyte covers a full year with room
+# to spare. A truncated read is detected rather than assumed away (see
+# ``_inflate_first_entry``) and the range is widened until the entry is whole.
+INDEX_PREFIX_BYTES = 256 * 1024
+INDEX_PREFIX_MAX_BYTES = 4 * 1024 * 1024
+
+LOCAL_FILE_HEADER_SIGNATURE = b"PK\x03\x04"
+LOCAL_FILE_HEADER_SIZE = 30
+LOCAL_HEADER_METHOD_OFFSET = 8
+LOCAL_HEADER_NAME_LENGTH_OFFSET = 26
+LOCAL_HEADER_EXTRA_LENGTH_OFFSET = 28
+DEFLATE_METHOD = 8
+RAW_DEFLATE_WINDOW = -zlib.MAX_WBITS
 
 # CVM's standard account taxonomy (CD_CONTA).
 ACCOUNT_CURRENT_ASSETS = "1.01"
@@ -106,6 +125,179 @@ def download_itr_archive(year: int) -> bytes:
     )
     response.raise_for_status()
     return response.content
+
+
+# --- The filing index -------------------------------------------------------
+#
+# Everything below reads ``itr_cia_aberta_<year>.csv``, the manifest listing
+# every filing and the date the CVM received it (DT_RECEB). It answers "what
+# has been filed, and when" without parsing a line of accounting.
+#
+# The CVM does not publish this file on its own; it exists only as the first
+# entry inside the annual archive. Since the archive is rebuilt in batch (all
+# document datasets carry the same timestamp) and served by an nginx that
+# honours conditional requests and byte ranges, the manifest can be polled
+# frequently for almost nothing: a HEAD reports whether anything was rebuilt,
+# and a ranged read pulls the manifest alone rather than the whole archive.
+
+
+@dataclass(frozen=True)
+class ArchiveState:
+    """When the published archive was last rebuilt, as the server reports it."""
+
+    last_modified: datetime | None
+    etag: str
+
+    @property
+    def is_known(self) -> bool:
+        return self.last_modified is not None or bool(self.etag)
+
+
+@dataclass(frozen=True)
+class FilingRecord:
+    """One row of the filing index."""
+
+    cvm_code: str
+    company_name: str
+    cnpj: str
+    reference_date: date
+    filed_at: date | None
+    version: int
+    document_id: str
+
+
+def build_itr_index_filename(year: int) -> str:
+    return ITR_INDEX_FILENAME_TEMPLATE.format(year=year)
+
+
+def fetch_itr_archive_state(year: int) -> ArchiveState:
+    """Ask the server when the archive was last rebuilt, downloading nothing.
+
+    This is the cheapest available signal that new filings exist, and the only
+    one that reveals the rebuild cadence: successive Last-Modified values are
+    the rebuild history.
+    """
+    response = requests.head(
+        build_itr_archive_url(year), timeout=HEAD_TIMEOUT_SECONDS,
+    )
+    # Fail loudly rather than reporting an unknown build time: the caller reads
+    # "unknown" as "possibly new" and would download the whole archive on every
+    # poll for the duration of a CVM outage.
+    response.raise_for_status()
+    return ArchiveState(
+        last_modified=_parse_http_date(response.headers.get("Last-Modified")),
+        etag=response.headers.get("ETag", ""),
+    )
+
+
+def _parse_http_date(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        parsed = parsedate_to_datetime(raw)
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _download_prefix(url: str, size: int) -> bytes:
+    response = requests.get(
+        url,
+        headers={"Range": f"bytes=0-{size - 1}"},
+        timeout=DOWNLOAD_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def _inflate_first_entry(prefix: bytes) -> tuple[str, bytes, bool]:
+    """Inflate the archive's first entry from a prefix of its bytes.
+
+    Returns the entry's name, whatever inflated, and whether the entry was
+    complete. Truncation is reported rather than hidden: half an index looks
+    exactly like a quiet week of filings.
+    """
+    if not prefix.startswith(LOCAL_FILE_HEADER_SIGNATURE):
+        raise CvmParseError("Ranged read did not begin with a zip local file header.")
+
+    method = int.from_bytes(prefix[LOCAL_HEADER_METHOD_OFFSET:][:2], "little")
+    if method != DEFLATE_METHOD:
+        raise CvmParseError(f"Unsupported zip compression method {method}.")
+
+    name_length = int.from_bytes(prefix[LOCAL_HEADER_NAME_LENGTH_OFFSET:][:2], "little")
+    extra_length = int.from_bytes(prefix[LOCAL_HEADER_EXTRA_LENGTH_OFFSET:][:2], "little")
+    name = prefix[LOCAL_FILE_HEADER_SIZE:][:name_length].decode("cp437")
+
+    body = prefix[LOCAL_FILE_HEADER_SIZE + name_length + extra_length:]
+    decompressor = zlib.decompressobj(RAW_DEFLATE_WINDOW)
+    return name, decompressor.decompress(body), decompressor.eof
+
+
+def _index_from_archive(archive_bytes: bytes, filename: str) -> bytes:
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
+        try:
+            return archive.read(filename)
+        except KeyError:
+            raise CvmParseError(
+                f"The ITR archive does not contain the filing index {filename}."
+            ) from None
+
+
+def download_itr_index(year: int) -> bytes:
+    """Fetch the filing index alone, by ranged read of the archive.
+
+    Falls back to the full download whenever the archive's layout is not the
+    one this shortcut assumes. The fallback is slow, not wrong, so an unexpected
+    layout costs bandwidth rather than correctness.
+    """
+    filename = build_itr_index_filename(year)
+    url = build_itr_archive_url(year)
+
+    size = INDEX_PREFIX_BYTES
+    while size <= INDEX_PREFIX_MAX_BYTES:
+        prefix = _download_prefix(url, size)
+        try:
+            name, data, is_complete = _inflate_first_entry(prefix)
+        except (CvmParseError, zlib.error):
+            break
+        if name != filename:
+            break
+        if is_complete:
+            return data
+        if len(prefix) < size:
+            break  # The server sent everything it had; a wider range cannot help.
+        size *= 2
+
+    return _index_from_archive(download_itr_archive(year), filename)
+
+
+def parse_itr_index(index_bytes: bytes) -> list[FilingRecord]:
+    """Turn the index CSV into filing records, newest version included."""
+    reader = csv.DictReader(
+        io.TextIOWrapper(io.BytesIO(index_bytes), encoding="latin-1"), delimiter=";",
+    )
+    return [
+        _filing_record(row) for row in reader if (row.get("DT_REFER") or "").strip()
+    ]
+
+
+def _filing_record(row: dict) -> FilingRecord:
+    return FilingRecord(
+        cvm_code=row["CD_CVM"].strip().lstrip("0") or "0",
+        company_name=row.get("DENOM_CIA", "").strip(),
+        cnpj=row.get("CNPJ_CIA", "").strip(),
+        reference_date=date.fromisoformat(row["DT_REFER"].strip()),
+        filed_at=_optional_date(row.get("DT_RECEB")),
+        version=int(row.get("VERSAO") or 1),
+        document_id=row.get("ID_DOC", "").strip(),
+    )
+
+
+def _optional_date(raw: str | None) -> date | None:
+    raw = (raw or "").strip()
+    return date.fromisoformat(raw) if raw else None
 
 
 def _normalize(text: str) -> str:
