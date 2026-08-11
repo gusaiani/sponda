@@ -106,18 +106,32 @@ Monthly timer flags Brazilian tickers **with a market cap** and no code, so IPOs
 
 Known limitation: a BDR sharing a root with a Brazilian issuer (`JBSS32` over JBS N.V. vs `JBSS3` for JBS S.A.) root-matches to the Brazilian entity. None are currently in the universe; the `root` provenance flags it for audit.
 
-### PR 4 · Sector-aware accounts and a validation gate
+### PR 4 · Sector-aware accounts and a validation gate · SHIPPED
 
-The chart of accounts is sector-specific. `cvm.py` currently assumes the industrial taxonomy everywhere.
+The chart of accounts is sector-specific. `cvm.py` assumed the industrial taxonomy everywhere.
 
-Measured across 416 consolidated filers for 2026: 404 report equity in `2.03`, 7 in `2.07`, 5 in `2.08`. Banco do Brasil's `2.03` is *Provisões*, R$39.11bn, against real equity of R$196.91bn in `2.07`. Equity is the denominator of `debtToEquity` and `liabilitiesToEquity`, so this corrupts displayed ratios rather than a label.
+**The problem was broader than equity.** Four account numbers hold different quantities for a bank:
 
-- Resolve equity by matching `DS_CONTA` ("Patrimônio Líquido Consolidado") rather than by account number.
-- Detect taxonomy (industrial / financial / insurance) from the `3.01` label, and set `current_assets`, `current_liabilities` and `total_debt` to `None` for filers that do not report those concepts. Banks report by liquidity, not current/non-current, so `currentRatio` is undefined for them rather than wrong.
-- `revenue` stays best-effort: `3.01` means *Receitas de Intermediação Financeira* for banks, but nothing in `indicators.py` or `pe10.py` reads revenue · it is a display column only, so a mislabelled bank revenue is cosmetic.
-- **Validation gate before any write:** assets must equal liabilities plus equity, and equity must be within an order of magnitude of the prior quarter. Refuse the row and log loudly on failure. The failure mode here is a plausible wrong number, which is exactly what survives into production unnoticed.
+| Account | Industrial filer | Banco do Brasil |
+|---|---|---|
+| `1.01` | Ativo Circulante | Caixa e Equivalentes de Caixa |
+| `2.01` | Passivo Circulante | Passivos Financeiros a Valor Justo |
+| `2.02.01` | Empréstimos e Financiamentos | **Depósitos** |
+| `2.03` | Patrimônio Líquido | **Provisões** |
 
-Tests: Banco do Brasil and an insurer as real fixtures alongside the existing industrial ones.
+So `total_debt` was counting customer deposits as borrowings, and equity read R$39.11bn against a real R$196.91bn.
+
+**The fix is narrower than this plan proposed.** Detecting taxonomy from the `3.01` label and branching turned out to be unnecessary: trusting an account number *only when its own label agrees* handles every case, and naturally yields `None` for a concept a filer does not report. It also catches what a sector rule would miss · three filers publish "Capitalização" at the borrowings account, one publishes "Depósitos Interfinanceiros" at the lease account, and the two insurers **do** report current/non-current, so branching on sector would have wrongly discarded their figures.
+
+Equity is found by the line labelled "Patrimônio Líquido Consolidado", which all 416 filers carry despite placing it at `2.03` (404), `2.07` (7) or `2.08` (5).
+
+`total_liabilities` is now the balance-sheet total less equity. It agrees with `2.01 + 2.02` for all 404 industrial filers, preserving PR #284's BRAPI calibration, and unlike that sum is meaningful for a bank.
+
+`revenue` stays best-effort: `3.01` means *Receitas de Intermediação Financeira* for banks, but nothing in `indicators.py` or `pe10.py` reads revenue · it is a display column only.
+
+**Validation gates**, all refusing rather than warning: assets must equal liabilities plus equity (held for 414 of 414, so a violation means the parse is wrong); two lines claiming to be equity is refused rather than guessed; and equity must stay within an order of magnitude of the prior quarter, checked in the writer where prior quarters exist.
+
+Measured over the full 2026 archive: **416 of 416 filers parse, none refused.** Equity and total liabilities resolve for 415, current assets/liabilities for 403, debt and leases for 401. Gerdau and Petrobras reproduce their previously calibrated figures exactly.
 
 ### PR 5 · Continuous ingestion
 
@@ -146,16 +160,16 @@ Record `filed_at` (`DT_RECEB`) alongside each CVM-sourced row and publish a sing
 
 | PR | Depends on | Estimate | Status |
 |---|---|---|---|
-| 1a · At-scale calibration | 3, in practice | 0.5 day | Blocked · needs the ticker bridge to reach n=348 |
+| 1a · At-scale calibration | 3 | 0.5 day | **Unblocked** by PR 3 · next |
 | 1b · Publication lag | none | 0.5 day, then observation | **Shipped**, accruing observations |
 | 2 · Cache gap | none | 0.5 day | **Shipped** |
 | 3 · Ticker bridge | none | 1 day, plus manual review of ~150 pairs | **Shipped** · 99.2% from published data, 2 pairs by hand |
-| 4 · Sector taxonomy | none | 1 day | Next |
+| 4 · Sector taxonomy | none | 1 day | **Shipped** · label-guarded, no sector branching needed |
 | 5 · Continuous ingestion | 1a, 1b, 3, 4 | 1 day | |
 | 6 · Q4 via DFP | 5 | 1 day | |
 | 7 · Metric | 5 | 0.5 day | |
 
-Roughly **4.5 days** remaining. PRs 3 and 4 are mutually independent.
+Roughly **3 days** remaining, all of it now on the critical path: 1a gates PR 5, and PRs 6 and 7 follow it.
 
 1a was listed as depending on nothing, which was wrong: it calibrates "every mapped Brazilian ticker", and only six are mapped. Its exact-match baseline of 200/348 is reachable without PR 3, but the full n=348 run needs the bridge, so 3 should come first.
 
@@ -164,7 +178,7 @@ Roughly **4.5 days** remaining. PRs 3 and 4 are mutually independent.
 | Risk | Mitigation |
 |---|---|
 | CVM and BRAPI disagree at scale | PR 1a gates PR 5 before any dependency is built on the assumption |
-| Silent wrong values for banks and insurers | PR 4's balance and continuity checks refuse the write rather than log a warning |
+| Silent wrong values for banks and insurers | An account number is trusted only when the line's own label agrees, so a bank's deposits are never read as debt nor its provisions as equity; the balance and continuity checks then refuse the write rather than log a warning |
 | CVM's lag turns out no better than BRAPI's | PR 1b measures it against real filings before PR 5 is written · early evidence says the rebuild cadence, not the publication lag, is the constraint |
 | A backfill is mistaken for a measurement | Lag counts only for filings that first appeared in a build later than the earliest recorded one; everything else is reported as backfill, and an empty sample prints "not enough observations yet" rather than a number |
 | Ticker map rots as companies rename or list | Stored in DB, monthly unmapped-ticker report filtered to tickers with a market cap |

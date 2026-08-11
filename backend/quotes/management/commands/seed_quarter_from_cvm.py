@@ -43,6 +43,13 @@ TICKER_TO_CVM_CODE = {
 # QuarterlyCashFlow.free_cash_flow stays unset: BRAPI never reports it, and
 # fundamentals.py derives FCF as operating + investing for exactly that case.
 # Writing a value here would make this quarter inconsistent with its siblings.
+# Equity may legitimately swing on a large write-down, a rights issue or a
+# spin-off, so the band is wide: it guards against reading the wrong line, not
+# against unusual quarters. The bounds are exclusive, so a move of exactly an
+# order of magnitude is refused rather than admitted.
+EQUITY_CONTINUITY_MIN_RATIO = 0.1
+EQUITY_CONTINUITY_MAX_RATIO = 10.0
+
 FREE_CASH_FLOW_IS_DERIVED_DOWNSTREAM = None
 
 # QuarterlyEarnings.eps is written by the providers but read nowhere, and a
@@ -137,7 +144,40 @@ class Command(BaseCommand):
             f"PL={_billions(statements.stockholders_equity)}"
         )
 
+    def _check_equity_continuity(self, ticker: str, statements) -> None:
+        """Refuse equity that moved by an order of magnitude in one quarter.
+
+        The parser's own gate already establishes that the figures are
+        internally consistent, so what survives to here is a plausible wrong
+        value · the kind that reaches a page and stays there. A company's
+        equity does not move tenfold in three months; a parse that says it did
+        has read the wrong line.
+        """
+        equity = statements.stockholders_equity
+        if equity is None:
+            return
+
+        previous = (
+            BalanceSheet.objects
+            .filter(ticker=ticker, end_date__lt=statements.quarter_end)
+            .exclude(stockholders_equity=None)
+            .order_by("-end_date")
+            .first()
+        )
+        if previous is None or not previous.stockholders_equity:
+            return
+
+        ratio = abs(equity) / abs(previous.stockholders_equity)
+        if not EQUITY_CONTINUITY_MIN_RATIO < ratio < EQUITY_CONTINUITY_MAX_RATIO:
+            raise CommandError(
+                f"{ticker}: equity moved from {previous.stockholders_equity:,} at "
+                f"{previous.end_date} to {equity:,} at {statements.quarter_end} "
+                f"({ratio:.2f}x). Refusing to write · this is a parse fault, not "
+                f"a corporate event."
+            )
+
     def _write(self, ticker: str, statements) -> None:
+        self._check_equity_continuity(ticker, statements)
         QuarterlyEarnings.objects.update_or_create(
             ticker=ticker,
             end_date=statements.quarter_end,

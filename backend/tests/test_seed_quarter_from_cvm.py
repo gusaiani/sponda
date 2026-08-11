@@ -7,6 +7,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 
 from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
+
 from tests.test_cvm import build_archive, _balance_row, _flow_row
 
 
@@ -147,3 +148,82 @@ def test_rejects_a_non_quarter_end_date(archive_download):
         call_command(
             "seed_quarter_from_cvm", "--quarter", "2026-05-31", "--ticker", "GGBR3",
         )
+
+
+# --- The continuity gate ----------------------------------------------------
+
+def _equity_continuity_archive(equity_thousands):
+    """A Gerdau-shaped archive with equity set to a chosen value."""
+    from tests.test_cvm import _balance_row, _flow_row, build_archive
+
+    return build_archive(
+        balance_asset_rows=[
+            _balance_row("1", "Ativo Total", 81_810_298),
+            _balance_row("1.01", "Ativo Circulante", 28_573_526),
+        ],
+        balance_liability_rows=[
+            _balance_row("2", "Passivo Total", 81_810_298),
+            _balance_row("2.01", "Passivo Circulante", 10_360_391),
+            _balance_row("2.02", "Passivo Não Circulante", 17_715_159),
+            _balance_row(
+                "2.03", "Patrimônio Líquido Consolidado", equity_thousands,
+            ),
+        ],
+        income_rows=[
+            _flow_row("3.11", "Lucro/Prejuízo Consolidado do Período", 1_470_000,
+                      start="2026-04-01", end="2026-06-30"),
+        ],
+    )
+
+
+@pytest.mark.django_db
+def test_refuses_equity_that_jumped_by_an_order_of_magnitude():
+    """A tenfold move in one quarter is a parse fault, not a corporate event.
+
+    This is the last line of defence: the numbers that get here are already
+    internally consistent, so what it catches is a plausible wrong value.
+    """
+    BalanceSheet.objects.create(
+        ticker="GGBR3", end_date=date(2026, 3, 31),
+        stockholders_equity=53_000_000_000,
+    )
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = _equity_continuity_archive(530_000_000)
+
+        with pytest.raises(CommandError, match="equity"):
+            call_command(
+                "seed_quarter_from_cvm", "--quarter", "2026-06-30",
+                "--ticker", "GGBR3",
+            )
+
+    assert not BalanceSheet.objects.filter(
+        ticker="GGBR3", end_date=date(2026, 6, 30),
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_accepts_an_ordinary_quarterly_move_in_equity():
+    BalanceSheet.objects.create(
+        ticker="GGBR3", end_date=date(2026, 3, 31),
+        stockholders_equity=53_000_000_000,
+    )
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = _equity_continuity_archive(55_000_000)
+        call_command(
+            "seed_quarter_from_cvm", "--quarter", "2026-06-30", "--ticker", "GGBR3",
+        )
+
+    assert BalanceSheet.objects.get(
+        ticker="GGBR3", end_date=date(2026, 6, 30),
+    ).stockholders_equity == 55_000_000_000
+
+
+@pytest.mark.django_db
+def test_the_first_quarter_ever_seeded_has_nothing_to_compare_against():
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = _equity_continuity_archive(55_000_000)
+        call_command(
+            "seed_quarter_from_cvm", "--quarter", "2026-06-30", "--ticker", "GGBR3",
+        )
+
+    assert BalanceSheet.objects.filter(ticker="GGBR3").count() == 1

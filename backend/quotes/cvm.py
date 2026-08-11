@@ -62,11 +62,36 @@ ACCOUNT_CURRENT_BORROWINGS = "2.01.04"
 ACCOUNT_NONCURRENT_BORROWINGS = "2.02.01"
 ACCOUNT_CURRENT_LEASE = "2.01.04.03"
 ACCOUNT_NONCURRENT_LEASE = "2.02.01.03"
+ACCOUNT_TOTAL_ASSETS = "1"
+ACCOUNT_TOTAL_LIABILITIES_AND_EQUITY = "2"
 ACCOUNT_REVENUE = "3.01"
 ACCOUNT_NET_INCOME = "3.11"
 ACCOUNT_OPERATING_CASH_FLOW = "6.01"
 ACCOUNT_INVESTMENT_CASH_FLOW = "6.02"
 ACCOUNT_FINANCING_ACTIVITIES_PREFIX = "6.03."
+
+BORROWINGS_ACCOUNTS = (ACCOUNT_CURRENT_BORROWINGS, ACCOUNT_NONCURRENT_BORROWINGS)
+LEASE_ACCOUNTS = (ACCOUNT_CURRENT_LEASE, ACCOUNT_NONCURRENT_LEASE)
+
+# What each account must be called for its number to be trusted. The chart of
+# accounts is sector-specific, so the number alone does not identify the
+# concept. Normalised with ``_normalize`` (lowercased, accents stripped).
+LABEL_CURRENT_ASSETS = "ativo circulante"
+LABEL_CURRENT_LIABILITIES = "passivo circulante"
+LABEL_NONCURRENT_LIABILITIES = "passivo nao circulante"
+LABEL_EQUITY = "patrimonio liquido consolidado"
+LABEL_BORROWINGS = "emprestimos e financiamentos"
+LABEL_LEASE = "financiamento por arrendamento"
+
+# Words that name borrowings wherever a filer chooses to report them.
+BORROWING_KEYWORDS = ("emprestimo", "financiamento", "debenture")
+LEASE_KEYWORD = "arrendamento"
+
+# Assets must equal liabilities plus equity. It held for all 414 filers of 2026
+# that publish both totals, so a violation means the parse is wrong rather than
+# the filing. The tolerance absorbs the rounding CVM's own thousands scale
+# introduces without admitting a real discrepancy.
+BALANCE_TOLERANCE_FRACTION = 0.001
 
 # ORDEM_EXERC discriminates the current period from the prior-year comparative.
 CURRENT_PERIOD_MARKER = "ÚLTIMO"
@@ -369,13 +394,78 @@ def _index_flows(rows: list[dict]) -> dict[tuple[str, date, date], int]:
     return indexed
 
 
-def _index_balances(rows: list[dict], quarter_end: date) -> dict[str, int]:
-    """Key balance-sheet rows by account, keeping only the quarter-end snapshot."""
+@dataclass(frozen=True)
+class BalanceLine:
+    """One balance-sheet line: what it is called as well as what it is worth."""
+
+    amount: int
+    label: str
+
+
+def _index_balances(rows: list[dict], quarter_end: date) -> dict[str, BalanceLine]:
+    """Key balance-sheet rows by account, keeping only the quarter-end snapshot.
+
+    The label travels with the amount because the account number alone does not
+    identify the concept · see ``_labelled_amount``.
+    """
     return {
-        row["CD_CONTA"]: _scaled_amount(row)
+        row["CD_CONTA"]: BalanceLine(
+            amount=_scaled_amount(row), label=_normalize(row.get("DS_CONTA", "")),
+        )
         for row in rows
         if date.fromisoformat(row["DT_FIM_EXERC"]) == quarter_end
     }
+
+
+def _labelled_amount(
+    balances: dict[str, BalanceLine], account: str, expected_label: str,
+) -> int | None:
+    """The amount at an account, but only when the line says what we assume.
+
+    The chart of accounts is sector-specific: 2.02.01 is "Empréstimos e
+    Financiamentos" for 516 filers and "Depósitos" for the banks, 2.01 is
+    "Passivo Circulante" for most and a fair-value financial liability for
+    others. Reading by number alone turns a bank's customer deposits into debt
+    and its provisions into equity, which is not a mislabelled field but a
+    different quantity entirely.
+    """
+    line = balances.get(account)
+    if line is None or line.label != expected_label:
+        return None
+    return line.amount
+
+
+def _sum_labelled(
+    balances: dict[str, BalanceLine], accounts: tuple[str, ...], expected_label: str,
+) -> int | None:
+    amounts = [
+        amount for amount in (
+            _labelled_amount(balances, account, expected_label)
+            for account in accounts
+        )
+        if amount is not None
+    ]
+    return sum(amounts) if amounts else None
+
+
+def _equity(balances: dict[str, BalanceLine]) -> int | None:
+    """Equity, found by the line that claims to be equity.
+
+    All 416 consolidated filers of 2026 carry a "Patrimônio Líquido
+    Consolidado" line, but they put it at 2.03 (404), 2.07 (7) or 2.08 (5).
+    The label is the reliable key; the account number is not.
+    """
+    matches = [
+        line.amount for line in balances.values() if line.label == LABEL_EQUITY
+    ]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise CvmParseError(
+            f"{len(matches)} lines claim to be equity; refusing to guess which "
+            f"one every leverage ratio should be divided by."
+        )
+    return matches[0]
 
 
 def _quarter_flow(
@@ -441,16 +531,100 @@ def _sum_present(balances: dict[str, int], *accounts: str) -> int | None:
     return sum(values)
 
 
-def _lease_total(balances: dict[str, int]) -> int | None:
+def _borrowings_reported_elsewhere(balances: dict[str, BalanceLine]) -> bool:
+    """Does a non-zero line outside the standard accounts name borrowings?
+
+    Some filers publish the standard borrowings accounts as zeros from the
+    fixed template and report the real figure under "Outras Obrigações" with a
+    descriptive label · Allos carries R$5.6bn at 2.02.02.02.07, "Empréstimos,
+    financiamentos e debêntures", while 2.01.04 and 2.02.01 are both 0.
+
+    Leases are excluded: "Financiamento por Arrendamento" contains the word
+    financiamento but is tracked separately.
+    """
+    for account, line in balances.items():
+        if account in BORROWINGS_ACCOUNTS or not line.amount:
+            continue
+        if LEASE_KEYWORD in line.label:
+            continue
+        if any(keyword in line.label for keyword in BORROWING_KEYWORDS):
+            return True
+    return False
+
+
+def _debt_total(balances: dict[str, BalanceLine]) -> int | None:
+    """Borrowings, or None when the filing does not let us say.
+
+    A zero that is contradicted by a borrowings line elsewhere is not a
+    debt-free balance sheet, it is a presentation this parser cannot total
+    reliably. Saying nothing is right; saying zero would show a leveraged
+    company as carrying none.
+    """
+    total = _sum_labelled(balances, BORROWINGS_ACCOUNTS, LABEL_BORROWINGS)
+    if total == 0 and _borrowings_reported_elsewhere(balances):
+        return None
+    return total
+
+
+def _lease_total(balances: dict[str, BalanceLine]) -> int | None:
     """Leases default to 0 once a borrowings line exists but no lease line does."""
-    lease = _sum_present(balances, ACCOUNT_CURRENT_LEASE, ACCOUNT_NONCURRENT_LEASE)
+    lease = _sum_labelled(balances, LEASE_ACCOUNTS, LABEL_LEASE)
     if lease is not None:
         return lease
-    has_borrowings = (
-        ACCOUNT_CURRENT_BORROWINGS in balances
-        or ACCOUNT_NONCURRENT_BORROWINGS in balances
-    )
+    has_borrowings = _sum_labelled(
+        balances, BORROWINGS_ACCOUNTS, LABEL_BORROWINGS,
+    ) is not None
     return 0 if has_borrowings else None
+
+
+def _total_liabilities(
+    balances: dict[str, BalanceLine], equity: int | None,
+) -> int | None:
+    """Everything owed, excluding equity.
+
+    Preferred as the balance-sheet total less equity, which is defined for
+    every filer. It agrees with the current-plus-non-current sum for all 404
+    industrial filers of 2026, and unlike that sum it is also meaningful for a
+    bank, whose 2.01 and 2.02 are fair-value and amortised-cost financial
+    liabilities rather than a maturity split.
+
+    Falls back to the sum for filings that omit the root line.
+    """
+    total = balances.get(ACCOUNT_TOTAL_LIABILITIES_AND_EQUITY)
+    if total is not None and equity is not None:
+        return total.amount - equity
+
+    current = _labelled_amount(
+        balances, ACCOUNT_CURRENT_LIABILITIES, LABEL_CURRENT_LIABILITIES,
+    )
+    noncurrent = _labelled_amount(
+        balances, ACCOUNT_NONCURRENT_LIABILITIES, LABEL_NONCURRENT_LIABILITIES,
+    )
+    parts = [part for part in (current, noncurrent) if part is not None]
+    return sum(parts) if parts else None
+
+
+def _validate_balance_sheet(balances: dict[str, BalanceLine]) -> None:
+    """Refuse a parse whose balance sheet does not balance.
+
+    Assets equal liabilities plus equity for every filer that publishes both
+    totals · 414 of 414 in 2026 · so a mismatch means this parse has picked up
+    the wrong rows, not that the company filed something impossible. Refusing
+    is the point: the failure mode these accounts produce is a plausible wrong
+    number, and those outlive an exception by a long way.
+    """
+    assets = balances.get(ACCOUNT_TOTAL_ASSETS)
+    total = balances.get(ACCOUNT_TOTAL_LIABILITIES_AND_EQUITY)
+    if assets is None or total is None or not assets.amount:
+        return
+
+    drift = abs(assets.amount - total.amount) / abs(assets.amount)
+    if drift > BALANCE_TOLERANCE_FRACTION:
+        raise CvmParseError(
+            f"The balance sheet does not balance: total assets "
+            f"{assets.amount:,} against liabilities plus equity "
+            f"{total.amount:,} ({drift:.1%} apart)."
+        )
 
 
 def _validate_quarter_end(quarter_end: date) -> None:
@@ -491,6 +665,8 @@ def extract_quarter_statements(
     income_flows = _index_flows(income_rows)
     cash_flows = _index_flows(cash_flow_rows)
     balances = _index_balances(asset_rows + liability_rows, quarter_end)
+    _validate_balance_sheet(balances)
+    equity = _equity(balances)
 
     return QuarterStatements(
         cvm_code=cvm_code,
@@ -504,14 +680,14 @@ def extract_quarter_statements(
             cash_flows, ACCOUNT_INVESTMENT_CASH_FLOW, quarter_end,
         ),
         dividends_paid=_quarter_dividends(cash_flow_rows, cash_flows, quarter_end),
-        total_debt=_sum_present(
-            balances, ACCOUNT_CURRENT_BORROWINGS, ACCOUNT_NONCURRENT_BORROWINGS,
-        ),
+        total_debt=_debt_total(balances),
         total_lease=_lease_total(balances),
-        total_liabilities=_sum_present(
-            balances, ACCOUNT_CURRENT_LIABILITIES, ACCOUNT_NONCURRENT_LIABILITIES,
+        total_liabilities=_total_liabilities(balances, equity),
+        stockholders_equity=equity,
+        current_assets=_labelled_amount(
+            balances, ACCOUNT_CURRENT_ASSETS, LABEL_CURRENT_ASSETS,
         ),
-        stockholders_equity=balances.get(ACCOUNT_EQUITY),
-        current_assets=balances.get(ACCOUNT_CURRENT_ASSETS),
-        current_liabilities=balances.get(ACCOUNT_CURRENT_LIABILITIES),
+        current_liabilities=_labelled_amount(
+            balances, ACCOUNT_CURRENT_LIABILITIES, LABEL_CURRENT_LIABILITIES,
+        ),
     )
