@@ -350,3 +350,25 @@ def test_an_unmapped_ticker_says_how_to_map_it():
                 "seed_quarter_from_cvm", "--quarter", "2026-06-30",
                 "--ticker", "NOPE3",
             )
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("mapped_cvm_tickers")
+def test_the_seeder_records_the_filing_date_it_wrote_from():
+    """Without it the row is frozen against restatements and invisible to the
+    filing-to-live metric."""
+    from quotes.models import CvmFiling
+
+    CvmFiling.objects.create(
+        cvm_code="3980", reference_date=date(2026, 6, 30), version=1,
+        filed_at=date(2026, 8, 4), document_id="160130",
+    )
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = gerdau_archive()
+        call_command(
+            "seed_quarter_from_cvm", "--quarter", "2026-06-30", "--ticker", "GGBR3",
+        )
+
+    assert QuarterlyEarnings.objects.get(
+        ticker="GGBR3", end_date=date(2026, 6, 30),
+    ).filed_at == date(2026, 8, 4)
