@@ -1,5 +1,6 @@
 """Tests for seed_quarter_from_cvm — manual quarter seeding from CVM open data."""
 from datetime import date
+from io import StringIO
 from unittest.mock import patch
 
 import pytest
@@ -227,3 +228,73 @@ def test_the_first_quarter_ever_seeded_has_nothing_to_compare_against():
         )
 
     assert BalanceSheet.objects.filter(ticker="GGBR3").count() == 1
+
+
+# --- Admitting a verified corporate event -----------------------------------
+
+@pytest.mark.django_db
+def test_force_admits_a_move_the_continuity_gate_refuses():
+    """The gate cannot tell a parse fault from a real corporate event.
+
+    SAUD3's equity moved 13x in one quarter when Bradesco's health business
+    was folded into Odontoprev. That is exactly what a misread line looks
+    like, so the gate refuses it and the quarter can never be ingested — the
+    automated path rejects it identically on every run.
+
+    The threshold stays where it is, because a false positive costs a visibly
+    missing quarter while a false negative puts a wrong number on a page. But
+    a human who has checked the filing needs a way to say so.
+    """
+    BalanceSheet.objects.create(
+        ticker="GGBR3", end_date=date(2026, 3, 31),
+        stockholders_equity=53_000_000_000,
+    )
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = _equity_continuity_archive(530_000_000)
+        call_command(
+            "seed_quarter_from_cvm", "--quarter", "2026-06-30",
+            "--ticker", "GGBR3", "--force",
+        )
+
+    assert BalanceSheet.objects.get(
+        ticker="GGBR3", end_date=date(2026, 6, 30),
+    ).stockholders_equity == 530_000_000_000
+
+
+@pytest.mark.django_db
+def test_forcing_says_which_check_was_overridden():
+    """An override that leaves no trace is indistinguishable from no check."""
+    BalanceSheet.objects.create(
+        ticker="GGBR3", end_date=date(2026, 3, 31),
+        stockholders_equity=53_000_000_000,
+    )
+    output = StringIO()
+    with patch(f"{COMMAND_MODULE}.download_itr_archive") as download:
+        download.return_value = _equity_continuity_archive(530_000_000)
+        call_command(
+            "seed_quarter_from_cvm", "--quarter", "2026-06-30",
+            "--ticker", "GGBR3", "--force", stdout=output, stderr=output,
+        )
+
+    assert "equity" in output.getvalue().lower()
+
+
+@pytest.mark.django_db
+def test_force_does_not_bypass_the_parser_gates():
+    """Only continuity is a judgement call. A balance sheet that does not
+    balance is a parse fault whoever is asking."""
+    from tests.test_cvm import _balance_row, build_archive
+
+    archive = build_archive(
+        balance_asset_rows=[_balance_row("1", "Ativo Total", 99_999_999)],
+        balance_liability_rows=[
+            _balance_row("2", "Passivo Total", 81_810_298),
+            _balance_row("2.03", "Patrimônio Líquido Consolidado", 53_734_748),
+        ],
+    )
+    with patch(f"{COMMAND_MODULE}.download_itr_archive", return_value=archive):
+        with pytest.raises(CommandError, match="balance"):
+            call_command(
+                "seed_quarter_from_cvm", "--quarter", "2026-06-30",
+                "--ticker", "GGBR3", "--force",
+            )

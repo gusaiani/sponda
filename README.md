@@ -962,6 +962,18 @@ python manage.py sync_cvm_filings --dry-run    # list the work, download nothing
 python manage.py sync_cvm_filings
 ```
 
+### When the continuity gate is wrong
+
+The gate refuses equity that moved by an order of magnitude in a quarter, because that is what reading the wrong line looks like. It cannot tell that from a real corporate event, and sometimes it is one: SAUD3's equity moved 13x when Bradesco's health business was folded into Odontoprev, with Capital Social going from R$851m to R$14.90bn.
+
+The threshold stays where it is · a false positive costs a visibly missing quarter, a false negative puts a wrong number on a page nobody checks. But the automated path rejects such a quarter identically on every run, so without an override it could never be ingested at all.
+
+```bash
+python manage.py seed_quarter_from_cvm --quarter 2026-06-30 --ticker SAUD3 --force
+```
+
+`--force` overrides the continuity check only, and is logged at warning level. The parser's own gates are not overridable: a balance sheet that does not balance is a parse fault whoever is asking. The scheduled sync never forces.
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:

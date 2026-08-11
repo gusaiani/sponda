@@ -88,9 +88,22 @@ def check_equity_continuity(ticker: str, statements) -> None:
 
 
 @transaction.atomic
-def write_quarter(ticker: str, statements) -> None:
-    """Write one quarter and bring every derived artifact back in line."""
-    check_equity_continuity(ticker, statements)
+def write_quarter(ticker: str, statements, *, force: bool = False) -> None:
+    """Write one quarter and bring every derived artifact back in line.
+
+    ``force`` overrides the continuity check only, and only for a caller who
+    has looked at the filing. The check cannot distinguish a misread line from
+    a real corporate event · a merger genuinely can multiply equity · so
+    without an override those quarters could never be ingested at all. The
+    parser's own gates are not overridable: a balance sheet that does not
+    balance is a parse fault whoever is asking.
+    """
+    if force:
+        logger.warning(
+            "Continuity check overridden for %s %s", ticker, statements.quarter_end,
+        )
+    else:
+        check_equity_continuity(ticker, statements)
 
     QuarterlyEarnings.objects.update_or_create(
         ticker=ticker,
