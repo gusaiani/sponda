@@ -65,9 +65,17 @@ ACCOUNT_NONCURRENT_LEASE = "2.02.01.03"
 ACCOUNT_TOTAL_ASSETS = "1"
 ACCOUNT_TOTAL_LIABILITIES_AND_EQUITY = "2"
 ACCOUNT_REVENUE = "3.01"
+ACCOUNT_NET_INCOME = "3.11"
+ACCOUNT_OPERATING_CASH_FLOW = "6.01"
+ACCOUNT_INVESTMENT_CASH_FLOW = "6.02"
+ACCOUNT_FINANCING_ACTIVITIES_PREFIX = "6.03."
 
-# What each account must be called for its number to be trusted. Normalised
-# with ``_normalize`` (lowercased, accents stripped) since filers vary.
+BORROWINGS_ACCOUNTS = (ACCOUNT_CURRENT_BORROWINGS, ACCOUNT_NONCURRENT_BORROWINGS)
+LEASE_ACCOUNTS = (ACCOUNT_CURRENT_LEASE, ACCOUNT_NONCURRENT_LEASE)
+
+# What each account must be called for its number to be trusted. The chart of
+# accounts is sector-specific, so the number alone does not identify the
+# concept. Normalised with ``_normalize`` (lowercased, accents stripped).
 LABEL_CURRENT_ASSETS = "ativo circulante"
 LABEL_CURRENT_LIABILITIES = "passivo circulante"
 LABEL_NONCURRENT_LIABILITIES = "passivo nao circulante"
@@ -75,18 +83,15 @@ LABEL_EQUITY = "patrimonio liquido consolidado"
 LABEL_BORROWINGS = "emprestimos e financiamentos"
 LABEL_LEASE = "financiamento por arrendamento"
 
-BORROWINGS_ACCOUNTS = (ACCOUNT_CURRENT_BORROWINGS, ACCOUNT_NONCURRENT_BORROWINGS)
-LEASE_ACCOUNTS = (ACCOUNT_CURRENT_LEASE, ACCOUNT_NONCURRENT_LEASE)
+# Words that name borrowings wherever a filer chooses to report them.
+BORROWING_KEYWORDS = ("emprestimo", "financiamento", "debenture")
+LEASE_KEYWORD = "arrendamento"
 
 # Assets must equal liabilities plus equity. It held for all 414 filers of 2026
 # that publish both totals, so a violation means the parse is wrong rather than
 # the filing. The tolerance absorbs the rounding CVM's own thousands scale
 # introduces without admitting a real discrepancy.
 BALANCE_TOLERANCE_FRACTION = 0.001
-ACCOUNT_NET_INCOME = "3.11"
-ACCOUNT_OPERATING_CASH_FLOW = "6.01"
-ACCOUNT_INVESTMENT_CASH_FLOW = "6.02"
-ACCOUNT_FINANCING_ACTIVITIES_PREFIX = "6.03."
 
 # ORDEM_EXERC discriminates the current period from the prior-year comparative.
 CURRENT_PERIOD_MARKER = "ÚLTIMO"
@@ -526,6 +531,41 @@ def _sum_present(balances: dict[str, int], *accounts: str) -> int | None:
     return sum(values)
 
 
+def _borrowings_reported_elsewhere(balances: dict[str, BalanceLine]) -> bool:
+    """Does a non-zero line outside the standard accounts name borrowings?
+
+    Some filers publish the standard borrowings accounts as zeros from the
+    fixed template and report the real figure under "Outras Obrigações" with a
+    descriptive label · Allos carries R$5.6bn at 2.02.02.02.07, "Empréstimos,
+    financiamentos e debêntures", while 2.01.04 and 2.02.01 are both 0.
+
+    Leases are excluded: "Financiamento por Arrendamento" contains the word
+    financiamento but is tracked separately.
+    """
+    for account, line in balances.items():
+        if account in BORROWINGS_ACCOUNTS or not line.amount:
+            continue
+        if LEASE_KEYWORD in line.label:
+            continue
+        if any(keyword in line.label for keyword in BORROWING_KEYWORDS):
+            return True
+    return False
+
+
+def _debt_total(balances: dict[str, BalanceLine]) -> int | None:
+    """Borrowings, or None when the filing does not let us say.
+
+    A zero that is contradicted by a borrowings line elsewhere is not a
+    debt-free balance sheet, it is a presentation this parser cannot total
+    reliably. Saying nothing is right; saying zero would show a leveraged
+    company as carrying none.
+    """
+    total = _sum_labelled(balances, BORROWINGS_ACCOUNTS, LABEL_BORROWINGS)
+    if total == 0 and _borrowings_reported_elsewhere(balances):
+        return None
+    return total
+
+
 def _lease_total(balances: dict[str, BalanceLine]) -> int | None:
     """Leases default to 0 once a borrowings line exists but no lease line does."""
     lease = _sum_labelled(balances, LEASE_ACCOUNTS, LABEL_LEASE)
@@ -640,7 +680,7 @@ def extract_quarter_statements(
             cash_flows, ACCOUNT_INVESTMENT_CASH_FLOW, quarter_end,
         ),
         dividends_paid=_quarter_dividends(cash_flow_rows, cash_flows, quarter_end),
-        total_debt=_sum_labelled(balances, BORROWINGS_ACCOUNTS, LABEL_BORROWINGS),
+        total_debt=_debt_total(balances),
         total_lease=_lease_total(balances),
         total_liabilities=_total_liabilities(balances, equity),
         stockholders_equity=equity,

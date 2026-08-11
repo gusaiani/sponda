@@ -274,3 +274,65 @@ def test_two_lines_claiming_to_be_equity_is_refused():
     ]
     with pytest.raises(CvmParseError, match="equity"):
         statements(assets=industrial_assets(), liabilities=liabilities)
+
+
+# --- Debt reported outside the standard accounts ----------------------------
+
+def test_zero_debt_is_not_asserted_when_borrowings_are_reported_elsewhere():
+    """Some filers publish the standard accounts as zeros from the fixed
+    template and put borrowings under Outras Obrigações instead.
+
+    Allos is the case: 2.01.04 and 2.02.01 are both 0, while
+    2.02.02.02.07 "Empréstimos, financiamentos e debêntures" carries billions.
+    Reporting 0 would put a debt-free balance sheet on a company carrying
+    R$11.6bn, and debtToEquity would read 0.00 rather than being absent.
+    """
+    liabilities = [
+        _balance_row("2", "Passivo Total", 81_810_298),
+        _balance_row("2.01.04", "Empréstimos e Financiamentos", 0),
+        _balance_row("2.02.01", "Empréstimos e Financiamentos", 0),
+        _balance_row("2.02.02", "Outras Obrigações", 5_977_106),
+        _balance_row(
+            "2.02.02.02.07", "Empréstimos, financiamentos e debêntures", 5_556_680,
+        ),
+        _balance_row("2.03", "Patrimônio Líquido Consolidado", 53_734_748),
+    ]
+    result = statements(assets=industrial_assets(), liabilities=liabilities)
+
+    assert result.total_debt is None
+
+
+def test_a_genuinely_debt_free_filer_still_reports_zero():
+    """Absence of borrowings anywhere is a fact worth stating."""
+    liabilities = [
+        _balance_row("2", "Passivo Total", 81_810_298),
+        _balance_row("2.01.04", "Empréstimos e Financiamentos", 0),
+        _balance_row("2.02.01", "Empréstimos e Financiamentos", 0),
+        _balance_row("2.02.02", "Outras Obrigações", 1_000),
+        _balance_row("2.03", "Patrimônio Líquido Consolidado", 53_734_748),
+    ]
+    result = statements(assets=industrial_assets(), liabilities=liabilities)
+
+    assert result.total_debt == 0
+
+
+def test_a_lease_line_does_not_count_as_borrowings_reported_elsewhere():
+    """'Financiamento por Arrendamento' contains 'financiamento' but is a
+    lease, which is tracked separately and must not suppress a real zero."""
+    liabilities = [
+        _balance_row("2", "Passivo Total", 81_810_298),
+        _balance_row("2.01.04", "Empréstimos e Financiamentos", 0),
+        _balance_row("2.02.01", "Empréstimos e Financiamentos", 0),
+        _balance_row("2.02.01.03", "Financiamento por Arrendamento", 250_000),
+        _balance_row("2.03", "Patrimônio Líquido Consolidado", 53_734_748),
+    ]
+    result = statements(assets=industrial_assets(), liabilities=liabilities)
+
+    assert result.total_debt == 0
+    assert result.total_lease == 250_000_000
+
+
+def test_a_filer_with_real_debt_at_the_standard_accounts_is_unaffected():
+    result = statements(assets=industrial_assets(), liabilities=industrial_liabilities())
+
+    assert result.total_debt == (909_841 + 12_924_566) * 1000
