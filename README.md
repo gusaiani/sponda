@@ -38,6 +38,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Seeding a quarter from CVM](#seeding-a-quarter-from-cvm)
 - [Measuring CVM publication latency](#measuring-cvm-publication-latency)
 - [Mapping tickers to CVM codes](#mapping-tickers-to-cvm-codes)
+- [Ingesting quarters from CVM](#ingesting-quarters-from-cvm)
 - [Scheduled Tasks](#scheduled-tasks)
 
 **Operations**
@@ -928,6 +929,39 @@ BDRs (`XPBR31`, `PRXB31`, `INBR32` and around a dozen others) match the B3 ticke
 
 Known limitation: a BDR sharing a four-letter root with a Brazilian issuer (`JBSS32` over JBS N.V. against `JBSS3` for JBS S.A.) will root-match to the Brazilian entity. Distinct companies, similar figures. The `root` provenance is what flags it for audit; none are currently in the ticker universe.
 
+## Ingesting quarters from CVM
+
+`sync_cvm_filings` turns what the hourly poll recorded into statement rows. It is the first place in the pipeline where a parsing mistake reaches a company's page rather than a report, so the defaults are conservative.
+
+### Precedence: CVM fills gaps, it does not compete
+
+BRAPI's rows are the ten-year baseline every P/E10 denominator is built from. A quarter already held by another source is left alone — including one whose provenance predates the `source` column, since absence of a label is not permission to overwrite. When BRAPI catches up it overwrites the CVM row on `(ticker, end_date)` and restamps the source, which is the intended end state rather than something to undo.
+
+| `source` | Meaning |
+|---|---|
+| `brapi` | Written by the BRAPI sync (Brazilian tickers) |
+| `fmp` | Written by the FMP sync (everything else) |
+| `cvm` | Written from CVM open data ahead of BRAPI |
+| *(empty)* | Written before provenance was tracked |
+
+Existing rows are deliberately **not** backfilled. Their origin is inferable but not known — some were seeded from CVM by hand — and labelling them from a guess would make the audit trail assert something false. Empty means unrecorded, which is what actually happened.
+
+**A writer stamps its own source.** Adding the column without adding it to BRAPI's `bulk_create(update_fields=...)` would have let BRAPI overwrite the figures while leaving the row still claiming `cvm`, which is worse than having no provenance at all.
+
+### What it costs when there is nothing to do
+
+The work list is derived from `CvmFiling` rows the poll already recorded, so deciding there is nothing to write is one query rather than a 12 MB download. That is the normal state between earnings seasons. The archive is fetched once per run and parsed once per company, then written to every ticker sharing that CVM code (ON and PN share one filing).
+
+### Failure is kept local
+
+During earnings season a single unparseable filing must not cost the batch. A company that fails to parse, or whose figures are refused by the continuity gate, is reported and skipped; the rest are written. Q4 filings are ignored entirely — ITR covers Q1 to Q3, and Q4 lives in the annual DFP.
+
+```bash
+cd backend
+python manage.py sync_cvm_filings --dry-run    # list the work, download nothing
+python manage.py sync_cvm_filings
+```
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
@@ -947,6 +981,7 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
 | `snapshot_cvm_filings` | `sponda-snapshot-cvm.timer` | Record which quarterly filings the CVM has published and when, to measure how fast a filing can reach the site. Costs one HEAD request when the archive is unchanged. | Hourly |
 | `map_tickers_to_cvm` | `sponda-map-cvm-tickers.timer` | Resolve Brazilian tickers to the CVM codes their filings are keyed by. The recurring pass is how a new listing surfaces rather than silently never being ingested. | Monthly, 1st 04:00 UTC |
+| `sync_cvm_filings` | `sponda-sync-cvm.timer` | Write newly filed quarters that no other source holds. One query when there is nothing to write. | 4x daily |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
