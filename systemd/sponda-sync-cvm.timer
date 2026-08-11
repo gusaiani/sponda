@@ -8,9 +8,17 @@ Description=Write newly filed CVM quarters four times a day
 #
 # Offset from the hourly index poll it depends on, so a rebuild detected on
 # the hour is ingested within a few hours rather than a day.
+#
+# Persistent=false, unlike the other timers. Their work is tied to a moment —
+# a missed reminder run drops a day of notifications — so they catch up. This
+# command re-derives its work list from database state on every run, so a
+# missed one costs at most a single interval and nothing is lost. Catch-up
+# would also make the very first activation fire immediately, since systemd
+# has no previous run recorded, which is the least appropriate moment for the
+# first unattended write to production.
 [Timer]
 OnCalendar=*-*-* 02,08,14,20:20:00
-Persistent=true
+Persistent=false
 RandomizedDelaySec=600
 
 [Install]
