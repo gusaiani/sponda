@@ -2,6 +2,8 @@
 Description=Sponda 15-min snapshot price refresh during market hours (feeds screener + alert checks)
 After=network-online.target postgresql.service sponda-refresh.service
 Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
@@ -13,5 +15,3 @@ ExecStart=/opt/sponda/venv/bin/python manage.py refresh_snapshot_prices
 ExecStartPost=/opt/sponda/venv/bin/python manage.py check_indicator_alerts
 Restart=on-failure
 RestartSec=120
-StartLimitIntervalSec=600
-StartLimitBurst=3

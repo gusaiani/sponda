@@ -82,3 +82,59 @@ class TestTimersAreWiredIntoDeploy:
     def test_the_cvm_snapshot_timer_is_among_them(self):
         """Pins that the parametrized guards above actually cover this PR."""
         assert "sponda-snapshot-cvm.timer" in repo_timers()
+
+
+def repo_services():
+    return sorted(path.name for path in (REPO_ROOT / "systemd").glob("*.service"))
+
+
+RESTART_LIMIT_DIRECTIVES = ("StartLimitIntervalSec", "StartLimitBurst")
+
+
+def unit_section(contents, section):
+    """The lines of one ini section, e.g. everything under [Service]."""
+    lines = contents.splitlines()
+    try:
+        start = lines.index(f"[{section}]") + 1
+    except ValueError:
+        return []
+    body = []
+    for line in lines[start:]:
+        if line.startswith("["):
+            break
+        body.append(line)
+    return body
+
+
+class TestRestartLimitsAreInTheRightSection:
+    """`StartLimitIntervalSec` and `StartLimitBurst` belong in [Unit].
+
+    systemd parses them nowhere else. Placed under [Service] they are ignored
+    with a log warning, which leaves `Restart=on-failure` with no rate limit at
+    all — a unit whose dependency is down then retries forever instead of
+    giving up. The whole point of pairing them with Restart is the ceiling, so
+    losing it silently defeats the configuration rather than degrading it.
+    """
+
+    @pytest.mark.parametrize("service", repo_services())
+    def test_restart_limits_are_not_under_service(self, service):
+        body = unit_section((REPO_ROOT / "systemd" / service).read_text(), "Service")
+        misplaced = [
+            directive for directive in RESTART_LIMIT_DIRECTIVES
+            if any(line.startswith(directive) for line in body)
+        ]
+        assert not misplaced, (
+            f"{service} puts {', '.join(misplaced)} under [Service], where "
+            f"systemd ignores it; move it to [Unit]"
+        )
+
+    @pytest.mark.parametrize("service", repo_services())
+    def test_a_restarting_service_keeps_its_limit(self, service):
+        """Whatever declares Restart= must still carry a ceiling somewhere."""
+        contents = (REPO_ROOT / "systemd" / service).read_text()
+        if "Restart=on-failure" not in contents:
+            return
+        assert any(
+            line.startswith("StartLimitBurst")
+            for line in unit_section(contents, "Unit")
+        ), f"{service} restarts on failure but declares no StartLimitBurst in [Unit]"

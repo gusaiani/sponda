@@ -873,6 +873,8 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
+`StartLimitIntervalSec` and `StartLimitBurst` must sit in `[Unit]`. systemd parses them nowhere else · under `[Service]` they are ignored with a log warning, leaving `Restart=on-failure` with no ceiling, so a unit whose dependency is down retries forever instead of giving up. That is a silent defeat of the configuration rather than a degradation, so `tests/test_deploy_config.py` asserts the placement for every unit and that anything declaring `Restart=on-failure` still carries a `StartLimitBurst`.
+
 ## Deployment
 
 Pushes to `main` trigger a GitHub Actions workflow that runs all test suites, builds the Next.js bundle in CI, then SSHs to `poe.ma`: pulls the latest code, installs backend deps into the venv (`uv pip install`), runs `npm ci` against the prebuilt bundle, migrates, installs the systemd units and timers, reloads nginx, and restarts `sponda`, `sponda-celery`, and `sponda-frontend`. (Docker Compose exists for local development only · see `docker-compose.yml`.)
