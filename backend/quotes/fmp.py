@@ -6,7 +6,15 @@ import requests
 from django.conf import settings
 
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
-from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings, Ticker, USCPIIndex
+from .models import (
+    SOURCE_FMP,
+    BalanceSheet,
+    FxRate,
+    QuarterlyCashFlow,
+    QuarterlyEarnings,
+    Ticker,
+    USCPIIndex,
+)
 
 _HTTP_TIMEOUT = (3, 8)
 _BREAKER = CircuitBreaker(name="fmp", failure_threshold=8, cool_down_seconds=60)
@@ -261,6 +269,7 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
             eps=eps_value,
             net_income=net_income_value,
             revenue=revenue_value,
+            source=SOURCE_FMP,
         )
         reported_currency = statement.get("reportedCurrency")
         if reported_currency:
@@ -279,7 +288,7 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         list(by_end_date.values()),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
-        update_fields=["eps", "net_income", "revenue", "fetched_at"],
+        update_fields=["eps", "net_income", "revenue", "source", "fetched_at"],
     )
 
 
@@ -319,6 +328,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
             investment_cash_flow=investing_cash_flow,
             free_cash_flow=free_cash_flow,
             dividends_paid=dividends_paid,
+            source=SOURCE_FMP,
         )
 
     if not by_end_date:
@@ -333,6 +343,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
             "investment_cash_flow",
             "free_cash_flow",
             "dividends_paid",
+            "source",
             "fetched_at",
         ],
     )
@@ -380,6 +391,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
             stockholders_equity=stockholders_equity,
             current_assets=current_assets,
             current_liabilities=current_liabilities,
+            source=SOURCE_FMP,
         )
 
     if not by_end_date:
@@ -396,6 +408,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
             "stockholders_equity",
             "current_assets",
             "current_liabilities",
+            "source",
             "fetched_at",
         ],
     )

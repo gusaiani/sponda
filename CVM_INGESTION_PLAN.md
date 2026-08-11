@@ -135,13 +135,17 @@ Measured over the full 2026 archive: **416 of 416 filers parse, none refused.** 
 
 ### PR 5 · Continuous ingestion
 
-`sync_cvm_filings` plus `sponda-sync-cvm.timer`.
+`sync_cvm_filings` plus `sponda-sync-cvm.timer`, four times a day · SHIPPED.
 
-- Trigger off `CvmFiling` rows created by PR 1b's poll rather than re-deriving what is new · the index read, conditional request and dedup already exist there. Only when a *mapped* ticker has a new filing does the run download the 12 MB archive.
-- For each newly filed company: resolve ticker via `Ticker.cvm_code`, parse, validate (PR 4), write only quarters BRAPI does not already have.
-- Migration: `source` column on `QuarterlyEarnings`, `QuarterlyCashFlow`, `BalanceSheet` (`brapi` / `fmp` / `cvm`). Without provenance there is no way to audit a disagreement or roll back a bad parse.
-- Precedence: BRAPI still wins on conflict, since its rows are the ten-year baseline. CVM fills gaps only. Revisit once PR 1a's numbers are in.
+- Triggers off `CvmFiling` rows created by PR 1b's poll rather than re-deriving what is new. Deciding there is nothing to write is one query rather than a 12 MB download, which is the normal state between seasons.
+- For each newly filed company: resolve ticker via `Ticker.cvm_code`, parse, validate (PR 4), write only quarters no other source holds. The archive is fetched once per run and parsed once per company, then written to every ticker sharing that CVM code.
+- `source` column on `QuarterlyEarnings`, `QuarterlyCashFlow`, `BalanceSheet`. **A writer stamps its own source** · adding the column without adding it to BRAPI's `bulk_create(update_fields=...)` would have let BRAPI overwrite the figures while the row still claimed `cvm`, which is worse than no provenance at all.
+- Existing rows are deliberately **not** backfilled. Their origin is inferable but not known, and some were seeded from CVM by hand, so labelling from a guess would make the audit trail assert something false. Empty means unrecorded, which is what happened.
+- Precedence: BRAPI wins, including for rows whose provenance predates the column · absence of a label is not permission to overwrite. When BRAPI catches up it overwrites the CVM row and restamps it, which is the intended end state.
+- Failure is local: a company that fails to parse or is refused by the continuity gate is reported and skipped, since one bad filing during earnings season must not cost the batch.
 - `MonitoredCommand` with a Sentry monitor slug, matching the other timers.
+
+The write path is shared with the manual seeder (`quotes/cvm_writer.py`) so both go through the same gates rather than drifting.
 
 ### PR 6 · Q4 via DFP
 
@@ -160,12 +164,12 @@ Record `filed_at` (`DT_RECEB`) alongside each CVM-sourced row and publish a sing
 
 | PR | Depends on | Estimate | Status |
 |---|---|---|---|
-| 1a · At-scale calibration | 3 | 0.5 day | **Unblocked** by PR 3 · next |
+| 1a · At-scale calibration | 3 | 0.5 day | **Gate PASSED** at n=347 |
 | 1b · Publication lag | none | 0.5 day, then observation | **Shipped**, accruing observations |
 | 2 · Cache gap | none | 0.5 day | **Shipped** |
 | 3 · Ticker bridge | none | 1 day, plus manual review of ~150 pairs | **Shipped** · 99.2% from published data, 2 pairs by hand |
 | 4 · Sector taxonomy | none | 1 day | **Shipped** · label-guarded, no sector branching needed |
-| 5 · Continuous ingestion | 1a, 1b, 3, 4 | 1 day | |
+| 5 · Continuous ingestion | 1a, 1b, 3, 4 | 1 day | **Shipped** |
 | 6 · Q4 via DFP | 5 | 1 day | |
 | 7 · Metric | 5 | 0.5 day | |
 

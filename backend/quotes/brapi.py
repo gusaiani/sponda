@@ -7,7 +7,14 @@ import requests
 from django.conf import settings
 
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
-from .models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from .models import (
+    SOURCE_BRAPI,
+    BalanceSheet,
+    IPCAIndex,
+    QuarterlyCashFlow,
+    QuarterlyEarnings,
+    Ticker,
+)
 
 # (connect, read) — fail fast on connection issues, give the read a
 # generous budget for slow upstreams. 30s blanket timeout used to pin
@@ -171,6 +178,7 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
             eps=eps_value,
             net_income=net_income_value,
             revenue=revenue_value,
+            source=SOURCE_BRAPI,
         )
 
     if not by_end_date:
@@ -180,7 +188,7 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         list(by_end_date.values()),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
-        update_fields=["eps", "net_income", "revenue", "fetched_at"],
+        update_fields=["eps", "net_income", "revenue", "source", "fetched_at"],
     )
 
 
@@ -247,6 +255,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
             operating_cash_flow=operating_cf,
             investment_cash_flow=investment_cf,
             dividends_paid=dividends_paid,
+            source=SOURCE_BRAPI,
         )
 
     if not by_end_date:
@@ -260,6 +269,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
             "operating_cash_flow",
             "investment_cash_flow",
             "dividends_paid",
+            "source",
             "fetched_at",
         ],
     )
@@ -412,6 +422,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
             stockholders_equity=equity,
             current_assets=current_assets,
             current_liabilities=int(current_liab) if current_liab is not None else None,
+            source=SOURCE_BRAPI,
         )
 
     if not by_end_date:
@@ -428,6 +439,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
             "stockholders_equity",
             "current_assets",
             "current_liabilities",
+            "source",
             "fetched_at",
         ],
     )

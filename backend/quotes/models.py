@@ -4,6 +4,37 @@ from django.utils import timezone
 
 from .cvm_ticker_map import MATCH_METHOD_CHOICES
 
+# Which provider last wrote a statement row.
+#
+# Until CVM began writing, a row's origin was inferable: Brazilian tickers came
+# from BRAPI, the rest from FMP. With three writers that inference breaks, and
+# without provenance a disagreement between sources cannot be audited and a bad
+# parse cannot be rolled back · the rows look exactly like good ones.
+#
+# A writer stamps its own source. BRAPI overwriting a CVM row is intended, but
+# it must correct the label too: updating the figures while still claiming
+# "cvm" would make the audit trail assert something false, which is worse than
+# having none.
+SOURCE_BRAPI = "brapi"
+SOURCE_FMP = "fmp"
+SOURCE_CVM = "cvm"
+SOURCE_UNKNOWN = ""
+
+STATEMENT_SOURCE_CHOICES = [
+    (SOURCE_BRAPI, "BRAPI"),
+    (SOURCE_FMP, "Financial Modeling Prep"),
+    (SOURCE_CVM, "CVM open data"),
+    (SOURCE_UNKNOWN, "Unrecorded (written before provenance was tracked)"),
+]
+
+
+def statement_source_field():
+    return models.CharField(
+        max_length=10, blank=True, default=SOURCE_UNKNOWN,
+        choices=STATEMENT_SOURCE_CHOICES, db_index=True,
+        help_text="Which provider last wrote this row.",
+    )
+
 
 class QuarterlyEarnings(models.Model):
     ticker = models.CharField(max_length=10, db_index=True)
@@ -17,6 +48,7 @@ class QuarterlyEarnings(models.Model):
         max_digits=20, decimal_places=6, null=True, blank=True,
         help_text="basicEarningsPerCommonShare from BRAPI",
     )
+    source = statement_source_field()
     fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -54,6 +86,7 @@ class QuarterlyCashFlow(models.Model):
         null=True, blank=True,
         help_text="Dividendos pagos (dividendsPaid from BRAPI, negative value)",
     )
+    source = statement_source_field()
     fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -91,6 +124,7 @@ class BalanceSheet(models.Model):
         null=True, blank=True,
         help_text="Passivo circulante",
     )
+    source = statement_source_field()
     fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
