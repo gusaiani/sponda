@@ -5,8 +5,7 @@ fetches it from the /stable/profile endpoint one ticker at a time.
 Processes a configurable batch per run to stay within API rate limits.
 """
 from django.core.management.base import BaseCommand
-from django.db.models import F, Value
-from django.db.models.functions import Coalesce
+from django.db.models import F
 
 from quotes.fmp import FMPError, fetch_profile
 from quotes.models import Ticker
@@ -25,15 +24,25 @@ class Command(BaseCommand):
             help=f"Maximum number of tickers to process per run (default: {DEFAULT_BATCH_SIZE})",
         )
 
+    def tickers_needing_sector(self):
+        """US tickers with no sector, most valuable first.
+
+        Symbol breaks ties. Market cap alone leaves every ticker without one
+        sorting equal, so the database is free to return them in any order and
+        two runs over the same data process them differently · which makes a
+        batch run unreproducible and its tests intermittently wrong.
+        """
+        return (
+            Ticker.objects.filter(type="stock", sector="")
+            .exclude(symbol__regex=r"^[A-Z]+\d+$")
+            .order_by(F("market_cap").desc(nulls_last=True), "symbol")
+        )
+
     def handle(self, *args, **options):
         batch_size = options["batch_size"]
 
-        # US tickers without sector, prioritized by market cap (popular tickers first)
         tickers = list(
-            Ticker.objects.filter(type="stock", sector="")
-            .exclude(symbol__regex=r"^[A-Z]+\d+$")
-            .order_by(F("market_cap").desc(nulls_last=True))
-            .values_list("symbol", flat=True)[:batch_size]
+            self.tickers_needing_sector().values_list("symbol", flat=True)[:batch_size]
         )
 
         if not tickers:

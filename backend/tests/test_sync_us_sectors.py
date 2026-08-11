@@ -1,6 +1,8 @@
 """Tests for US ticker sector sync — fetching sectors from FMP profiles."""
 from io import StringIO
-from unittest.mock import patch, call
+from unittest.mock import patch
+
+import pytest
 
 from django.core.management import call_command
 
@@ -101,10 +103,14 @@ class TestSyncUsSectors:
         Ticker.objects.create(symbol="TEAM", name="Atlassian", type="stock", sector="")
         Ticker.objects.create(symbol="AAPL", name="Apple Inc.", type="stock", sector="")
 
-        mock_fetch_profile.side_effect = [
-            None,  # TEAM fails
-            {"sector": "Technology", "industry": "Consumer Electronics"},  # AAPL succeeds
-        ]
+        # Keyed by symbol rather than by call order: the command decides the
+        # order, and a list of results silently attaches them to whichever
+        # ticker happens to come first.
+        profiles = {
+            "TEAM": None,
+            "AAPL": {"sector": "Technology", "industry": "Consumer Electronics"},
+        }
+        mock_fetch_profile.side_effect = lambda symbol: profiles[symbol]
 
         out = StringIO()
         call_command("sync_us_sectors", stdout=out, stderr=StringIO())
@@ -127,3 +133,25 @@ class TestSyncUsSectors:
 
         # Should process BIG first (has market cap)
         mock_fetch_profile.assert_called_once_with("BIG")
+
+
+@pytest.mark.django_db
+def test_tickers_without_a_market_cap_are_processed_in_a_stable_order():
+    """Ordering by market cap alone leaves ties to the database.
+
+    Every ticker without a market cap sorts equal, so Postgres may return them
+    in any order and two runs over the same data can process them differently.
+    That makes batch runs unreproducible, and it made
+    test_handles_failed_profile_fetch fail intermittently in CI · its mock
+    hands out results by call order, so whichever row came first got them.
+    """
+    for symbol in ("ZZZZ", "AAAA", "MMMM"):
+        Ticker.objects.create(symbol=symbol, name=symbol, type="stock", sector="")
+
+    from quotes.management.commands.sync_us_sectors import Command
+
+    first = [t.symbol for t in Command().tickers_needing_sector()]
+    second = [t.symbol for t in Command().tickers_needing_sector()]
+
+    assert first == second
+    assert first == ["AAAA", "MMMM", "ZZZZ"]
