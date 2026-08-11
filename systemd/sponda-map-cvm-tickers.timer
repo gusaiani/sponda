@@ -1,0 +1,15 @@
+[Unit]
+Description=Re-map B3 tickers onto CVM codes monthly
+
+# Monthly because the mapping only changes when a company lists, delists,
+# renames or reorganises. The recurring pass is what makes a new listing
+# surface: an IPO arrives with no CVM code, and without it that company would
+# simply never be ingested — which looks exactly like a company that has filed
+# nothing.
+[Timer]
+OnCalendar=*-*-01 04:00:00
+Persistent=true
+RandomizedDelaySec=1800
+
+[Install]
+WantedBy=timers.target

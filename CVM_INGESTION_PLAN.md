@@ -79,18 +79,32 @@ Independent of everything above and worth doing regardless of whether CVM ever b
 
 Cuts up to 25 hours off every path, including the BRAPI one. Highest value per hour of work in the whole plan.
 
-### PR 3 · The ticker bridge
+### PR 3 · The ticker bridge · SHIPPED
 
-CVM keys by `CD_CVM` and CNPJ, never by ticker. `TICKER_TO_CVM_CODE` hardcodes six entries; 348 are needed.
+CVM keys by `CD_CVM` and CNPJ, never by ticker. `TICKER_TO_CVM_CODE` hardcoded six entries; 361 were needed.
 
-- Migration: `Ticker.cvm_code` (nullable, indexed) and `Ticker.cnpj`. In the database, not a Python dict, so corrections need no deploy.
-- `map_tickers_to_cvm` command: normalise (uppercase, strip accents and punctuation, expand `BCO`→`BANCO`, drop `- EM RECUPERAÇÃO JUDICIAL`, unify `S.A.`/`SA`/`S/A`), then token-overlap score against `cad_cia_aberta.csv`. Auto-accept above a confidence threshold, write the remainder to a review CSV with the top three candidates each.
-- Manual pass over the residue, then load the reviewed file.
-- Monthly check that flags Brazilian tickers with market cap and no `cvm_code`, so IPOs surface rather than silently miss.
+**The plan's premise here was wrong.** It assumed the bridge had to be built by fuzzy name matching (200/348 exact, ~150 pairs reviewed by hand). CVM publishes the mapping directly: the FCA securities table (`fca_cia_aberta_valor_mobiliario_<year>.csv`, inside a ~350 KB annual zip) carries `Codigo_Negociacao` — the B3 ticker — against a CNPJ, and the registry maps CNPJ to `CD_CVM`. No fuzzy matching required for the large majority.
 
-Exact-match baseline is 200/348 (57.5%). The 148 failures are all name-rendering drift, not missing companies: `BCO ABC BRASIL S.A.` vs `BANCO ABC BRASIL S/A`, `ALPARGATAS S.A.` vs `ALPARGATAS SA`, `AMERICANAS S.A` vs `AMERICANAS S.A. - EM RECUPERAÇÃO JUDICIAL`. Eleven tickers store no company name at all and need manual entry.
+Three strategies, strongest first, each declining on ambiguity:
 
-Tests: each real failure mode above as a fixture.
+| Method | Evidence | Covers |
+|---|---|---|
+| `ticker` | FCA's published trading code | 361 |
+| `root` | The four-letter B3 root, when FCA lists only the unit (`KLBN11` → `KLBN3`/`KLBN4`) | 12 |
+| `name` | Normalised company name against the registry | 14 |
+| `manual` | `--set`, validated against the registry; never overwritten | 2 |
+
+**358 of 361 resolve from published data alone (99.2%)**, against the plan's budget of ~150 manual pairs. The three that fail are exactly the three storing no company name, so the name fallback has nothing to work with. Two were identified from the registry by hand; `WDCN3` matches no registered company at all.
+
+**The published field is dirty and must be validated.** 61 of the `Codigo_Negociacao` values are not tickers: zeros, a debenture code `1545-8`, and for CSN its own CVM code `4030` in the ticker column. Unvalidated, that attaches real tickers to whichever company published the string. CSN is rejected as a ticker and then recovered correctly by name.
+
+Verified against an independent dataset: 355 of 369 mapped tickers share a distinctive name token with the company that actually filed. All 14 exceptions came from the authoritative `ticker` method and are stale names on our side (Odontoprev → BradSaúde, Marfrig → MBRF), not bad mappings. All six hardcoded pairs from PR #284 reproduce exactly.
+
+Also stored: `Ticker.cvm_code`, `cnpj`, `cvm_match_method`. In the database, not a Python dict, so corrections need no deploy · and provenance is what a disputed figure gets traced back through.
+
+Monthly timer flags Brazilian tickers **with a market cap** and no code, so IPOs surface. The market-cap filter matters: around a dozen BDRs (`XPBR31`, `PRXB31`, `INBR32`) match the B3 shape but are receipts over foreign issuers CVM never registers, so they can never be mapped and would otherwise bury a real new listing under permanent noise.
+
+Known limitation: a BDR sharing a root with a Brazilian issuer (`JBSS32` over JBS N.V. vs `JBSS3` for JBS S.A.) root-matches to the Brazilian entity. None are currently in the universe; the `root` provenance flags it for audit.
 
 ### PR 4 · Sector-aware accounts and a validation gate
 
@@ -135,8 +149,8 @@ Record `filed_at` (`DT_RECEB`) alongside each CVM-sourced row and publish a sing
 | 1a · At-scale calibration | 3, in practice | 0.5 day | Blocked · needs the ticker bridge to reach n=348 |
 | 1b · Publication lag | none | 0.5 day, then observation | **Shipped**, accruing observations |
 | 2 · Cache gap | none | 0.5 day | **Shipped** |
-| 3 · Ticker bridge | none | 1 day, plus manual review of ~150 pairs | Next |
-| 4 · Sector taxonomy | none | 1 day | |
+| 3 · Ticker bridge | none | 1 day, plus manual review of ~150 pairs | **Shipped** · 99.2% from published data, 2 pairs by hand |
+| 4 · Sector taxonomy | none | 1 day | Next |
 | 5 · Continuous ingestion | 1a, 1b, 3, 4 | 1 day | |
 | 6 · Q4 via DFP | 5 | 1 day | |
 | 7 · Metric | 5 | 0.5 day | |
@@ -153,6 +167,7 @@ Roughly **4.5 days** remaining. PRs 3 and 4 are mutually independent.
 | Silent wrong values for banks and insurers | PR 4's balance and continuity checks refuse the write rather than log a warning |
 | CVM's lag turns out no better than BRAPI's | PR 1b measures it against real filings before PR 5 is written · early evidence says the rebuild cadence, not the publication lag, is the constraint |
 | A backfill is mistaken for a measurement | Lag counts only for filings that first appeared in a build later than the earliest recorded one; everything else is reported as backfill, and an empty sample prints "not enough observations yet" rather than a number |
-| Ticker map rots as companies rename or list | Stored in DB, monthly unmapped-ticker report |
+| Ticker map rots as companies rename or list | Stored in DB, monthly unmapped-ticker report filtered to tickers with a market cap |
+| A ticker is mapped to the wrong company | Every strategy declines on ambiguity; `Codigo_Negociacao` is validated against the B3 shape before use; `cvm_match_method` records the evidence so a disputed figure is traceable |
 | CVM changes the archive layout | Real-filing fixtures in tests; the command fails loudly rather than writing nulls |
 | Mixed-source series drift | `source` column plus no historical backfill · CVM writes only quarters BRAPI lacks |

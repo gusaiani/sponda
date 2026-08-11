@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from .cvm_ticker_map import MATCH_METHOD_CHOICES
+
 
 class QuarterlyEarnings(models.Model):
     ticker = models.CharField(max_length=10, db_index=True)
@@ -202,6 +204,27 @@ class Ticker(models.Model):
             "Empty until the first income-statement sync populates it for "
             "FMP-sourced tickers. Used to translate market cap into the "
             "statement currency before computing PE10/PFCF10/etc."
+        ),
+    )
+    cvm_code = models.CharField(
+        max_length=10, null=True, blank=True, default=None, db_index=True,
+        help_text=(
+            "CD_CVM, the code every CVM filing is keyed by. Brazilian tickers "
+            "only; CVM publishes nothing for the rest of the universe. Stored "
+            "here rather than in code so a wrong mapping is correctable "
+            "without a deploy."
+        ),
+    )
+    cnpj = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text="CNPJ of the filing entity, as CVM renders it.",
+    )
+    cvm_match_method = models.CharField(
+        max_length=20, blank=True, default="", choices=MATCH_METHOD_CHOICES,
+        help_text=(
+            "Which evidence produced cvm_code. 'manual' is never overwritten "
+            "by the automated pass, and is what a disputed figure is traced "
+            "back through."
         ),
     )
     updated_at = models.DateTimeField(auto_now=True)

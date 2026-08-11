@@ -1,0 +1,16 @@
+[Unit]
+Description=Sponda ticker to CVM code mapping (bridges B3 tickers onto CVM filings)
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=3600
+StartLimitBurst=2
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py map_tickers_to_cvm
+Restart=on-failure
+RestartSec=600

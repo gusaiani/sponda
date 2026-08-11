@@ -37,6 +37,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Observability](#observability)
 - [Seeding a quarter from CVM](#seeding-a-quarter-from-cvm)
 - [Measuring CVM publication latency](#measuring-cvm-publication-latency)
+- [Mapping tickers to CVM codes](#mapping-tickers-to-cvm-codes)
 - [Scheduled Tasks](#scheduled-tasks)
 
 **Operations**
@@ -852,6 +853,48 @@ Measured 2026-08-11, before any observation window had opened:
 
 If the weekly hypothesis holds, filing-to-live is roughly 1 day at best and 7 at worst, median around 3.5 · better than BRAPI's measured 7–21 days, but a halving rather than the near-elimination a 2-day publication lag on its own would imply. The rebuild cadence, not the publication lag, is the binding constraint.
 
+## Mapping tickers to CVM codes
+
+CVM identifies companies by `CD_CVM` and CNPJ and never by ticker, so nothing can be read from CVM for a given company until this bridge exists. `map_tickers_to_cvm` builds it from published data and stores it on `Ticker`.
+
+### Where the mapping comes from
+
+Three sources of evidence, strongest first. Each declines on ambiguity rather than guessing · a ticker attached to the wrong company produces a plausible wrong number, which survives review far longer than a missing one.
+
+| Method | Evidence | Covers |
+|---|---|---|
+| `ticker` | The FCA securities table publishes `Codigo_Negociacao` (the B3 code) against a CNPJ; the registry maps CNPJ to `CD_CVM` | 361 |
+| `root` | B3 gives one company one four-letter root, and the FCA sometimes lists only the unit (`KLBN11` recovers `KLBN3`/`KLBN4`) | 12 |
+| `name` | Company name against the registry, normalised for how the two datasets differ | 14 |
+| `manual` | Set by hand with `--set`; never overwritten by the automated pass | 2 |
+
+`Ticker.cvm_match_method` records which produced a mapping, so a disputed figure can be traced back to the evidence behind it.
+
+### The published field is dirty
+
+Of the values CVM publishes as `Codigo_Negociacao`, 61 are not tickers at all: zeros, a debenture code (`1545-8`), and for CSN the company's own CVM code (`4030`) sitting in the ticker column. Every candidate is checked against the B3 ticker shape (`^[A-Z]{4}\d{1,2}$`) before use. Reading the field unvalidated attaches real tickers to whichever company published the string.
+
+CSN is the instructive case: its FCA entry is rejected as a ticker, then recovered correctly by name.
+
+### Coverage
+
+358 of 361 Brazilian tickers resolve from published data alone (99.2%). The three that do not (`MBRF3`, `CTAX3`, `WDCN3`) are exactly the three with no company name stored, so the name fallback has nothing to work with. Two were identified from the registry and set by hand; `WDCN3` matches no registered company and remains unmapped.
+
+```bash
+cd backend
+python manage.py map_tickers_to_cvm --dry-run     # report without writing
+python manage.py map_tickers_to_cvm
+python manage.py map_tickers_to_cvm --set MBRF3=20788 --set CTAX3=19100
+```
+
+`--set` validates the code against the registry before writing and refuses one no company holds, since a typo there puts another company's accounts on a real company's page.
+
+### What is deliberately not mapped
+
+BDRs (`XPBR31`, `PRXB31`, `INBR32` and around a dozen others) match the B3 ticker shape but are receipts over foreign issuers that CVM never registers. They can never be mapped. The unmapped report therefore lists only tickers **with a market cap**, so permanent BDR noise cannot bury the one new listing that needs attention.
+
+Known limitation: a BDR sharing a four-letter root with a Brazilian issuer (`JBSS32` over JBS N.V. against `JBSS3` for JBS S.A.) will root-match to the Brazilian entity. Distinct companies, similar figures. The `root` provenance is what flags it for audit; none are currently in the ticker universe.
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
@@ -870,6 +913,7 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
 | `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
 | `snapshot_cvm_filings` | `sponda-snapshot-cvm.timer` | Record which quarterly filings the CVM has published and when, to measure how fast a filing can reach the site. Costs one HEAD request when the archive is unchanged. | Hourly |
+| `map_tickers_to_cvm` | `sponda-map-cvm-tickers.timer` | Resolve Brazilian tickers to the CVM codes their filings are keyed by. The recurring pass is how a new listing surfaces rather than silently never being ingested. | Monthly, 1st 04:00 UTC |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
