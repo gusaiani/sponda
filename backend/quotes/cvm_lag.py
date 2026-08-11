@@ -28,7 +28,9 @@ import math
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from .models import CvmArchiveBuild, CvmFiling
+from django.utils import timezone
+
+from .models import SOURCE_CVM, CvmArchiveBuild, CvmFiling, QuarterlyEarnings
 
 SECONDS_PER_DAY = 86_400
 NINETIETH_PERCENTILE = 0.9
@@ -173,3 +175,60 @@ def _partition_by_measurability(
             continue
         lags.append(lag)
     return lags, backfilled
+
+
+# --- Filing to live ---------------------------------------------------------
+#
+# The goal stated as a number. "As near their quarterly publishing dates as
+# possible" is an aspiration until something can regress and be noticed, and
+# this is the thing that can.
+#
+# Measured per row from the date CVM received the filing (DT_RECEB, stored on
+# the row so it does not depend on the ticker mapping still resolving the same
+# way) to when the row was written. It therefore includes every hop we control
+# — CVM's publication lag, its rebuild cadence, our poll interval and the sync
+# cadence — which is what a reader of the site actually experiences.
+
+
+@dataclass(frozen=True)
+class FreshnessReport:
+    """How long CVM-sourced quarters took to go from filed to live."""
+
+    row_count: int
+    days_to_live: list[int] = field(default_factory=list)
+
+    @property
+    def median_days_to_live(self) -> int | None:
+        median = _median(self.days_to_live)
+        return None if median is None else int(round(median))
+
+    @property
+    def p90_days_to_live(self) -> int | None:
+        return _percentile(self.days_to_live, NINETIETH_PERCENTILE)
+
+    @property
+    def max_days_to_live(self) -> int | None:
+        return max(self.days_to_live, default=None)
+
+
+def build_freshness_report(reference_date: date | None = None) -> FreshnessReport:
+    """Days from filing to live across every CVM-sourced quarter.
+
+    Rows from other providers are excluded rather than counted as zero: they
+    carry no filing date, and their latency is a property of that provider
+    rather than of this pipeline.
+    """
+    rows = QuarterlyEarnings.objects.filter(
+        source=SOURCE_CVM,
+    ).exclude(filed_at=None).only("filed_at", "fetched_at", "end_date")
+    if reference_date is not None:
+        rows = rows.filter(end_date=reference_date)
+    rows = list(rows)
+
+    return FreshnessReport(
+        row_count=len(rows),
+        days_to_live=[
+            (timezone.localtime(row.fetched_at).date() - row.filed_at).days
+            for row in rows
+        ],
+    )

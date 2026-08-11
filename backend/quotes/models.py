@@ -28,6 +28,21 @@ STATEMENT_SOURCE_CHOICES = [
 ]
 
 
+def statement_filed_at_field():
+    """When CVM received the filing this row came from (``DT_RECEB``).
+
+    Recorded so a row is self-describing: it says which filing produced it
+    without depending on the ticker mapping still resolving the same way. It
+    is also what makes the write idempotent · a quarter is rewritten only when
+    a later filing exists for it · and what the filing-to-live metric measures
+    against. Null for rows from providers that publish no filing date.
+    """
+    return models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="DT_RECEB of the filing this row came from (CVM-sourced rows).",
+    )
+
+
 def statement_source_field():
     return models.CharField(
         max_length=10, blank=True, default=SOURCE_UNKNOWN,
@@ -49,6 +64,7 @@ class QuarterlyEarnings(models.Model):
         help_text="basicEarningsPerCommonShare from BRAPI",
     )
     source = statement_source_field()
+    filed_at = statement_filed_at_field()
     fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -87,6 +103,7 @@ class QuarterlyCashFlow(models.Model):
         help_text="Dividendos pagos (dividendsPaid from BRAPI, negative value)",
     )
     source = statement_source_field()
+    filed_at = statement_filed_at_field()
     fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -125,6 +142,7 @@ class BalanceSheet(models.Model):
         help_text="Passivo circulante",
     )
     source = statement_source_field()
+    filed_at = statement_filed_at_field()
     fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:

@@ -952,6 +952,20 @@ Existing rows are deliberately **not** backfilled. Their origin is inferable but
 
 The work list is derived from `CvmFiling` rows the poll already recorded, so deciding there is nothing to write is one query rather than a 12 MB download. That is the normal state between earnings seasons. The archive is fetched once per run and parsed once per company, then written to every ticker sharing that CVM code (ON and PN share one filing).
 
+### Written once, not on every run
+
+A quarter is rewritten only when a **later filing** exists for it. Holding a quarter is not a reason to rewrite it: every rewrite re-parses the company, recomputes ten years of indicators and drops three caches to arrive back where it started. Four runs a day over a season is a great deal of work for no change · and it churns the timestamp that answers "when did this go live".
+
+`filed_at` (CVM's `DT_RECEB`) is stored on each row for that comparison. It also makes a row self-describing: it says which filing produced it without depending on the ticker mapping still resolving the same way.
+
+### Filing to live: the goal as a number
+
+`report_cvm_lag` publishes the metric the whole plan exists to move · **median days from the CVM receiving a filing to the row being live**. Unlike the publication-lag figures above, which measure CVM, this measures the whole path we control: CVM's publication lag, its rebuild cadence, our poll interval and the sync cadence together.
+
+Rows from other providers are excluded rather than counted as zero. They carry no filing date, and their latency is a property of that provider rather than of this pipeline.
+
+Without it, "as near their quarterly publishing dates as possible" is an aspiration rather than something that can regress and be noticed.
+
 ### Failure is kept local
 
 During earnings season a single unparseable filing must not cost the batch. A company that fails to parse, or whose figures are refused by the continuity gate, is reported and skipped; the rest are written. Q4 filings are ignored entirely — ITR covers Q1 to Q3, and Q4 lives in the annual DFP.
