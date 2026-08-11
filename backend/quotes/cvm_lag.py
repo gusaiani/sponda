@@ -196,6 +196,7 @@ class FreshnessReport:
 
     row_count: int
     days_to_live: list[int] = field(default_factory=list)
+    caught_up_row_count: int = 0
 
     @property
     def median_days_to_live(self) -> int | None:
@@ -217,6 +218,13 @@ def build_freshness_report(reference_date: date | None = None) -> FreshnessRepor
     Rows from other providers are excluded rather than counted as zero: they
     carry no filing date, and their latency is a property of that provider
     rather than of this pipeline.
+
+    So are quarters filed before we could ingest them. The first sync wrote
+    quarters filed months earlier, because that is when the feature shipped ·
+    counting those reported a p90 of 89 days and a max of 99, figures that
+    describe when ingestion began rather than how long it takes. A row counts
+    only when its filing arrived after the archive was first observed, which
+    is the same window the publication-lag report uses.
     """
     rows = QuarterlyEarnings.objects.filter(
         source=SOURCE_CVM,
@@ -225,10 +233,26 @@ def build_freshness_report(reference_date: date | None = None) -> FreshnessRepor
         rows = rows.filter(end_date=reference_date)
     rows = list(rows)
 
+    watched_from = _watching_since()
+    days, caught_up = [], 0
+    for row in rows:
+        if watched_from is None or row.filed_at <= watched_from:
+            caught_up += 1
+            continue
+        days.append((timezone.localtime(row.fetched_at).date() - row.filed_at).days)
+
     return FreshnessReport(
         row_count=len(rows),
-        days_to_live=[
-            (timezone.localtime(row.fetched_at).date() - row.filed_at).days
-            for row in rows
-        ],
+        days_to_live=days,
+        caught_up_row_count=caught_up,
     )
+
+
+def _watching_since() -> date | None:
+    """The earliest archive build recorded, in the filing dates' own timezone."""
+    earliest = (
+        CvmArchiveBuild.objects.order_by("last_modified")
+        .values_list("last_modified", flat=True)
+        .first()
+    )
+    return None if earliest is None else timezone.localtime(earliest).date()
