@@ -294,3 +294,22 @@ def test_a_filing_with_no_received_date_does_not_cause_endless_rewrites(gerdau):
     _, download = run()
 
     download.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_a_row_with_no_filing_date_is_not_frozen_forever(gerdau):
+    """Rows written before filed_at existed must still accept a restatement.
+
+    is_writable compares filing dates, so a row without one would compare
+    False against everything and never be updated again · the quarter would be
+    stuck at whatever was first written, silently.
+    """
+    QuarterlyEarnings.objects.create(
+        ticker="GGBR3", end_date=QUARTER, net_income=1,
+        source=SOURCE_CVM, filed_at=None,
+    )
+    run()
+
+    row = QuarterlyEarnings.objects.get(ticker="GGBR3")
+    assert row.net_income != 1
+    assert row.filed_at == date(2026, 8, 4)

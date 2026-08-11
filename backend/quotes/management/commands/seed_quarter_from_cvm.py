@@ -24,7 +24,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from quotes.cvm import CvmParseError, download_itr_archive, extract_quarter_statements
 from quotes.cvm_writer import StatementRejected, write_quarter
-from quotes.models import Ticker
+from quotes.models import CvmFiling, Ticker
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,11 @@ class Command(BaseCommand):
 
             self._report(ticker, statements)
             if not dry_run:
-                self._write(ticker, statements, force=options["force"])
+                self._write(
+                    ticker, statements,
+                    filed_at=self._filed_at(codes[ticker], quarter_end),
+                    force=options["force"],
+                )
             seeded_count += 1
 
         verb = "Would seed" if dry_run else "Seeded"
@@ -141,13 +145,29 @@ class Command(BaseCommand):
             f"PL={_billions(statements.stockholders_equity)}"
         )
 
-    def _write(self, ticker: str, statements, *, force: bool = False) -> None:
+    def _filed_at(self, cvm_code: str, quarter_end: date):
+        """When CVM received the filing this quarter came from.
+
+        Recorded on the row so it is not frozen against later restatements and
+        so the filing-to-live metric can see it. Null when the poll has not
+        recorded the filing, which is not a reason to refuse the write.
+        """
+        return (
+            CvmFiling.objects
+            .filter(cvm_code=cvm_code, reference_date=quarter_end)
+            .exclude(filed_at=None)
+            .order_by("-filed_at")
+            .values_list("filed_at", flat=True)
+            .first()
+        )
+
+    def _write(self, ticker: str, statements, *, filed_at=None, force: bool = False) -> None:
         if force:
             self.stdout.write(self.style.WARNING(
                 f"  {ticker}: overriding the equity continuity check on request"
             ))
         try:
-            write_quarter(ticker, statements, force=force)
+            write_quarter(ticker, statements, filed_at=filed_at, force=force)
         except StatementRejected as rejection:
             raise CommandError(
                 f"{rejection}\n"

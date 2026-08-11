@@ -58,8 +58,15 @@ def is_writable(ticker: str, quarter_end, filed_at=None) -> bool:
         return True
     if row.source != SOURCE_CVM:
         return False
-    if filed_at is None or row.filed_at is None:
+    if filed_at is None:
+        # The filing carries no DT_RECEB, so there is nothing new to learn and
+        # nothing to compare against later. Writing would repeat every run.
         return False
+    if row.filed_at is None:
+        # The row predates filing dates being recorded. Comparing a date
+        # against nothing would freeze the quarter at whatever was written
+        # first, so adopt this filing once · the comparison works from then on.
+        return True
     return filed_at > row.filed_at
 
 
