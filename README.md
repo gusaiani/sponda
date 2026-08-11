@@ -781,19 +781,52 @@ Restatements are handled by keeping the highest `VERSAO` per document, and prior
 
 ### Account mapping
 
-| Field | CVM account |
-|---|---|
-| `revenue` | 3.01 |
-| `net_income` | 3.11 (consolidated, including minority interest · matches BRAPI) |
-| `operating_cash_flow` | 6.01 |
-| `investment_cash_flow` | 6.02 |
-| `dividends_paid` | 6.03.* lines whose description names dividends or interest on equity |
-| `total_debt` | 2.01.04 + 2.02.01 |
-| `total_lease` | 2.01.04.03 + 2.02.01.03 |
-| `total_liabilities` | 2.01 + 2.02 |
-| `stockholders_equity` | 2.03 |
-| `current_assets` | 1.01 |
-| `current_liabilities` | 2.01 |
+An account number is only trusted when the line's own label agrees with it. The chart of accounts is sector-specific, so the number alone does not identify the concept · see below.
+
+| Field | CVM account | Required label |
+|---|---|---|
+| `revenue` | 3.01 | · |
+| `net_income` | 3.11 (consolidated, including minority interest · matches BRAPI) | · |
+| `operating_cash_flow` | 6.01 | · |
+| `investment_cash_flow` | 6.02 | · |
+| `dividends_paid` | 6.03.* lines whose description names dividends or interest on equity | · |
+| `total_debt` | 2.01.04 + 2.02.01 | Empréstimos e Financiamentos |
+| `total_lease` | 2.01.04.03 + 2.02.01.03 | Financiamento por Arrendamento |
+| `total_liabilities` | total (2) − equity, falling back to 2.01 + 2.02 | Passivo Circulante / Não Circulante |
+| `stockholders_equity` | whichever account carries the label | Patrimônio Líquido Consolidado |
+| `current_assets` | 1.01 | Ativo Circulante |
+| `current_liabilities` | 2.01 | Passivo Circulante |
+
+### Why the label, not the number
+
+The same account numbers hold different quantities depending on the filer's sector:
+
+| Account | Industrial filer | Banco do Brasil |
+|---|---|---|
+| `1.01` | Ativo Circulante | Caixa e Equivalentes de Caixa |
+| `2.01` | Passivo Circulante | Passivos Financeiros a Valor Justo |
+| `2.02.01` | Empréstimos e Financiamentos | **Depósitos** |
+| `2.03` | Patrimônio Líquido | **Provisões** |
+
+Read by number alone, a bank's customer deposits become debt and its provisions become equity · R$39.11bn where the real figure is R$196.91bn. These are not mislabelled fields but different quantities, and they feed `debtToEquity`, `liabilitiesToEquity` and `currentRatio`. Every one is a plausible wrong number, which is the kind that survives review.
+
+Across the 416 consolidated filers of 2026, equity sits at `2.03` for 404, `2.07` for 7 and `2.08` for 5 · but **all 416** carry a line labelled "Patrimônio Líquido Consolidado". The label is the reliable key.
+
+Label checking also catches cases a sector rule would miss: three filers publish "Capitalização" at the borrowings account, one publishes "Depósitos Interfinanceiros" at the lease account, and the two insurers *do* report current/non-current, so branching on sector would have wrongly discarded their figures.
+
+`total_liabilities` is taken as the balance-sheet total less equity. That agrees with `2.01 + 2.02` for all 404 industrial filers and, unlike that sum, is also meaningful for a bank whose `2.01`/`2.02` are a fair-value/amortised-cost split rather than a maturity one.
+
+### Validation gates
+
+Both refuse the write rather than log a warning, because what they catch is a plausible wrong number rather than an obvious one.
+
+| Gate | Rule | Basis |
+|---|---|---|
+| Balance identity | Total assets must equal liabilities plus equity, within 0.1% | Held for all 414 filers of 2026 publishing both totals, so a violation means the parse is wrong |
+| Equity ambiguity | Two lines claiming to be equity is refused | Guessing silently halves or doubles every leverage ratio |
+| Equity continuity | Equity must stay within an order of magnitude of the prior quarter | Checked in the writer, where prior quarters exist |
+
+Measured over the full 2026 archive: **416 of 416 filers parse, none refused.** Equity and total liabilities resolve for 415, current assets/liabilities for 403 (the 12 financial filers correctly report neither), debt and leases for 401.
 
 ### Local testing
 
