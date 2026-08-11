@@ -43,7 +43,11 @@ class Command(BaseCommand):
         the figure that can regress and be noticed.
         """
         freshness = build_freshness_report(reference_date=reference_date)
-        self.stdout.write(f"  CVM-sourced rows live: {freshness.row_count}")
+        self.stdout.write(
+            f"  CVM-sourced rows live: {freshness.row_count} "
+            f"({freshness.caught_up_row_count} filed before ingestion began, "
+            f"not measurable)"
+        )
         if freshness.median_days_to_live is None:
             self.stdout.write(f"  filing to live: {UNKNOWN}")
             return

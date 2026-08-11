@@ -11,7 +11,7 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 
-from quotes.cvm_lag import build_lag_report
+from quotes.cvm_lag import build_freshness_report, build_lag_report
 from quotes.models import CvmArchiveBuild, CvmFiling
 
 OBSERVATION_START = datetime(2026, 8, 2, 10, 30, 0, tzinfo=timezone.utc)
@@ -274,8 +274,7 @@ def make_cvm_row(ticker, quarter, filed_at, written_on):
 
 @pytest.mark.django_db
 def test_filing_to_live_measures_receipt_to_the_row_being_written():
-    from quotes.cvm_lag import build_freshness_report
-
+    make_build(datetime(2026, 8, 1, 10, tzinfo=timezone.utc))
     make_cvm_row("GGBR3", date(2026, 6, 30), date(2026, 8, 4),
                  datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc))
 
@@ -294,15 +293,12 @@ def test_filing_to_live_ignores_rows_from_other_providers():
         ticker="VALE3", end_date=date(2026, 6, 30), net_income=1,
         source=SOURCE_BRAPI,
     )
-    from quotes.cvm_lag import build_freshness_report
-
     assert build_freshness_report().days_to_live == []
 
 
 @pytest.mark.django_db
 def test_filing_to_live_reports_the_tail_not_just_the_middle():
-    from quotes.cvm_lag import build_freshness_report
-
+    make_build(datetime(2026, 7, 25, 10, tzinfo=timezone.utc))
     for index, day in enumerate((2, 3, 3, 4, 4, 5, 5, 6, 9, 14)):
         # Midday UTC: midnight would fall on the previous day in Sao Paulo,
         # which is the timezone a filing date is expressed in.
@@ -320,9 +316,48 @@ def test_filing_to_live_reports_the_tail_not_just_the_middle():
 
 @pytest.mark.django_db
 def test_filing_to_live_says_nothing_without_rows():
-    from quotes.cvm_lag import build_freshness_report
-
     report = build_freshness_report()
 
     assert report.row_count == 0
     assert report.median_days_to_live is None
+
+
+@pytest.mark.django_db
+def test_filing_to_live_excludes_quarters_filed_before_we_could_ingest_them():
+    """Catching up is not a measurement of the pipeline.
+
+    The first sync wrote quarters filed months earlier, because that is when
+    the feature shipped. Counting those reported a p90 of 89 days and a max of
+    99 — figures that describe when ingestion began, not how long it takes.
+    Same distinction the publication-lag report already makes, arrived at from
+    the other direction.
+    """
+    make_build(FIRST_SUNDAY)  # observation began 2026-08-09
+    make_cvm_row("OLDD3", date(2026, 3, 31), date(2026, 5, 4),
+                 datetime(2026, 8, 11, 12, tzinfo=timezone.utc))
+
+    report = build_freshness_report()
+
+    assert report.days_to_live == []
+    assert report.caught_up_row_count == 1
+
+
+@pytest.mark.django_db
+def test_filing_to_live_counts_a_quarter_filed_while_we_were_watching():
+    make_build(FIRST_SUNDAY)  # 2026-08-09
+    make_cvm_row("NEWW3", date(2026, 6, 30), date(2026, 8, 12),
+                 datetime(2026, 8, 15, 12, tzinfo=timezone.utc))
+
+    report = build_freshness_report()
+
+    assert report.days_to_live == [3]
+    assert report.caught_up_row_count == 0
+
+
+@pytest.mark.django_db
+def test_filing_to_live_measures_nothing_before_observation_began():
+    """Without a recorded build there is no window, so nothing is claimed."""
+    make_cvm_row("ANYY3", date(2026, 6, 30), date(2026, 8, 4),
+                 datetime(2026, 8, 11, 12, tzinfo=timezone.utc))
+
+    assert build_freshness_report().days_to_live == []

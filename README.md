@@ -964,6 +964,8 @@ A quarter is rewritten only when a **later filing** exists for it. Holding a qua
 
 Rows from other providers are excluded rather than counted as zero. They carry no filing date, and their latency is a property of that provider rather than of this pipeline.
 
+So are quarters filed before ingestion could reach them. The first sync wrote quarters filed months earlier, because that is when the feature shipped · counting those reported `p90 89d, max 99d`, figures describing when ingestion began rather than how long it takes. A row counts only once its filing arrived after the archive was first observed, which is the same window the publication-lag report uses. The excluded rows are reported as `filed before ingestion began, not measurable`.
+
 Without it, "as near their quarterly publishing dates as possible" is an aspiration rather than something that can regress and be noticed.
 
 ### Failure is kept local
