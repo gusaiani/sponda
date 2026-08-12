@@ -138,3 +138,37 @@ class TestRestartLimitsAreInTheRightSection:
             line.startswith("StartLimitBurst")
             for line in unit_section(contents, "Unit")
         ), f"{service} restarts on failure but declares no StartLimitBurst in [Unit]"
+
+
+def e2e_test_modules():
+    return sorted(path.name for path in (REPO_ROOT / "backend" / "tests").glob("test_e2e*.py"))
+
+
+class TestEveryBrowserSuiteRunsSomewhere:
+    """A Playwright suite must be in the e2e matrix, not the unit-tests job.
+
+    The unit-tests job builds no frontend, so a browser suite there calls
+    `pytest.skip("Frontend build failed")` and the run still reports success.
+    test_e2e_visited.py sat in exactly that position: five tests for the
+    visited feature, skipped on every CI run, absent from the matrix, and
+    passing locally only because a built frontend happened to be lying around.
+
+    Skipping is the dangerous failure here · nothing is red, and the coverage
+    simply is not there.
+    """
+
+    @pytest.mark.parametrize("module", e2e_test_modules())
+    def test_the_unit_tests_job_does_not_try_to_run_it(self, module):
+        deploy = DEPLOY_WORKFLOW.read_text()
+        assert f"--ignore=tests/{module}" in deploy, (
+            f"{module} is a browser suite; the unit-tests job must ignore it "
+            f"rather than skip it silently"
+        )
+
+    @pytest.mark.parametrize("module", e2e_test_modules())
+    def test_it_is_a_shard_of_the_e2e_matrix(self, module):
+        deploy = DEPLOY_WORKFLOW.read_text()
+        assert f"          - {module}" in deploy, (
+            f"{module} is ignored by unit-tests but is not an e2e shard, so it "
+            f"runs nowhere at all"
+        )
