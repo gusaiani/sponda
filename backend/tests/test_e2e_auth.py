@@ -356,7 +356,8 @@ class TestAuthModalFromFavorite:
         page.locator(".feedback-panel .auth-mode-toggle >> text=Criar conta").click()
         expect(page.locator("input#modal-confirm-password")).to_be_visible(timeout=3000)
 
-        page.fill("input#modal-email", "newvia-star@example.com")
+        email = f"newvia-star-{uuid.uuid4().hex[:12]}@example.com"
+        page.fill("input#modal-email", email)
         page.fill("input#modal-password", "securepass123")
         page.fill("input#modal-confirm-password", "securepass123")
         submit_modal_form(page)
@@ -365,7 +366,7 @@ class TestAuthModalFromFavorite:
         expect(page.locator(".feedback-panel")).not_to_be_visible(timeout=10000)
         expect(page.locator(".favorite-button-active")).to_be_visible(timeout=10000)
 
-        assert User.objects.filter(email="newvia-star@example.com").exists()
+        assert User.objects.filter(email=email).exists()
 
     def test_modal_close_on_overlay_click(self, page: Page, url):
         page.goto(f"{url}/PETR4")
@@ -438,14 +439,15 @@ class TestAuthModalFromSaveList:
 
         # Switch to signup
         page.locator(".feedback-panel .auth-mode-toggle >> text=Criar conta").click()
-        page.fill("input#modal-email", "newvia-list@example.com")
+        email = f"newvia-list-{uuid.uuid4().hex[:12]}@example.com"
+        page.fill("input#modal-email", email)
         page.fill("input#modal-password", "securepass123")
         page.fill("input#modal-confirm-password", "securepass123")
         submit_modal_form(page)
 
         # Save form should open
         expect(page.locator(".compare-save-modal")).to_be_visible(timeout=10000)
-        assert User.objects.filter(email="newvia-list@example.com").exists()
+        assert User.objects.filter(email=email).exists()
 
     def test_save_list_modal_login_error_then_retry(self, page: Page, url, test_user):
         page.goto(f"{url}/PETR4/comparar")
@@ -529,7 +531,8 @@ class TestHomepageAddFavoriteCard:
         page.locator(".feedback-panel .auth-mode-toggle >> text=Criar conta").click()
 
         # Fill signup form
-        page.locator(".feedback-panel input#modal-email").fill("homepage-fav@test.com")
+        email = f"homepage-fav-{uuid.uuid4().hex[:12]}@example.com"
+        page.locator(".feedback-panel input#modal-email").fill(email)
         page.locator(".feedback-panel input#modal-password").fill("securepass123")
         page.locator(".feedback-panel input#modal-confirm-password").fill("securepass123")
         submit_modal_form(page)
