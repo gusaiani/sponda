@@ -39,6 +39,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Measuring CVM publication latency](#measuring-cvm-publication-latency)
 - [Mapping tickers to CVM codes](#mapping-tickers-to-cvm-codes)
 - [Ingesting quarters from CVM](#ingesting-quarters-from-cvm)
+- [The fourth quarter](#the-fourth-quarter)
 - [Scheduled Tasks](#scheduled-tasks)
 
 **Operations**
@@ -990,6 +991,36 @@ python manage.py seed_quarter_from_cvm --quarter 2026-06-30 --ticker SAUD3 --for
 
 `--force` overrides the continuity check only, and is logged at warning level. The parser's own gates are not overridable: a balance sheet that does not balance is a parse fault whoever is asking. The scheduled sync never forces.
 
+## The fourth quarter
+
+ITR covers Q1 to Q3. **Nobody files Q4 as a standalone period** · the annual DFP carries the calendar year and nothing else, so Q4 is derived as the audited year minus the nine months already reported.
+
+### The difference lands in Q4
+
+The year is audited and the quarters are not, so any adjustment the auditors made to an earlier quarter is charged wholly to Q4. That is deliberate: the four quarters then sum to the audited year, and the alternative · rewriting Q1 to Q3 from the DFP · would displace BRAPI's series, which the whole ingestion path treats as the baseline. Not a trade worth making for a quarter BRAPI itself publishes within weeks.
+
+### What can and cannot be checked
+
+| Refused | Why |
+|---|---|
+| The annual reports no net income | Three 2025 filers published a zero annual against quarters summing to billions; differencing that derives a large false loss |
+| Q1, Q2 or Q3 is missing | Two quarters is not nine months |
+| The balance sheet does not balance, or equity moved an order of magnitude | The same gates the quarterly path uses |
+
+**A bound on the size of the implied quarter would be dead code** and is deliberately absent. The implied value is the year minus the nine months, so its magnitude can never exceed their sum; any threshold loose enough to permit a genuine collapse is already unreachable. A check that cannot fire reads as protection without being any.
+
+So a year that quietly disagrees with its own quarters is **not** detectable here. AUAU3 and BOBR4 differ from theirs by 63% and 36%, and with only the year and the nine months in hand, a Q4 absorbing that is arithmetically indistinguishable from a terrible quarter. It shows up only against a Q4 from another source, which is what `source` makes auditable after the fact.
+
+### Measured against 2025
+
+Of 279 companies where a Q4 could be derived, **277 (99.3%) matched the Q4 BRAPI eventually published**, within 1%. Three were refused by the gate. The two that differed are exactly the pair above.
+
+```bash
+cd backend
+python manage.py sync_cvm_fourth_quarters --dry-run
+python manage.py sync_cvm_fourth_quarters --year 2025
+```
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
@@ -1010,6 +1041,7 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `snapshot_cvm_filings` | `sponda-snapshot-cvm.timer` | Record which quarterly filings the CVM has published and when, to measure how fast a filing can reach the site. Costs one HEAD request when the archive is unchanged. | Hourly |
 | `map_tickers_to_cvm` | `sponda-map-cvm-tickers.timer` | Resolve Brazilian tickers to the CVM codes their filings are keyed by. The recurring pass is how a new listing surfaces rather than silently never being ingested. | Monthly, 1st 04:00 UTC |
 | `sync_cvm_filings` | `sponda-sync-cvm.timer` | Write newly filed quarters that no other source holds. One query when there is nothing to write. | 4x daily |
+| `sync_cvm_fourth_quarters` | `sponda-sync-cvm-q4.timer` | Derive Q4 from the annual DFP for companies lacking it. DFPs arrive across February and March. | Daily 05:40 UTC |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
