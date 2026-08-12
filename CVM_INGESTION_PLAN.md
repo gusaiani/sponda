@@ -147,14 +147,24 @@ Measured over the full 2026 archive: **416 of 416 filers parse, none refused.** 
 
 The write path is shared with the manual seeder (`quotes/cvm_writer.py`) so both go through the same gates rather than drifting.
 
-### PR 6 · Q4 via DFP
+### PR 6 · Q4 via DFP · SHIPPED
 
 ITR covers Q1 to Q3 only. Q4 lives in the annual DFP, filed the following March and audited.
 
-- Extend `cvm.py` to the DFP archive (confirmed available back to 2010). Q4 flows = annual minus the nine-month YTD from the Q3 ITR; the 31 December balance sheet comes straight from the DFP.
-- The DFP restates unaudited quarters, so landing one must reprocess Q1 to Q3 of that year, not merely append Q4.
+- `cvm.py` extended to the DFP archive. Both archives publish the same five statement files under different prefixes, so the account mapping, label guards and balance checks apply unchanged.
+- Q4 flows = the audited year minus the nine months already reported. The 31 December balance sheet comes straight from the DFP · a snapshot is not differenced.
+- Only the calendar-year window counts. Filers on non-calendar fiscal years publish trailing-twelve-month windows against the same document, and taking any twelve-month window would mix a March-ending year into a December one.
 
-Last in sequence: Q4 filings arrive in March, well outside the window this plan is optimising.
+**The plan said landing Q4 must reprocess Q1 to Q3 rather than merely append. It does not, deliberately.** The audit adjustment is charged wholly to Q4, so the four quarters sum to the audited year, and BRAPI's series is never displaced.
+
+That decision rests on measurement rather than preference. BRAPI carries restated figures: across the ten Q1 2026 filings CVM shows as restated, BRAPI's stored net income matched CVM's restated value **9 of 9**. Restatements are 3.6% of filings (30 of 827). Since the weekly `refresh_snapshot_fundamentals` re-syncs the full history and overwrites on `(ticker, end_date)`, a restatement reaches us within a week without intervention. There is nothing to gain by breaking the invariant.
+
+**A bound on the implied quarter's size would be dead code and is deliberately absent.** The implied value is the year minus the nine months, so its magnitude can never exceed their sum; any threshold loose enough to admit a genuine collapse is unreachable. What is refused instead: an annual reporting no net income (three 2025 filers published zero against quarters worth billions), and any company missing one of Q1 to Q3.
+
+A year that quietly disagrees with its own quarters stays undetectable here · AUAU3 and BOBR4 differ from theirs by 63% and 36%, visible only against a Q4 from another source. `source` is what makes those auditable.
+
+Measured against 2025: of 279 companies where a Q4 could be derived, **277 (99.3%) matched the Q4 BRAPI eventually published**, within 1%. Three refused by the gate; the two that differed are the pair above.
+
 
 ### PR 7 · The goal as a number
 
@@ -170,8 +180,8 @@ Record `filed_at` (`DT_RECEB`) alongside each CVM-sourced row and publish a sing
 | 3 · Ticker bridge | none | 1 day, plus manual review of ~150 pairs | **Shipped** · 99.2% from published data, 2 pairs by hand |
 | 4 · Sector taxonomy | none | 1 day | **Shipped** · label-guarded, no sector branching needed |
 | 5 · Continuous ingestion | 1a, 1b, 3, 4 | 1 day | **Shipped** |
-| 6 · Q4 via DFP | 5 | 1 day | |
-| 7 · Metric | 5 | 0.5 day | |
+| 6 · Q4 via DFP | 5 | 1 day | **Shipped** |
+| 7 · Metric | 5 | 0.5 day | **Shipped** |
 
 Roughly **3 days** remaining, all of it now on the critical path: 1a gates PR 5, and PRs 6 and 7 follow it.
 

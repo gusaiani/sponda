@@ -1,0 +1,19 @@
+[Unit]
+Description=Write fourth quarters from the annual DFP, daily
+
+# Daily, unlike the quarterly sync's four times. DFPs arrive across February
+# and March and each company files once, so there is nothing to gain from
+# checking more often. Between seasons the run costs one query: it downloads
+# only when some mapped company lacks Q4 and holds the three quarters the
+# derivation needs.
+#
+# Persistent=false for the same reason as the quarterly sync · the work list
+# is re-derived from database state, so a missed run costs at most a day and
+# catch-up would fire the first unattended write during a deploy.
+[Timer]
+OnCalendar=*-*-* 05:40:00
+Persistent=false
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

@@ -35,6 +35,16 @@ ITR_ARCHIVE_URL_TEMPLATE = (
 )
 ITR_INDEX_FILENAME_TEMPLATE = "itr_cia_aberta_{year}.csv"
 
+# The annual DFP, which is where the fourth quarter has to come from. ITR
+# covers Q1 to Q3; nobody files Q4 as a standalone period, so it is derived as
+# the audited year minus the nine months already reported.
+DFP_ARCHIVE_URL_TEMPLATE = (
+    "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/DFP/DADOS/"
+    "dfp_cia_aberta_{year}.zip"
+)
+ITR_STATEMENT_PREFIX = "itr_cia_aberta"
+DFP_STATEMENT_PREFIX = "dfp_cia_aberta"
+
 DOWNLOAD_TIMEOUT_SECONDS = 120
 HEAD_TIMEOUT_SECONDS = 30
 
@@ -640,6 +650,96 @@ def _validate_quarter_end(quarter_end: date) -> None:
         )
 
 
+def _statement_sets(archive, prefix: str, year: int, cvm_code: str):
+    """The four statement row sets one company filed, from either archive.
+
+    ITR and DFP publish the same five files under different prefixes, so the
+    account mapping, label guards and balance checks apply unchanged to both.
+    """
+    income = _company_rows(archive, f"{prefix}_DRE_con_{year}.csv", cvm_code)
+    cash_flow = _company_rows(archive, f"{prefix}_DFC_MI_con_{year}.csv", cvm_code)
+    if not cash_flow:
+        cash_flow = _company_rows(archive, f"{prefix}_DFC_MD_con_{year}.csv", cvm_code)
+    assets = _company_rows(archive, f"{prefix}_BPA_con_{year}.csv", cvm_code)
+    liabilities = _company_rows(archive, f"{prefix}_BPP_con_{year}.csv", cvm_code)
+    return income, cash_flow, assets, liabilities
+
+
+def build_dfp_archive_url(year: int) -> str:
+    return DFP_ARCHIVE_URL_TEMPLATE.format(year=year)
+
+
+def download_dfp_archive(year: int) -> bytes:
+    """Fetch the annual DFP archive published by the CVM."""
+    response = requests.get(
+        build_dfp_archive_url(year), timeout=DOWNLOAD_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return response.content
+
+
+def extract_annual_statements(
+    archive_bytes: bytes, cvm_code: str, year: int,
+) -> QuarterStatements:
+    """Read one company's audited year from the DFP.
+
+    Flows cover the calendar year exactly. Filers on a non-calendar fiscal year
+    publish trailing-twelve-month windows against the same document, and those
+    are not the year · taking any twelve-month window would silently mix a
+    March-ending year into a December one.
+
+    The balance sheet is the 31 December snapshot, filed directly. Only the
+    flows ever need arithmetic, and that happens downstream where the nine
+    months already reported are known.
+    """
+    year_end = date(year, 12, 31)
+    archive = zipfile.ZipFile(io.BytesIO(archive_bytes))
+
+    income_rows, cash_flow_rows, asset_rows, liability_rows = _statement_sets(
+        archive, DFP_STATEMENT_PREFIX, year, cvm_code,
+    )
+
+    income_flows = _index_flows(income_rows)
+    cash_flows = _index_flows(cash_flow_rows)
+    balances = _index_balances(asset_rows + liability_rows, year_end)
+    _validate_balance_sheet(balances)
+    equity = _equity(balances)
+
+    year_window = (date(year, 1, 1), year_end)
+
+    def over_the_year(flows, account):
+        return flows.get((account, *year_window))
+
+    return QuarterStatements(
+        cvm_code=cvm_code,
+        quarter_end=year_end,
+        revenue=over_the_year(income_flows, ACCOUNT_REVENUE),
+        net_income=over_the_year(income_flows, ACCOUNT_NET_INCOME),
+        operating_cash_flow=over_the_year(cash_flows, ACCOUNT_OPERATING_CASH_FLOW),
+        investment_cash_flow=over_the_year(cash_flows, ACCOUNT_INVESTMENT_CASH_FLOW),
+        dividends_paid=_annual_dividends(cash_flow_rows, cash_flows, year_window),
+        total_debt=_debt_total(balances),
+        total_lease=_lease_total(balances),
+        total_liabilities=_total_liabilities(balances, equity),
+        stockholders_equity=equity,
+        current_assets=_labelled_amount(
+            balances, ACCOUNT_CURRENT_ASSETS, LABEL_CURRENT_ASSETS,
+        ),
+        current_liabilities=_labelled_amount(
+            balances, ACCOUNT_CURRENT_LIABILITIES, LABEL_CURRENT_LIABILITIES,
+        ),
+    )
+
+
+def _annual_dividends(rows, flows, year_window) -> int | None:
+    amounts = [
+        flows.get((account, *year_window))
+        for account in sorted(_dividend_accounts(rows))
+    ]
+    resolved = [amount for amount in amounts if amount is not None]
+    return sum(resolved) if resolved else None
+
+
 def extract_quarter_statements(
     archive_bytes: bytes, cvm_code: str, quarter_end: date,
 ) -> QuarterStatements:
@@ -649,17 +749,8 @@ def extract_quarter_statements(
     year = quarter_end.year
     archive = zipfile.ZipFile(io.BytesIO(archive_bytes))
 
-    income_rows = _company_rows(archive, f"itr_cia_aberta_DRE_con_{year}.csv", cvm_code)
-    cash_flow_rows = _company_rows(
-        archive, f"itr_cia_aberta_DFC_MI_con_{year}.csv", cvm_code,
-    )
-    if not cash_flow_rows:
-        cash_flow_rows = _company_rows(
-            archive, f"itr_cia_aberta_DFC_MD_con_{year}.csv", cvm_code,
-        )
-    asset_rows = _company_rows(archive, f"itr_cia_aberta_BPA_con_{year}.csv", cvm_code)
-    liability_rows = _company_rows(
-        archive, f"itr_cia_aberta_BPP_con_{year}.csv", cvm_code,
+    income_rows, cash_flow_rows, asset_rows, liability_rows = _statement_sets(
+        archive, ITR_STATEMENT_PREFIX, year, cvm_code,
     )
 
     income_flows = _index_flows(income_rows)
