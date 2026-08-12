@@ -4,6 +4,10 @@
 
 That is a latency target, not a data-source preference. CVM is the means, not the end · we adopt it only where it shortens the path from filing to page. BRAPI stays the sole source of prices, market caps, dividends per share and the ticker universe, none of which CVM publishes.
 
+> **All seven PRs shipped.** What to check and when · including the first
+> real filing-to-live measurement, due from the rebuild after the
+> 2026-08-14 Q2 deadline · is in [`CVM_RUNBOOK.md`](CVM_RUNBOOK.md).
+
 ## Where the latency actually is
 
 Filing to pixel, today, decomposed:
