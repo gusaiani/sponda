@@ -612,6 +612,27 @@ class TestPE10ViewPersistsSnapshot:
         snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
         assert snapshot.market_cap == 585_000_000_000
 
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_persists_strict_pe_windows(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote,
+        api_client, sample_earnings, sample_ipca, mock_brapi_quote
+    ):
+        # The page shows the loose up-to-10-years PE10, but the snapshot it
+        # persists must hold the strict window family the screener serves.
+        mock_quote.return_value = mock_brapi_quote
+
+        response = api_client.get("/api/quote/PETR4/")
+        assert response.status_code == 200
+
+        snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
+        assert snapshot.pe_years_available == 10
+        assert snapshot.pe1 is not None
+        assert snapshot.pe10 is not None
+        assert snapshot.pe15 is None  # only 10 years of history — strictly empty
+
     @patch("quotes.views._persist_snapshot_from_view")
     @patch("quotes.views.fetch_quote")
     @patch("quotes.views.sync_balance_sheets")

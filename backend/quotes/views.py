@@ -33,6 +33,7 @@ from .lookup_enforcement import LookupQuotaEnforcedView
 from .lookup_quota import lookup_quota, would_exceed_limit
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .tasks import refresh_provider_data
+from .indicators import compute_company_indicators
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
 from .leverage import calculate_leverage
 from .models import BalanceSheet, CompanyAnalysis, IndicatorSnapshot, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
@@ -617,50 +618,26 @@ def _persist_snapshot_from_view(
     ticker: str,
     market_cap: int,
     current_price: Decimal,
-    pe10_result: dict,
-    pfcf10_result: dict,
-    leverage_result: dict,
-    peg_result: dict,
-    pfcf_peg_result: dict,
-    debt_to_avg_earnings,
-    debt_to_avg_fcf,
 ) -> None:
-    """Cache the user-viewed indicator set into ``IndicatorSnapshot`` and keep
-    ``Ticker.market_cap`` in sync.
+    """Cache the freshly viewed company's indicators into
+    ``IndicatorSnapshot`` and keep ``Ticker.market_cap`` in sync.
 
-    Called as a side-effect at the end of :class:`PE10View.get`. Any write
-    failure is swallowed — persistence must never break the page.
+    Called as a side-effect at the end of :class:`PE10View.get`. Recomputes
+    through :func:`quotes.indicators.compute_company_indicators` — the same
+    service the scheduled refreshes use — so a page view can never write a
+    snapshot shape the screener disagrees with (the page's displayed PE10 is
+    the loose up-to-10-years variant; the snapshot's is the strict window).
+    Any write failure is swallowed — persistence must never break the page.
     """
-
-    def _to_decimal(value):
-        if value is None:
-            return None
-        if isinstance(value, Decimal):
-            return value
-        return Decimal(str(value))
-
     try:
-        IndicatorSnapshot.objects.update_or_create(
-            ticker=ticker,
-            defaults={
-                "pe10": _to_decimal(pe10_result.get("pe10")),
-                "pfcf10": _to_decimal(pfcf10_result.get("pfcf10")),
-                "peg": _to_decimal(peg_result.get("peg")),
-                "pfcf_peg": _to_decimal(pfcf_peg_result.get("pfcfPeg")),
-                "debt_to_equity": _to_decimal(leverage_result.get("debtToEquity")),
-                "debt_ex_lease_to_equity": _to_decimal(
-                    leverage_result.get("debtExLeaseToEquity"),
-                ),
-                "liabilities_to_equity": _to_decimal(
-                    leverage_result.get("liabilitiesToEquity"),
-                ),
-                "current_ratio": _to_decimal(leverage_result.get("currentRatio")),
-                "debt_to_avg_earnings": _to_decimal(debt_to_avg_earnings),
-                "debt_to_avg_fcf": _to_decimal(debt_to_avg_fcf),
-                "market_cap": int(market_cap) if market_cap else None,
-                "current_price": _to_decimal(current_price),
-            },
+        indicators = compute_company_indicators(
+            ticker,
+            market_cap=int(market_cap) if market_cap else None,
+            current_price=(
+                Decimal(str(current_price)) if current_price is not None else None
+            ),
         )
+        IndicatorSnapshot.objects.update_or_create(ticker=ticker, defaults=indicators)
     except Exception as error:
         logger.warning("IndicatorSnapshot persist failed for %s: %s", ticker, error)
 
@@ -969,13 +946,6 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
             ticker=ticker,
             market_cap=market_cap,
             current_price=current_price,
-            pe10_result=pe10_result,
-            pfcf10_result=pfcf10_result,
-            leverage_result=leverage_result,
-            peg_result=peg_result,
-            pfcf_peg_result=pfcf_peg_result,
-            debt_to_avg_earnings=debt_to_avg_earnings,
-            debt_to_avg_fcf=debt_to_avg_fcf,
         )
     except Exception as error:
         logger.warning("persist_snapshot_from_view failed for %s: %s", ticker, error)

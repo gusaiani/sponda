@@ -1,8 +1,9 @@
 """15-minute quote-only refresh for :class:`IndicatorSnapshot`.
 
 Fetches the current quote for every ticker with a market cap and recomputes
-only the price-dependent indicators (PE10, PFCF10, PEG, P/FCF PEG) against
-existing DB fundamentals. Leverage and debt-coverage fields are left alone
+only the price-dependent indicators (the strict P/E windows PE1–PE15,
+PFCF10, PEG, P/FCF PEG) against existing DB fundamentals. Leverage and
+debt-coverage fields are left alone
 because they depend on balance-sheet / cash-flow data, which is refreshed
 weekly by ``refresh_snapshot_fundamentals``.
 
@@ -18,7 +19,7 @@ from django.core.cache import cache
 from config.monitored_command import MonitoredCommand
 from quotes.market_hours import any_exchange_open
 from quotes.models import IndicatorSnapshot, Ticker
-from quotes.pe10 import calculate_pe10
+from quotes.pe10 import PE_WINDOW_YEARS, calculate_pe_windows
 from quotes.peg import calculate_peg
 from quotes.pfcf10 import calculate_pfcf10
 from quotes.pfcf_peg import calculate_pfcf_peg
@@ -136,9 +137,10 @@ class Command(MonitoredCommand):
 
                 market_cap_decimal = Decimal(str(market_cap))
 
-                pe10_result = calculate_pe10(symbol, market_cap_decimal, max_years=10)
+                pe_windows_result = calculate_pe_windows(symbol, market_cap_decimal)
                 pfcf10_result = calculate_pfcf10(symbol, market_cap_decimal, max_years=10)
-                pe10_value = pe10_result.get("pe10")
+                pe_by_years = pe_windows_result["pe_by_years"]
+                pe10_value = pe_by_years.get(10)
                 pfcf10_value = pfcf10_result.get("pfcf10")
 
                 peg_result = (
@@ -155,7 +157,11 @@ class Command(MonitoredCommand):
                 defaults = {
                     "market_cap": int(market_cap),
                     "current_price": _to_decimal(current_price),
-                    "pe10": _to_decimal(pe10_value),
+                    **{
+                        f"pe{years}": _to_decimal(pe_by_years.get(years))
+                        for years in PE_WINDOW_YEARS
+                    },
+                    "pe_years_available": pe_windows_result["years_available"],
                     "pfcf10": _to_decimal(pfcf10_value),
                     "peg": _to_decimal(peg_result.get("peg")),
                     "pfcf_peg": _to_decimal(pfcf_peg_result.get("pfcfPeg")),
