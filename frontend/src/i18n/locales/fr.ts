@@ -719,9 +719,9 @@ export const fr: TranslationDictionary = {
   "mcp.copy": "Copier",
   "mcp.copied": "Copié",
   "mcp.try_asking": "Puis essayez de demander",
-  "mcp.query_screener": "Quelles sociétés brésiliennes se négocient sous 10× P/E10 avec une dette/capitaux propres inférieure à 1 ?",
-  "mcp.query_company": "Où en est WEGE3 sur les indicateurs de Sponda en ce moment ?",
-  "mcp.query_ranking": "Classez les valeurs technologiques américaines par P/FCF10 et montrez les cinq moins chères.",
+  "mcp.query_screener": "Quelles sociétés françaises se négocient sous 10× P/E10 avec une dette/capitaux propres inférieure à 1 ?",
+  "mcp.query_company": "Où en est LVMH (LVMUY) sur les indicateurs de Sponda en ce moment ?",
+  "mcp.query_ranking": "Classez les sociétés françaises par P/FCF10 et montrez les cinq moins chères.",
   "mcp.meta": "Gratuit · sans clé API · 200 appels par jour et par IP",
   "mcp.maybe_later": "Plus tard",
 };

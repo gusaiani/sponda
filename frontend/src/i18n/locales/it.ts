@@ -719,9 +719,9 @@ export const it: TranslationDictionary = {
   "mcp.copy": "Copia",
   "mcp.copied": "Copiato",
   "mcp.try_asking": "Poi prova a chiedere",
-  "mcp.query_screener": "Quali società brasiliane quotano sotto 10× P/E10 con debito/patrimonio sotto 1?",
-  "mcp.query_company": "Come sta WEGE3 sugli indicatori di Sponda in questo momento?",
-  "mcp.query_ranking": "Ordina le tecnologiche USA per P/FCF10 e mostra le cinque più economiche.",
+  "mcp.query_screener": "Quali società italiane quotano sotto 10× P/E10 con debito/patrimonio sotto 1?",
+  "mcp.query_company": "Come sta la Ferrari (RACE) sugli indicatori di Sponda in questo momento?",
+  "mcp.query_ranking": "Ordina le società italiane per P/FCF10 e mostra le cinque più economiche.",
   "mcp.meta": "Gratuito · nessuna chiave API · 200 chiamate al giorno per IP",
   "mcp.maybe_later": "Più tardi",
 };

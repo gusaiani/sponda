@@ -721,7 +721,7 @@ export const pt: TranslationDictionary = {
   "mcp.try_asking": "Depois experimente perguntar",
   "mcp.query_screener": "Quais empresas brasileiras negociam abaixo de 10× P/L10 com dívida/patrimônio abaixo de 1?",
   "mcp.query_company": "Como está a WEGE3 nos indicadores do Sponda agora?",
-  "mcp.query_ranking": "Ordene as empresas de tecnologia dos EUA por P/FCL10 e mostre as cinco mais baratas.",
+  "mcp.query_ranking": "Ordene as empresas brasileiras por P/FCL10 e mostre as cinco mais baratas.",
   "mcp.meta": "Grátis · sem chave de API · 200 chamadas de ferramentas por dia por IP",
   "mcp.maybe_later": "Talvez depois",
 };

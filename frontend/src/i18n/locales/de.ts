@@ -719,9 +719,9 @@ export const de: TranslationDictionary = {
   "mcp.copy": "Kopieren",
   "mcp.copied": "Kopiert",
   "mcp.try_asking": "Dann fragen Sie zum Beispiel",
-  "mcp.query_screener": "Welche brasilianischen Unternehmen notieren unter dem 10-Fachen des P/E10 mit einem Verschuldungsgrad unter 1?",
-  "mcp.query_company": "Wie steht WEGE3 aktuell bei den Sponda-Indikatoren da?",
-  "mcp.query_ranking": "Sortiere US-Tech-Unternehmen nach P/FCF10 und zeige die fünf günstigsten.",
+  "mcp.query_screener": "Welche deutschen Unternehmen notieren unter dem 10-Fachen des P/E10 mit einem Verschuldungsgrad unter 1?",
+  "mcp.query_company": "Wie steht SAP aktuell bei den Sponda-Indikatoren da?",
+  "mcp.query_ranking": "Sortiere deutsche Unternehmen nach P/FCF10 und zeige die fünf günstigsten.",
   "mcp.meta": "Kostenlos · kein API-Schlüssel · 200 Aufrufe pro Tag und IP",
   "mcp.maybe_later": "Vielleicht später",
 };

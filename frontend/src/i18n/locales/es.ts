@@ -719,9 +719,9 @@ export const es: TranslationDictionary = {
   "mcp.copy": "Copiar",
   "mcp.copied": "Copiado",
   "mcp.try_asking": "Luego prueba a preguntar",
-  "mcp.query_screener": "¿Qué empresas brasileñas cotizan por debajo de 10× P/E10 con deuda/patrimonio inferior a 1?",
-  "mcp.query_company": "¿Cómo está WEGE3 en los indicadores de Sponda ahora mismo?",
-  "mcp.query_ranking": "Ordena las tecnológicas de EE. UU. por P/FCF10 y muestra las cinco más baratas.",
+  "mcp.query_screener": "¿Qué empresas españolas cotizan por debajo de 10× P/E10 con deuda/patrimonio inferior a 1?",
+  "mcp.query_company": "¿Cómo está el Banco Santander (SAN) en los indicadores de Sponda ahora mismo?",
+  "mcp.query_ranking": "Ordena las empresas españolas por P/FCF10 y muestra las cinco más baratas.",
   "mcp.meta": "Gratis · sin clave de API · 200 llamadas al día por IP",
   "mcp.maybe_later": "Quizás después",
 };

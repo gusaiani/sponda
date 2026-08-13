@@ -2,6 +2,15 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { McpAnnouncementModal } from "./McpAnnouncementModal";
+import { LanguageProvider } from "../i18n/LanguageContext";
+import { pt } from "../i18n/locales/pt";
+import { en } from "../i18n/locales/en";
+import { es } from "../i18n/locales/es";
+import { zh } from "../i18n/locales/zh";
+import { fr } from "../i18n/locales/fr";
+import { de } from "../i18n/locales/de";
+import { it as italian } from "../i18n/locales/it";
+import type { Locale, TranslationDictionary } from "../i18n/types";
 
 afterEach(cleanup);
 
@@ -56,11 +65,24 @@ describe("McpAnnouncementModal", () => {
     expect(snippet!.textContent).toBe("https://sponda.capital/api/mcp/");
   });
 
-  it("renders the three example queries", () => {
+  it("renders the three example queries with US companies in English", () => {
     render(<McpAnnouncementModal {...defaultProps} />);
 
     const queries = document.querySelectorAll(".mcp-announcement-query");
     expect(queries).toHaveLength(3);
+    expect(queries[0].textContent).toContain("US companies");
+    expect(queries[1].textContent).toContain("AAPL");
+  });
+
+  it("renders Brazilian example queries in Portuguese", () => {
+    render(
+      <LanguageProvider initialLocale="pt">
+        <McpAnnouncementModal {...defaultProps} />
+      </LanguageProvider>,
+    );
+
+    const queries = document.querySelectorAll(".mcp-announcement-query");
+    expect(queries[0].textContent).toContain("brasileiras");
     expect(queries[1].textContent).toContain("WEGE3");
   });
 
@@ -101,5 +123,46 @@ describe("McpAnnouncementModal", () => {
 
     fireEvent.click(document.querySelector(".mcp-announcement-overlay")!);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MCP example queries are localized per country", () => {
+  // Each locale anchors its examples on a flagship company from that
+  // country that resolves in Sponda (verified against the live MCP server).
+  const FLAGSHIP_TICKER_BY_LOCALE: Record<Locale, string> = {
+    en: "AAPL", // Apple — US
+    pt: "WEGE3", // WEG — Brazil
+    es: "SAN", // Banco Santander — Spain
+    fr: "LVMUY", // LVMH — France
+    de: "SAP", // SAP — Germany
+    it: "RACE", // Ferrari — Italy
+    zh: "BABA", // Alibaba — China
+  };
+
+  const DICTIONARIES: Record<Locale, TranslationDictionary> = {
+    en,
+    pt,
+    es,
+    fr,
+    de,
+    it: italian,
+    zh,
+  };
+
+  for (const [locale, ticker] of Object.entries(FLAGSHIP_TICKER_BY_LOCALE)) {
+    it(`${locale} company query features ${ticker}`, () => {
+      const dictionary = DICTIONARIES[locale as Locale];
+      expect(dictionary["mcp.query_company"]).toContain(ticker);
+    });
+  }
+
+  it("no locale points its screener example at another locale's market", () => {
+    // The pre-localization copy screened Brazil from every language.
+    expect(en["mcp.query_screener"]).not.toMatch(/Brazilian/);
+    expect(es["mcp.query_screener"]).not.toMatch(/brasileñas/);
+    expect(fr["mcp.query_screener"]).not.toMatch(/brésiliennes/);
+    expect(de["mcp.query_screener"]).not.toMatch(/brasilianischen/);
+    expect(italian["mcp.query_screener"]).not.toMatch(/brasiliane/);
+    expect(zh["mcp.query_screener"]).not.toMatch(/巴西/);
   });
 });
