@@ -719,9 +719,9 @@ export const zh: TranslationDictionary = {
   "mcp.copy": "复制",
   "mcp.copied": "已复制",
   "mcp.try_asking": "然后试着问",
-  "mcp.query_screener": "哪些巴西公司 P/E10 低于 10 且负债权益比低于 1？",
-  "mcp.query_company": "WEGE3 目前在 Sponda 各项指标上表现如何？",
-  "mcp.query_ranking": "按 P/FCF10 对美国科技公司排序，并显示最便宜的五家。",
+  "mcp.query_screener": "哪些中国公司 P/E10 低于 10 且负债权益比低于 1？",
+  "mcp.query_company": "阿里巴巴（BABA）目前在 Sponda 各项指标上表现如何？",
+  "mcp.query_ranking": "按 P/FCF10 对中国公司排序，并显示最便宜的五家。",
   "mcp.meta": "免费 · 无需 API 密钥 · 每个 IP 每天 200 次调用",
   "mcp.maybe_later": "以后再说",
 };
