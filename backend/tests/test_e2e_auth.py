@@ -3,7 +3,6 @@ favorite and save list), error handling, and post-auth action completion."""
 import json
 import os
 import re
-import signal
 import subprocess
 import time
 import urllib.request
@@ -16,6 +15,7 @@ from playwright.sync_api import Page, expect
 from accounts.models import FavoriteCompany
 from quotes.models import Ticker
 from tests.conftest import seed_e2e_baseline
+from tests.nextjs_server import kill_port_listeners, terminate_process_group
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
 
@@ -69,12 +69,14 @@ def _nextjs(live_server, _build_frontend):
         "DJANGO_API_URL": live_server.url,
         "PORT": str(NEXTJS_PORT),
     }
+    kill_port_listeners(NEXTJS_PORT)
     process = subprocess.Popen(
         ["npx", "next", "start", "-p", str(NEXTJS_PORT)],
         cwd=FRONTEND_DIR,
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        start_new_session=True,
     )
     for _ in range(30):
         try:
@@ -83,14 +85,10 @@ def _nextjs(live_server, _build_frontend):
         except Exception:
             time.sleep(1)
     else:
-        process.kill()
+        terminate_process_group(process)
         pytest.skip("Next.js server failed to start")
     yield f"http://localhost:{NEXTJS_PORT}"
-    os.kill(process.pid, signal.SIGTERM)
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
+    terminate_process_group(process)
 
 
 @pytest.fixture
