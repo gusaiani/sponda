@@ -97,10 +97,12 @@ STATEMENTS_ROOT_TAG = "XmlInformacoesTrimestraisFinanceiras"
 # scale is off by a factor of a thousand and perfectly plausible on a page.
 SCALE_CODE_TO_CSV_MARKER = {"1": "UNIDADE", "2": "MIL"}
 
-# 1.458.278 or -3.848 · dots are thousands separators. Per-share lines carry
-# a comma decimal (0,3821); those accounts are never read downstream but must
-# still parse, because rows are built for every account in a statement.
-DOTTED_AMOUNT_PATTERN = re.compile(r"-?\d{1,3}(?:\.\d{3})*(?:,\d+)?")
+# 1.458.278 or -3.848 · dots are thousands separators · but some filers write
+# plain undotted integers (16167000). Per-share lines carry a comma decimal
+# (0,3821); those accounts are never read downstream but must still parse,
+# because rows are built for every account in a statement. A plain run of
+# digits is unambiguous, so accepting both formats invents no readings.
+DOTTED_AMOUNT_PATTERN = re.compile(r"-?(?:\d{1,3}(?:\.\d{3})*|\d+)(?:,\d+)?")
 
 ENET_DATE_FORMAT = "%d/%m/%Y"
 

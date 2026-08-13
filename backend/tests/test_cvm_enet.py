@@ -391,6 +391,23 @@ def test_negative_dotted_amounts_parse_into_negative_thousands():
     assert statements.investment_cash_flow == -1_000_000
 
 
+def test_amounts_without_thousands_separators_parse_too():
+    """Americanas, Moura Dubeux and T4F file plain undotted integers."""
+    income = (
+        _income("3.01", "Receita de Venda de Bens e/ou Serviços",
+                "16167000", "2.617.716"),
+        _income("3.11", "Lucro/Prejuízo Consolidado do Período",
+                "-731125", "61.281"),
+    )
+    statements = extract_quarter_statements_from_package(
+        build_second_quarter_package(income=income),
+        ALLIED_CVM_CODE, SECOND_QUARTER_END,
+    )
+
+    assert statements.revenue == 16_167_000_000
+    assert statements.net_income == -731_125_000
+
+
 def test_per_share_amounts_with_comma_decimals_are_tolerated():
     income = (
         _income("3.01", "Receita de Venda de Bens e/ou Serviços",
