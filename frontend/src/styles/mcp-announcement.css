@@ -1,0 +1,235 @@
+/* MCP announcement modal (option 1: centered modal) and the header pill
+ * that reopens it. */
+
+/* ── Header pill ── */
+/* Sits right of the green Screener pill; same geometry, navy outline. */
+.app-header-mcp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  padding: 8px 14px 8px 20px;
+  border: 1px solid #1b347e;
+  border-radius: 100px;
+  background: #ffffff;
+  color: #1b347e;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.app-header-mcp-link:hover {
+  background: #1b347e;
+  color: #ffffff;
+}
+
+.app-header-mcp-new-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  line-height: 1.4;
+  background: #16a34a;
+  color: #ffffff;
+  border-radius: 100px;
+  padding: 2px 8px;
+}
+
+/* ── Modal ── */
+.mcp-announcement-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 29, 66, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 16px;
+}
+
+.mcp-announcement-panel {
+  position: relative;
+  background: #ffffff;
+  border-radius: 12px;
+  max-width: 620px;
+  width: 100%;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  box-shadow: 0 24px 64px rgba(15, 29, 66, 0.35);
+  padding: 32px;
+}
+
+.mcp-announcement-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--color-muted);
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.mcp-announcement-close:hover {
+  background: #f1f5f9;
+}
+
+.mcp-announcement-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #16a34a;
+  border: 1px solid #16a34a;
+  border-radius: 100px;
+  padding: 3px 10px;
+  margin-bottom: 14px;
+}
+
+.mcp-announcement-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1b347e;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+
+.mcp-announcement-subtitle {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
+  margin-bottom: 24px;
+}
+
+.mcp-announcement-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  margin-bottom: 10px;
+}
+
+.mcp-announcement-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 12px;
+}
+
+.mcp-announcement-tab {
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-muted);
+  padding: 8px 14px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.mcp-announcement-tab-active {
+  color: var(--color-accent);
+  border-bottom-color: var(--color-accent);
+}
+
+.mcp-announcement-hint {
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+}
+
+.mcp-announcement-code {
+  position: relative;
+  background: #0f1d42;
+  border-radius: 8px;
+  padding: 14px 90px 14px 16px;
+  margin-bottom: 24px;
+}
+
+.mcp-announcement-code pre {
+  font-family: 'Source Code Pro', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #e2e8f0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+.mcp-announcement-copy {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.mcp-announcement-copy:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.mcp-announcement-queries {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcp-announcement-query {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.mcp-announcement-query-prompt {
+  font-family: 'Source Code Pro', monospace;
+  color: #16a34a;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.mcp-announcement-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.mcp-announcement-meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.mcp-announcement-later {
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: var(--color-muted);
+  text-decoration: underline;
+  cursor: pointer;
+}

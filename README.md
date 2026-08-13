@@ -148,6 +148,21 @@ answers HTTP 429 until midnight. Executor failures ("unknown symbol") come back 
 results with `isError: true`, never protocol errors, so a calling model can read them
 and adjust.
 
+### In-app announcement
+
+The frontend announces the MCP server with a centered modal over the page
+(`McpAnnouncementModal`): install tabs for Claude Code, Cursor, and the Claude app
+(each with a copy button), three example queries, and the usage limits. It opens
+automatically on page load for every visitor, logged in or not, until dismissed once;
+the dismissal is stored in `localStorage` under `sponda-mcp-announcement-dismissed`
+(`useMcpAnnouncement`), so it never auto-opens again on that browser. An outlined
+"MCP" pill in the header, next to the Screener link, reopens it on demand
+(`McpHeaderButton`). All copy is translated in the seven locales.
+
+Local testing: run the frontend, load any page, dismiss the modal, reload to confirm
+it stays closed, then reopen it via the header pill. Clearing the `localStorage` key
+brings the auto-open behavior back.
+
 ### Developing it
 
 Implementation: `backend/assistant/mcp.py` — a single stateless JSON-RPC 2.0 view (no

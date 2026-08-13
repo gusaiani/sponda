@@ -12,6 +12,9 @@ import { FeedbackProvider } from "../components/FeedbackButton";
 import { EmailVerificationProvider } from "../components/EmailVerificationGate";
 import { LeftNav } from "../components/LeftNav";
 import { LeftNavProvider, useLeftNav } from "../components/LeftNavContext";
+import { McpAnnouncementModal } from "../components/McpAnnouncementModal";
+import { McpHeaderButton } from "../components/McpHeaderButton";
+import { useMcpAnnouncement } from "../hooks/useMcpAnnouncement";
 import { SocialSidebar } from "../components/social/SocialSidebar";
 import { usePageTracking } from "../hooks/usePageTracking";
 import { useAuth } from "../hooks/useAuth";
@@ -97,6 +100,7 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const { isSuperuser } = useAuth();
+  const mcpAnnouncement = useMcpAnnouncement();
   const bare = stripLocale(pathname);
   const isOnAuthPage = AUTH_SUFFIXES.some((suffix) => bare.startsWith(suffix));
   const companyTicker = companyTickerFromPath(bare);
@@ -132,8 +136,12 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
           <Link href={`/${locale}/screener`} className="app-header-filter-link">
             {t("screener.link_label")}
           </Link>
+          <McpHeaderButton onClick={mcpAnnouncement.open} />
           <AuthHeader />
         </header>
+      )}
+      {!isOnAuthPage && mcpAnnouncement.isOpen && (
+        <McpAnnouncementModal onClose={mcpAnnouncement.close} />
       )}
       {!isOnAuthPage && <LeftNav />}
       {/* Auth pages render neither sidebar, so the gutters .app-body

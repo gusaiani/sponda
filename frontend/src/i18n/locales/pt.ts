@@ -705,4 +705,23 @@ export const pt: TranslationDictionary = {
   "assistant.error.assistant_interrupted": "A conexão caiu antes de a resposta terminar. Tente novamente.",
   "assistant.error.network": "Não foi possível acessar o assistente. Verifique sua conexão e tente novamente.",
   "assistant.error.generic": "Algo deu errado. Tente novamente.",
+
+  /* ── MCP announcement ── */
+  "mcp.header_button_title": "Conecte seu assistente de IA ao Sponda via MCP",
+  "mcp.eyebrow": "Novo",
+  "mcp.title": "O Sponda agora é um servidor MCP",
+  "mcp.subtitle": "Conecte seu assistente de IA ao Sponda e filtre ~23.000 empresas listadas por indicadores de valor ajustados pela inflação: P/L10, P/FCL10, PEG, alavancagem e liquidez.",
+  "mcp.install_label": "Instalar",
+  "mcp.tab_claude_app": "App do Claude",
+  "mcp.hint_claude_code": "Execute uma vez no seu terminal:",
+  "mcp.hint_cursor": "Adicione ao .cursor/mcp.json, ou Cursor Settings › MCP › Add new server:",
+  "mcp.hint_claude_app": "Configurações › Conectores › Adicionar conector personalizado, depois cole:",
+  "mcp.copy": "Copiar",
+  "mcp.copied": "Copiado",
+  "mcp.try_asking": "Depois experimente perguntar",
+  "mcp.query_screener": "Quais empresas brasileiras negociam abaixo de 10× P/L10 com dívida/patrimônio abaixo de 1?",
+  "mcp.query_company": "Como está a WEGE3 nos indicadores do Sponda agora?",
+  "mcp.query_ranking": "Ordene as empresas de tecnologia dos EUA por P/FCL10 e mostre as cinco mais baratas.",
+  "mcp.meta": "Grátis · sem chave de API · 200 chamadas de ferramentas por dia por IP",
+  "mcp.maybe_later": "Talvez depois",
 };

@@ -705,4 +705,23 @@ export const fr: TranslationDictionary = {
   "assistant.error.assistant_interrupted": "La connexion a été interrompue avant la fin de la réponse. Veuillez réessayer.",
   "assistant.error.network": "Impossible de joindre l'assistant. Vérifiez votre connexion et réessayez.",
   "assistant.error.generic": "Une erreur s'est produite. Veuillez réessayer.",
+
+  /* ── MCP announcement ── */
+  "mcp.header_button_title": "Connectez votre assistant IA à Sponda via MCP",
+  "mcp.eyebrow": "Nouveau",
+  "mcp.title": "Sponda est désormais un serveur MCP",
+  "mcp.subtitle": "Connectez votre assistant IA à Sponda et filtrez ~23 000 sociétés cotées selon des indicateurs de valeur ajustés de l'inflation : P/E10, P/FCF10, PEG, endettement et liquidité.",
+  "mcp.install_label": "Installer",
+  "mcp.tab_claude_app": "App Claude",
+  "mcp.hint_claude_code": "Exécutez une fois dans votre terminal :",
+  "mcp.hint_cursor": "Ajoutez à .cursor/mcp.json, ou Cursor Settings › MCP › Add new server :",
+  "mcp.hint_claude_app": "Paramètres › Connecteurs › Ajouter un connecteur personnalisé, puis collez :",
+  "mcp.copy": "Copier",
+  "mcp.copied": "Copié",
+  "mcp.try_asking": "Puis essayez de demander",
+  "mcp.query_screener": "Quelles sociétés brésiliennes se négocient sous 10× P/E10 avec une dette/capitaux propres inférieure à 1 ?",
+  "mcp.query_company": "Où en est WEGE3 sur les indicateurs de Sponda en ce moment ?",
+  "mcp.query_ranking": "Classez les valeurs technologiques américaines par P/FCF10 et montrez les cinq moins chères.",
+  "mcp.meta": "Gratuit · sans clé API · 200 appels par jour et par IP",
+  "mcp.maybe_later": "Plus tard",
 };
