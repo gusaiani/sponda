@@ -345,7 +345,7 @@ def _quarter_start(quarter_end: date) -> date:
     return date(quarter_end.year, quarter_end.month - 2, 1)
 
 
-def _previous_quarter_end(quarter_end: date) -> date:
+def previous_quarter_end(quarter_end: date) -> date:
     return _quarter_start(quarter_end) - ONE_DAY
 
 
@@ -496,7 +496,7 @@ def _quarter_flow(
         return year_to_date
 
     previous_year_to_date = flows.get(
-        (account, year_start, _previous_quarter_end(quarter_end))
+        (account, year_start, previous_quarter_end(quarter_end))
     )
     if previous_year_to_date is None:
         return None
@@ -637,7 +637,7 @@ def _validate_balance_sheet(balances: dict[str, BalanceLine]) -> None:
         )
 
 
-def _validate_quarter_end(quarter_end: date) -> None:
+def validate_quarter_end(quarter_end: date) -> None:
     if (quarter_end.month, quarter_end.day) not in QUARTER_END_MONTH_DAYS:
         raise CvmParseError(
             f"{quarter_end} is not a quarter end (expected 03-31, 06-30, "
@@ -744,7 +744,7 @@ def extract_quarter_statements(
     archive_bytes: bytes, cvm_code: str, quarter_end: date,
 ) -> QuarterStatements:
     """Read one company's consolidated statements for a single quarter."""
-    _validate_quarter_end(quarter_end)
+    validate_quarter_end(quarter_end)
 
     year = quarter_end.year
     archive = zipfile.ZipFile(io.BytesIO(archive_bytes))
@@ -753,6 +753,30 @@ def extract_quarter_statements(
         archive, ITR_STATEMENT_PREFIX, year, cvm_code,
     )
 
+    return build_quarter_statements(
+        income_rows, cash_flow_rows, asset_rows, liability_rows,
+        cvm_code=cvm_code, quarter_end=quarter_end,
+    )
+
+
+def build_quarter_statements(
+    income_rows: list[dict],
+    cash_flow_rows: list[dict],
+    asset_rows: list[dict],
+    liability_rows: list[dict],
+    *,
+    cvm_code: str,
+    quarter_end: date,
+) -> QuarterStatements:
+    """Turn statement rows into one quarter, whatever produced the rows.
+
+    The rows follow the open-data CSV vocabulary (CD_CONTA, DS_CONTA,
+    VL_CONTA, ESCALA_MOEDA, DT_INI_EXERC, DT_FIM_EXERC), which makes this the
+    meeting point for the two publication formats: the consolidated annual
+    archive and the per-filing ENET package parsed by ``cvm_enet``. Every
+    label guard, the balance validation and the year-to-date differencing
+    apply identically to both.
+    """
     income_flows = _index_flows(income_rows)
     cash_flows = _index_flows(cash_flow_rows)
     balances = _index_balances(asset_rows + liability_rows, quarter_end)

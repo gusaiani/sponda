@@ -1,0 +1,19 @@
+[Unit]
+Description=Ingest just-delivered ITRs from ENET hourly
+
+# Hourly because ENET lists a filing within minutes of delivery and the run
+# costs one search request when nothing new was delivered, which is the
+# normal state outside earnings season. This is what bounds the site's
+# filing-to-live lag; the weekly archive path behind it is the safety net.
+#
+# Persistent=false for the same reason as sponda-sync-cvm.timer: the work
+# list is re-derived from ENET and database state on every run, so a missed
+# run costs one interval and catch-up would make the first activation fire
+# immediately after install.
+[Timer]
+OnCalendar=*-*-* *:35:00
+Persistent=false
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

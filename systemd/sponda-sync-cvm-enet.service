@@ -1,0 +1,16 @@
+[Unit]
+Description=Sponda ENET quarter ingestion (writes just-delivered ITRs ahead of the weekly archive)
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=3600
+StartLimitBurst=2
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py sync_cvm_enet_filings
+Restart=on-failure
+RestartSec=900

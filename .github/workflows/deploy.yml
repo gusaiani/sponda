@@ -377,6 +377,8 @@ jobs:
             cp /opt/sponda/systemd/sponda-sync-cvm.timer /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-sync-cvm-q4.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-sync-cvm-q4.timer /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-sync-cvm-enet.service /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-sync-cvm-enet.timer /etc/systemd/system/
             systemctl daemon-reload
             systemctl enable --now sponda-refresh.timer
             systemctl enable --now sponda-revisit-reminders.timer
@@ -388,6 +390,7 @@ jobs:
             systemctl enable --now sponda-map-cvm-tickers.timer
             systemctl enable --now sponda-sync-cvm.timer
             systemctl enable --now sponda-sync-cvm-q4.timer
+            systemctl enable --now sponda-sync-cvm-enet.timer
 
             # Update Nginx config and reload
             cp /opt/sponda/nginx/gzip.conf /etc/nginx/conf.d/gzip.conf
