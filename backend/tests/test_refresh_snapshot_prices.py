@@ -288,3 +288,57 @@ class TestRefreshSnapshotPrices:
         mock_batch.return_value = {"PETR4": PETR4_QUOTE}
         _run()
         assert cache.get("provider:quote:PETR4") == PETR4_QUOTE
+
+
+@pytest.mark.django_db
+class TestRefreshSnapshotPricesPEWindows:
+    """The 15-min price pass keeps the strict P/E window family current —
+    it must never regress pe10 to the loose up-to-10-years behavior."""
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_writes_strict_pe_windows_with_fresh_market_cap(
+        self, _mock_hours, mock_batch, seeded_universe,
+    ):
+        mock_batch.return_value = {
+            "PETR4": {"marketCap": 800_000_000_000, "regularMarketPrice": 80.0},
+        }
+        _run()
+        snapshot = IndicatorSnapshot.objects.get(ticker="PETR4")
+        # 10 years × 10B/year, market cap 800B → every filled window is 80.
+        assert snapshot.pe1 == Decimal("80")
+        assert snapshot.pe10 == Decimal("80")
+        assert snapshot.pe15 is None
+        assert snapshot.pe_years_available == 10
+
+    @patch("quotes.management.commands.refresh_snapshot_prices.fetch_quotes_batch")
+    @patch(
+        "quotes.management.commands.refresh_snapshot_prices.any_exchange_open",
+        return_value=True,
+    )
+    def test_thin_history_keeps_pe10_strictly_null(
+        self, _mock_hours, mock_batch, seeded_universe,
+    ):
+        Ticker.objects.create(
+            symbol="THIN3", name="Thin", type="stock", market_cap=40_000_000_000,
+        )
+        for year in [2023, 2024, 2025]:
+            for month_day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="THIN3",
+                    end_date=date(year, *month_day),
+                    net_income=1_000_000_000,
+                )
+        IndicatorSnapshot.objects.create(ticker="THIN3", market_cap=40_000_000_000)
+        mock_batch.return_value = {
+            "PETR4": PETR4_QUOTE,
+            "THIN3": {"marketCap": 40_000_000_000, "regularMarketPrice": 4.0},
+        }
+        _run()
+        snapshot = IndicatorSnapshot.objects.get(ticker="THIN3")
+        assert snapshot.pe10 is None  # only 3 years of history
+        assert snapshot.pe3 == Decimal("10")  # 40B / 4B
+        assert snapshot.pe_years_available == 3
