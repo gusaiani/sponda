@@ -40,6 +40,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Mapping tickers to CVM codes](#mapping-tickers-to-cvm-codes)
 - [Ingesting quarters from CVM](#ingesting-quarters-from-cvm)
 - [The fourth quarter](#the-fourth-quarter)
+- [Ingesting quarters straight from ENET](#ingesting-quarters-straight-from-enet)
 - [Scheduled Tasks](#scheduled-tasks)
 
 **Operations**
@@ -1021,6 +1022,62 @@ python manage.py sync_cvm_fourth_quarters --dry-run
 python manage.py sync_cvm_fourth_quarters --year 2025
 ```
 
+## Ingesting quarters straight from ENET
+
+The archive path above is bounded by CVM's batch rebuild, which the latency
+evidence puts at roughly weekly. A company that files the day after a rebuild
+waits most of a week before `sync_cvm_filings` can see it — during earnings
+season, exactly when the Fundamentos tab matters most. `sync_cvm_enet_filings`
+closes that gap by reading ENET (rad.cvm.gov.br), the system companies
+actually file into, whose public search lists a filing within minutes of
+delivery. Filing-to-live drops from days to about an hour.
+
+### A second discovery mechanism, not a second set of rules
+
+ENET only changes how a filing is *found and fetched*. Everything after that
+is the shared pipeline: the package's statements are converted into the same
+account-row vocabulary the archive CSVs use and handed to
+`cvm.build_quarter_statements`, so the account mapping, the label guards, the
+balance validation and the equity continuity gate apply identically. Writes go
+through the same `is_writable`/`write_quarter` pair, so BRAPI is never
+displaced, an unchanged quarter is never rewritten, and when the weekly
+archive catches up it finds these rows already written with the same filing
+date and leaves them alone.
+
+### How a filing is found
+
+`ListarDocumentos`, the JSON endpoint behind ENET's public search page,
+filtered to category `EST_3` (structured quarterly filings) and a delivery
+window of the last `--days` days (default 7). The endpoint needs the search
+page's session cookie and a browser User-Agent — without the latter the WAF
+resets multi-megabyte downloads partway through. Restatements appear as new
+versions; only the highest version per company and quarter is ingested.
+
+### The cash flow needs one extra download
+
+A filing package carries the income statement with a standalone three-month
+column and the balance sheet as a snapshot, but the cash flow year-to-date
+only. In the annual archive the previous quarter's filing sits alongside and
+the differencing arithmetic finds it; a single ENET package travels alone. So
+for second and third quarters the previous quarter's package is downloaded
+too, keeping the delta pure CVM arithmetic rather than mixing sources. First
+quarters need nothing: their year-to-date is the quarter. When the previous
+filing cannot be found the cash flow fields stay `None` rather than wrong.
+
+Verified against BRAPI on ALLD3's 2026-06-30 filing: the operating and
+investment cash flow deltas implied by the two ENET packages reproduce
+BRAPI's stored first quarter exactly.
+
+```bash
+cd backend
+python manage.py sync_cvm_enet_filings --dry-run   # list the work, download nothing
+python manage.py sync_cvm_enet_filings             # ingest the last 7 days
+python manage.py sync_cvm_enet_filings --days 30   # widen the window
+```
+
+No new environment variables · ENET's search and downloads are public and
+unauthenticated.
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
@@ -1042,6 +1099,7 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `map_tickers_to_cvm` | `sponda-map-cvm-tickers.timer` | Resolve Brazilian tickers to the CVM codes their filings are keyed by. The recurring pass is how a new listing surfaces rather than silently never being ingested. | Monthly, 1st 04:00 UTC |
 | `sync_cvm_filings` | `sponda-sync-cvm.timer` | Write newly filed quarters that no other source holds. One query when there is nothing to write. | 4x daily |
 | `sync_cvm_fourth_quarters` | `sponda-sync-cvm-q4.timer` | Derive Q4 from the annual DFP for companies lacking it. DFPs arrive across February and March. | Daily 05:40 UTC |
+| `sync_cvm_enet_filings` | `sponda-sync-cvm-enet.timer` | Write ITRs delivered to ENET in the last week, ahead of the weekly archive rebuild. One search request when nothing new was delivered. | Hourly at :35 |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
