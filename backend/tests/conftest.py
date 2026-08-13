@@ -88,6 +88,20 @@ def browser_context_args(browser_context_args):
 
 
 @pytest.fixture
+def context(context):
+    """Start every page with the MCP announcement already dismissed.
+
+    The announcement modal auto-opens on first load and its overlay would
+    intercept every click in suites that test other flows. Its own behavior
+    is covered by the frontend unit tests.
+    """
+    context.add_init_script(
+        "window.localStorage.setItem('sponda-mcp-announcement-dismissed', 'true');"
+    )
+    return context
+
+
+@pytest.fixture
 def sample_earnings(db):
     """Create 10 years of quarterly earnings for PETR4 (2016–2025)."""
     records = []
