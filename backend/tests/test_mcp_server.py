@@ -128,6 +128,18 @@ class TestMCPTransport:
         settings.MCP_ENABLED = True
         cache.clear()
 
+    def test_post_without_trailing_slash_is_served_not_redirected(self, client):
+        # claude.ai POSTs to the exact URL users paste (no trailing slash);
+        # an APPEND_SLASH 301 turns that POST into a body-less GET and the
+        # connector falls back to a doomed OAuth registration attempt.
+        response = client.post(
+            "/api/mcp",
+            data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "ping"}),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+        assert json.loads(response.content)["result"] == {}
+
     def test_get_returns_405_with_allow_header(self, client):
         response = client.get(MCP_URL)
         assert response.status_code == 405
