@@ -709,6 +709,25 @@ export interface TranslationDictionary {
   "assistant.error.assistant_interrupted": string;
   "assistant.error.network": string;
   "assistant.error.generic": string;
+
+  /* ── MCP announcement ── */
+  "mcp.header_button_title": string;
+  "mcp.eyebrow": string;
+  "mcp.title": string;
+  "mcp.subtitle": string;
+  "mcp.install_label": string;
+  "mcp.tab_claude_app": string;
+  "mcp.hint_claude_code": string;
+  "mcp.hint_cursor": string;
+  "mcp.hint_claude_app": string;
+  "mcp.copy": string;
+  "mcp.copied": string;
+  "mcp.try_asking": string;
+  "mcp.query_screener": string;
+  "mcp.query_company": string;
+  "mcp.query_ranking": string;
+  "mcp.meta": string;
+  "mcp.maybe_later": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

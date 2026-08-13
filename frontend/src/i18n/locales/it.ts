@@ -705,4 +705,23 @@ export const it: TranslationDictionary = {
   "assistant.error.assistant_interrupted": "La connessione è caduta prima del completamento della risposta. Riprova.",
   "assistant.error.network": "Impossibile raggiungere l'assistente. Controlla la connessione e riprova.",
   "assistant.error.generic": "Qualcosa è andato storto. Riprova.",
+
+  /* ── MCP announcement ── */
+  "mcp.header_button_title": "Collega il tuo assistente IA a Sponda via MCP",
+  "mcp.eyebrow": "Novità",
+  "mcp.title": "Sponda ora è un server MCP",
+  "mcp.subtitle": "Collega il tuo assistente IA a Sponda e filtra ~23.000 società quotate con indicatori di valore aggiustati per l'inflazione: P/E10, P/FCF10, PEG, leva finanziaria e liquidità.",
+  "mcp.install_label": "Installa",
+  "mcp.tab_claude_app": "App Claude",
+  "mcp.hint_claude_code": "Esegui una volta nel terminale:",
+  "mcp.hint_cursor": "Aggiungi a .cursor/mcp.json, oppure Cursor Settings › MCP › Add new server:",
+  "mcp.hint_claude_app": "Impostazioni › Connettori › Aggiungi connettore personalizzato, poi incolla:",
+  "mcp.copy": "Copia",
+  "mcp.copied": "Copiato",
+  "mcp.try_asking": "Poi prova a chiedere",
+  "mcp.query_screener": "Quali società brasiliane quotano sotto 10× P/E10 con debito/patrimonio sotto 1?",
+  "mcp.query_company": "Come sta WEGE3 sugli indicatori di Sponda in questo momento?",
+  "mcp.query_ranking": "Ordina le tecnologiche USA per P/FCF10 e mostra le cinque più economiche.",
+  "mcp.meta": "Gratuito · nessuna chiave API · 200 chiamate al giorno per IP",
+  "mcp.maybe_later": "Più tardi",
 };

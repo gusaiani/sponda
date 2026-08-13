@@ -705,4 +705,23 @@ export const en: TranslationDictionary = {
   "assistant.error.assistant_interrupted": "The connection dropped before the answer finished. Please try again.",
   "assistant.error.network": "Couldn't reach the assistant. Check your connection and try again.",
   "assistant.error.generic": "Something went wrong. Please try again.",
+
+  /* ── MCP announcement ── */
+  "mcp.header_button_title": "Connect your AI assistant to Sponda via MCP",
+  "mcp.eyebrow": "New",
+  "mcp.title": "Sponda is now an MCP server",
+  "mcp.subtitle": "Connect your AI assistant to Sponda and screen ~23,000 listed companies by inflation-adjusted value indicators: P/E10, P/FCF10, PEG, leverage and liquidity ratios.",
+  "mcp.install_label": "Install",
+  "mcp.tab_claude_app": "Claude app",
+  "mcp.hint_claude_code": "Run once in your terminal:",
+  "mcp.hint_cursor": "Add to .cursor/mcp.json, or Cursor Settings › MCP › Add new server:",
+  "mcp.hint_claude_app": "Settings › Connectors › Add custom connector, then paste:",
+  "mcp.copy": "Copy",
+  "mcp.copied": "Copied",
+  "mcp.try_asking": "Then try asking",
+  "mcp.query_screener": "Which Brazilian companies trade below 10× P/E10 with debt-to-equity under 1?",
+  "mcp.query_company": "How does WEGE3 look on Sponda's indicators right now?",
+  "mcp.query_ranking": "Rank US tech companies by P/FCF10 and show me the five cheapest.",
+  "mcp.meta": "Free · no API key · 200 tool calls per day per IP",
+  "mcp.maybe_later": "Maybe later",
 };

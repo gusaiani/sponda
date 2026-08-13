@@ -705,4 +705,23 @@ export const zh: TranslationDictionary = {
   "assistant.error.assistant_interrupted": "连接在回答完成前中断，请重试。",
   "assistant.error.network": "无法连接助手，请检查网络后重试。",
   "assistant.error.generic": "出现错误，请重试。",
+
+  /* ── MCP announcement ── */
+  "mcp.header_button_title": "通过 MCP 将你的 AI 助手连接到 Sponda",
+  "mcp.eyebrow": "新功能",
+  "mcp.title": "Sponda 现已提供 MCP 服务器",
+  "mcp.subtitle": "将你的 AI 助手连接到 Sponda，按通胀调整后的价值指标筛选约 23,000 家上市公司：P/E10、P/FCF10、PEG、杠杆和流动性比率。",
+  "mcp.install_label": "安装",
+  "mcp.tab_claude_app": "Claude 应用",
+  "mcp.hint_claude_code": "在终端运行一次：",
+  "mcp.hint_cursor": "添加到 .cursor/mcp.json，或 Cursor Settings › MCP › Add new server：",
+  "mcp.hint_claude_app": "设置 › 连接器 › 添加自定义连接器，然后粘贴：",
+  "mcp.copy": "复制",
+  "mcp.copied": "已复制",
+  "mcp.try_asking": "然后试着问",
+  "mcp.query_screener": "哪些巴西公司 P/E10 低于 10 且负债权益比低于 1？",
+  "mcp.query_company": "WEGE3 目前在 Sponda 各项指标上表现如何？",
+  "mcp.query_ranking": "按 P/FCF10 对美国科技公司排序，并显示最便宜的五家。",
+  "mcp.meta": "免费 · 无需 API 密钥 · 每个 IP 每天 200 次调用",
+  "mcp.maybe_later": "以后再说",
 };

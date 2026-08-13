@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 afterEach(cleanup);
 
@@ -110,6 +110,23 @@ vi.mock("../utils/branding", () => ({
 }));
 
 import { LayoutShell } from "./layout-shell";
+import { MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY } from "../hooks/useMcpAnnouncement";
+
+function createLocalStorageStub() {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => (key in store ? store[key] : null),
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+  };
+}
 
 describe("LayoutShell", () => {
   beforeEach(() => {
@@ -117,6 +134,7 @@ describe("LayoutShell", () => {
     mockPush.mockClear();
     mockInvalidateQueries.mockClear();
     mockIsSuperuser.mockReturnValue(false);
+    vi.stubGlobal("localStorage", createLocalStorageStub());
   });
 
   it("renders the SPONDA header brand on auth pages", () => {
@@ -181,6 +199,66 @@ describe("LayoutShell", () => {
 
     const body = document.querySelector(".app-body")!;
     expect(body.classList.contains("app-body-full-width")).toBe(false);
+  });
+
+  it("shows the MCP announcement on first load and hides it after dismissal", () => {
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
+
+    expect(document.querySelector(".mcp-announcement-overlay")).not.toBeNull();
+
+    fireEvent.click(screen.getByText("mcp.maybe_later"));
+
+    expect(document.querySelector(".mcp-announcement-overlay")).toBeNull();
+    expect(
+      window.localStorage.getItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY),
+    ).toBe("true");
+  });
+
+  it("does not show the MCP announcement when it was dismissed before", () => {
+    window.localStorage.setItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, "true");
+
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
+
+    expect(document.querySelector(".mcp-announcement-overlay")).toBeNull();
+  });
+
+  it("reopens the MCP announcement from the header MCP button", () => {
+    window.localStorage.setItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, "true");
+
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
+
+    const mcpButton = document.querySelector(".app-header-mcp-link")!;
+    expect(mcpButton).not.toBeNull();
+    expect(mcpButton.textContent).toContain("MCP");
+
+    fireEvent.click(mcpButton);
+
+    expect(document.querySelector(".mcp-announcement-overlay")).not.toBeNull();
+  });
+
+  it("does not render the MCP button or announcement on auth pages", () => {
+    mockPathname.mockReturnValue("/en/login");
+
+    render(
+      <LayoutShell>
+        <div>Login content</div>
+      </LayoutShell>,
+    );
+
+    expect(document.querySelector(".app-header-mcp-link")).toBeNull();
+    expect(document.querySelector(".mcp-announcement-overlay")).toBeNull();
   });
 
   it("renders the assistant bar for a superuser on a company page", () => {
