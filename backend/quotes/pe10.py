@@ -11,10 +11,20 @@ if it were a full year and under-weighting the average.
 from collections import defaultdict
 from decimal import Decimal
 
+from typing import Optional
+
 from .fx import market_cap_in_reported_currency
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyEarnings
 from .reporting_frequency import QUARTERLY_PERIODS_PER_YEAR, infer_periods_per_year
+
+# Every P/E window the screener offers: PE1 through PE15.
+PE_WINDOW_MAX_YEARS = 15
+PE_WINDOW_YEARS = tuple(range(1, PE_WINDOW_MAX_YEARS + 1))
+
+# The debt-coverage ratios average earnings over "up to a decade" — a looser
+# notion than the strict windows, kept for continuity with the original PE10.
+LOOSE_AVERAGE_MAX_YEARS = 10
 
 
 def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
@@ -53,6 +63,88 @@ def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
         }
         for year, data in sorted(yearly.items(), reverse=True)
     ]
+
+
+def calculate_pe_windows(
+    ticker: str,
+    market_cap: Optional[Decimal],
+    max_years: int = PE_WINDOW_MAX_YEARS,
+) -> dict:
+    """Compute the strict P/E window family (PE1..PE{max_years}) in one pass.
+
+    Strict: ``pe_by_years[Y]`` is ``None`` unless the company has the full
+    ``Y`` years of earnings history (honouring its filing frequency), so a
+    PE15 is never quietly a PE8. ``years_available`` reports the widest
+    honest window; ``avg_adjusted_net_income`` keeps the historical loose
+    "up to 10 years" average that the debt-coverage ratios divide by.
+
+    Returns dict with:
+        pe_by_years: {1: float|None, ..., max_years: float|None}
+        years_available: int
+        avg_adjusted_net_income: float or None
+    """
+    empty_windows = {years: None for years in range(1, max_years + 1)}
+    annual_data = get_annual_earnings(ticker, max_years=max_years)
+    if not annual_data:
+        return {
+            "pe_by_years": empty_windows,
+            "years_available": 0,
+            "avg_adjusted_net_income": None,
+        }
+
+    periods_per_year = infer_periods_per_year(annual_data)
+    inflation_factors = get_inflation_adjustment_factors(
+        ticker, [year_data["year"] for year_data in annual_data],
+    )
+
+    adjusted_period_incomes: list[Decimal] = []
+    for year_data in annual_data:  # newest year first
+        factor = inflation_factors.get(year_data["year"], Decimal("1"))
+        for period in reversed(year_data["quarterly_detail"]):  # newest first
+            adjusted_period_incomes.append(Decimal(str(period["net_income"])) * factor)
+
+    years_available = min(max_years, len(adjusted_period_incomes) // periods_per_year)
+
+    cumulative_income = Decimal("0")
+    cumulative_by_period_count = [Decimal("0")]
+    for adjusted_income in adjusted_period_incomes:
+        cumulative_income += adjusted_income
+        cumulative_by_period_count.append(cumulative_income)
+
+    def average_over(years: int) -> Decimal:
+        return cumulative_by_period_count[years * periods_per_year] / Decimal(years)
+
+    loose_years = min(LOOSE_AVERAGE_MAX_YEARS, years_available)
+    average_net_income = float(average_over(loose_years)) if loose_years else None
+
+    market_cap_reported = (
+        market_cap_in_reported_currency(market_cap, ticker)
+        if market_cap is not None
+        else None
+    )
+    if market_cap_reported is None or years_available == 0:
+        return {
+            "pe_by_years": empty_windows,
+            "years_available": years_available,
+            "avg_adjusted_net_income": average_net_income,
+        }
+
+    pe_by_years: dict[int, Optional[float]] = {}
+    for years in range(1, max_years + 1):
+        if years > years_available:
+            pe_by_years[years] = None
+            continue
+        window_average = average_over(years)
+        if window_average <= 0:
+            pe_by_years[years] = None
+            continue
+        pe_by_years[years] = round(float(market_cap_reported / window_average), 2)
+
+    return {
+        "pe_by_years": pe_by_years,
+        "years_available": years_available,
+        "avg_adjusted_net_income": average_net_income,
+    }
 
 
 def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dict:

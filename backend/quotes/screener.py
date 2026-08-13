@@ -19,7 +19,8 @@ from .ratings import rate_company
 # users rank by it (default sort) and read it in the results, but shouldn't
 # screen by it as a min/max bound.
 SCREENER_FILTERABLE_FIELDS = (
-    "pe10",
+    *IndicatorSnapshot.PE_WINDOW_FIELDS,
+    "pe_years_available",
     "pfcf10",
     "peg",
     "pfcf_peg",
@@ -143,16 +144,7 @@ def run_screener(
         metadata = ticker_metadata.get(snapshot.ticker, {})
         sector = metadata.get("sector") or ""
         indicator_values = {
-            "pe10": snapshot.pe10,
-            "pfcf10": snapshot.pfcf10,
-            "peg": snapshot.peg,
-            "pfcf_peg": snapshot.pfcf_peg,
-            "debt_to_equity": snapshot.debt_to_equity,
-            "debt_ex_lease_to_equity": snapshot.debt_ex_lease_to_equity,
-            "liabilities_to_equity": snapshot.liabilities_to_equity,
-            "current_ratio": snapshot.current_ratio,
-            "debt_to_avg_earnings": snapshot.debt_to_avg_earnings,
-            "debt_to_avg_fcf": snapshot.debt_to_avg_fcf,
+            field: getattr(snapshot, field) for field in SCREENER_FILTERABLE_FIELDS
         }
         rated = rate_company(indicator_values, sector=sector or None)
         results.append({

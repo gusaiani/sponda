@@ -67,7 +67,9 @@ The screener page at `/[locale]/screener` lets users filter the whole B3 + US un
 
 All are numeric `min` / `max` bounds (either side optional):
 
-- `pe10`, `pfcf10` · valuation multiples (10-year rolling)
+- `pe1` … `pe15` · strict inflation-adjusted P/E windows. `peY` is empty unless the company has the full Y years of earnings history — a PE15 is never quietly a PE8. PE10 is the classic Shiller window.
+- `pe_years_available` · widest P/E window a company can honestly fill (max 15). Filter `min=10` to demand a decade of history.
+- `pfcf10` · valuation multiple (10-year rolling free cash flow)
 - `peg`, `pfcf_peg` · growth-adjusted valuation
 - `debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`, `current_ratio` · leverage / liquidity
 - `debt_to_avg_earnings`, `debt_to_avg_fcf` · debt vs. cash generation
@@ -133,6 +135,10 @@ Then ask things like:
 > Brazilian companies with P/E10 under 8 and debt payable from average FCF in under 3 years
 >
 > Of those, which has the most conservative leverage? Pull WEGE3's full fundamentals.
+>
+> US companies with at least 15 years of history trading below 10× their 15-year average earnings
+
+The P/E window family is strict: `peY` only exists when the company has the full Y years of earnings history, and `pe_years_available` says the widest window each company can fill — so the agent can explain *why* a PE15 screen excludes a young company instead of quietly averaging fewer years.
 
 Four tools, designed to be called in this order:
 
@@ -1115,6 +1121,7 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `sync_cvm_filings` | `sponda-sync-cvm.timer` | Write newly filed quarters that no other source holds. One query when there is nothing to write. | 4x daily |
 | `sync_cvm_fourth_quarters` | `sponda-sync-cvm-q4.timer` | Derive Q4 from the annual DFP for companies lacking it. DFPs arrive across February and March. | Daily 05:40 UTC |
 | `sync_cvm_enet_filings` | `sponda-sync-cvm-enet.timer` | Write ITRs delivered to ENET in the last week, ahead of the weekly archive rebuild. One search request when nothing new was delivered. | Hourly at :35 |
+| `sync_country` | `sponda-sync-country.timer` | Backfill `Ticker.country` from FMP company profiles for tickers still missing it (new listings arrive without a country). One profile call per missing ticker, largest market cap first; a no-op once the universe is labeled. | Daily 05:17 UTC |
 
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 

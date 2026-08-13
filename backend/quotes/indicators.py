@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Optional
 
 from .leverage import calculate_leverage
-from .pe10 import calculate_pe10
+from .pe10 import PE_WINDOW_YEARS, calculate_pe_windows
 from .peg import calculate_peg
 from .pfcf10 import calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
@@ -46,7 +46,8 @@ def compute_company_indicators(
     -------
     dict
         Keys match :class:`quotes.models.IndicatorSnapshot` field names:
-        ``pe10``, ``pfcf10``, ``peg``, ``pfcf_peg``, ``debt_to_equity``,
+        the strict P/E windows ``pe1``..``pe15`` plus ``pe_years_available``,
+        ``pfcf10``, ``peg``, ``pfcf_peg``, ``debt_to_equity``,
         ``debt_ex_lease_to_equity``, ``liabilities_to_equity``,
         ``current_ratio``, ``debt_to_avg_earnings``, ``debt_to_avg_fcf``,
         ``market_cap``, ``current_price``. Any indicator that cannot be
@@ -58,19 +59,19 @@ def compute_company_indicators(
     if market_cap is not None:
         market_cap_decimal = Decimal(str(market_cap))
 
-    # PE10 / PFCF10 both depend on market cap. Without it we cannot compute
-    # either, but we still want leverage indicators.
+    # The P/E windows need a market cap to produce values, but the pass
+    # still runs without one so pe_years_available reflects the data.
+    pe_windows_result = calculate_pe_windows(ticker, market_cap_decimal)
     if market_cap_decimal is not None:
-        pe10_result = calculate_pe10(ticker, market_cap_decimal, max_years=10)
         pfcf10_result = calculate_pfcf10(ticker, market_cap_decimal, max_years=10)
     else:
-        pe10_result = {"pe10": None, "avg_adjusted_net_income": None}
         pfcf10_result = {"pfcf10": None, "avg_adjusted_fcf": None}
 
     leverage_result = calculate_leverage(ticker)
 
     # PEG / PFCLG can only run when their base multiple exists.
-    pe10_value = pe10_result.get("pe10")
+    pe_by_years = pe_windows_result["pe_by_years"]
+    pe10_value = pe_by_years.get(10)
     pfcf10_value = pfcf10_result.get("pfcf10")
     peg_result = (
         calculate_peg(ticker, pe10_value, max_years=10)
@@ -85,7 +86,7 @@ def compute_company_indicators(
 
     # Debt coverage uses gross debt against long-run average earnings / FCF.
     total_debt = leverage_result.get("totalDebt")
-    avg_earnings = pe10_result.get("avg_adjusted_net_income")
+    avg_earnings = pe_windows_result.get("avg_adjusted_net_income")
     avg_fcf = pfcf10_result.get("avg_adjusted_fcf")
 
     debt_to_avg_earnings = None
@@ -96,8 +97,13 @@ def compute_company_indicators(
     if total_debt is not None and avg_fcf and avg_fcf > 0:
         debt_to_avg_fcf = Decimal(str(total_debt)) / Decimal(str(avg_fcf))
 
+    pe_window_fields = {
+        f"pe{years}": _to_decimal(pe_by_years.get(years)) for years in PE_WINDOW_YEARS
+    }
+
     return {
-        "pe10": _to_decimal(pe10_value),
+        **pe_window_fields,
+        "pe_years_available": pe_windows_result["years_available"],
         "pfcf10": _to_decimal(pfcf10_value),
         "peg": _to_decimal(peg_result.get("peg")),
         "pfcf_peg": _to_decimal(pfcf_peg_result.get("pfcfPeg")),

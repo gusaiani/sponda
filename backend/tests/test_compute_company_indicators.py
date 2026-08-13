@@ -135,3 +135,73 @@ class TestComputeCompanyIndicators:
         result = compute_company_indicators("PETR4", market_cap=None)
         assert result["pe10"] is None
         assert result["pfcf10"] is None
+
+
+@pytest.mark.django_db
+class TestComputePEWindows:
+    """The snapshot dict carries the whole strict P/E window family."""
+
+    def test_returns_every_pe_window_field(self, earnings_petr4, balance_petr4):
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        for years in range(1, 16):
+            assert f"pe{years}" in result
+        assert "pe_years_available" in result
+
+    def test_windows_within_history_share_the_flat_average(
+        self, earnings_petr4, balance_petr4,
+    ):
+        # Flat 10B/year: every window up to 10 years is 400B / 10B = 40.
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        assert result["pe1"] == Decimal("40")
+        assert result["pe5"] == Decimal("40")
+        assert result["pe10"] == Decimal("40")
+        assert result["pe_years_available"] == 10
+
+    def test_windows_beyond_history_are_strictly_none(
+        self, earnings_petr4, balance_petr4,
+    ):
+        # Ten years of data: pe11–pe15 must be None, not a disguised PE10.
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        for years in range(11, 16):
+            assert result[f"pe{years}"] is None
+
+    def test_thin_history_nulls_pe10_but_keeps_short_windows(self, ipca_stub):
+        # Three years of history: strict pe10 is gone, pe3 remains.
+        for year in [2023, 2024, 2025]:
+            for quarter_end in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="FEW3",
+                    end_date=date(year, *quarter_end),
+                    net_income=2_500_000_000,
+                )
+        result = compute_company_indicators("FEW3", market_cap=400_000_000_000)
+        assert result["pe10"] is None
+        assert result["pe3"] == Decimal("40")
+        assert result["pe_years_available"] == 3
+
+    def test_thin_history_keeps_loose_debt_coverage(self, ipca_stub):
+        # debt_to_avg_earnings keeps its "up to 10 years" average even when
+        # no strict 10-year window exists.
+        for year in [2023, 2024, 2025]:
+            for quarter_end in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="FEW3",
+                    end_date=date(year, *quarter_end),
+                    net_income=2_500_000_000,
+                )
+        BalanceSheet.objects.create(
+            ticker="FEW3",
+            end_date=date(2025, 9, 30),
+            total_debt=300_000_000_000,
+            stockholders_equity=200_000_000_000,
+        )
+        result = compute_company_indicators("FEW3", market_cap=400_000_000_000)
+        # avg earnings = 10B/year over the 3 available years → 300B / 10B = 30
+        assert result["debt_to_avg_earnings"] == Decimal("30")
+
+    def test_no_market_cap_reports_available_years_without_windows(
+        self, earnings_petr4,
+    ):
+        result = compute_company_indicators("PETR4", market_cap=None)
+        assert result["pe_years_available"] == 10
+        assert result["pe5"] is None

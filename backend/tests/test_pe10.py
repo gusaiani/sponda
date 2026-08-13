@@ -3,9 +3,27 @@ from datetime import date
 from decimal import Decimal
 
 
+import pytest
+
 from quotes.models import QuarterlyEarnings
 from quotes.inflation import get_inflation_adjustment_factors
-from quotes.pe10 import calculate_pe10, get_annual_earnings
+from quotes.pe10 import (
+    PE_WINDOW_YEARS,
+    calculate_pe10,
+    calculate_pe_windows,
+    get_annual_earnings,
+)
+
+
+def create_flat_quarterly_earnings(ticker, first_year, last_year, quarterly_net_income):
+    """Create four identical quarters per year for [first_year, last_year]."""
+    for year in range(first_year, last_year + 1):
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker=ticker,
+                end_date=date(year, month, day),
+                net_income=quarterly_net_income,
+            )
 
 
 class TestGetAnnualEarnings:
@@ -347,3 +365,96 @@ class TestPe10ReportingFrequency:
         assert result["periods_per_year"] == 4
         assert result["years_of_data"] == 0
         assert result["pe10"] is None
+
+
+class TestCalculatePEWindows:
+    """calculate_pe_windows: every P/E window from 1 to 15 years, strict.
+
+    Strict means a window is None unless the company has the full window of
+    earnings history — a PE15 built from 8 years is not a PE15. The widest
+    honest window is reported as years_available so callers can explain
+    why a window is empty.
+    """
+
+    def test_full_history_fills_every_window(self, db):
+        # 15 years × 4B/year, market cap 40B → every window is exactly 10.
+        create_flat_quarterly_earnings("WIND3", 2011, 2025, 1_000_000_000)
+        result = calculate_pe_windows("WIND3", Decimal("40_000_000_000"))
+        assert result["years_available"] == 15
+        assert set(result["pe_by_years"]) == set(PE_WINDOW_YEARS)
+        for years in PE_WINDOW_YEARS:
+            assert result["pe_by_years"][years] == 10.0
+
+    def test_windows_beyond_available_history_are_none(self, db):
+        # 8 years of history: pe1–pe8 exist, pe9–pe15 are strictly None.
+        create_flat_quarterly_earnings("THIN3", 2018, 2025, 1_000_000_000)
+        result = calculate_pe_windows("THIN3", Decimal("40_000_000_000"))
+        assert result["years_available"] == 8
+        for years in range(1, 9):
+            assert result["pe_by_years"][years] == 10.0
+        for years in range(9, 16):
+            assert result["pe_by_years"][years] is None
+
+    def test_each_window_averages_only_its_own_years(self, db):
+        # 2025 earns 8B; 2011–2024 earn 4B/year. Market cap 40B.
+        create_flat_quarterly_earnings("GROW3", 2011, 2024, 1_000_000_000)
+        create_flat_quarterly_earnings("GROW3", 2025, 2025, 2_000_000_000)
+        result = calculate_pe_windows("GROW3", Decimal("40_000_000_000"))
+        assert result["pe_by_years"][1] == 5.0  # 40 / 8
+        assert result["pe_by_years"][10] == 9.09  # 40 / ((8 + 9×4) / 10)
+        assert result["pe_by_years"][15] == 9.38  # 40 / ((8 + 14×4) / 15)
+
+    def test_partial_current_year_backfills_from_older_quarters(self, db):
+        # Two quarters of 2026 plus 15 full years: the 1-year window is the
+        # four most recent quarters (H1 2026 + H2 2025), never a half year.
+        create_flat_quarterly_earnings("PART3", 2011, 2025, 1_000_000_000)
+        for month, day in [(3, 31), (6, 30)]:
+            QuarterlyEarnings.objects.create(
+                ticker="PART3", end_date=date(2026, month, day),
+                net_income=1_000_000_000,
+            )
+        result = calculate_pe_windows("PART3", Decimal("40_000_000_000"))
+        assert result["years_available"] == 15
+        assert result["pe_by_years"][1] == 10.0
+        assert result["pe_by_years"][15] == 10.0
+
+    def test_negative_window_average_is_none_without_hiding_others(self, db):
+        # 2025 loses 8B; earlier years earn 4B. The 1-year window has a
+        # negative average (None); the 15-year window is still positive.
+        create_flat_quarterly_earnings("LOSS3", 2011, 2024, 1_000_000_000)
+        create_flat_quarterly_earnings("LOSS3", 2025, 2025, -2_000_000_000)
+        result = calculate_pe_windows("LOSS3", Decimal("40_000_000_000"))
+        assert result["years_available"] == 15
+        assert result["pe_by_years"][1] is None
+        assert result["pe_by_years"][15] is not None
+
+    def test_matches_calculate_pe10_for_the_ten_year_window(
+        self, sample_earnings, sample_ipca,
+    ):
+        market_cap = Decimal("585_000_000_000")
+        windows = calculate_pe_windows("PETR4", market_cap)
+        legacy = calculate_pe10("PETR4", market_cap, max_years=10)
+        assert windows["pe_by_years"][10] == legacy["pe10"]
+
+    def test_semi_annual_reporter_counts_two_periods_per_year(self, db):
+        # 12 semi-annual filings = 6 full years for a semi-annual reporter.
+        create_semi_annual_earnings("RIO", range(2020, 2026))
+        result = calculate_pe_windows("RIO", Decimal("300_000_000"))
+        assert result["years_available"] == 6
+        assert result["pe_by_years"][6] is not None
+        assert result["pe_by_years"][7] is None
+
+    def test_no_earnings_data(self, db):
+        result = calculate_pe_windows("FAKE3", Decimal("100_000_000"))
+        assert result["years_available"] == 0
+        assert all(value is None for value in result["pe_by_years"].values())
+
+    def test_average_net_income_still_spans_up_to_ten_loose_years(self, db):
+        # Debt-coverage ratios keep the historical "up to 10 years"
+        # average: 3 years of 4B/year averages to 4B even though no strict
+        # 10-year window exists.
+        create_flat_quarterly_earnings("FEW3", 2023, 2025, 1_000_000_000)
+        result = calculate_pe_windows("FEW3", Decimal("40_000_000_000"))
+        assert result["years_available"] == 3
+        assert result["pe_by_years"][10] is None
+        assert result["avg_adjusted_net_income"] == 4_000_000_000.0

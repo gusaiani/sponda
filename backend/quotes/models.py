@@ -321,8 +321,13 @@ class IndicatorSnapshot(models.Model):
     one indicator while having another.
     """
 
+    # Strict P/E windows: peY is NULL unless the company has the full Y years
+    # of earnings history. pe_years_available records the widest honest window.
+    PE_WINDOW_FIELDS = tuple(f"pe{years}" for years in range(1, 16))
+
     INDICATOR_FIELDS = (
-        "pe10",
+        *PE_WINDOW_FIELDS,
+        "pe_years_available",
         "pfcf10",
         "peg",
         "pfcf_peg",
@@ -337,8 +342,23 @@ class IndicatorSnapshot(models.Model):
     )
 
     ticker = models.CharField(max_length=10, unique=True, db_index=True)
-    # Valuation multiples
+    # Valuation multiples — strict P/E windows PE1..PE15
+    pe1 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe2 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe3 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe4 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe5 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe6 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe7 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe8 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe9 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     pe10 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe11 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe12 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe13 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe14 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe15 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
+    pe_years_available = models.PositiveSmallIntegerField(null=True, blank=True)
     pfcf10 = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     peg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
     pfcf_peg = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)

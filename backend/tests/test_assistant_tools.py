@@ -196,11 +196,20 @@ class TestExecuteListAvailableIndicators:
     def test_json_dumpable(self):
         json.dumps(execute_list_available_indicators())
 
-    def test_ten_indicators_present_matching_filterable_fields(self):
+    def test_indicators_match_filterable_fields(self):
         result = execute_list_available_indicators()
         keys = {entry["key"] for entry in result["indicators"]}
         assert keys == set(SCREENER_FILTERABLE_FIELDS)
-        assert len(result["indicators"]) == 10
+        # 15 strict P/E windows + pe_years_available + the 9 non-P/E indicators
+        assert len(result["indicators"]) == 25
+
+    def test_pe_windows_note_their_strictness(self):
+        result = execute_list_available_indicators()
+        by_key = {entry["key"]: entry for entry in result["indicators"]}
+        for years in range(1, 16):
+            note = by_key[f"pe{years}"]["note"]
+            assert "pe_years_available" in note
+        assert "15" in by_key["pe_years_available"]["definition"]
 
     def test_every_indicator_has_required_fields(self):
         result = execute_list_available_indicators()
@@ -211,11 +220,13 @@ class TestExecuteListAvailableIndicators:
             assert entry["direction"] in {"lower_is_better", "higher_is_better"}
             assert entry.get("note")
 
-    def test_current_ratio_is_higher_is_better_rest_are_lower_is_better(self):
+    def test_directions_follow_indicator_semantics(self):
         result = execute_list_available_indicators()
         by_key = {entry["key"]: entry for entry in result["indicators"]}
-        assert by_key["current_ratio"]["direction"] == "higher_is_better"
-        for key in set(SCREENER_FILTERABLE_FIELDS) - {"current_ratio"}:
+        higher_is_better_keys = {"current_ratio", "pe_years_available"}
+        for key in higher_is_better_keys:
+            assert by_key[key]["direction"] == "higher_is_better"
+        for key in set(SCREENER_FILTERABLE_FIELDS) - higher_is_better_keys:
             assert by_key[key]["direction"] == "lower_is_better"
 
     def test_unsupported_examples_present_and_mentions_common_gaps(self):
@@ -309,13 +320,36 @@ class TestExecuteScreenCompanies:
         assert row["market_cap"] == 400_000_000_000
         assert row["pe10"] == 6.5
         assert isinstance(row["pe10"], float)
-        for field in SCREENER_FILTERABLE_FIELDS:
-            assert field in row
         # Trimmed rows must NOT carry ratings/logo/current_price — those go
         # out on the results SSE frame via full_rows, not to the model.
         assert "ratings" not in row
         assert "logo" not in row
         assert "current_price" not in row
+
+    def test_trimmed_row_carries_base_indicators_not_every_pe_window(
+        self, snapshot_universe,
+    ):
+        # 15 windows × 20 rows would balloon every tool round; the model
+        # gets the classic indicators plus pe_years_available by default.
+        result = execute_screen_companies({})
+        row = result["rows_for_model"][0]
+        assert "pe10" in row
+        assert "pe_years_available" in row
+        assert "pe5" not in row
+        assert "pe15" not in row
+
+    def test_trimmed_row_includes_windows_the_call_actually_used(
+        self, snapshot_universe,
+    ):
+        IndicatorSnapshot.objects.filter(ticker="PETR4").update(
+            pe5=Decimal("5.0"), pe_years_available=15,
+        )
+        filtered = execute_screen_companies({"filters": {"pe5": {"max": 10}}})
+        assert filtered["count"] == 1
+        assert filtered["rows_for_model"][0]["pe5"] == 5.0
+
+        sorted_result = execute_screen_companies({"sort": "-pe5"})
+        assert "pe5" in sorted_result["rows_for_model"][0]
 
     def test_full_row_content_keeps_ratings_and_is_json_safe(self, snapshot_universe):
         result = execute_screen_companies({})

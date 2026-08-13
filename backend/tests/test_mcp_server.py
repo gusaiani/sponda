@@ -303,6 +303,26 @@ class TestMCPToolsCall:
         assert "full_rows" not in structured
         assert "rows_for_model" not in structured
 
+    def test_screen_companies_accepts_strict_pe_window_filters(
+        self, client, snapshot_universe
+    ):
+        from quotes.models import IndicatorSnapshot
+
+        IndicatorSnapshot.objects.filter(ticker="PETR4").update(
+            pe3=Decimal("4.2"), pe_years_available=12,
+        )
+        response = tool_call(
+            client,
+            "screen_companies",
+            {"filters": {"pe3": {"max": 10}}},
+        )
+        structured = structured_content_of(response)
+        assert structured["count"] == 1
+        row = structured["rows"][0]
+        assert row["ticker"] == "PETR4"
+        assert row["pe3"] == 4.2
+        assert row["pe_years_available"] == 12
+
     def test_get_company_returns_indicator_values(self, client, snapshot_universe):
         structured = structured_content_of(
             tool_call(client, "get_company", {"symbol": "wege3"})
