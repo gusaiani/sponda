@@ -1,0 +1,16 @@
+[Unit]
+Description=Sponda daily country backfill from FMP profiles (fills Ticker.country for new listings)
+After=network-online.target sponda-refresh.service
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py sync_country
+Restart=on-failure
+RestartSec=120

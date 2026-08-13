@@ -301,3 +301,60 @@ class TestRunScreenerRowShape:
             assert "ratings" in row
             assert "overall" in row["ratings"]
             assert "methodology_version" in row["ratings"]
+
+
+@pytest.mark.django_db
+class TestRunScreenerPEWindows:
+    """The strict P/E window family is filterable and sortable."""
+
+    @pytest.fixture
+    def pe_window_universe(self, snapshot_universe):
+        IndicatorSnapshot.objects.filter(ticker="PETR4").update(
+            pe5=Decimal("5.0"), pe15=Decimal("7.5"), pe_years_available=15,
+        )
+        IndicatorSnapshot.objects.filter(ticker="WEGE3").update(
+            pe5=Decimal("30.0"), pe_years_available=8,
+        )
+
+    def test_filters_by_a_short_window(self, pe_window_universe):
+        count, results = run_screener(
+            bounds={"pe5": {"max": Decimal("10")}},
+            sectors=[], countries=[], sort="ticker", limit=50, offset=0,
+        )
+        assert count == 1
+        assert results[0]["ticker"] == "PETR4"
+
+    def test_null_windows_are_excluded_by_bounds(self, pe_window_universe):
+        # WEGE3 has only 8 years of history: its pe15 is NULL, so a pe15
+        # bound can never match it.
+        count, results = run_screener(
+            bounds={"pe15": {"max": Decimal("100")}},
+            sectors=[], countries=[], sort="ticker", limit=50, offset=0,
+        )
+        assert count == 1
+        assert results[0]["ticker"] == "PETR4"
+
+    def test_filters_by_years_available(self, pe_window_universe):
+        count, results = run_screener(
+            bounds={"pe_years_available": {"min": Decimal("10")}},
+            sectors=[], countries=[], sort="ticker", limit=50, offset=0,
+        )
+        assert count == 1
+        assert results[0]["ticker"] == "PETR4"
+
+    def test_sorts_by_a_window_with_nulls_last(self, pe_window_universe):
+        _, results = run_screener(
+            bounds={}, sectors=[], countries=[], sort="-pe5", limit=50, offset=0,
+        )
+        tickers = [row["ticker"] for row in results]
+        assert tickers[0] == "WEGE3"
+        assert tickers[1] == "PETR4"
+        assert tickers[2] == "MICRO3"  # NULL pe5 sorts last
+
+    def test_rows_carry_window_values(self, pe_window_universe):
+        _, results = run_screener(
+            bounds={}, sectors=[], countries=[], sort="ticker", limit=50, offset=0,
+        )
+        row = next(r for r in results if r["ticker"] == "PETR4")
+        assert Decimal(str(row["pe5"])) == Decimal("5.0")
+        assert row["pe_years_available"] == 15

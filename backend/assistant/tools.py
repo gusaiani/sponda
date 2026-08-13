@@ -13,6 +13,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from quotes.models import IndicatorSnapshot, Ticker
+from quotes.pe10 import PE_WINDOW_MAX_YEARS, PE_WINDOW_YEARS
 from quotes.screener import (
     SCREENER_DEFAULT_SORT,
     SCREENER_FILTERABLE_FIELDS,
@@ -46,20 +47,46 @@ FUNDAMENTALS_STRIPPED_KEYS = (
 # descriptions are generated from it below, so the two tool-facing surfaces
 # can never drift apart. Order matches quotes.screener.SCREENER_FILTERABLE_FIELDS.
 
-INDICATOR_CATALOGUE: tuple[dict[str, str], ...] = (
-    {
-        "key": "pe10",
-        "name": "P/E10 (Shiller P/E)",
+def _pe_window_catalogue_entry(years: int) -> dict[str, str]:
+    """Catalogue entry for one strict P/E window (PE1..PE15)."""
+    shiller_suffix = " (Shiller P/E)" if years == 10 else ""
+    year_word = "year" if years == 1 else "years"
+    return {
+        "key": f"pe{years}",
+        "name": f"P/E{years}{shiller_suffix}",
         "definition": (
-            "Market cap divided by inflation-adjusted average net income "
-            "over up to 10 years."
+            f"Market cap divided by inflation-adjusted average net income "
+            f"over exactly {years} {year_word}."
         ),
         "direction": "lower_is_better",
         "note": (
-            "Inflation-adjusted 10-year P/E, Shiller-style. Cheap is "
-            "typically below 10; expensive is above 20."
+            f"Strict window: empty unless the company has the full {years} "
+            f"{year_word} of earnings history — pe_years_available tells "
+            "the widest window a company can honestly fill. Cheap is "
+            "typically below 10; expensive is above 20; shorter windows "
+            "react faster but are noisier."
         ),
-    },
+    }
+
+
+PE_YEARS_AVAILABLE_CATALOGUE_ENTRY: dict[str, str] = {
+    "key": "pe_years_available",
+    "name": "P/E window years available",
+    "definition": (
+        "Number of complete years of earnings history available to the "
+        f"strict P/E windows (maximum {PE_WINDOW_MAX_YEARS})."
+    ),
+    "direction": "higher_is_better",
+    "note": (
+        "peY is empty whenever Y exceeds this value; the widest honest "
+        "window for a company is PE{pe_years_available}. Filter min=10 to "
+        "demand a full decade of history."
+    ),
+}
+
+INDICATOR_CATALOGUE: tuple[dict[str, str], ...] = (
+    *(_pe_window_catalogue_entry(years) for years in PE_WINDOW_YEARS),
+    PE_YEARS_AVAILABLE_CATALOGUE_ENTRY,
     {
         "key": "pfcf10",
         "name": "P/FCF10",
@@ -443,18 +470,38 @@ def _clamp_screen_limit(raw_limit: Any) -> int:
     return max(1, min(limit, MAX_SCREEN_LIMIT))
 
 
-def _trim_row_for_model(row: dict) -> dict:
+# Indicator fields every trimmed row carries. The full strict P/E window
+# family (pe1..pe15) is deliberately not here — 15 windows × 20 rows would
+# balloon every tool round, so a window only rides along when the call
+# actually filtered or sorted by it.
+TRIMMED_ROW_INDICATOR_FIELDS = (
+    "pe10",
+    "pe_years_available",
+    "pfcf10",
+    "peg",
+    "pfcf_peg",
+    "debt_to_equity",
+    "debt_ex_lease_to_equity",
+    "liabilities_to_equity",
+    "current_ratio",
+    "debt_to_avg_earnings",
+    "debt_to_avg_fcf",
+)
+
+
+def _trim_row_for_model(row: dict, extra_fields: tuple = ()) -> dict:
     """Reduce one full screener row to what the model needs to reason about
-    and cite: ticker identity, sector, market cap, and the 10 indicator
-    values. Ratings/logo/current_price are omitted here to save tokens —
-    the frontend gets those straight from the untouched `full_rows`."""
+    and cite: ticker identity, sector, market cap, the core indicator
+    values, and any extra fields this call filtered or sorted by.
+    Ratings/logo/current_price are omitted here to save tokens — the
+    frontend gets those straight from the untouched `full_rows`."""
     trimmed = {
         "ticker": row["ticker"],
         "name": row["name"],
         "sector": row["sector"],
         "market_cap": row["market_cap"],
     }
-    for field in SCREENER_FILTERABLE_FIELDS:
+    for field in (*TRIMMED_ROW_INDICATOR_FIELDS, *extra_fields):
         trimmed[field] = row.get(field)
     return json_safe(trimmed)
 
@@ -514,20 +561,30 @@ def execute_screen_companies(arguments: dict) -> dict:
     if sector_error:
         return {"error": sector_error}
 
+    sort = arguments.get("sort") or SCREENER_DEFAULT_SORT
     try:
         total_count, rows = run_screener(
             bounds=bounds,
             sectors=sectors,
             countries=_normalize_countries(arguments.get("countries") or []),
-            sort=arguments.get("sort") or SCREENER_DEFAULT_SORT,
+            sort=sort,
             limit=limit,
         )
     except ScreenerError as error:
         return {"error": str(error)}
 
+    fields_this_call_used = (*bounds.keys(), sort.lstrip("-"))
+    extra_row_fields = tuple(
+        field for field in fields_this_call_used
+        if field in SCREENER_FILTERABLE_FIELDS
+        and field not in TRIMMED_ROW_INDICATOR_FIELDS
+    )
+
     return {
         "count": total_count,
-        "rows_for_model": [_trim_row_for_model(row) for row in rows],
+        "rows_for_model": [
+            _trim_row_for_model(row, extra_row_fields) for row in rows
+        ],
         "full_rows": json_safe(rows),
     }
 
