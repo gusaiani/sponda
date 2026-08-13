@@ -346,7 +346,9 @@ urlpatterns = [
     path("api/auth/", include("accounts.urls")),
     path("api/social/", include("social.urls")),
     path("api/assistant/", include("assistant.urls")),
-    path("api/mcp/", mcp_endpoint, name="mcp-server"),
+    # Both slash variants answer directly: MCP clients POST to the exact URL
+    # the user pasted, and an APPEND_SLASH 301 would drop the POST body.
+    re_path(r"^api/mcp/?$", mcp_endpoint, name="mcp-server"),
     re_path(r"^(?P<filepath>assets/.*)$", _serve_frontend),
     re_path(r"^(?!api/|admin/)(?P<filepath>.*)$", _serve_frontend),
 ]
