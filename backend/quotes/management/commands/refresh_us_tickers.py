@@ -12,8 +12,7 @@ from django.core.management.base import BaseCommand
 from quotes.fmp import fetch_etf_symbols
 from quotes.models import Ticker
 from quotes.ticker_aliases import aliases_for, serialize_aliases
-
-BRAZILIAN_TICKER_PATTERN = re.compile(r"^[A-Z]+\d+$")
+from quotes.ticker_symbols import BRAZILIAN_SYMBOL_REGEX, BRAZILIAN_TICKER_PATTERN
 
 NON_COMPANY_NAME_PATTERNS = re.compile(
     r"\b("
@@ -129,7 +128,7 @@ class Command(BaseCommand):
             synced_symbols = {ticker.symbol for ticker in objects}
             stale_us_tickers = (
                 Ticker.objects.exclude(symbol__in=synced_symbols)
-                .exclude(symbol__regex=r"^[A-Z]+\d+$")
+                .exclude(symbol__regex=BRAZILIAN_SYMBOL_REGEX)
             )
             deleted_count = stale_us_tickers.count()
             if deleted_count > 0:

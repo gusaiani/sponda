@@ -185,6 +185,47 @@ class TestSyncTickers:
         assert not Ticker.objects.filter(symbol="KNRI11").exists()
         assert not Ticker.objects.filter(symbol="OLD3").exists()
 
+    @patch("quotes.brapi.fetch_ticker_list")
+    def test_keeps_us_tickers_missing_from_the_brazilian_source(self, mock_fetch, db):
+        """BRAPI lists Brazilian instruments only, so every US ticker is absent
+        from its payload by definition · never because it was delisted. Deleting
+        them here wipes the whole US universe on each run, and the re-insert by
+        ``refresh_us_tickers`` brings them back with an empty sector and country.
+        That is why the screener's country list only ever offered BR.
+        """
+        Ticker.objects.create(
+            symbol="AAPL", name="Apple Inc.", sector="Technology",
+            country="US", type="stock",
+        )
+        Ticker.objects.create(
+            symbol="MSFT", name="Microsoft Corporation", sector="Technology",
+            country="US", type="stock",
+        )
+        mock_fetch.return_value = [{"stock": "PETR4", "name": "Petrobras"}]
+
+        sync_tickers()
+
+        assert Ticker.objects.filter(symbol="AAPL").exists()
+        assert Ticker.objects.filter(symbol="MSFT").exists()
+
+    @patch("quotes.brapi.fetch_ticker_list")
+    def test_preserves_backfilled_sector_and_country_on_us_tickers(self, mock_fetch, db):
+        """Surviving the delete is not enough: the row must keep the sector and
+        country that ``sync_us_sectors`` and ``sync_country`` paid FMP calls to
+        fetch. A delete followed by a re-insert would silently reset both.
+        """
+        Ticker.objects.create(
+            symbol="AAPL", name="Apple Inc.", sector="Technology",
+            country="US", type="stock",
+        )
+        mock_fetch.return_value = [{"stock": "PETR4", "name": "Petrobras"}]
+
+        sync_tickers()
+
+        apple = Ticker.objects.get(symbol="AAPL")
+        assert apple.sector == "Technology"
+        assert apple.country == "US"
+
 
 class TestTickerListEndpoint:
     def test_returns_ticker_list(self, api_client, sample_tickers):

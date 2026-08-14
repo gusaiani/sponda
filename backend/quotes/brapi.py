@@ -15,6 +15,7 @@ from .models import (
     QuarterlyEarnings,
     Ticker,
 )
+from .ticker_symbols import BRAZILIAN_SYMBOL_REGEX
 
 # (connect, read) — fail fast on connection issues, give the read a
 # generous budget for slow upstreams. 30s blanket timeout used to pin
@@ -573,5 +574,13 @@ def sync_tickers() -> int:
             update_fields=["name", "display_name", "sector", "type", "logo", "reported_currency"],
         )
         synced_symbols = {ticker.symbol for ticker in objects}
-        Ticker.objects.exclude(symbol__in=synced_symbols).delete()
+        # Only Brazilian rows are ours to reap. BRAPI never lists US tickers,
+        # so an unmatched US symbol means "not in this source", not "delisted"
+        # · deleting on that basis wiped the US universe on every run, and the
+        # re-insert by refresh_us_tickers lost the backfilled sector and country.
+        stale_brazilian_tickers = (
+            Ticker.objects.exclude(symbol__in=synced_symbols)
+            .filter(symbol__regex=BRAZILIAN_SYMBOL_REGEX)
+        )
+        stale_brazilian_tickers.delete()
     return len(objects)

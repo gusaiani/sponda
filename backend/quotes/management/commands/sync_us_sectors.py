@@ -9,6 +9,7 @@ from django.db.models import F
 
 from quotes.fmp import FMPError, fetch_profile
 from quotes.models import Ticker
+from quotes.ticker_symbols import BRAZILIAN_SYMBOL_REGEX
 
 DEFAULT_BATCH_SIZE = 5000
 
@@ -34,7 +35,7 @@ class Command(BaseCommand):
         """
         return (
             Ticker.objects.filter(type="stock", sector="")
-            .exclude(symbol__regex=r"^[A-Z]+\d+$")
+            .exclude(symbol__regex=BRAZILIAN_SYMBOL_REGEX)
             .order_by(F("market_cap").desc(nulls_last=True), "symbol")
         )
 
