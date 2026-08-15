@@ -37,6 +37,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Observability](#observability)
 - [Seeding a quarter from CVM](#seeding-a-quarter-from-cvm)
 - [Measuring CVM publication latency](#measuring-cvm-publication-latency)
+- [CVM runbook](CVM_RUNBOOK.md) · what to check, when, and what each answer means
 - [Mapping tickers to CVM codes](#mapping-tickers-to-cvm-codes)
 - [Ingesting quarters from CVM](#ingesting-quarters-from-cvm)
 - [The fourth quarter](#the-fourth-quarter)
@@ -863,6 +864,8 @@ cd backend
 The suites use synthetic in-memory archives, so they never touch the network.
 
 ## Measuring CVM publication latency
+
+> Operational checks, decision rules and known gaps live in [`CVM_RUNBOOK.md`](CVM_RUNBOOK.md).
 
 How quickly a filing can appear on Sponda is capped by something outside our control: how long the CVM takes to publish it. `snapshot_cvm_filings` records the evidence, `report_cvm_lag` summarises it.
 
