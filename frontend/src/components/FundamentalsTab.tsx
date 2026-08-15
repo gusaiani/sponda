@@ -12,12 +12,23 @@ import "../styles/fundamentals.css";
 interface AugmentedFundamentalsYear extends FundamentalsYear {
   pe: number | null;
   pfcf: number | null;
+  debtToEarnings: number | null;
+  debtToFcf: number | null;
 }
 
 interface TrailingRatios {
   pe: number | null;
   pfcf: number | null;
+  debtToEarnings: number | null;
+  debtToFcf: number | null;
 }
+
+const NULL_TRAILING_RATIOS: TrailingRatios = {
+  pe: null,
+  pfcf: null,
+  debtToEarnings: null,
+  debtToFcf: null,
+};
 
 interface EarningsQuarterDetail {
   end_date: string;
@@ -66,15 +77,20 @@ function anchoredTrailingAverage<QuarterDetail extends { end_date: string }>(
 }
 
 /**
- * P/L{N} and P/FCL{N} per historical year, computed with the same
- * trailing-window math the Indicadores tab uses — each year's window is
- * exactly N × periodsPerYear filings ending at that year's last filed
- * period. A year without enough trailing history gets null (rendered
- * as "—") instead of a silently-shrunk average. Both the market cap
- * and the averaged figures are in today's purchasing power, which is
+ * P/L{N}, P/FCL{N}, Debt/Earnings{N}, and Debt/FCL{N} per historical
+ * year, computed with the same trailing-window math the Indicadores tab
+ * uses — each year's window is exactly N × periodsPerYear filings
+ * ending at that year's last filed period. A year without enough
+ * trailing history gets null (rendered as "—") instead of a
+ * silently-shrunk average. Both the numerators (market cap, debt) and
+ * the averaged figures are in today's purchasing power, which is
  * equivalent to comparing both in that year's money.
+ *
+ * Debt coverage mirrors the Metrics-tab indicator (deriveForYears):
+ * it only exists when the trailing average is positive — dividing debt
+ * by negative earnings is meaningless as a repayment horizon.
  */
-export function computeTrailingPERatios(
+export function computeTrailingRatios(
   data: FundamentalsYear[],
   source: TrailingRatioSource | null,
   windowYears: number,
@@ -89,8 +105,9 @@ export function computeTrailingPERatios(
 
   for (const row of data) {
     const marketCap = row.marketCapAdjusted ?? row.marketCap;
-    if (marketCap === null) {
-      result.set(row.year, { pe: null, pfcf: null });
+    const debt = row.debtExLeaseAdjusted ?? row.debtExLease;
+    if (marketCap === null && debt === null) {
+      result.set(row.year, NULL_TRAILING_RATIOS);
       continue;
     }
 
@@ -103,30 +120,36 @@ export function computeTrailingPERatios(
       (quarter) => quarter.fcf,
     );
 
-    const computeRatio = (average: number | null): number | null =>
-      average !== null && average !== 0
+    const priceRatio = (average: number | null): number | null =>
+      marketCap !== null && average !== null && average !== 0
         ? Math.round((marketCap / average) * 100) / 100
+        : null;
+    const debtCoverageRatio = (average: number | null): number | null =>
+      debt !== null && average !== null && average > 0
+        ? Math.round((debt / average) * 100) / 100
         : null;
 
     result.set(row.year, {
-      pe: computeRatio(averageEarnings),
-      pfcf: computeRatio(averageFcf),
+      pe: priceRatio(averageEarnings),
+      pfcf: priceRatio(averageFcf),
+      debtToEarnings: debtCoverageRatio(averageEarnings),
+      debtToFcf: debtCoverageRatio(averageFcf),
     });
   }
 
   return result;
 }
 
-export function augmentWithPERatios(
+export function augmentWithTrailingRatios(
   data: FundamentalsYear[],
   windowYears: number,
   source: TrailingRatioSource | null,
 ): AugmentedFundamentalsYear[] {
-  const peRatios = computeTrailingPERatios(data, source, windowYears);
+  const trailingRatios = computeTrailingRatios(data, source, windowYears);
   return [...data]
     .sort((a, b) => b.year - a.year)
     .map((row) => {
-      const ratios = peRatios.get(row.year) ?? { pe: null, pfcf: null };
+      const ratios = trailingRatios.get(row.year) ?? NULL_TRAILING_RATIOS;
       return { ...row, ...ratios };
     });
 }
@@ -188,6 +211,14 @@ export function getTranslatedColumns(
       key: "currentRatio", label: t("fundamentals.col.current_ratio"), group: "balanco",
       format: (row) => ratio(row.currentRatio, locale),
     },
+    {
+      key: "debtToEarnings", label: `${t("fundamentals.col.debt_earnings")}${windowYears}`, group: "balanco",
+      format: (row) => ratio(row.debtToEarnings, locale),
+    },
+    {
+      key: "debtToFcf", label: `${t("fundamentals.col.debt_fcf")}${windowYears}`, group: "balanco",
+      format: (row) => ratio(row.debtToFcf, locale),
+    },
     // Resultado
     {
       key: "revenue", label: t("fundamentals.col.revenue"), group: "resultado",
@@ -229,7 +260,7 @@ export function getTranslatedColumns(
   ];
 }
 
-const BALANCE_COUNT = 6;
+const BALANCE_COUNT = 8;
 const RESULTADO_COUNT = 3;
 const CAIXA_COUNT = 3;
 const RETORNO_COUNT = 2;
@@ -257,7 +288,7 @@ export function FundamentalsTab({ ticker, years, valueMode, quote }: Props) {
   const { t, locale } = useTranslation();
   const columns = useMemo(() => getTranslatedColumns(t, years, locale), [t, years, locale]);
   const data = useMemo(
-    () => (rawData ? augmentWithPERatios(rawData, years, quote) : null),
+    () => (rawData ? augmentWithTrailingRatios(rawData, years, quote) : null),
     [rawData, years, quote],
   );
   // A "partial year" depends on the filing frequency: 3 quarters is
@@ -355,6 +386,8 @@ function getRawValue(row: AugmentedFundamentalsYear, key: string, mode: ValueMod
     case "debtToEquity": return row.debtToEquity;
     case "liabToEquity": return row.liabilitiesToEquity;
     case "currentRatio": return row.currentRatio;
+    case "debtToEarnings": return row.debtToEarnings;
+    case "debtToFcf": return row.debtToFcf;
     case "revenue": return mode === "adjusted" ? row.revenueAdjusted : row.revenue;
     case "netIncome": return mode === "adjusted" ? row.netIncomeAdjusted : row.netIncome;
     case "pe": return row.pe;

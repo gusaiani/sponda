@@ -247,6 +247,8 @@ export const de: TranslationDictionary = {
   "fundamentals.col.debt_equity": "Schulden/EK",
   "fundamentals.col.liab_equity": "Verbindl./EK",
   "fundamentals.col.current_ratio": "Liquidität",
+  "fundamentals.col.debt_earnings": "Schulden/Erg.",
+  "fundamentals.col.debt_fcf": "Schulden/FCF",
   "fundamentals.col.revenue": "Umsatz (Mio.)",
   "fundamentals.col.net_income": "Nettoerg. (Mio.)",
   "fundamentals.col.fcf": "FCF (Mio.)",

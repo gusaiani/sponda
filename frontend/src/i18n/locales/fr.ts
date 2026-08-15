@@ -247,6 +247,8 @@ export const fr: TranslationDictionary = {
   "fundamentals.col.debt_equity": "Dette/CP",
   "fundamentals.col.liab_equity": "Passif/CP",
   "fundamentals.col.current_ratio": "Ratio C.",
+  "fundamentals.col.debt_earnings": "Dette/Rés.",
+  "fundamentals.col.debt_fcf": "Dette/FCF",
   "fundamentals.col.revenue": "Chiffre d'aff. (M)",
   "fundamentals.col.net_income": "R\u00e9s. net (M)",
   "fundamentals.col.fcf": "FCF (M)",

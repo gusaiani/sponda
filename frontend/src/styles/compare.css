@@ -122,7 +122,37 @@
   font-size: 11.2px;
 }
 
-/* Remove button */
+/* Remove button — lives in a right-pinned sticky column so it stays
+   visible while the table scrolls horizontally. */
+.compare-remove-col {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #ffffff;
+  width: 36px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.compare-remove-col::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(to left, rgba(0,0,0,0.04), transparent);
+  pointer-events: none;
+}
+
+.compare-table tbody tr:hover .compare-remove-col {
+  background: #f8fafc;
+}
+
+.compare-group-row th.compare-remove-col {
+  border-bottom-color: transparent;
+}
+
 .compare-remove-btn {
   @apply bg-transparent border-none cursor-pointer text-sm leading-none p-1;
   color: var(--color-muted);
@@ -197,6 +227,52 @@
     @apply py-8;
     padding-left: 32px;
     padding-right: 32px;
+  }
+}
+
+/* Align the company column with the page's shared left line (the
+   .app-main gutter + 8px where the header logo, tab pills, and cards
+   sit — see .company-header in global.css). The 16px drag-handle
+   gutter overhangs into the container padding instead of indenting the
+   table, and stays pinned alongside the sticky company column while
+   scrolling. The wrapper width compensates the negative margin so the
+   table's right edge stays put. Scoped to .compare-container so the
+   screener's reuse of these classes keeps its own geometry. */
+.compare-container .compare-scroll-wrapper {
+  /* container padding 16px − 8px design line + 16px gutter */
+  margin-left: -24px;
+  width: calc(100% + 24px);
+  max-width: none;
+}
+
+.compare-container .compare-table .compare-drag-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #ffffff;
+  width: 16px;
+  min-width: 16px;
+  /* Outranks the px-2 that .compare-table cells carry — the gutter
+     must stay exactly as wide as the company column's sticky offset. */
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.compare-container .compare-drag-handle {
+  padding: 2px;
+}
+
+.compare-container .compare-table .compare-sticky-col {
+  left: 16px;
+  /* Company logo and name sit exactly on the design line. */
+  padding-left: 0;
+}
+
+@media (min-width: 640px) {
+  .compare-container .compare-scroll-wrapper {
+    /* container padding 32px − 8px design line + 16px gutter */
+    margin-left: -40px;
+    width: calc(100% + 40px);
   }
 }
 

@@ -292,7 +292,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
               <th colSpan={RESULTADO_COUNT} className="compare-group-separator">{t("fundamentals.income")}</th>
               <th colSpan={CAIXA_COUNT} className="compare-group-separator">{t("fundamentals.cash_flow")}</th>
               <th colSpan={RETORNO_COUNT} className="compare-group-separator">{t("fundamentals.returns")}</th>
-              <th />
+              <th className="compare-remove-col" />
             </tr>
             {/* Column headers */}
             <tr>
@@ -307,7 +307,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
                   {col.label} {sortIndicator(col.key)}
                 </th>
               ))}
-              <th />
+              <th className="compare-remove-col" />
             </tr>
           </thead>
           <tbody>
@@ -538,7 +538,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
 
 /* ── Row component ── */
 
-function CompareRow({
+export function CompareRow({
   entry,
   index,
   isCurrentTicker,
@@ -659,7 +659,7 @@ function CompareRow({
             <div className="compare-loading-cell" />
           </td>
         ))}
-        <td />
+        <td className="compare-remove-col" />
       </tr>
     );
   }
@@ -680,9 +680,9 @@ function CompareRow({
             {error?.message ?? t("compare.data_unavailable")}
           </span>
         </td>
-        <td>
+        <td className="compare-remove-col">
           {!isCurrentTicker && (
-            <button className="compare-remove-btn" onClick={() => onRemove(ticker)} aria-label={`Remover ${ticker}`}>
+            <button className="compare-remove-btn" onClick={() => onRemove(ticker)} aria-label={`${t("common.remove")} ${ticker}`}>
               ×
             </button>
           )}
@@ -720,9 +720,9 @@ function CompareRow({
           </td>
         );
       })}
-      <td>
+      <td className="compare-remove-col">
         {!isCurrentTicker && (
-          <button className="compare-remove-btn" onClick={() => onRemove(ticker)} aria-label={`Remover ${ticker}`}>
+          <button className="compare-remove-btn" onClick={() => onRemove(ticker)} aria-label={`${t("common.remove")} ${ticker}`}>
             ×
           </button>
         )}
