@@ -247,6 +247,8 @@ export const zh: TranslationDictionary = {
   "fundamentals.col.debt_equity": "债务/权益",
   "fundamentals.col.liab_equity": "负债/权益",
   "fundamentals.col.current_ratio": "流动比率",
+  "fundamentals.col.debt_earnings": "债务/利润",
+  "fundamentals.col.debt_fcf": "债务/FCF",
   "fundamentals.col.revenue": "营业收入 (M)",
   "fundamentals.col.net_income": "净利润 (M)",
   "fundamentals.col.fcf": "FCF (M)",

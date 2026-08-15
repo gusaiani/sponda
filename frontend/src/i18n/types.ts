@@ -247,6 +247,8 @@ export interface TranslationDictionary {
   "fundamentals.col.debt_equity": string;
   "fundamentals.col.liab_equity": string;
   "fundamentals.col.current_ratio": string;
+  "fundamentals.col.debt_earnings": string;
+  "fundamentals.col.debt_fcf": string;
   "fundamentals.col.revenue": string;
   "fundamentals.col.net_income": string;
   "fundamentals.col.fcf": string;
