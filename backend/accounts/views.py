@@ -4,6 +4,7 @@ from django.core.mail import send_mail
 from django.db import models
 from django.template.loader import render_to_string
 from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
@@ -12,6 +13,7 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from assistant.models import McpCall
 from quotes.client_ip import client_ip_hash
 from quotes.lookup_quota import lookup_quota
 from quotes.models import LookupLog
@@ -1191,6 +1193,11 @@ class GoogleAuthView(APIView):
 
 # ── Admin Analytics Dashboard ──
 
+# How many rows the MCP tool/client rankings return, and how many days the
+# MCP call sparkline covers.
+MCP_TOP_ROW_LIMIT = 10
+MCP_DAILY_SERIES_DAYS = 30
+
 
 def _time_boundaries():
     """Return cutoff timestamps for day, week, month, year."""
@@ -1217,6 +1224,7 @@ class AdminDashboardView(APIView):
             "top_pages": self._get_top_pages(boundaries),
             "top_tickers": self._get_top_tickers(boundaries),
             "signup_stats": self._get_signup_stats(boundaries),
+            "mcp": self._get_mcp_stats(boundaries),
             "favorites_count": FavoriteCompany.objects.count(),
             "saved_lists_count": SavedList.objects.count(),
         })
@@ -1354,6 +1362,120 @@ class AdminDashboardView(APIView):
                 .order_by("-lookup_count")[:10]
             )
         return stats
+
+    def _get_mcp_stats(self, boundaries):
+        """Usage of the public MCP server, from the McpCall audit rows.
+
+        Four queries regardless of how many periods exist: one filtered
+        aggregate, one tool ranking, one client ranking, one daily series.
+        """
+        return {
+            "periods": self._get_mcp_period_stats(boundaries),
+            "top_tools": self._get_mcp_top_tools(boundaries),
+            "top_clients": self._get_mcp_top_clients(boundaries),
+            "daily_calls": self._get_mcp_daily_calls(),
+        }
+
+    def _get_mcp_period_stats(self, boundaries):
+        """Call volume, distinct callers, and failures per period."""
+        aggregations = {}
+        for period_name, cutoff in boundaries.items():
+            period_filter = Q(timestamp__gte=cutoff)
+            aggregations[f"{period_name}_total"] = Count(
+                "id", filter=period_filter
+            )
+            aggregations[f"{period_name}_tools"] = Count(
+                "id",
+                filter=period_filter & Q(method=McpCall.METHOD_TOOLS_CALL),
+            )
+            aggregations[f"{period_name}_unique"] = Count(
+                "ip_hash", filter=period_filter, distinct=True
+            )
+            aggregations[f"{period_name}_failed"] = Count(
+                "id", filter=period_filter & Q(failed=True)
+            )
+            aggregations[f"{period_name}_rate_limited"] = Count(
+                "id", filter=period_filter & Q(rate_limited=True)
+            )
+        aggregations["all_time_total"] = Count("id")
+        aggregations["all_time_tools"] = Count(
+            "id", filter=Q(method=McpCall.METHOD_TOOLS_CALL)
+        )
+        aggregations["all_time_unique"] = Count("ip_hash", distinct=True)
+        aggregations["all_time_failed"] = Count("id", filter=Q(failed=True))
+        aggregations["all_time_rate_limited"] = Count(
+            "id", filter=Q(rate_limited=True)
+        )
+
+        result = McpCall.objects.aggregate(**aggregations)
+
+        return {
+            period_name: {
+                "total_calls": result[f"{period_name}_total"],
+                "tool_calls": result[f"{period_name}_tools"],
+                "unique_clients": result[f"{period_name}_unique"],
+                "failed_calls": result[f"{period_name}_failed"],
+                "rate_limited_calls": result[f"{period_name}_rate_limited"],
+            }
+            for period_name in [*boundaries, "all_time"]
+        }
+
+    def _get_mcp_top_tools(self, boundaries):
+        """Most-called tools in the last 30 days."""
+        return list(
+            McpCall.objects.filter(
+                timestamp__gte=boundaries["month"],
+                method=McpCall.METHOD_TOOLS_CALL,
+            )
+            .exclude(tool_name="")
+            .values("tool_name")
+            .annotate(call_count=Count("id"))
+            .order_by("-call_count", "tool_name")[:MCP_TOP_ROW_LIMIT]
+        )
+
+    def _get_mcp_top_clients(self, boundaries):
+        """Which MCP clients connected in the last 30 days, by handshake count.
+
+        Only `initialize` carries clientInfo, and the server is stateless, so no
+        later request names its caller. Counting handshakes is therefore the
+        honest metric: it is connections, not calls.
+        """
+        return list(
+            McpCall.objects.filter(
+                timestamp__gte=boundaries["month"],
+                method=McpCall.METHOD_INITIALIZE,
+            )
+            .exclude(client_name="")
+            .values("client_name")
+            .annotate(connection_count=Count("id"))
+            .order_by("-connection_count", "client_name")[:MCP_TOP_ROW_LIMIT]
+        )
+
+    def _get_mcp_daily_calls(self):
+        """One entry per day for the last 30 days, gaps filled with zero.
+
+        A sparse series would draw a misleading chart: a quiet day and a
+        missing day must not look the same.
+        """
+        today = timezone.localdate()
+        first_day = today - timezone.timedelta(days=MCP_DAILY_SERIES_DAYS - 1)
+
+        counted_days = {
+            row["day"]: row["call_count"]
+            for row in McpCall.objects.filter(timestamp__date__gte=first_day)
+            .annotate(day=TruncDate("timestamp"))
+            .values("day")
+            .annotate(call_count=Count("id"))
+        }
+
+        series = []
+        for offset in range(MCP_DAILY_SERIES_DAYS):
+            day = first_day + timezone.timedelta(days=offset)
+            series.append({
+                "date": day.isoformat(),
+                "call_count": counted_days.get(day, 0),
+            })
+        return series
 
     def _get_signup_stats(self, boundaries):
         """New user signups per period.

@@ -184,6 +184,7 @@ agent and the MCP surface pick it up together.
 | `MCP_ENABLED` | `true` | Serve the endpoint; `false` returns 404 |
 | `MCP_TOOL_CALLS_PER_DAY` | `200` | Per-IP daily cap across all `tools/call` requests |
 | `MCP_FUNDAMENTALS_CALLS_PER_DAY` | `25` | Per-IP daily sub-cap for `get_fundamentals` |
+| `MCP_RECORDED_CALLS_PER_DAY` | `1000` | Per-IP daily cap on `McpCall` audit rows (see [Usage stats](#usage-stats)) |
 
 Rate-limit counters are date-keyed entries in the Redis cache (`mcp:<scope>:<ip_hash>:<day>`),
 so caps reset at midnight and need no schema or cron.
@@ -213,6 +214,54 @@ Code at your dev server
 
 Tests: `pytest tests/test_mcp_server.py` — transport, lifecycle, schema-sharing,
 all four tool paths, and the rate-limit caps.
+
+### Usage stats
+
+Every JSON-RPC message the endpoint answers is recorded as an `McpCall` row
+(`assistant/models.py`), and the admin dashboard reports them under **Servidor
+MCP**. This is the *only* record of MCP traffic: PostHog is a browser snippet
+and MCP clients never load a page, so no product analytics sees this surface at
+all, and the rate-limit counters are per-IP cache keys that expire at midnight.
+nginx access logs show the hits but not the JSON-RPC body, so they cannot say
+which tool was called.
+
+One row per answered message, lifecycle chatter included. Connection volume is
+as interesting as tool volume when the question is who actually wired Sponda up:
+
+| Column | Notes |
+| --- | --- |
+| `method` | `initialize`, `ping`, `tools/list`, `tools/call`, `notifications/*`. Unsupported methods are recorded too, so client probes are visible |
+| `tool_name` | `tools/call` only, and set even when the call was rejected, so rate-limit pressure is attributable |
+| `client_name` / `client_version` / `protocol_version` | From `initialize`'s `clientInfo`. Blank elsewhere: the server is stateless, so no later request names its caller |
+| `user_agent` | The one per-request client signal that is always present |
+| `ip_hash` | Same salted SHA-256 as `PageView` and the rate limiter. Raw IPs are never stored |
+| `failed` | Protocol errors, executor errors surfaced as `isError`, and rejected calls |
+| `rate_limited` | A subset of `failed`: turned away by a daily cap with HTTP 429 |
+| `latency_ms` | Server-side time to answer |
+
+Writes are best effort. `_record_call` swallows and logs its own failures,
+because a statistic is never worth failing a tool call that already succeeded.
+Malformed JSON, non-POST requests, and calls served while `MCP_ENABLED=false`
+are not recorded: they are not queries.
+
+Recording has a per-IP daily cap of its own (`MCP_RECORDED_CALLS_PER_DAY`,
+default 1000, a cache counter alongside the rate-limit ones). The lifecycle
+methods are deliberately uncapped so a client can always reconnect, which would
+otherwise let an unauthenticated caller grow the table without bound. Past the
+cap the endpoint keeps answering normally; only the bookkeeping stops.
+
+The dashboard section (`AdminDashboardView._get_mcp_stats`) adds four queries
+regardless of traffic: a filtered period aggregate (calls, tool calls, unique
+callers, failures, 429s for 24h/7d/30d/1y/all time), the top 10 tools and top 10
+clients over 30 days, and a 30-day daily series with gaps filled with zero so a
+quiet day and a missing day do not look the same.
+
+Local testing: run the backend, POST a couple of calls with the curl snippets
+above, then sign in as a superuser and open `/admin-dashboard`. The **Chamadas
+MCP (24h)** card and the **Servidor MCP** tables should reflect them.
+
+Tests: `pytest tests/test_mcp_analytics.py` (recording plus the dashboard
+section) and `npm test -- src/app/'[locale]'/admin-dashboard` for the UI.
 
 ## Valuation ratios: one definition everywhere
 

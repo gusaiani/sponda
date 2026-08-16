@@ -69,3 +69,62 @@ class LLMQuery(models.Model):
 
     def __str__(self):
         return f"{self.user or self.ip_hash} → {self.ticker} [{self.classification}]"
+
+
+class McpCall(models.Model):
+    """One JSON-RPC message answered by the public MCP server.
+
+    The only durable record of MCP traffic. PostHog is a browser snippet and
+    MCP clients never load a page, so no product analytics sees this surface;
+    the per-IP caps in assistant.mcp are cache keys that expire at midnight
+    and answer "is this caller over budget", not "how much is it used".
+
+    One row per answered message, lifecycle chatter (initialize, ping,
+    tools/list) included, because connection volume is as interesting as
+    tool volume when the question is who has actually wired Sponda up.
+    Writes are best-effort: assistant.mcp swallows failures here rather than
+    fail a working tool call for the sake of a statistic.
+    """
+
+    METHOD_TOOLS_CALL = "tools/call"
+    METHOD_INITIALIZE = "initialize"
+
+    # The JSON-RPC method: initialize, ping, tools/list, tools/call, or a
+    # notifications/* name. Unsupported methods are recorded too: a client
+    # probing for resources/list is worth knowing about.
+    method = models.CharField(max_length=64, db_index=True)
+    # Only set for tools/call rows, and set even when the call was rejected,
+    # so rate-limit pressure can be attributed to the tool that caused it.
+    tool_name = models.CharField(max_length=64, blank=True, default="")
+
+    # clientInfo from initialize. Absent on every other method: the server is
+    # stateless, so nothing carries the identity across requests.
+    client_name = models.CharField(max_length=100, blank=True, default="")
+    client_version = models.CharField(max_length=40, blank=True, default="")
+    protocol_version = models.CharField(max_length=20, blank=True, default="")
+    # The one per-request client signal that is always present.
+    user_agent = models.CharField(max_length=300, blank=True, default="")
+
+    # SHA-256 of the client IP (quotes.client_ip.client_ip_hash), the same
+    # identity the rate limiter counts against and PageView stores.
+    ip_hash = models.CharField(max_length=64, db_index=True)
+
+    # True for JSON-RPC protocol errors, executor errors surfaced as
+    # isError, and rejected calls. Anything the caller could not use.
+    failed = models.BooleanField(default=False)
+    # A subset of `failed`: turned away by a daily cap with HTTP 429.
+    rate_limited = models.BooleanField(default=False)
+    latency_ms = models.IntegerField(default=0)
+
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["timestamp", "method"]),
+            models.Index(fields=["timestamp", "tool_name"]),
+            models.Index(fields=["timestamp", "ip_hash"]),
+        ]
+
+    def __str__(self):
+        return f"{self.method}{f' {self.tool_name}' if self.tool_name else ''} @ {self.timestamp}"

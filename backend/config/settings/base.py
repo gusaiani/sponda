@@ -197,6 +197,13 @@ ASSISTANT_MAX_TOOL_ROUNDS = env.int("ASSISTANT_MAX_TOOL_ROUNDS", default=6)
 MCP_ENABLED = env.bool("MCP_ENABLED", default=True)
 MCP_TOOL_CALLS_PER_DAY = env.int("MCP_TOOL_CALLS_PER_DAY", default=200)
 MCP_FUNDAMENTALS_CALLS_PER_DAY = env.int("MCP_FUNDAMENTALS_CALLS_PER_DAY", default=25)
+# How many McpCall audit rows one IP can write per day. Lifecycle methods
+# (ping, initialize, tools/list) are deliberately uncapped so a client can
+# always reconnect, which would otherwise let an unauthenticated caller grow
+# the audit table without limit. Set well above the tool cap: real usage never
+# reaches it, and the service keeps answering after it does; only the
+# bookkeeping stops.
+MCP_RECORDED_CALLS_PER_DAY = env.int("MCP_RECORDED_CALLS_PER_DAY", default=1000)
 
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight
