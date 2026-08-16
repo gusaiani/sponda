@@ -36,12 +36,39 @@ interface TopTicker {
   lookup_count: number;
 }
 
+interface PeriodMcpStats {
+  total_calls: number;
+  tool_calls: number;
+  unique_clients: number;
+  failed_calls: number;
+  rate_limited_calls: number;
+}
+
+interface TopMcpTool {
+  tool_name: string;
+  call_count: number;
+}
+
+interface TopMcpClient {
+  client_name: string;
+  connection_count: number;
+}
+
+interface McpStats {
+  periods: Record<string, PeriodMcpStats>;
+  top_tools: TopMcpTool[];
+  top_clients: TopMcpClient[];
+  daily_calls: { date: string; call_count: number }[];
+}
+
 interface DashboardData {
   users: UserStats[];
   page_views: Record<string, PeriodViewStats>;
   top_pages: TopPage[];
   top_tickers: Record<string, TopTicker[]>;
   signup_stats: Record<string, number>;
+  // Absent on a backend that predates the MCP usage section.
+  mcp?: McpStats;
   favorites_count: number;
   saved_lists_count: number;
 }
@@ -132,6 +159,11 @@ export default function AdminDashboardPage() {
         <OverviewCard label="Views (24h)" value={dashboardData.page_views.day?.total_views ?? 0} locale={locale} />
         <OverviewCard label="Únicos (24h)" value={dashboardData.page_views.day?.unique_visitors ?? 0} locale={locale} />
         <OverviewCard label="Novos usuários (7d)" value={dashboardData.signup_stats.week} locale={locale} />
+        <OverviewCard
+          label="Chamadas MCP (24h)"
+          value={dashboardData.mcp?.periods.day?.total_calls ?? 0}
+          locale={locale}
+        />
       </div>
 
       <h2 className="admin-section-title">Visualizações de Página</h2>
@@ -210,6 +242,73 @@ export default function AdminDashboardPage() {
           ))}
         </tbody>
       </table>
+
+      {dashboardData.mcp && (
+        <section aria-labelledby="mcp-usage-heading">
+          <h2 className="admin-section-title" id="mcp-usage-heading">Servidor MCP</h2>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Período</th><th>Chamadas</th><th>Tools</th>
+                <th>Clientes únicos</th><th>Erros</th><th>Bloqueadas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {["day", "week", "month", "year", "all_time"].map((period) => {
+                const stats = dashboardData.mcp?.periods[period];
+                if (!stats) return null;
+                return (
+                  <tr key={period}>
+                    <td>{PERIOD_LABELS[period]}</td>
+                    <td>{formatNumber(stats.total_calls, 0, locale)}</td>
+                    <td>{formatNumber(stats.tool_calls, 0, locale)}</td>
+                    <td>{formatNumber(stats.unique_clients, 0, locale)}</td>
+                    <td>{formatNumber(stats.failed_calls, 0, locale)}</td>
+                    <td>{formatNumber(stats.rate_limited_calls, 0, locale)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <div className="admin-tickers-grid">
+            <div>
+              <h3 className="admin-subsection-title">Tools mais chamadas (30 dias)</h3>
+              {dashboardData.mcp.top_tools.length === 0 ? (
+                <p className="admin-text">Nenhuma chamada registrada</p>
+              ) : (
+                <table className="admin-table admin-table-compact">
+                  <tbody>
+                    {dashboardData.mcp.top_tools.map((tool) => (
+                      <tr key={tool.tool_name}>
+                        <td>{tool.tool_name}</td>
+                        <td>{formatNumber(tool.call_count, 0, locale)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div>
+              <h3 className="admin-subsection-title">Clientes conectados (30 dias)</h3>
+              {dashboardData.mcp.top_clients.length === 0 ? (
+                <p className="admin-text">Nenhum cliente identificado</p>
+              ) : (
+                <table className="admin-table admin-table-compact">
+                  <tbody>
+                    {dashboardData.mcp.top_clients.map((client) => (
+                      <tr key={client.client_name}>
+                        <td>{client.client_name}</td>
+                        <td>{formatNumber(client.connection_count, 0, locale)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <h2 className="admin-section-title">Usuários ({dashboardData.users.length})</h2>
       <div className="admin-table-scroll">

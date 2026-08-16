@@ -1736,7 +1736,10 @@ class TestAdminDashboard:
         """The dashboard must not scale queries with the number of periods.
 
         Before optimization: 25+ queries (separate COUNT per period per metric).
-        After optimization: should be under 15 total queries.
+        After optimization: a small constant, one or a few per section.
+        The MCP usage section adds four fixed queries (period aggregate, tool
+        ranking, client ranking, daily series). See TestAdminDashboardMcpStats
+        for the proof that they stay constant as MCP traffic grows.
         """
         from django.test.utils import CaptureQueriesContext
         from django.db import connection
@@ -1752,8 +1755,8 @@ class TestAdminDashboard:
         query_count = len(context)
         # Allow some overhead for auth/session, but the core dashboard
         # queries must be consolidated. 15 is generous; before fix it was 25+.
-        assert query_count <= 15, (
-            f"Dashboard used {query_count} queries, expected <= 15. "
+        assert query_count <= 19, (
+            f"Dashboard used {query_count} queries, expected <= 19. "
             f"Queries: {[q['sql'][:80] for q in context]}"
         )
 
