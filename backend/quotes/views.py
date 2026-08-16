@@ -118,6 +118,13 @@ def _title_case_word(word: str, index: int) -> str:
     return word.capitalize()
 
 
+# A legal suffix ("S.A.", "S/A", "SA") plus everything that follows it. The
+# lookahead makes the suffix a whole word · without it the pattern also ate
+# ordinary words that merely begin with those letters, which turned
+# "CIA SANEAMENTO DO PARANA - SANEPAR" into the display name "CIA".
+_LEGAL_SUFFIX_TAIL = re.compile(r"\s+S[\./]?A\.?(?=\s|$).*$", re.IGNORECASE)
+
+
 def format_display_name(formal_name: str) -> str:
     """Convert a formal BRAPI ticker name into a human-friendly display name.
 
@@ -137,11 +144,11 @@ def format_display_name(formal_name: str) -> str:
     if " - " in formal_name:
         before_dash, after_dash = formal_name.rsplit(" - ", 1)
         # If the part before the dash is short after stripping S.A., prefer it (e.g., "B3 S.A.")
-        before_core = re.sub(r"\s+S[\./]?A\.?.*$", "", before_dash, flags=re.IGNORECASE).strip()
+        before_core = _LEGAL_SUFFIX_TAIL.sub("", before_dash).strip()
         if before_core and len(before_core.split()) <= 2:
             return " ".join(_title_case_word(w, i) for i, w in enumerate(before_core.split()))
         # Otherwise use the after-dash part if it's a short trade name
-        after_cleaned = re.sub(r"\s+S[\./]?A\.?.*$", "", after_dash, flags=re.IGNORECASE).strip()
+        after_cleaned = _LEGAL_SUFFIX_TAIL.sub("", after_dash).strip()
         if after_cleaned and len(after_cleaned.split()) <= 3:
             return " ".join(_title_case_word(w, i) for i, w in enumerate(after_cleaned.split()))
 
@@ -459,7 +466,8 @@ class TickerSearchView(APIView):
     Always blends symbol prefix matches with name matches so that
     popular companies surface even when many obscure tickers share
     the same prefix (e.g. typing "mic" shows Microsoft alongside
-    MIC, MICC, etc.).
+    MIC, MICC, etc.). Any slots still free after that are filled from
+    the formal filed name.
     """
 
     SEARCH_LIMIT = 8
@@ -534,7 +542,25 @@ class TickerSearchView(APIView):
 
         results = symbol_matches + name_matches
         results.sort(key=relevance_key)
-        results = results[:self.SEARCH_LIMIT]
+
+        # Last resort: the formal name as filed (e.g. "CIA SANEAMENTO DO
+        # PARANA - SANEPAR"). It only fills slots the buckets above left
+        # empty, so its legal boilerplate never displaces a real match, but a
+        # display name that dropped a word users type can no longer hide a
+        # company entirely.
+        formal_name_matches = []
+        free_slots = self.SEARCH_LIMIT - len(results)
+        if free_slots > 0:
+            formal_name_matches = list(
+                Ticker.objects.filter(type="stock", name__icontains=query)
+                .exclude(symbol__in={row["symbol"] for row in results})
+                .exclude(symbol__regex=exclude_fractional)
+                .order_by(market_cap_ordering)
+                .values(*fields)
+                [:free_slots]
+            )
+
+        results = (results + formal_name_matches)[:self.SEARCH_LIMIT]
 
         for ticker in results:
             ticker["name"] = ticker.pop("display_name") or ticker["name"]

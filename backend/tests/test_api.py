@@ -102,6 +102,17 @@ class TestFormatDisplayName:
     def test_bb_seguridade(self):
         assert format_display_name("BB SEGURIDADE PARTICIPAÇÕES S.A.") == "BB Seguridade"
 
+    def test_word_starting_with_sa_is_not_a_legal_suffix(self):
+        """'SANEAMENTO' merely starts with the letters of 'SA'. Treating it as
+        a legal suffix collapsed Sanepar's display name to 'CIA'."""
+        assert format_display_name("CIA SANEAMENTO DO PARANA - SANEPAR") == "Sanepar"
+
+    def test_sao_paulo_is_not_a_legal_suffix(self):
+        assert format_display_name("CIA GAS DE SAO PAULO - COMGAS") == "Comgas"
+
+    def test_still_strips_real_sa_suffix_before_dash(self):
+        assert format_display_name("BANESTES S.A. - BCO EST ESPIRITO SANTO") == "Banestes"
+
 
 class TestTickerSearchEndpoint:
     def test_returns_empty_without_query(self, api_client, db):
@@ -275,6 +286,32 @@ class TestTickerSearchEndpoint:
         response = api_client.get("/api/tickers/search/?q=GE")
         data = response.json()
         assert data[0]["symbol"] == "GE", f"Symbol prefix GE should rank first: {[d['symbol'] for d in data]}"
+
+    def test_search_falls_back_to_formal_name(self, api_client, db):
+        """A word that survives only in the formal name should still find the
+        company, so a trimmed display name never hides it."""
+        Ticker.objects.create(
+            symbol="SAPR3", name="CIA SANEAMENTO DO PARANA - SANEPAR",
+            display_name="Sanepar", type="stock", market_cap=5_000_000_000,
+        )
+        response = api_client.get("/api/tickers/search/?q=saneamento")
+        symbols = [row["symbol"] for row in response.json()]
+        assert "SAPR3" in symbols, f"SAPR3 should be found by formal name: {symbols}"
+
+    def test_formal_name_matches_rank_below_display_name_matches(self, api_client, db):
+        """The formal name only fills leftover slots · a display-name match
+        stays ahead of it even with a far smaller market cap."""
+        Ticker.objects.create(
+            symbol="AAA", name="Alpha Saneamento Holdings", display_name="Alpha",
+            type="stock", market_cap=900_000_000_000,
+        )
+        Ticker.objects.create(
+            symbol="BBB", name="Beta", display_name="Beta Saneamento",
+            type="stock", market_cap=1_000_000,
+        )
+        response = api_client.get("/api/tickers/search/?q=saneamento")
+        symbols = [row["symbol"] for row in response.json()]
+        assert symbols == ["BBB", "AAA"], f"Display-name match should lead: {symbols}"
 
 
 class TestHealthEndpoint:

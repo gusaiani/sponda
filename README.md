@@ -21,6 +21,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Valuation ratios: one definition everywhere](#valuation-ratios-one-definition-everywhere)
 - [Cross-currency indicators](#cross-currency-indicators)
 - [Comparison chart (expanded indicator view)](#comparison-chart-expanded-indicator-view)
+- [Ticker search](#ticker-search)
 - [Peer comparison](#peer-comparison)
 - [Learning Mode](#learning-mode)
 - [Indicator Alerts](#indicator-alerts)
@@ -315,6 +316,19 @@ The common-currency mode reads a historical FX path from a new endpoint. Dates w
 **API:** `GET /api/fx/series/?from=<ISO>&to=<ISO>[&start=YYYY-MM-DD]` → `{ from, to, rates: [{ date, rate }] }`, where `rate` is units of `to` per 1 unit of `from`, computed via the USD pivot (see [Cross-currency indicators](#cross-currency-indicators)). Public and currency-only — no ticker, no quota.
 
 No new environment variables. To test locally: open a company page, expand any indicator, drag the term slider, and add a peer (for a cross-currency check, overlay a US ticker on a Brazilian one and switch to Base 100 · common currency).
+
+## Ticker search
+
+The header autocomplete hits `GET /api/tickers/search/?q=<query>` and returns up to 8 rows, ranked in buckets:
+
+1. **Exact symbol** — typing `GM` always surfaces General Motors, even when its market cap is NULL and prefix siblings have one.
+2. **Symbol prefix** — `MIC` → MICA, MICB, …, largest market cap first, NULLs last.
+3. **Display name or alias contains** — how popular companies surface when obscure tickers hog the prefix (`mic` → Microsoft). Aliases cover former names (`General Electric` → GE).
+4. **Formal filed name contains** — fills only the slots the buckets above left empty, so legal boilerplate never displaces a real match. This is the safety net for words that the display name drops: `CIA SANEAMENTO DO PARANA - SANEPAR` displays as *Sanepar*, and `saneamento` still finds it.
+
+Display names are derived from the formal name by `format_display_name()` in `backend/quotes/views.py`, which strips legal suffixes (`S.A.`, `S/A`), expands abbreviations (`BCO` → `Banco`), and prefers a short trade name around a dash. The suffix pattern requires a whole-word match · an earlier version also ate ordinary words beginning with those letters, which reduced Sanepar's display name to `CIA` and made it unsearchable.
+
+Results are cached in Redis for 2 minutes per query; the frontend debounces keystrokes by 300ms.
 
 ## Peer comparison
 
@@ -627,7 +641,7 @@ Every subsequent `git push` to `main` rebuilds and publishes automatically.
 
 ### Database
 
-- **Trigram indexes** (pg_trgm) on `Ticker.display_name` and `symbol` for sub-millisecond ILIKE search across 23K+ tickers
+- **Trigram indexes** (pg_trgm) on `Ticker.display_name`, `name` and `symbol` for sub-millisecond ILIKE search across 23K+ tickers
 - **Composite indexes** on `CompanyAnalysis(ticker, -generated_at)`, `LookupLog(user, timestamp)`, `LookupLog(session_key, timestamp)`
 - **PostgreSQL tuning** for SSD + 2 GB RAM: `shared_buffers=512MB`, `work_mem=8MB`, `random_page_cost=1.1`
 - **pg_stat_statements** enabled for query performance monitoring
