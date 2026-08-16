@@ -4,6 +4,11 @@ import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 
 const BASE_URL = "https://sponda.capital";
 
+const OG_IMAGE_WIDTH = 1200;
+const OG_IMAGE_HEIGHT = 630;
+const OG_IMAGE_MIME_TYPE = "image/jpeg";
+const OG_IMAGE_ALT_TEXT = "Sponda · fundamental indicators for value investors";
+
 /**
  * Path to the OG image for a given locale.
  *
@@ -11,11 +16,30 @@ const BASE_URL = "https://sponda.capital";
  * falls back to the English image. Only two JPEGs are maintained today
  * because most crawlers only cache one OG image per URL and localizing
  * the tagline further isn't worth the asset churn yet.
+ *
+ * The `-v2` suffix is a deliberate cache bust. X's card pipeline kept
+ * re-fetching the unsuffixed URLs (~100x/day, 7x more often than it crawled
+ * the pages themselves) while rendering every card without an image, which
+ * is the signature of an image-cache entry stuck in a failed state. Since
+ * there is no way to purge X's cache, a new URL is the only lever. The
+ * unsuffixed files stay in place so previews already cached by other
+ * networks keep resolving.
  */
 export function getOgImageUrl(locale: string): string {
   return locale === "pt"
-    ? "/images/sponda-og.jpg"
-    : "/images/sponda-og-en.jpg";
+    ? "/images/sponda-og-v2.jpg"
+    : "/images/sponda-og-en-v2.jpg";
+}
+
+/** The `openGraph.images` entry every page shares, fully described for card renderers. */
+export function buildOgImageDescriptor(locale: string) {
+  return {
+    url: `${BASE_URL}${getOgImageUrl(locale)}`,
+    width: OG_IMAGE_WIDTH,
+    height: OG_IMAGE_HEIGHT,
+    type: OG_IMAGE_MIME_TYPE,
+    alt: OG_IMAGE_ALT_TEXT,
+  };
 }
 
 interface TickerInfo {
@@ -149,10 +173,11 @@ export async function generateTickerMetadata(
       languages: alternateLanguages,
     },
     openGraph: {
+      type: "website",
       title,
       description,
       url,
-      images: [{ url: `${BASE_URL}${getOgImageUrl(locale)}`, width: 1200, height: 630 }],
+      images: [buildOgImageDescriptor(locale)],
       locale: ogLocale,
       siteName: "Sponda",
     },

@@ -772,10 +772,14 @@ Some locales are served but excluded from search indexing. `NOINDEX_LOCALES` in 
 
 OG images are static JPEGs under `frontend/public/images/`:
 
-- `sponda-og.jpg` · Portuguese tagline, used for `/pt/*` URLs
-- `sponda-og-en.jpg` · English tagline, used for every other locale
+- `sponda-og-v2.jpg` · Portuguese tagline, used for `/pt/*` URLs
+- `sponda-og-en-v2.jpg` · English tagline, used for every other locale
 
-`getOgImageUrl(locale)` in `frontend/src/lib/metadata.ts` selects the right image; both the homepage layout and `generateTickerMetadata` go through it. Only PT and EN images exist today because most crawlers cache a single OG image per URL and maintaining one per-locale wasn't worth the churn. If you need a new localized image, drop `sponda-og-<locale>.jpg` into `public/images/` and extend the helper.
+`getOgImageUrl(locale)` in `frontend/src/lib/metadata.ts` selects the right image and `buildOgImageDescriptor(locale)` wraps it with the width, height, MIME type and alt text that card renderers expect. Both the homepage layout and `generateTickerMetadata` go through them. Only PT and EN images exist today because most crawlers cache a single OG image per URL and maintaining one per-locale wasn't worth the churn. If you need a new localized image, drop `sponda-og-<locale>-v2.jpg` into `public/images/` and extend the helper.
+
+**Why the `-v2` suffix.** X (Twitter) rendered every sponda.capital card with the correct title and description but no image, while Twitterbot fetched the unsuffixed image roughly 100 times a day — about seven times more often than it crawled the pages themselves. A crawler that ingested the image successfully would not re-fetch it that hard, so the entry in X's image cache was stuck in a failed state. Everything on our side verified clean (HTTP 200 in ~210 ms, `image/jpeg`, baseline JPEG, 1200×630, ~57 KB, absolute HTTPS URL, allowed by `robots.txt`), and X exposes no way to purge its cache, so the only lever is a new URL. The `-v2` files are byte-distinct copies of the originals (a JPEG `COM` comment segment inserted after `APP0`; pixels untouched) so the new URL cannot be content-deduplicated back onto the stuck entry. The unsuffixed files stay in `public/images/` so previews already cached by other networks keep resolving.
+
+X caches a card per page URL for about seven days, so an already-shared link keeps its old imageless card. To verify a fix, share a URL X has not seen before (append a throwaway query string, e.g. `?v=2`).
 
 #### Sitemaps
 
