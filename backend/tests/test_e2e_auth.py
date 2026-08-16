@@ -280,11 +280,21 @@ class TestSignupPage:
         page.goto(f"{url}/login")
         page.locator(".auth-mode-toggle >> text=Criar conta").click()
 
-        page.fill("input#email", "contact@example.com")
+        # Unique per attempt for the same reason as the signup test above:
+        # a rerun inherits the user the failed attempt created, so a fixed
+        # address makes the retry fail deterministically on "email already
+        # exists" instead of recovering.
+        email = f"contact-{uuid.uuid4().hex[:12]}@example.com"
+        page.fill("input#email", email)
         page.fill("input#password", "securepass123")
         page.fill("input#confirm-password", "securepass123")
-        # Checkbox is checked by default — leave it
-        submit_page_form(page)
+        # Checkbox is checked by default, leave it
+        with page.expect_response("**/api/auth/signup/") as signup_response:
+            submit_page_form(page)
+        assert signup_response.value.ok, (
+            f"signup request failed: HTTP {signup_response.value.status} "
+            f"{signup_response.value.text()}"
+        )
 
         # Should show email verification prompt
         expect(page.locator(".auth-signup-success")).to_be_visible(timeout=10000)
@@ -293,7 +303,7 @@ class TestSignupPage:
         page.locator("text=Ir para a página inicial").click()
         page.wait_for_url(_home_url_pattern(url), timeout=10000)
 
-        user = User.objects.get(email="contact@example.com")
+        user = User.objects.get(email=email)
         assert user.allow_contact is True
 
 
