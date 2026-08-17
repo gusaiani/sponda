@@ -295,6 +295,21 @@ jobs:
           command_timeout: 15m
           script: |
             set -e
+
+            # Refuse the deploy before it touches anything if the frontend
+            # artifact did not make it across. Seen in production on
+            # 2026-08-17: the scp step reported success, the tarball was not
+            # there, and `tar` only found out after `npm ci` had already
+            # swapped node_modules under the running Next server. The deploy
+            # failed and took the live site down with it. Checking here costs
+            # nothing and makes that failure mode a red build on an untouched
+            # box. `gzip -t` catches a truncated upload too, which a bare
+            # existence test would wave through.
+            test -f /opt/sponda/_deploy/next-build.tar.gz \
+              || { echo "frontend artifact missing; refusing to deploy"; exit 1; }
+            gzip -t /opt/sponda/_deploy/next-build.tar.gz \
+              || { echo "frontend artifact is corrupt; refusing to deploy"; exit 1; }
+
             cd /opt/sponda
             git fetch origin main
             git reset --hard origin/main
