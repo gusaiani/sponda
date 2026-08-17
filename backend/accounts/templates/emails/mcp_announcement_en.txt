@@ -1,0 +1,43 @@
+Sponda is now an MCP server
+
+Your AI assistant queries Sponda directly. You ask in plain English, it
+filters about 23,000 listed companies by the inflation-adjusted indicators
+and hands back the table.
+
+You screen an entire sector without opening the browser.
+
+What it can do:
+
+* Filter and rank by P/E10, P/FCF10, PEG, leverage and liquidity,
+  by country and by sector.
+* Look up the current values for any ticker on Sponda's indicators.
+* Open the fundamentals: balance sheet, income statement and cash flow
+  year by year, already adjusted.
+
+Install in Claude Code:
+
+    claude mcp add --transport http sponda {{ mcp_endpoint_url }}
+
+In Cursor and the Claude app, paste the URL {{ mcp_endpoint_url }} as a
+custom connector.
+
+Then try asking:
+
+    Which US companies trade under 15x P/E10 with debt/equity below 1?
+    Sort them by market cap.
+
+    How does Coca-Cola look on Sponda's indicators right now?
+
+    Compare KO and PEP on P/E10 and P/FCF10.
+
+Instructions: {{ base_url }}/en
+
+Free, no API key, 200 calls per day per IP.
+
+---
+A tool by Poema Parceria de Investimentos · https://poe.ma
+{{ poema_performance_line }}
+{{ poema_disclaimer }}
+
+You are receiving this because you allowed contact from Sponda.
+To unsubscribe: {{ unsubscribe_url }}
