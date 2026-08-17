@@ -845,16 +845,39 @@ Some locales are served but excluded from search indexing. `NOINDEX_LOCALES` in 
 
 #### OG images
 
-OG images are static JPEGs under `frontend/public/images/`:
+There are two kinds: a rendered card per company, and a static JPEG for everything else.
+
+##### Per-company cards · `/og/<locale>/<TICKER>.png`
+
+Every company page advertises its own image, rendered on demand by `frontend/src/app/og/[locale]/[ticker]/route.tsx` using `ImageResponse` from `next/og`. The card shows the company name, ticker, translated sector, the four headline indicators, and the locale's tagline:
+
+```
+GET /og/pt/VULC3.png   → 1200×630 PNG, ~43 KB
+GET /og/en/AAPL.png    → the same card in English
+```
+
+- **Data.** `fetchOgCardData(ticker)` in `frontend/src/lib/og-card.ts` hits `/api/tickers/<t>/` and `/api/quote/<t>/` in parallel, each with `revalidate: 3600`. Neither is allowed to reject: a card with a company name and no numbers still beats a broken image, and a ticker the API has never heard of still gets a branded card with `N/A` in every slot.
+- **Indicator labels come from the API, not from us.** The quote endpoint returns `pe10Label` / `pfcf10Label`, which say `PE15` or `PE20` when that much history exists. The card prints whatever window was actually used.
+- **Formatting is locale-aware** via the existing `formatNumber`, so `/og/pt/` shows `22,8` and `/og/en/` shows `22.8`.
+- **`zh` renders its wording in English.** The card is drawn by satori with the Geist Regular face bundled inside `next/og`, which covers Latin only; Chinese would come out as tofu boxes. `ogCardTextLocale()` owns that fallback. Adding real CJK means shipping a CJK font file and passing it to `ImageResponse` via `fonts`.
+- **Only `<TICKER>.png` is served.** `tickerFromOgImageParam` requires the extension and validates the symbol, so one card has exactly one URL — which matters because social networks key their image caches by URL. Anything else 404s.
+- **Caching.** `public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800`. Cold render is ~500 ms, warm ~20 ms.
+- **Routing.** `src/middleware.ts` lets `/og/` through untouched. It used to proxy `/og/` to Django, which has no routes there — its catch-all answered with the legacy SPA shell, i.e. HTML with a `200` to a crawler asking for an image.
+
+##### Static fallback · `frontend/public/images/`
 
 - `sponda-og-v2.jpg` · Portuguese tagline, used for `/pt/*` URLs
 - `sponda-og-en-v2.jpg` · English tagline, used for every other locale
 
-`getOgImageUrl(locale)` in `frontend/src/lib/metadata.ts` selects the right image and `buildOgImageDescriptor(locale)` wraps it with the width, height, MIME type and alt text that card renderers expect. Both the homepage layout and `generateTickerMetadata` go through them. Only PT and EN images exist today because most crawlers cache a single OG image per URL and maintaining one per-locale wasn't worth the churn. If you need a new localized image, drop `sponda-og-<locale>-v2.jpg` into `public/images/` and extend the helper.
+Used by pages with no single company to render (homepage, screener). `getOgImageUrl(locale)` selects the image and `buildOgImageDescriptor(locale)` wraps it with width, height, MIME type and alt text; `buildTickerOgImageDescriptor(locale, ticker, name)` is the per-company equivalent. All live in `frontend/src/lib/metadata.ts`.
 
 **Why the `-v2` suffix.** X (Twitter) rendered every sponda.capital card with the correct title and description but no image, while Twitterbot fetched the unsuffixed image roughly 100 times a day — about seven times more often than it crawled the pages themselves. A crawler that ingested the image successfully would not re-fetch it that hard, so the entry in X's image cache was stuck in a failed state. Everything on our side verified clean (HTTP 200 in ~210 ms, `image/jpeg`, baseline JPEG, 1200×630, ~57 KB, absolute HTTPS URL, allowed by `robots.txt`), and X exposes no way to purge its cache, so the only lever is a new URL. The `-v2` files are byte-distinct copies of the originals (a JPEG `COM` comment segment inserted after `APP0`; pixels untouched) so the new URL cannot be content-deduplicated back onto the stuck entry. The unsuffixed files stay in `public/images/` so previews already cached by other networks keep resolving.
 
+Per-company cards make that failure mode survivable rather than fatal: with one image URL per company, a single stuck cache entry can no longer take every preview on the domain down with it.
+
 X caches a card per page URL for about seven days, so an already-shared link keeps its old imageless card. To verify a fix, share a URL X has not seen before (append a throwaway query string, e.g. `?v=2`).
+
+**Testing a card locally.** `npm run build && DJANGO_API_URL=https://sponda.capital npx next start -p 3199`, then open `http://localhost:3199/og/pt/VULC3.png`. Pointing `DJANGO_API_URL` at production is the quickest way to render against real numbers.
 
 #### Sitemaps
 

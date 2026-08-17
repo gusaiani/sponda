@@ -77,13 +77,22 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Proxy API, OG images, sitemap, admin, and the email opt-out page to
-  // Django. /unsubscribe/ is locale-free on purpose: the link sits in an
-  // inbox forever, so it must never be rewritten, uppercased, or locale-
-  // prefixed — the signed token is part of the path.
+  // 2. Per-company Open Graph cards are rendered by Next itself, at
+  // src/app/og/[locale]/[ticker]/route.tsx. Let them through untouched: the
+  // locale is already a path segment, and a crawler impatient about an image
+  // should not pay for a redirect. Django has no /og/ routes — it used to
+  // answer here with the legacy SPA shell, HTML with a 200 status, which is
+  // worse than a 404 for a crawler that asked for an image.
+  if (pathname.startsWith("/og/")) {
+    return NextResponse.next();
+  }
+
+  // 3. Proxy API, sitemap, admin, and the email opt-out page to Django.
+  // /unsubscribe/ is locale-free on purpose: the link sits in an inbox
+  // forever, so it must never be rewritten, uppercased, or locale-prefixed —
+  // the signed token is part of the path.
   if (
     pathname.startsWith("/api/") ||
-    pathname.startsWith("/og/") ||
     pathname.startsWith("/admin/") ||
     pathname.startsWith("/unsubscribe/")
   ) {
@@ -93,7 +102,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(target, { request: { headers } });
   }
 
-  // 3. Already locale-prefixed: validate and handle cross-locale tab slugs
+  // 4. Already locale-prefixed: validate and handle cross-locale tab slugs
   const segments = pathname.split("/").filter(Boolean);
   const firstSegment = segments[0];
 
@@ -133,7 +142,7 @@ export function middleware(request: NextRequest) {
     return persistLocaleCookie(NextResponse.next(), locale);
   }
 
-  // 4. Bare URL → redirect to locale-prefixed version
+  // 5. Bare URL → redirect to locale-prefixed version
   // Priority: cookie (user's explicit choice) → Accept-Language → default
   const cookieLocale = request.cookies.get("sponda-lang")?.value;
   const locale = (cookieLocale && isSupportedLocale(cookieLocale))
