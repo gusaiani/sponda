@@ -51,9 +51,18 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install and test
+      - name: Install
         working-directory: frontend
-        run: npm ci && npm test
+        run: npm ci
+      # Errors fail the build; the 40 pre-existing ones are recorded in
+      # frontend/eslint-suppressions.json so only NEW violations break CI.
+      # Warnings stay visible and non-blocking, to be burned down separately.
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Test
+        working-directory: frontend
+        run: npm test
 
   # Live-LLM smoke gate for the screening agent. Cost controls, all three
   # deliberate: (1) only runs when the PR touches backend/assistant/**

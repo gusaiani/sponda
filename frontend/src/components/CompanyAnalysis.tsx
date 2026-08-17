@@ -40,7 +40,7 @@ function renderContent(content: string): string {
       }
 
       // Apply inline formatting
-      let html = trimmed
+      const html = trimmed
         .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
         .replace(/\n/g, "<br>");
 
