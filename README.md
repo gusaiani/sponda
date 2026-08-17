@@ -1387,17 +1387,23 @@ The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
 
 ```bash
 cd frontend
-npm run lint          # eslint src
+npm run lint          # eslint src --max-warnings 0
 npx eslint src --fix  # apply the auto-fixable subset
 ```
 
 ESLint 9 with flat config (`frontend/eslint.config.mjs`), extending `next/core-web-vitals` and `next/typescript`. It runs in CI as its own step in the `frontend-tests` job, before the test run. `.next/`, `dist/` (the retired Vite bundle Django still serves as a fallback shell) and `public/` are ignored.
 
-**The suppressions baseline.** Linting was introduced to an existing codebase, which surfaced 40 errors and 34 warnings. Rewriting 25 `react-hooks/set-state-in-effect` violations across the auth, locale and Learning Mode contexts is a behavioural change, not a lint fix, so it is not something to do blind. Instead the pre-existing errors are recorded in `frontend/eslint-suppressions.json` (`eslint src --suppress-all`), which means:
+**Warnings are errors here.** `--max-warnings 0` is what keeps the count at zero rather than letting it drift back up: a zero-warning state nobody enforces lasts about a week.
 
-- **New violations fail CI.** Verified: a fresh `any` in a new file exits 1.
+**Two rules are off**, both with the reasoning in `eslint.config.mjs` rather than here:
+
+- `@next/next/no-img-element` — every `<img>` in the app is a 14–40px company logo or avatar, sized by a CSS class, with an `onError` fallback, coming from the `/api/logos/` Django proxy that already normalises and caches. `next/image` wants explicit dimensions the stylesheets currently own, does not map onto the hide-or-swap fallback, and would put a second image pipeline in front of a 14px PNG. None of them is an LCP image, which is what the rule protects. Turn it back on the day a real content image lands.
+- `@next/next/no-page-custom-font` — written for the Pages Router; it warns that a font link outside `pages/_document.js` "will only load for a single page". There is no `pages/` directory here, and the link is in the App Router root layout, which wraps every route.
+
+**The suppressions baseline.** Linting was introduced to an existing codebase, which surfaced 40 errors and 34 warnings. The warnings are now all gone (see above and the git history of this section). The errors are a different matter: rewriting 25 `react-hooks/set-state-in-effect` violations across the auth, locale and Learning Mode contexts is a behavioural change, not a lint fix, so it is not something to do blind. Those are recorded in `frontend/eslint-suppressions.json` (`eslint src --suppress-all`), which means:
+
+- **New violations fail CI.** Verified: a fresh `any` in a new file exits 1, and so does exceeding a suppressed count in a file already listed.
 - **Existing debt is visible and burn-downable**, not hidden behind disabled rules. The rules stay on at full strength.
-- Warnings are not suppressed. They stay on screen and do not block, since `eslint` only exits non-zero on errors.
 
 What is in the baseline:
 
@@ -1410,6 +1416,13 @@ What is in the baseline:
 | 1 | `react-hooks/purity` |
 
 To burn one down: fix the violations in a file, then `npx eslint src --prune-suppressions` to drop the stale entries.
+
+**Two `exhaustive-deps` disables are deliberate**, each with its reasoning inline:
+
+- `CompareTab.tsx` auto-save — `allTickers` and `existingList` are fresh objects every render and `updateList` is a mutation whose identity changes as it runs, so listing them would re-arm the 1s debounce continuously and the list would save in a loop. The effect keys off `tickersKey` (the joined composition) instead.
+- `shared/[token]/page.tsx` fetch — `t` is memoised per locale, so listing it would re-run the whole fetch on a language switch, a network round trip for identical data, when `t` is only used there for error copy.
+
+The other two missing dependencies were real and are now listed: `locale` in the login page's Escape handler (which navigates to `/${locale}` and would otherwise close over a stale one) and `t` in `HomepageGrid`'s save-layout callback.
 
 One quirk worth knowing. Suppressions are counted per file per rule, so adding a *sixth* `any` to a file with five suppressed ones reports all six, not one. Confusing the first time; it fails safe, which is the right direction.
 

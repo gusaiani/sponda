@@ -34,7 +34,7 @@ export default function LoginPage() {
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [router]);
+  }, [router, locale]);
 
   function switchMode(newMode: AuthMode) {
     setMode(newMode);

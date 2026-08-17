@@ -4,25 +4,7 @@ import { useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useAuth } from "../../../hooks/useAuth";
 import { csrfHeaders } from "../../../utils/csrf";
-import { useTranslation, type TranslationKey } from "../../../i18n";
-
-function formatTimeSince(dateString: string, pluralize: (count: number, singular: TranslationKey, plural: TranslationKey) => string): string {
-  const joined = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - joined.getTime();
-
-  const minutes = Math.floor(diffMs / (1000 * 60));
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const months = Math.floor(days / 30);
-  const years = Math.floor(days / 365);
-
-  if (years > 0) return `${years} ${pluralize(years, "common.year_singular", "common.year_plural")}`;
-  if (months > 0) return `${months} ${pluralize(months, "common.month_singular", "common.month_plural")}`;
-  if (days > 0) return `${days} ${pluralize(days, "common.day_singular", "common.day_plural")}`;
-  if (hours > 0) return `${hours} ${pluralize(hours, "common.hour_singular", "common.hour_plural")}`;
-  return `${minutes} ${pluralize(minutes, "common.minute_singular", "common.minute_plural")}`;
-}
+import { useTranslation } from "../../../i18n";
 
 function formatDate(dateString: string, locale: string): string {
   return new Date(dateString).toLocaleDateString(locale === "pt" ? "pt-BR" : "en-US", {
@@ -37,7 +19,7 @@ type AccountView = "main" | "change-password" | "change-email" | "delete-account
 export default function AccountPage() {
   const { user, isLoading, isAuthenticated, logout, refreshUser } = useAuth();
   const [view, setView] = useState<AccountView>("main");
-  const { t, locale, pluralize } = useTranslation();
+  const { t, locale } = useTranslation();
 
   if (isLoading) {
     return (

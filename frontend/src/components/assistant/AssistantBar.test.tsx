@@ -4,7 +4,6 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { AssistantBar } from "./AssistantBar";
 import {
   INITIAL_ASSISTANT_STATE,
-  useAssistantStream,
   type AssistantState,
 } from "./useAssistantStream";
 import {
@@ -12,7 +11,6 @@ import {
   useSetAssistantWindow,
 } from "./AssistantWindowContext";
 import { useEffect } from "react";
-import { useTranslation } from "@/i18n";
 
 // useAssistantStream is tested on its own
 // here we stub it

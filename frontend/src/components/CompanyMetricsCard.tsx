@@ -816,7 +816,6 @@ function DebtToFCFInfo({ data }: { data: QuoteData }) {
 
 function MarketCapInfo({ data }: { data: QuoteData }) {
   const { t, locale } = useTranslation();
-  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   return (
     <>
       <div className="modal-explainer">
@@ -1374,7 +1373,6 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
   const [highlightedMetric, setHighlightedMetric] = useState<string | null>(null);
   const [expandedChartMetricId, setExpandedChartMetricId] = useState<string | null>(null);
   const showGraphs = true;
-  const formatAmount = makeFormatAmount(data.ticker, locale, data.reportedCurrency);
   const chartValueFormatters = getChartValueFormatters(locale);
 
   const pl10Label = localizeLabel(data.pe10Label, locale);

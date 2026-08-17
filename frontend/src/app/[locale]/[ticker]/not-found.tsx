@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslation } from "../../../i18n";
 
 export default function TickerNotFound() {
-  const { t, locale } = useTranslation();
+  const { locale } = useTranslation();
 
   return (
     <div className="pe10-card" style={{ textAlign: "center", padding: "48px 16px" }}>
