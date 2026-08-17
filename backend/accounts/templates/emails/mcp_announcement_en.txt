@@ -30,7 +30,7 @@ Then try asking:
 
     Compare KO and PEP on P/E10 and P/FCF10.
 
-Instructions: {{ base_url }}/en
+Instructions: {{ base_url }}/en?mcp=1
 
 Free, no API key, 200 calls per day per IP.
 

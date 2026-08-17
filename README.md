@@ -168,9 +168,22 @@ the dismissal is stored in `localStorage` under `sponda-mcp-announcement-dismiss
 "MCP" pill in the header, next to the Screener link, reopens it on demand
 (`McpHeaderButton`). All copy is translated in the seven locales.
 
+**Linking to it: `?mcp=1`.** Any URL carrying the parameter opens the modal even
+for a visitor who dismissed it before (`MCP_ANNOUNCEMENT_QUERY_PARAM`). The
+announcement email's call-to-action depends on this: without it the link is dead
+for precisely the people most likely to click, since anyone who already visited
+the site and closed the modal would land on an unchanged homepage. The close
+button still outranks the parameter, so a `?mcp=1` visit is not a trap.
+
+The parameter is read through `useSyncExternalStore` rather than
+`useSearchParams`, which would opt the whole route into client-side rendering,
+and rather than a mount effect, which the codebase avoids (see `useStoredState`
+for the same reasoning).
+
 Local testing: run the frontend, load any page, dismiss the modal, reload to confirm
 it stays closed, then reopen it via the header pill. Clearing the `localStorage` key
-brings the auto-open behavior back.
+brings the auto-open behavior back. With the key still set, load `/en?mcp=1` and
+confirm the modal opens and can be closed.
 
 ### Developing it
 

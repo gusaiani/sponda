@@ -228,6 +228,36 @@ class TestEnglishEdition:
             assert f"{base_url}/en" in body
             assert f"{base_url}/pt" not in body
 
+
+class TestTheCallToActionOpensTheModal:
+    """The site's MCP modal auto-opens only until it is dismissed once.
+
+    A bare link to the homepage is therefore dead for the readers most likely
+    to click it: anyone who already visited and closed the modal. The `?mcp=1`
+    parameter forces it open regardless.
+    """
+
+    @pytest.mark.parametrize(
+        ("language", "locale_path"),
+        [("pt", "/pt"), ("en", "/en")],
+    )
+    def test_the_instructions_link_carries_the_modal_parameter(
+        self, db, language, locale_path,
+    ):
+        user = User.objects.create_user(
+            username=f"{language}@example.com",
+            email=f"{language}@example.com",
+            password="pw123456",
+            allow_contact=True,
+            language=language,
+        )
+        base_url = settings.SITE_BASE_URL.rstrip("/")
+
+        run_command(to=[user.email])
+
+        for body in (mail.outbox[0].body, mail.outbox[0].alternatives[0][0]):
+            assert f"{base_url}{locale_path}?mcp=1" in body
+
     def test_the_footer_disclaimer_is_in_english(self, english_user):
         """A Portuguese risk warning in an English email is not a warning."""
         run_command(to=[english_user.email])
