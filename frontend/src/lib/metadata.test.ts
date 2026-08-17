@@ -34,16 +34,23 @@ describe("generateTickerMetadata Open Graph image", () => {
   it("declares og:type so crawlers do not have to infer it", async () => {
     const metadata = await generateTickerMetadata("VULC3", "pt");
 
-    expect(metadata.openGraph?.type).toBe("website");
+    expect((metadata.openGraph as { type?: string } | undefined)?.type).toBe("website");
   });
 
-  it("points Open Graph and Twitter at the same absolute image URL", async () => {
+  it("points Open Graph and Twitter at the company's own card, not the shared JPEG", async () => {
     const metadata = await generateTickerMetadata("VULC3", "pt");
-    const expectedUrl = "https://sponda.capital/images/sponda-og-v2.jpg";
+    const expectedUrl = "https://sponda.capital/og/pt/VULC3.png";
 
     const openGraphImages = metadata.openGraph?.images as Array<{ url: string }>;
     expect(openGraphImages[0].url).toBe(expectedUrl);
     expect(metadata.twitter?.images).toEqual([expectedUrl]);
+  });
+
+  it("gives each locale a distinct card URL", async () => {
+    const english = await generateTickerMetadata("VULC3", "en");
+
+    const openGraphImages = english.openGraph?.images as Array<{ url: string }>;
+    expect(openGraphImages[0].url).toBe("https://sponda.capital/og/en/VULC3.png");
   });
 
   it("declares the image MIME type and alt text for the card renderer", async () => {
@@ -55,9 +62,15 @@ describe("generateTickerMetadata Open Graph image", () => {
       width: number;
       height: number;
     }>;
-    expect(openGraphImages[0].type).toBe("image/jpeg");
-    expect(openGraphImages[0].alt).toContain("Sponda");
+    expect(openGraphImages[0].type).toBe("image/png");
+    expect(openGraphImages[0].alt).toContain("VULC3");
     expect(openGraphImages[0].width).toBe(1200);
     expect(openGraphImages[0].height).toBe(630);
+  });
+});
+
+describe("homepage Open Graph image", () => {
+  it("still uses the static locale JPEG, which has no company to render", () => {
+    expect(getOgImageUrl("pt")).toBe("/images/sponda-og-v2.jpg");
   });
 });

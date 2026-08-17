@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { SUPPORTED_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type SupportedLocale } from "./i18n-config";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
+import { djangoApiBaseUrl } from "./django-api";
+import { ogImageUrlForTicker } from "./og-card";
 
 const BASE_URL = "https://sponda.capital";
 
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
 const OG_IMAGE_MIME_TYPE = "image/jpeg";
+const TICKER_OG_IMAGE_MIME_TYPE = "image/png";
 const OG_IMAGE_ALT_TEXT = "Sponda · fundamental indicators for value investors";
 
 /**
@@ -31,7 +34,7 @@ export function getOgImageUrl(locale: string): string {
     : "/images/sponda-og-en-v2.jpg";
 }
 
-/** The `openGraph.images` entry every page shares, fully described for card renderers. */
+/** The `openGraph.images` entry for pages with no single company to render. */
 export function buildOgImageDescriptor(locale: string) {
   return {
     url: `${BASE_URL}${getOgImageUrl(locale)}`,
@@ -42,13 +45,37 @@ export function buildOgImageDescriptor(locale: string) {
   };
 }
 
+/**
+ * The `openGraph.images` entry for one company, pointing at the card that
+ * `src/app/og/[locale]/[ticker]/route.tsx` renders on demand.
+ *
+ * A distinct URL per company per locale is the point: social networks key
+ * their image caches by URL, so no single entry can take every preview on
+ * the domain down with it.
+ */
+export function buildTickerOgImageDescriptor(
+  locale: string,
+  ticker: string,
+  companyName: string,
+) {
+  return {
+    url: `${BASE_URL}${ogImageUrlForTicker(locale, ticker)}`,
+    width: OG_IMAGE_WIDTH,
+    height: OG_IMAGE_HEIGHT,
+    type: TICKER_OG_IMAGE_MIME_TYPE,
+    alt: companyName
+      ? `${companyName} (${ticker}) · Sponda`
+      : `${ticker} · Sponda`,
+  };
+}
+
 interface TickerInfo {
   name: string;
   sector: string;
 }
 
 async function fetchTickerInfo(ticker: string): Promise<TickerInfo | null> {
-  const djangoUrl = process.env.DJANGO_API_URL || "http://localhost:8710";
+  const djangoUrl = djangoApiBaseUrl();
   try {
     const response = await fetch(`${djangoUrl}/api/tickers/${ticker}/`, { next: { revalidate: 3600 } });
     if (!response.ok) return null;
@@ -159,6 +186,7 @@ export async function generateTickerMetadata(
 
   const ogLocale = LOCALE_TO_OG_LOCALE[locale];
   const htmlLang = LOCALE_TO_HTML_LANG[locale];
+  const tickerOgImage = buildTickerOgImageDescriptor(locale, ticker, companyName);
 
   // Breadcrumb tab name
   const tabDisplayName = tabSlug
@@ -177,7 +205,7 @@ export async function generateTickerMetadata(
       title,
       description,
       url,
-      images: [buildOgImageDescriptor(locale)],
+      images: [tickerOgImage],
       locale: ogLocale,
       siteName: "Sponda",
     },
@@ -185,7 +213,7 @@ export async function generateTickerMetadata(
       card: "summary_large_image",
       title,
       description,
-      images: [`${BASE_URL}${getOgImageUrl(locale)}`],
+      images: [tickerOgImage.url],
     },
     other: {
       "structured-data": JSON.stringify([

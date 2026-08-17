@@ -79,6 +79,11 @@ describe("middleware config.matcher", () => {
     expect(pathIsMatched("/admin/login/")).toBe(true);
   });
 
+  it("matches /og/*.png so the card route is reached despite the dot", () => {
+    expect(pathIsMatched("/og/pt/PETR4.png")).toBe(true);
+    expect(pathIsMatched("/og/en/BRK-B.png")).toBe(true);
+  });
+
   it("matches locale-prefixed app pages", () => {
     expect(pathIsMatched("/pt/PETR4")).toBe(true);
     expect(pathIsMatched("/en")).toBe(true);
@@ -117,6 +122,35 @@ describe("middleware unsubscribe proxying", () => {
     const response = await middleware(buildRequest(`/unsubscribe/${SIGNED_TOKEN}/`));
 
     expect(response.headers.get("location")).toBeNull();
+  });
+});
+
+describe("middleware Open Graph card routing", () => {
+  // /og/ used to be proxied to Django, which has no routes there: its
+  // catch-all answered with the legacy SPA shell, i.e. HTML with a 200 to a
+  // crawler asking for an image. The cards are a Next route now, so the
+  // middleware has to let them through untouched.
+  it("does not rewrite the card path to Django", async () => {
+    const response = await middleware(buildRequest("/og/pt/PETR4.png"));
+
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
+  it("never prefixes a card URL with a locale", async () => {
+    // The locale is already a path segment, and a redirect would cost every
+    // crawler an extra round trip on an image it is impatient about.
+    const response = await middleware(buildRequest("/og/pt/PETR4.png"));
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
+  it("still proxies /api/ and /admin/ to Django", async () => {
+    const apiResponse = await middleware(buildRequest("/api/quote/PETR4/"));
+    const adminResponse = await middleware(buildRequest("/admin/login/"));
+
+    expect(apiResponse.headers.get("x-middleware-rewrite")).toContain("/api/quote/PETR4/");
+    expect(adminResponse.headers.get("x-middleware-rewrite")).toContain("/admin/login/");
   });
 });
 
