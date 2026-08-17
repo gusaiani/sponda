@@ -1383,6 +1383,38 @@ npm run dev
 
 The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
 
+### Frontend linting
+
+```bash
+cd frontend
+npm run lint          # eslint src
+npx eslint src --fix  # apply the auto-fixable subset
+```
+
+ESLint 9 with flat config (`frontend/eslint.config.mjs`), extending `next/core-web-vitals` and `next/typescript`. It runs in CI as its own step in the `frontend-tests` job, before the test run. `.next/`, `dist/` (the retired Vite bundle Django still serves as a fallback shell) and `public/` are ignored.
+
+**The suppressions baseline.** Linting was introduced to an existing codebase, which surfaced 40 errors and 34 warnings. Rewriting 25 `react-hooks/set-state-in-effect` violations across the auth, locale and Learning Mode contexts is a behavioural change, not a lint fix, so it is not something to do blind. Instead the pre-existing errors are recorded in `frontend/eslint-suppressions.json` (`eslint src --suppress-all`), which means:
+
+- **New violations fail CI.** Verified: a fresh `any` in a new file exits 1.
+- **Existing debt is visible and burn-downable**, not hidden behind disabled rules. The rules stay on at full strength.
+- Warnings are not suppressed. They stay on screen and do not block, since `eslint` only exits non-zero on errors.
+
+What is in the baseline:
+
+| Count | Rule |
+|---|---|
+| 25 | `react-hooks/set-state-in-effect` |
+| 6 | `@next/next/no-html-link-for-pages` |
+| 4 | `react-hooks/refs` |
+| 4 | `@typescript-eslint/no-explicit-any` |
+| 1 | `react-hooks/purity` |
+
+To burn one down: fix the violations in a file, then `npx eslint src --prune-suppressions` to drop the stale entries.
+
+One quirk worth knowing. Suppressions are counted per file per rule, so adding a *sixth* `any` to a file with five suppressed ones reports all six, not one. Confusing the first time; it fails safe, which is the right direction.
+
+The 34 warnings are mostly `@next/next/no-img-element` (18 raw `<img>` tags that could be `next/image`) plus unused variables and `react-hooks/exhaustive-deps`.
+
 ### Environment Variables
 
 | Variable | Purpose |

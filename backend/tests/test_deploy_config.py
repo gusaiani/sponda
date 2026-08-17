@@ -13,6 +13,7 @@ the deploy restarts it on every run, exactly like every other service.
 from pathlib import Path
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEPLOY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "deploy.yml"
@@ -171,4 +172,63 @@ class TestEveryBrowserSuiteRunsSomewhere:
         assert f"          - {module}" in deploy, (
             f"{module} is ignored by unit-tests but is not an e2e shard, so it "
             f"runs nowhere at all"
+        )
+
+
+def deploy_ssh_commands() -> str:
+    """The shell the deploy job runs on the server, comments stripped.
+
+    Ordering assertions have to read the commands, not the file. Matching
+    raw text would let a mention inside a comment — or the identical `npm ci`
+    in the build-frontend job — stand in for the real thing and quietly
+    satisfy the check.
+    """
+    workflow = yaml.safe_load(DEPLOY_WORKFLOW.read_text())
+    steps = workflow["jobs"]["deploy"]["steps"]
+    script = next(
+        step for step in steps if step.get("name") == "Deploy via SSH"
+    )["with"]["script"]
+    return "\n".join(
+        line for line in script.splitlines() if not line.strip().startswith("#")
+    )
+
+
+ARTIFACT_PATH = "/opt/sponda/_deploy/next-build.tar.gz"
+ARTIFACT_GUARD = f"test -f {ARTIFACT_PATH}"
+
+# Everything below changes the box in a way the running site can feel. The
+# guard has to come before all of them.
+MUTATING_STEPS = (
+    "git reset --hard origin/main",
+    "uv pip install -r backend/requirements.txt",
+    "npm ci",
+)
+
+
+class TestFrontendArtifactGuard:
+    """A missing build artifact must fail the deploy before it touches the box.
+
+    Seen in production on 2026-08-17: the scp step reported success but the
+    tarball was not on the server. By the time `tar` discovered that, the
+    script had already run `npm ci`, swapping node_modules under the Next
+    server that was serving traffic. The deploy failed *and* took the site
+    down with it, returning 500 until the job was re-run.
+
+    The old `.next` was never at risk — the script validates BUILD_ID before
+    swapping. What was missing is the cheapest check of all, in the only
+    position where it helps: first.
+    """
+
+    def test_the_artifact_is_checked_at_all(self):
+        assert ARTIFACT_GUARD in deploy_ssh_commands(), (
+            f"deploy must verify {ARTIFACT_PATH} exists before using it"
+        )
+
+    @pytest.mark.parametrize("mutation", MUTATING_STEPS)
+    def test_the_artifact_is_checked_before_anything_mutates_the_box(self, mutation):
+        commands = deploy_ssh_commands()
+
+        assert commands.index(ARTIFACT_GUARD) < commands.index(mutation), (
+            f"the {ARTIFACT_PATH} check must run before {mutation!r}; "
+            "a deploy that aborts after that step leaves the live site broken"
         )

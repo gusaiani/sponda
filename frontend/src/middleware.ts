@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SUPPORTED_LOCALES, DEFAULT_LOCALE, isSupportedLocale, detectLocaleFromHeader } from "./lib/i18n-config";
+import { isSupportedLocale, detectLocaleFromHeader } from "./lib/i18n-config";
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
 export const LANGUAGE_COOKIE_NAME = "sponda-lang";

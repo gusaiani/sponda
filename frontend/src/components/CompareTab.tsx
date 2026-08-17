@@ -434,7 +434,7 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
           <div className="compare-save-modal" onClick={(event) => event.stopPropagation()}>
             <h3 className="compare-save-modal-title">{t("compare.delete_list")}</h3>
             <p className="compare-save-modal-detail">
-              {t("compare.delete_confirm")} "{existingList.name}"?
+              {t("compare.delete_confirm")} &quot;{existingList.name}&quot;?
             </p>
             <div className="compare-save-modal-actions">
               <button
