@@ -184,6 +184,10 @@ export const zh: TranslationDictionary = {
   "tabs.charts": "图表",
   "tabs.sponds": "Sponds",
 
+  /* ── Ticker page ── */
+  "ticker.not_found_title": "未找到该代码",
+  "ticker.not_found_text": "输入的代码与任何已上市股票都不匹配。",
+
   /* ── Sector Peers ── */
   "sector.same_sector": "同行业公司",
 

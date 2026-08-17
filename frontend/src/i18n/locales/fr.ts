@@ -184,6 +184,10 @@ export const fr: TranslationDictionary = {
   "tabs.charts": "Graphiques",
   "tabs.sponds": "Sponds",
 
+  /* ── Ticker page ── */
+  "ticker.not_found_title": "Ticker introuvable",
+  "ticker.not_found_text": "Le code saisi ne correspond à aucune action cotée.",
+
   /* ── Sector Peers ── */
   "sector.same_sector": "Entreprises du m\u00eame secteur",
 
