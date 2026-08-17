@@ -434,3 +434,18 @@ jobs:
               exit 1
             fi
             rm -rf /opt/sponda/frontend/.next.old /opt/sponda/_deploy/next-build.tar.gz
+
+            # Edge gate: the health check above polls 127.0.0.1 and never
+            # crosses Cloudflare, so it cannot see a URL whose cached body
+            # went stale across this deploy. Cloudflare rewrites max-age to
+            # four hours and ignores client no-cache, so "the origin is fine"
+            # is not the same as "the internet sees the new thing". Check a
+            # few canaries through the edge, purge whatever disagrees, and
+            # re-check. Credentials come from /opt/sponda/.env, which Django
+            # settings already read into os.environ.
+            #
+            # This runs last on purpose: everything is live by now and there
+            # is nothing to roll back. A failure here means a URL is wrong in
+            # a way a cache purge could not fix, which is worth a red deploy.
+            cd /opt/sponda/backend
+            python manage.py verify_edge_cache
