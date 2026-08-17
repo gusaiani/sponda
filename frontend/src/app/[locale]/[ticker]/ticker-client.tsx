@@ -404,8 +404,6 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
         <CompareTab
           currentTicker={upperTicker}
           years={effectiveYears}
-          maxYears={maxYears}
-          onYearsChange={setYears}
           extraTickers={compareTickers}
           onExtraTickersChange={setCompareTickers}
           savedListId={activeListId}

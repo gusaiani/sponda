@@ -24,6 +24,10 @@ export default function SharedListPage() {
       .then((data) => setListData(data))
       .catch(() => setError(t("shared.not_found")))
       .finally(() => setIsLoading(false));
+    // `t` is left out on purpose. It is memoised per locale, so listing it
+    // would re-run the whole fetch on a language switch — a network round trip
+    // to re-fetch identical data, when `t` is only used here for error copy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareToken]);
 
   if (isLoading) {

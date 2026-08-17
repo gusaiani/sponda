@@ -575,7 +575,7 @@ export function HomepageGrid() {
         setShowAuthModal(true);
       }
     },
-    [activeLayout, isAuthenticated, saveLayoutMutation, stopGhost],
+    [activeLayout, isAuthenticated, saveLayoutMutation, stopGhost, t],
   );
 
   const handleFavoriteSelect = useCallback((ticker: string) => {

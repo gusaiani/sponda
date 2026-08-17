@@ -154,14 +154,12 @@ function DragIcon() {
 interface Props {
   currentTicker: string;
   years: number;
-  maxYears: number;
-  onYearsChange: (y: number) => void;
   extraTickers: string[];
   onExtraTickersChange: (tickers: string[]) => void;
   savedListId?: number | null;
 }
 
-export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extraTickers, onExtraTickersChange, savedListId }: Props) {
+export function CompareTab({ currentTicker, years, extraTickers, onExtraTickersChange, savedListId }: Props) {
   const { t, pluralize, locale } = useTranslation();
   const router = useRouter();
   const allTickers = [currentTicker, ...extraTickers];
@@ -194,12 +192,15 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
     });
   })();
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // `allTickers` is rebuilt on every render, so the effect below keys off the
+  // joined string instead: it changes only when the composition really does.
+  const tickersKey = allTickers.join(",");
 
   // Auto-save when tickers or years change on an existing saved list
   useEffect(() => {
     if (!existingList) return;
 
-    const tickersChanged = existingList.tickers.join(",") !== allTickers.join(",");
+    const tickersChanged = existingList.tickers.join(",") !== tickersKey;
     const yearsChanged = existingList.years !== years;
 
     if (!tickersChanged && !yearsChanged) return;
@@ -213,7 +214,13 @@ export function CompareTab({ currentTicker, years, maxYears, onYearsChange, extr
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [allTickers.join(","), years, existingList?.id]);
+    // Deliberately narrow. `allTickers` and `existingList` are fresh objects
+    // on every render and `updateList` is a mutation whose identity changes as
+    // it runs, so listing them would re-arm the debounce continuously and the
+    // list would save in a loop. The values this effect reacts to are the
+    // composition, the window, and which list is open — all three are here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickersKey, years, existingList?.id]);
 
   function handleSort(key: string) {
     setSort((prev) => {
