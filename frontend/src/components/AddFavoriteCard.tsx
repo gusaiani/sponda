@@ -44,9 +44,20 @@ export function AddFavoriteCard({ onSelectTicker }: AddFavoriteCardProps) {
     [searchResults, excludeSet],
   );
 
-  useEffect(() => {
+  // Drop the highlight whenever the result list changes, adjusting state during
+  // render rather than in an effect (the pattern React documents for state
+  // derived from changing props).
+  //
+  // Keyed on the symbols rather than on `results` itself. That matters: the
+  // list is rebuilt by useMemo from a Set of favourites, so its identity used
+  // to change on every render and the effect wiped the highlight on the render
+  // that followed each arrow key. A string comparison cannot do that.
+  const resultsKey = results.map((item) => item.symbol).join(",");
+  const [previousResultsKey, setPreviousResultsKey] = useState(resultsKey);
+  if (resultsKey !== previousResultsKey) {
+    setPreviousResultsKey(resultsKey);
     setSelectedIndex(-1);
-  }, [results]);
+  }
 
   function updateDropdownPos() {
     if (!inputRef.current) return;

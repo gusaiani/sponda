@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { csrfHeaders } from "../utils/csrf";
 import { buildApiError } from "../utils/emailVerificationPrompt";
@@ -55,7 +56,14 @@ export function useFavorites() {
     },
   });
 
-  const favoriteTickers = favorites.map((favorite) => favorite.ticker);
+  // Memoised because consumers feed this into useMemo/useEffect dependency
+  // arrays. A fresh array every render invalidated every one of them, which
+  // is how AddFavoriteCard's keyboard highlight ended up being wiped on the
+  // render that followed each arrow key.
+  const favoriteTickers = useMemo(
+    () => favorites.map((favorite) => favorite.ticker),
+    [favorites],
+  );
 
   function isFavorite(ticker: string): boolean {
     return favoriteTickers.includes(ticker.toUpperCase());
