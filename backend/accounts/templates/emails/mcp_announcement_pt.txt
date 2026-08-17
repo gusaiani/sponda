@@ -1,0 +1,44 @@
+O Sponda agora é um servidor MCP
+
+Seu assistente de IA passa a consultar o Sponda direto. Você pergunta em
+português, ele filtra cerca de 23.000 empresas listadas pelos indicadores
+ajustados pela inflação e devolve a tabela.
+
+Você roda a triagem de um setor inteiro sem abrir o navegador.
+
+O que ele passa a fazer:
+
+* Filtrar e ordenar por P/L10, P/FCL10, PEG, alavancagem e liquidez,
+  por país e por setor.
+* Consultar os valores atuais de qualquer ticker nos indicadores do Sponda.
+* Abrir os fundamentos: balanço, resultado e fluxo de caixa ano a ano,
+  já corrigidos.
+
+Instalar no Claude Code:
+
+    claude mcp add --transport http sponda {{ mcp_endpoint_url }}
+
+No Cursor e no app do Claude, cole a URL {{ mcp_endpoint_url }} como
+conector personalizado.
+
+Depois experimente perguntar:
+
+    Quais empresas brasileiras negociam abaixo de 10x P/L10 com
+    dívida/patrimônio abaixo de 1?
+
+    Como está a WEGE3 nos indicadores do Sponda agora?
+
+    Ordene as empresas brasileiras por P/FCL10 e mostre as cinco
+    mais baratas.
+
+Instruções: {{ base_url }}/pt
+
+Grátis, sem chave de API, 200 chamadas por dia por IP.
+
+---
+Uma ferramenta da Poema Parceria de Investimentos · https://poe.ma
+{{ poema_performance_line }}
+{{ poema_disclaimer }}
+
+Você recebeu este email porque autorizou contato da Sponda.
+Para cancelar o recebimento: {{ unsubscribe_url }}

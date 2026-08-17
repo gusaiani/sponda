@@ -32,6 +32,8 @@ EMAIL_HOST_USER = "resend"
 EMAIL_HOST_PASSWORD = env("RESEND_API_KEY")  # noqa: F405
 DEFAULT_FROM_EMAIL = "Sponda <noreply@sponda.capital>"
 SITE_BASE_URL = "https://sponda.capital"
+# Django serves the unsubscribe page from the same host it serves the SPA from.
+UNSUBSCRIBE_BASE_URL = SITE_BASE_URL
 FEEDBACK_EMAIL = env("FEEDBACK_EMAIL", default="gustavo@poe.ma")  # noqa: F405
 
 # Google OAuth

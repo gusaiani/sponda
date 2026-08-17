@@ -77,11 +77,15 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Proxy API, OG images, sitemap, and admin to Django
+  // 2. Proxy API, OG images, sitemap, admin, and the email opt-out page to
+  // Django. /unsubscribe/ is locale-free on purpose: the link sits in an
+  // inbox forever, so it must never be rewritten, uppercased, or locale-
+  // prefixed — the signed token is part of the path.
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/og/") ||
-    pathname.startsWith("/admin/")
+    pathname.startsWith("/admin/") ||
+    pathname.startsWith("/unsubscribe/")
   ) {
     const target = new URL(pathname + request.nextUrl.search, DJANGO_API_URL);
     const headers = new Headers(request.headers);
@@ -172,6 +176,9 @@ export const config = {
     "/api/((?!assistant/ask).*)",
     "/og/:path*",
     "/admin/:path*",
+    // Explicit, because a signed unsubscribe token can contain a dot and the
+    // catch-all below skips any path that does.
+    "/unsubscribe/:path*",
     "/((?!_next|images|fonts|favicon|api/assistant/ask|.*\\..*).*)",
   ],
 };

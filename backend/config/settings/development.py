@@ -47,6 +47,11 @@ else:
 # the user clicks the link in.
 SITE_BASE_URL = env("SITE_BASE_URL", default="http://localhost:3000")  # noqa: F405
 
+# The unsubscribe page is rendered by Django, not by Next, so its links point
+# at the API origin. In production both live behind the same host; in dev they
+# do not, which is exactly why this is a separate setting.
+UNSUBSCRIBE_BASE_URL = env("UNSUBSCRIBE_BASE_URL", default="http://localhost:8000")  # noqa: F405
+
 FEEDBACK_EMAIL = env("FEEDBACK_EMAIL", default="gustavo@poe.ma")  # noqa: F405
 
 # Google OAuth

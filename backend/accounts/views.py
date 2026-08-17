@@ -20,6 +20,7 @@ from quotes.models import LookupLog
 
 from .branding import POEMA_CTA, POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
 from .email_subjects import VERIFICATION_SUBJECTS, WELCOME_SUBJECTS, share_strings
+from .languages import resolve_user_language
 from datetime import date, timedelta
 
 from .models import AlertNotification, CompanyVisit, EmailVerificationToken, FavoriteCompany, IndicatorAlert, PageView, PasswordResetToken, RevisitSchedule, SavedList, SavedScreenerFilter, SUPPORTED_LANGUAGES, UserOperation
@@ -95,7 +96,7 @@ class SignupView(APIView):
         response = Response(
             {"email": user.email}, status=status.HTTP_201_CREATED
         )
-        return _set_language_cookie(response, _resolve_language(user))
+        return _set_language_cookie(response, resolve_user_language(user))
 
 
 LANGUAGE_COOKIE_NAME = "sponda-lang"
@@ -114,16 +115,11 @@ def _set_language_cookie(response, language):
     return response
 
 
-def _resolve_language(user):
-    language = getattr(user, "language", None) or "en"
-    if language not in SUPPORTED_LANGUAGES:
-        language = "en"
-    return language
 
 
 def _send_welcome_email(user, base_url):
     """Send a welcome email in the user's preferred language."""
-    language = _resolve_language(user)
+    language = resolve_user_language(user)
     context = {
         "base_url": base_url,
         "poema_performance_line": POEMA_PERFORMANCE_LINE,
@@ -146,7 +142,7 @@ def _send_welcome_email(user, base_url):
 
 def _send_verification_email(user, base_url):
     """Send email verification link in the user's preferred language."""
-    language = _resolve_language(user)
+    language = resolve_user_language(user)
     token_obj = EmailVerificationToken.create_for_user(user)
     verify_url = f"{base_url}/verify-email?token={token_obj.token}"
 
@@ -230,7 +226,7 @@ class MeView(APIView):
     def get(self, request):
         if not request.user.is_authenticated:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
-        language = _resolve_language(request.user)
+        language = resolve_user_language(request.user)
         return Response({
             "email": request.user.email,
             "is_superuser": request.user.is_superuser,
