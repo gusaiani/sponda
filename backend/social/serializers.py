@@ -6,7 +6,6 @@ from rest_framework import serializers
 
 from accounts.handles import (
     HandleValidationError,
-    is_valid_handle,
     validate_handle,
 )
 from social.mentions import MENTION_LIMIT_PER_SPOND, extract_handle_mentions

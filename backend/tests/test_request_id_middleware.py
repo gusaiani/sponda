@@ -43,7 +43,7 @@ class TestRequestIDMiddleware:
 
     def test_honors_inbound_header(self, request_factory, middleware):
         inbound_id = "abc-123"
-        request = request_factory.get("/", **{f"HTTP_X_REQUEST_ID": inbound_id})
+        request = request_factory.get("/", **{"HTTP_X_REQUEST_ID": inbound_id})
         response = middleware(request)
         assert response[REQUEST_ID_HEADER] == inbound_id
         assert request.request_id == inbound_id

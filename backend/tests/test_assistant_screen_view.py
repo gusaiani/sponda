@@ -7,10 +7,9 @@ allowed, scoped by ip_hash, so the quota tests exercise that path directly
 against LLMQuery rows rather than only patching would_exceed_assistant_limit.
 """
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from django.contrib.auth import get_user_model
 
 from assistant.agent import (
     AnswerToken,

@@ -3,7 +3,6 @@ from decimal import Decimal
 
 import pytest
 from django.db import IntegrityError
-from django.db.utils import DataError
 
 from accounts.models import IndicatorAlert, User
 

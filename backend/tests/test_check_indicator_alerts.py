@@ -5,7 +5,6 @@ from io import StringIO
 import pytest
 from django.core import mail
 from django.core.management import call_command
-from django.utils import timezone
 
 from accounts.models import AlertNotification, IndicatorAlert, User
 from quotes.models import IndicatorSnapshot

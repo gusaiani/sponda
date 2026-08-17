@@ -1383,6 +1383,29 @@ npm run dev
 
 The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
 
+### Backend linting
+
+```bash
+cd backend
+ruff check .          # what CI runs
+ruff check . --fix    # apply the safe autofixes
+```
+
+Ruff, configured in `backend/ruff.toml`, running in CI as a step in the `unit-tests` job. **There is no baseline: `ruff check .` passes clean**, so anything it reports is genuinely new.
+
+That is possible because the ruleset is deliberately narrow — pyflakes (`F`) plus the pycodestyle error groups that catch real mistakes (`E4` imports, `E7` statements, `E9` syntax/IO). Ruff 0.16's own defaults report ~735 problems on this codebase, almost all stylistic. The narrow set found 46, small enough to fix outright rather than suppress:
+
+- 40 auto-fixed, mostly unused imports and `f`-strings with no placeholders
+- 6 by hand: a `.screener` import that had drifted below a module constant, three lambda assignments (the sitemap path builders and one test helper), an unused variable in the dismiss-all test, and a `# noqa: F405` for a `BASE_DIR` reference in the star-imported dev settings
+
+Each removed import was checked against Django's side-effect import patterns before trusting the autofix. Nothing in `__init__.py`, `apps.py`, signals, `conftest.py` or settings was touched; the three production removals (`assistant/admin.py`, `social/views.py`) were verified unreferenced by hand.
+
+Migrations are excluded — they are generated files.
+
+Ruleset expansion is deliberately left as follow-up work, one group per PR, since each has a real cost today: `I` (89 unsorted imports, auto-fixable but import order can matter in Django), `B` (~20 bugbear findings), `DJ` (13 Django-specific, 6 of which need migrations). `E501` is intentionally absent: this codebase runs long lines with intent and reflowing them would bury real history in `git blame`.
+
+`backend/tests/test_deploy_config.py` guards that both linters still run in CI, that ruff stays pinned in `requirements.txt`, and that `ruff.toml` exists — without the config file CI would silently fall back to ruff's 735-problem defaults.
+
 ### Frontend linting
 
 ```bash

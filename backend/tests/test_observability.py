@@ -8,7 +8,6 @@ We do not test that Sentry actually delivers events to the service
 """
 from unittest.mock import patch
 
-import pytest
 
 from config.observability import init_sentry, scrub_event
 

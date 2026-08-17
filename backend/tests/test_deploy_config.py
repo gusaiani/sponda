@@ -232,3 +232,42 @@ class TestFrontendArtifactGuard:
             f"the {ARTIFACT_PATH} check must run before {mutation!r}; "
             "a deploy that aborts after that step leaves the live site broken"
         )
+
+
+class TestLintRunsInCI:
+    """Guards that both linters actually run.
+
+    A linter nobody runs is worse than no linter: it accumulates violations
+    silently and then looks like a wall of work whenever someone finally
+    invokes it. Both were added on 2026-08-17 to a codebase that had never
+    been linted, so pin the steps rather than trusting them to survive the
+    next workflow edit.
+    """
+
+    def test_the_backend_is_linted(self):
+        deploy = DEPLOY_WORKFLOW.read_text()
+        assert "ruff check ." in deploy, (
+            "the unit-tests job must run `ruff check .`; backend/ruff.toml "
+            "keeps the ruleset narrow enough that it passes clean"
+        )
+
+    def test_the_frontend_is_linted(self):
+        deploy = DEPLOY_WORKFLOW.read_text()
+        assert "npm run lint" in deploy, (
+            "the frontend-tests job must run `npm run lint`; existing "
+            "violations are baselined in frontend/eslint-suppressions.json "
+            "so only new ones fail"
+        )
+
+    def test_ruff_is_a_declared_dependency(self):
+        requirements = (REPO_ROOT / "backend" / "requirements.txt").read_text()
+        assert "ruff==" in requirements, (
+            "CI installs from requirements.txt, so ruff has to be pinned "
+            "there or the lint step runs whatever version it finds"
+        )
+
+    def test_the_backend_ruleset_is_committed(self):
+        assert (REPO_ROOT / "backend" / "ruff.toml").is_file(), (
+            "without ruff.toml, CI silently lints with ruff defaults, which "
+            "report ~735 mostly-stylistic problems here"
+        )

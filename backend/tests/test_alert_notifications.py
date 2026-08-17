@@ -1,5 +1,4 @@
 """Tests for alert notification endpoints: list, dismiss, dismiss-all."""
-import json
 from decimal import Decimal
 
 import pytest
@@ -117,9 +116,9 @@ class TestDismissAllAlertNotifications:
     ):
         notification_a = _create_notification(user, ticker="PETR4")
         notification_b = _create_notification(user, ticker="VALE3")
-        already_dismissed = _create_notification(
-            user, ticker="OLD1", dismissed_at=timezone.now(),
-        )
+        # Already dismissed: the `dismissed == 2` assertion below is what
+        # proves dismiss-all skipped it rather than re-stamping it.
+        _create_notification(user, ticker="OLD1", dismissed_at=timezone.now())
         response = authenticated_client.post(
             "/api/auth/alert-notifications/dismiss-all/",
         )

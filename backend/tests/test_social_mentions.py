@@ -1,5 +1,4 @@
 """Tests for the @handle / $TICKER mention parser."""
-import pytest
 
 from social.mentions import (
     MENTION_LIMIT_PER_SPOND,
