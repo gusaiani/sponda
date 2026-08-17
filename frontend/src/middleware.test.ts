@@ -92,6 +92,34 @@ describe("middleware config.matcher", () => {
   });
 });
 
+describe("middleware unsubscribe proxying", () => {
+  // A real django.core.signing token: compressed payloads start with a dot,
+  // and the three parts are separated by colons. Both characters have to
+  // survive the trip, which is why this is a literal rather than "abc".
+  const SIGNED_TOKEN =
+    ".eJyrViouLU7OSC1WsjLUUcpLLVeyMjQwMNWpBQBLhAcC:1uMv8k:qMoCd1jDPfPZLZ0PYhHXKa5Y2Nc";
+
+  it("matches /unsubscribe/* even when the signed token contains a dot", () => {
+    expect(pathIsMatched(`/unsubscribe/${SIGNED_TOKEN}/`)).toBe(true);
+  });
+
+  it("rewrites the unsubscribe page to Django, which renders it", async () => {
+    const response = await middleware(buildRequest(`/unsubscribe/${SIGNED_TOKEN}/`));
+
+    expect(response.headers.get("x-middleware-rewrite")).toContain(
+      `/unsubscribe/${SIGNED_TOKEN}/`,
+    );
+  });
+
+  it("never prefixes the unsubscribe URL with a locale", async () => {
+    // The link lives in an inbox forever. A locale redirect would break the
+    // signature-carrying path and strand the reader on a 404.
+    const response = await middleware(buildRequest(`/unsubscribe/${SIGNED_TOKEN}/`));
+
+    expect(response.headers.get("location")).toBeNull();
+  });
+});
+
 describe("middleware locale persistence", () => {
   it("writes sponda-lang cookie when path is already locale-prefixed", async () => {
     const response = await middleware(buildRequest("/it/PETR4"));

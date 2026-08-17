@@ -29,6 +29,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Social (Sponds)](#social-sponds)
 - [Lookup limits](#lookup-limits)
 - [Localized account emails](#localized-account-emails)
+- [Marketing email opt-out](#marketing-email-opt-out)
 - [Logos](#logos)
 - [Blog](#blog)
 
@@ -555,9 +556,83 @@ Templates live under `backend/accounts/templates/emails/`:
 - `welcome_<lang>.html` / `verification_<lang>.html` — per-locale overrides (`extends` the base, fills blocks).
 - `welcome_<lang>.txt` / `verification_<lang>.txt` — plain-text bodies per locale.
 
-Subjects and localized share-link copy live in `accounts/email_subjects.py`. The sender (`accounts.views._send_welcome_email` / `_send_verification_email`) resolves the language via `_resolve_language`, renders the matching templates with `render_to_string`, and passes the localized subject.
+Subjects and localized share-link copy live in `accounts/email_subjects.py`. The sender (`accounts.views._send_welcome_email` / `_send_verification_email`) resolves the language via `accounts.languages.resolve_user_language`, renders the matching templates with `render_to_string`, and passes the localized subject.
 
 To add a new locale: register it in `SUPPORTED_LANGUAGES` (`accounts/models.py`), add a row to both subject dicts and `share_strings` in `email_subjects.py`, and create the four template files (`welcome_<lang>.html`, `welcome_<lang>.txt`, `verification_<lang>.html`, `verification_<lang>.txt`).
+
+## Marketing email opt-out
+
+Any bulk send has to carry a working unsubscribe. Gmail and Outlook require RFC 8058 one-click from bulk senders, and a campaign without it gets filtered on reputation no matter how good the content is. Transactional mail is deliberately out of scope: welcome, verification, password reset and indicator alerts keep flowing after an opt-out, and none of them carry the headers.
+
+Opting out flips `User.allow_contact` to `False`. It is the same flag a signed-in user toggles at `/<locale>/account`.
+
+**The token is signed, not stored.** `accounts/unsubscribe.py::generate_unsubscribe_token` signs `{user_id, email}` with `django.core.signing` under the `accounts.unsubscribe` salt. Nothing is written at send time, so there is no row to expire, exhaust, or clean up, and the link keeps working for as long as the address does. Binding the address into the signature means a token stops resolving the moment the account moves to a different email, so whoever inherits the old address cannot opt out the new one.
+
+**GET never unsubscribes anyone.** Spam filters and corporate link scanners fetch every URL in an email; a mutating GET would empty the list before a human read it. `GET /unsubscribe/<token>/` renders a confirmation page and changes nothing. Only `POST` clears the flag, and it is idempotent.
+
+**POST is CSRF-exempt** because the one-click request arrives from the mail provider with no cookie and no session. The signed link is the credential.
+
+| Piece | Where |
+|---|---|
+| Token, URL and header builders, the view | `backend/accounts/unsubscribe.py` |
+| Per-locale page copy (7 languages) | `backend/accounts/unsubscribe_text.py` |
+| Page template | `backend/accounts/templates/unsubscribe/page.html` |
+| Route, named `unsubscribe` | `backend/config/urls.py` |
+| Proxy rule that gets the request to Django | `frontend/src/middleware.ts` |
+| Tests | `backend/tests/test_unsubscribe.py`, `frontend/src/middleware.test.ts` |
+
+**Routing.** In production nginx sends everything except `/api/logos/` and `/api/assistant/ask` to Next on `:3100`, so `/unsubscribe/` only reaches Django because the Next middleware proxies that prefix, exactly as it does for `/api/`, `/og/` and `/admin/`. Two details there are load-bearing: `/unsubscribe/:path*` is an explicit matcher entry, because a compressed signing token starts with a dot and the catch-all matcher skips any path containing one; and the prefix is handled before the locale logic, which would otherwise redirect `/unsubscribe/<token>/` to `/en/UNSUBSCRIBE/<token>/` and strand the reader on a 404.
+
+The page answers in the recipient's `User.language` and has four states: confirm, done, already opted out, and invalid link (HTTP 404). An unknown locale falls back to `DEFAULT_LANGUAGE` instead of erroring.
+
+**Headers every marketing send must attach.** `build_unsubscribe_headers(user)` returns both. `send_mail` cannot carry custom headers, so use `EmailMultiAlternatives(..., headers=build_unsubscribe_headers(user))`:
+
+```
+List-Unsubscribe: <https://sponda.capital/unsubscribe/<token>/>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+```
+
+**Environment variables**
+
+| Variable | Dev default | Prod value | What it does |
+|---|---|---|---|
+| `UNSUBSCRIBE_BASE_URL` | `http://localhost:8000` | `https://sponda.capital` | Origin for the unsubscribe link. Django renders the page itself, so in dev this points at the API port, not the Next dev server on `:3000`. |
+
+**Local testing**
+
+```bash
+cd backend && .venv/bin/python -m pytest tests/test_unsubscribe.py
+```
+
+To open the real page, mint a link for an existing user and paste it in a browser:
+
+```bash
+cd backend && ./manage.py shell -c \
+  "from accounts.models import User; from accounts.unsubscribe import build_unsubscribe_url; print(build_unsubscribe_url(User.objects.first()))"
+```
+
+Adding a locale means one row in `UNSUBSCRIBE_COPY` and one in `HTML_LANG`, both in `unsubscribe_text.py`.
+
+### Sending the MCP announcement
+
+`accounts/management/commands/send_mcp_announcement.py` is the first marketing send, and the shape every later campaign should copy.
+
+```bash
+./manage.py send_mcp_announcement --to gustavo@poe.ma        # one address, repeatable
+./manage.py send_mcp_announcement --all --dry-run            # list who would get it
+./manage.py send_mcp_announcement --all                      # the real campaign
+```
+
+Four rules are enforced by the command rather than by the operator remembering them:
+
+- **No target, no send.** Without `--to` or `--all` it raises instead of defaulting to everyone. `--to` and `--all` together is also an error.
+- **`allow_contact` is honored.** `--all` only selects opted-in users, and `--to` skips an opted-out address with a message rather than mailing it anyway.
+- **Every message carries its own unsubscribe**, in the `List-Unsubscribe` headers and in the footer link, both minted per recipient.
+- **Failures are loud.** No `fail_silently`. A campaign that silently drops half its recipients is worse than one that stops and says so.
+
+Templates are `emails/mcp_announcement_<lang>.{html,txt}`, subjects live in `MCP_ANNOUNCEMENT_SUBJECTS` (`accounts/email_subjects.py`). Only `pt` exists today; `mcp_announcement_language()` falls back to `MARKETING_FALLBACK_LANGUAGE` for any other locale, so a German user gets the Portuguese copy rather than a crash. Both a plain-text and an HTML body go out, because HTML-only mail scores worse with every spam filter.
+
+The endpoint advertised in the copy comes from `assistant.mcp.MCP_PUBLIC_ENDPOINT_URL`, which is absolute on purpose: the announcement must never go out quoting a localhost URL.
 
 ## Logos
 

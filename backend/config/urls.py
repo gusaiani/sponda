@@ -7,6 +7,7 @@ from django.contrib import admin
 from django.http import FileResponse, Http404, HttpResponse
 from django.urls import include, path, re_path
 
+from accounts.unsubscribe import unsubscribe_view
 from assistant.mcp import mcp_endpoint
 
 # Locales mirrored from frontend/src/lib/i18n-config.ts::SUPPORTED_LOCALES.
@@ -349,6 +350,10 @@ urlpatterns = [
     # Both slash variants answer directly: MCP clients POST to the exact URL
     # the user pasted, and an APPEND_SLASH 301 would drop the POST body.
     re_path(r"^api/mcp/?$", mcp_endpoint, name="mcp-server"),
+    # Django renders this one itself rather than handing it to the frontend:
+    # the link is clicked from an inbox, so it has to work with no session,
+    # no JavaScript, and no round trip through the SPA.
+    path("unsubscribe/<str:token>/", unsubscribe_view, name="unsubscribe"),
     re_path(r"^(?P<filepath>assets/.*)$", _serve_frontend),
     re_path(r"^(?!api/|admin/)(?P<filepath>.*)$", _serve_frontend),
 ]

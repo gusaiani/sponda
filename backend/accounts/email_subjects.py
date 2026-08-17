@@ -21,6 +21,23 @@ VERIFICATION_SUBJECTS = {
     "zh": "Sponda · 确认您的邮箱",
 }
 
+# Marketing, not transactional. Only the locales listed here have templates
+# under emails/mcp_announcement_<lang>.{html,txt}; the sender falls back to
+# MARKETING_FALLBACK_LANGUAGE for anyone else.
+MCP_ANNOUNCEMENT_SUBJECTS = {
+    "pt": "O Sponda agora é um servidor MCP",
+}
+
+MARKETING_FALLBACK_LANGUAGE = "pt"
+
+
+def mcp_announcement_language(language):
+    """Return the locale to render the MCP announcement in for ``language``."""
+    if language in MCP_ANNOUNCEMENT_SUBJECTS:
+        return language
+    return MARKETING_FALLBACK_LANGUAGE
+
+
 _SHARE_TEXT = {
     "pt": "Conheça a Sponda — indicadores de empresas para investidores em valor",
     "en": "Check out Sponda — company indicators for value investors",

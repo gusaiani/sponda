@@ -43,6 +43,12 @@ logger = logging.getLogger(__name__)
 MCP_SUPPORTED_PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 MCP_LATEST_PROTOCOL_VERSION = MCP_SUPPORTED_PROTOCOL_VERSIONS[0]
 
+# The address users paste into their MCP client. Deliberately absolute rather
+# than derived from SITE_BASE_URL: the endpoint is a public fact about the
+# deployment, and an announcement email sent from any box must advertise the
+# real one, never a localhost URL.
+MCP_PUBLIC_ENDPOINT_URL = "https://sponda.capital/api/mcp/"
+
 MCP_SERVER_INFO = {
     "name": "sponda",
     "title": "Sponda — fundamental analysis for value investors",
