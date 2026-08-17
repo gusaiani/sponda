@@ -435,8 +435,22 @@ const SAVED_INDICATOR_DURATION_MS = 2000;
 
 function PreferencesSection({ allowContact }: { allowContact: boolean }) {
   const { t } = useTranslation();
-  const [checked, setChecked] = useState(allowContact);
+  const { refreshUser } = useAuth();
+  // The server's value is the truth; `pendingValue` is only what this tab
+  // asked for and has not seen confirmed yet. Keeping the checkbox derived
+  // rather than copied means a refetch that lands after the first paint
+  // moves it — the persisted query cache paints before the network answers,
+  // so the prop routinely arrives stale, most visibly for someone who just
+  // unsubscribed from the email page and came straight here.
+  const [pendingValue, setPendingValue] = useState<boolean | null>(null);
   const [status, setStatus] = useState<PreferencesStatus>("idle");
+  const checked = pendingValue ?? allowContact;
+
+  useEffect(() => {
+    if (pendingValue !== null && pendingValue === allowContact) {
+      setPendingValue(null);
+    }
+  }, [pendingValue, allowContact]);
 
   useEffect(() => {
     if (status !== "saved") return;
@@ -446,8 +460,7 @@ function PreferencesSection({ allowContact }: { allowContact: boolean }) {
 
   async function handleToggle(event: React.ChangeEvent<HTMLInputElement>) {
     const next = event.target.checked;
-    const previous = checked;
-    setChecked(next);
+    setPendingValue(next);
     setStatus("saving");
 
     try {
@@ -459,14 +472,17 @@ function PreferencesSection({ allowContact }: { allowContact: boolean }) {
       });
 
       if (!response.ok) {
-        setChecked(previous);
+        setPendingValue(null);
         setStatus("error");
         return;
       }
 
       setStatus("saved");
+      // Without this the persisted cache keeps the pre-toggle value and the
+      // next mount paints the stale checkbox all over again.
+      await refreshUser();
     } catch {
-      setChecked(previous);
+      setPendingValue(null);
       setStatus("error");
     }
   }

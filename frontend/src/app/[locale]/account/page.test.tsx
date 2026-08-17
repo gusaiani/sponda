@@ -325,6 +325,68 @@ describe("AccountPage preferences toggle", () => {
     expect(checkbox.checked).toBe(true);
   });
 
+  it("follows the server value when a refetch lands after the first paint", async () => {
+    // The persisted React Query cache paints before the network answers, so
+    // the first render can show a value the server no longer holds — exactly
+    // what happens after unsubscribing on the Django page and coming back.
+    authState.user = {
+      email: "user@example.com",
+      is_superuser: false,
+      email_verified: true,
+      date_joined: "2025-01-01T00:00:00Z",
+      allow_contact: true,
+    };
+
+    const { rerender } = render(<AccountPage />);
+    expect(
+      (screen.getByLabelText("auth.allow_contact") as HTMLInputElement).checked,
+    ).toBe(true);
+
+    authState.user = { ...authState.user!, allow_contact: false };
+    rerender(<AccountPage />);
+
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText("auth.allow_contact") as HTMLInputElement).checked,
+      ).toBe(false),
+    );
+  });
+
+  it("does not let a refetch undo a toggle that is still saving", async () => {
+    // A background refetch that started before the PATCH carries the old
+    // value. It must not flip the box back under the reader's finger.
+    const fetchMock = vi.fn().mockImplementation(() => new Promise(() => {}));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { rerender } = render(<AccountPage />);
+    const checkbox = screen.getByLabelText("auth.allow_contact") as HTMLInputElement;
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(true);
+
+    authState.user = { ...authState.user!, allow_contact: false };
+    rerender(<AccountPage />);
+
+    expect(
+      (screen.getByLabelText("auth.allow_contact") as HTMLInputElement).checked,
+    ).toBe(true);
+  });
+
+  it("refreshes the cached user after a successful save", async () => {
+    // Without this the persisted cache keeps the pre-toggle value and the
+    // next page mount paints the stale checkbox all over again.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ allow_contact: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AccountPage />);
+    fireEvent.click(screen.getByLabelText("auth.allow_contact"));
+
+    await waitFor(() => expect(authState.refreshUser).toHaveBeenCalled());
+  });
+
   it("PATCHes /api/auth/preferences/ when the allow_contact checkbox is toggled", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
