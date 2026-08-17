@@ -20,7 +20,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # Serve built frontend in dev/test when available
-FRONTEND_DIST_DIR = BASE_DIR.parent / "frontend" / "dist"
+FRONTEND_DIST_DIR = BASE_DIR.parent / "frontend" / "dist"  # noqa: F405
 
 REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"].append(  # noqa: F405
     "rest_framework.renderers.BrowsableAPIRenderer"

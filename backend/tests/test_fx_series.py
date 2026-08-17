@@ -7,7 +7,6 @@ before being rebased. `fx_series` returns that path; `FxSeriesView` exposes it.
 from datetime import date
 from decimal import Decimal
 
-import pytest
 
 from quotes.fx import fx_series
 from quotes.models import FxRate

@@ -7,7 +7,6 @@ so no network and no DB rows are needed except where noted.
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 from openai import APITimeoutError, RateLimitError
 
 from assistant.agent import (
@@ -217,11 +216,12 @@ class TestToolCalling:
 
     def test_round_limit_forces_final_answer_without_tools(self, settings):
         settings.ASSISTANT_MAX_TOOL_ROUNDS = 2
-        tool_stream = lambda call_id: [
-            make_tool_call_chunk(0, call_id, "get_company",
-                                 json.dumps({"symbol": "PETR4"})),
-            make_usage_chunk(10, 5),
-        ]
+        def tool_stream(call_id):
+            return [
+                make_tool_call_chunk(0, call_id, "get_company",
+                                     json.dumps({"symbol": "PETR4"})),
+                make_usage_chunk(10, 5),
+            ]
         forced_final = [make_content_chunk("from data so far"),
                         make_usage_chunk(10, 5)]
         execute_tool = MagicMock(return_value={"ticker": "PETR4"})

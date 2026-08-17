@@ -34,6 +34,13 @@ jobs:
       - name: Install Python dependencies
         run: uv pip install --system -r backend/requirements.txt
 
+      # Narrow, high-signal ruleset (see backend/ruff.toml). The backend has
+      # no suppressions baseline: `ruff check .` is clean, so anything this
+      # reports is new.
+      - name: Lint
+        working-directory: backend
+        run: ruff check .
+
       - name: Run unit and integration tests
         working-directory: backend
         env:

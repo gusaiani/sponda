@@ -1,10 +1,8 @@
 """Tests for the IndicatorSnapshot model — pre-computed indicator values used by the screener."""
-from datetime import datetime, timezone as dt_timezone
 from decimal import Decimal
 
 import pytest
 from django.db import IntegrityError
-from django.utils import timezone
 
 from quotes.models import IndicatorSnapshot
 

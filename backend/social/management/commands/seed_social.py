@@ -22,9 +22,7 @@ from django.utils import timezone
 from quotes.models import Ticker
 from social.mentions import extract_handle_mentions, extract_ticker_mentions
 from social.models import (
-    Block,
     Follow,
-    Mute,
     Notification,
     Spond,
     SpondLike,

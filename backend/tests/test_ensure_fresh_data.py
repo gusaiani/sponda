@@ -8,11 +8,10 @@ rollout never get their currency stamped via the natural flow until the
 weekly fundamentals cron runs. The backfill nudge re-runs `sync_earnings`
 exactly once per such ticker to close that gap on first page visit.
 """
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import patch
 
 import pytest
-from django.utils import timezone
 
 from quotes.models import QuarterlyEarnings, Ticker
 from quotes.views import _ensure_fresh_data

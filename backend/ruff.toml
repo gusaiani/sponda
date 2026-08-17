@@ -1,0 +1,30 @@
+# Ruff configuration for the Django backend.
+#
+# The ruleset is deliberately narrow: pyflakes (F) plus the pycodestyle
+# error groups that catch real mistakes (E4 imports, E7 statement problems,
+# E9 syntax/IO errors). That set is small enough to fix outright, so the
+# backend has no suppressions baseline at all -- `ruff check .` is clean and
+# any new violation is a genuine new one.
+#
+# Ruff 0.16's own defaults are far broader and report ~735 problems here,
+# almost all stylistic (verbose Decimal constructors, mutable class
+# attributes on Django models, import ordering). Those are worth adopting
+# one group at a time, each as its own reviewable change. The obvious next
+# candidates, with what they cost today:
+#
+#   I    89 unsorted imports (auto-fixable, but reordering imports in a
+#          Django app can disturb side-effect imports, so it needs its own
+#          PR and a full test run)
+#   B    ~20 flake8-bugbear findings, decent signal
+#   DJ   13 Django-specific (7 models without __str__, 6 nullable
+#          CharFields -- the latter need migrations)
+#
+# E501 (line length) is intentionally absent: this codebase runs long lines
+# with intent and reflowing them would bury real history in `git blame`.
+
+target-version = "py312"
+
+extend-exclude = ["**/migrations/*"]
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

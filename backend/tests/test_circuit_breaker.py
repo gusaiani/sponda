@@ -5,7 +5,6 @@ breaker opens and short-circuits subsequent calls for ``cool_down``
 seconds, raising ``CircuitOpenError`` instead of executing the call.
 A single successful call closes the breaker again.
 """
-import time
 
 import pytest
 from django.core.cache import cache

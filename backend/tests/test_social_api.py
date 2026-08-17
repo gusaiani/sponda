@@ -294,7 +294,7 @@ class TestFollow:
         self, alice, bob, client_for,
     ):
         c = client_for(alice)
-        r = c.post(f"/api/social/users/bob/follow/")
+        r = c.post("/api/social/users/bob/follow/")
         assert r.status_code == 201
         assert r.json()["state"] == Follow.STATE_ACCEPTED
         assert Notification.objects.filter(
@@ -305,7 +305,7 @@ class TestFollow:
         self, alice, dave_private, client_for,
     ):
         c = client_for(alice)
-        r = c.post(f"/api/social/users/dave/follow/")
+        r = c.post("/api/social/users/dave/follow/")
         assert r.status_code == 201
         assert r.json()["state"] == Follow.STATE_PENDING
         assert Notification.objects.filter(
@@ -340,13 +340,13 @@ class TestFollow:
     def test_unfollow(self, alice, bob, client_for):
         Follow.objects.create(follower=alice, followee=bob)
         c = client_for(alice)
-        r = c.delete(f"/api/social/users/bob/follow/")
+        r = c.delete("/api/social/users/bob/follow/")
         assert r.status_code == 204
         assert not Follow.objects.filter(follower=alice, followee=bob).exists()
 
     def test_self_follow_rejected(self, alice, client_for):
         c = client_for(alice)
-        r = c.post(f"/api/social/users/alice/follow/")
+        r = c.post("/api/social/users/alice/follow/")
         assert r.status_code == 400
 
 
@@ -500,7 +500,7 @@ class TestNotifications:
     def test_read_notifications_disappear_from_list(self, alice, bob, client_for):
         spond = Spond.objects.create(author=alice, body="hi")
         client_for(bob).post(f"/api/social/sponds/{spond.pk}/like/")
-        client_for(bob).post(f"/api/social/users/alice/follow/")
+        client_for(bob).post("/api/social/users/alice/follow/")
         c_alice = client_for(alice)
         c_alice.post(
             "/api/social/notifications/mark-read/",
@@ -514,7 +514,7 @@ class TestNotifications:
     def test_pending_follow_request_survives_mark_all_read(
         self, alice, dave_private, client_for,
     ):
-        client_for(alice).post(f"/api/social/users/dave/follow/")
+        client_for(alice).post("/api/social/users/dave/follow/")
         c_dave = client_for(dave_private)
         c_dave.post(
             "/api/social/notifications/mark-read/",
@@ -528,7 +528,7 @@ class TestNotifications:
     def test_accepting_a_follow_request_erases_its_notification(
         self, alice, dave_private, client_for,
     ):
-        client_for(alice).post(f"/api/social/users/dave/follow/")
+        client_for(alice).post("/api/social/users/dave/follow/")
         follow = Follow.objects.get(follower=alice, followee=dave_private)
         c_dave = client_for(dave_private)
         c_dave.post(f"/api/social/follow-requests/{follow.pk}/accept/")
@@ -541,7 +541,7 @@ class TestNotifications:
     def test_rejecting_a_follow_request_erases_its_notification(
         self, alice, dave_private, client_for,
     ):
-        client_for(alice).post(f"/api/social/users/dave/follow/")
+        client_for(alice).post("/api/social/users/dave/follow/")
         follow = Follow.objects.get(follower=alice, followee=dave_private)
         c_dave = client_for(dave_private)
         c_dave.post(f"/api/social/follow-requests/{follow.pk}/reject/")
@@ -557,7 +557,7 @@ class TestNotifications:
         """A follow_requested row whose Follow is gone or no longer pending
         (rows written before notifications were cleaned up on accept/reject)
         must not be listed: its Accept/Reject buttons would 404."""
-        client_for(alice).post(f"/api/social/users/dave/follow/")
+        client_for(alice).post("/api/social/users/dave/follow/")
         Follow.objects.get(follower=alice, followee=dave_private).delete()
         body = client_for(dave_private).get("/api/social/notifications/").json()
         assert body["notifications"] == []

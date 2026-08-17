@@ -3,7 +3,6 @@ from datetime import date
 from decimal import Decimal
 
 
-import pytest
 
 from quotes.models import QuarterlyEarnings
 from quotes.inflation import get_inflation_adjustment_factors

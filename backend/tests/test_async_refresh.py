@@ -18,7 +18,7 @@ from unittest.mock import patch
 import pytest
 from django.utils import timezone
 
-from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
 from quotes.views import _ensure_fresh_data
 
 

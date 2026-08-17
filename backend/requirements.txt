@@ -24,3 +24,7 @@ responses==0.25.6
 # only because celery and responses happen to pull PyYAML in; declared here so
 # the guard does not start failing the day that stops being true.
 pyyaml==6.0.3
+# Linter for the backend. Pinned because CI installs from this file and a
+# floating version would turn a ruff release into a surprise red build.
+# Ruleset lives in backend/ruff.toml.
+ruff==0.16.3

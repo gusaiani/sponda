@@ -19,7 +19,6 @@ from rest_framework.views import APIView
 
 from config.middleware.server_timing import record_server_timing
 
-from .client_ip import client_ip_hash
 from .derived_data import (
     STATEMENT_DERIVED_CACHE_CONTROL,
     fundamentals_cache_key,
@@ -30,10 +29,10 @@ from .derived_data import (
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .lookup_enforcement import LookupQuotaEnforcedView
-from .lookup_quota import lookup_quota, would_exceed_limit
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .tasks import refresh_provider_data
 from .indicators import compute_company_indicators
+from .screener import ScreenerError, run_screener
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
 from .leverage import calculate_leverage
 from .models import BalanceSheet, CompanyAnalysis, IndicatorSnapshot, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
@@ -54,7 +53,6 @@ logger = logging.getLogger(__name__)
 # responses *are* edge-cached and would otherwise put an hour-long floor
 # under how fresh a newly filed quarter can appear.
 PE10_CLIENT_CACHE_TTL = 60 * 60
-from .screener import ScreenerError, run_screener
 
 PE10_CACHE_TTL = 24 * 60 * 60  # 24 hours
 FUNDAMENTALS_CACHE_TTL = 24 * 60 * 60  # 24 hours
@@ -1569,11 +1567,16 @@ class SitemapView(APIView):
         for symbol, updated_at in tickers:
             lastmod = updated_at.strftime("%Y-%m-%d") if updated_at else ""
             for tab_key, priority, changefreq in ticker_groups:
+                # The default arguments bind the current loop values, so each
+                # builder keeps the symbol and slug map it was created with.
                 if tab_key is None:
-                    path_builder = lambda _locale, s=symbol: f"/{s}"
+                    def path_builder(_locale, s=symbol):
+                        return f"/{s}"
                 else:
                     slug_map = SITEMAP_TAB_SLUGS[tab_key]
-                    path_builder = lambda locale, s=symbol, m=slug_map: f"/{s}/{m[locale]}"
+
+                    def path_builder(locale, s=symbol, m=slug_map):
+                        return f"/{s}/{m[locale]}"
                 lines.extend(_sitemap_url_group(
                     base_url, path_builder, priority, changefreq, lastmod,
                 ))

@@ -4,7 +4,6 @@ The middleware emits a `Server-Timing` response header so DevTools and
 Sentry's Resource Timing capture surface backend wall-clock per request
 without requiring a custom UI.
 """
-from unittest.mock import patch
 
 import pytest
 from django.http import HttpResponse
