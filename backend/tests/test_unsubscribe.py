@@ -217,6 +217,16 @@ class TestUnsubscribePage:
 
         assert "/pt/account" in body
 
+    def test_page_leaks_no_template_syntax(self, client, contactable_user):
+        """Django's {# #} comment is single-line only; a multi-line one renders
+        as visible text. Nothing that looks like template syntax belongs in
+        what the reader sees.
+        """
+        body = client.get(unsubscribe_path(contactable_user)).content.decode()
+
+        for marker in ("{#", "#}", "{%", "{{", "%}", "}}"):
+            assert marker not in body, f"template syntax {marker!r} reached the page"
+
     def test_address_is_fenced_off_from_cloudflare_obfuscation(self, client, contactable_user):
         """Cloudflare rewrites bare addresses into "[email protected]" plus a
         decoder script. Here the address is the whole point of the page, and
