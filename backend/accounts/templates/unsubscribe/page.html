@@ -80,7 +80,13 @@
     <a class="wordmark" href="{{ home_url }}">SPONDA</a>
 
     <h1>{{ title }}</h1>
+    {# Cloudflare's email obfuscation rewrites any bare address into
+       "[email protected]" plus a decoder script. On this page the address is
+       the point, and it must read correctly with JavaScript off, so it goes
+       inside Cloudflare's documented opt-out fence. #}
+    <!--email_off-->
     <p class="message">{{ message }}</p>
+    <!--email_on-->
 
     {% if shows_confirm_button %}
       <form method="post" action="">

@@ -217,6 +217,17 @@ class TestUnsubscribePage:
 
         assert "/pt/account" in body
 
+    def test_address_is_fenced_off_from_cloudflare_obfuscation(self, client, contactable_user):
+        """Cloudflare rewrites bare addresses into "[email protected]" plus a
+        decoder script. Here the address is the whole point of the page, and
+        it has to survive with JavaScript off, so it sits inside Cloudflare's
+        documented opt-out fence.
+        """
+        body = client.get(unsubscribe_path(contactable_user)).content.decode()
+
+        fenced = body.split("<!--email_off-->")[1].split("<!--email_on-->")[0]
+        assert contactable_user.email in fenced
+
     def test_confirmation_page_says_account_email_keeps_coming(self, client, contactable_user):
         """Opting out of marketing must not read as opting out of password resets."""
         body = client.get(unsubscribe_path(contactable_user)).content.decode()
