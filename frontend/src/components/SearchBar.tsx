@@ -21,9 +21,16 @@ export function SearchBar({ onSearch, isLoading, autoFocus }: SearchBarProps) {
 
   const { results } = useTickerSearch(input);
 
-  useEffect(() => {
+  // Drop the highlight whenever the result list changes, adjusting state
+  // during render rather than in an effect (the pattern React documents for
+  // state derived from changing props). Keyed on the symbols so it does not
+  // depend on array identity.
+  const resultsKey = results.map((item) => item.symbol).join(",");
+  const [previousResultsKey, setPreviousResultsKey] = useState(resultsKey);
+  if (resultsKey !== previousResultsKey) {
+    setPreviousResultsKey(resultsKey);
     setSelectedIndex(-1);
-  }, [results]);
+  }
 
   function select(item: TickerItem) {
     setInput(item.symbol);

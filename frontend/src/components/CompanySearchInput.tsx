@@ -24,9 +24,20 @@ export function CompanySearchInput({ onAdd, excludeTickers }: Props) {
   const { results: rawResults } = useTickerSearch(input);
   const results = rawResults.filter((t) => !excludeSet.has(t.symbol)).slice(0, 6);
 
-  useEffect(() => {
+  // Drop the highlight whenever the result list changes, adjusting state
+  // during render rather than in an effect (the pattern React documents for
+  // state derived from changing props).
+  //
+  // This keys on the symbols, not on `results.length` as it used to. Length
+  // alone missed the case that matters: typing a new query that happens to
+  // return the same number of rows left the old index highlighted, now
+  // pointing at an unrelated company, and Enter would add that one.
+  const resultsKey = results.map((item) => item.symbol).join(",");
+  const [previousResultsKey, setPreviousResultsKey] = useState(resultsKey);
+  if (resultsKey !== previousResultsKey) {
+    setPreviousResultsKey(resultsKey);
     setSelectedIndex(-1);
-  }, [results.length]);
+  }
 
   const updateDropdownPos = useCallback(() => {
     if (!inputRef.current) return;
