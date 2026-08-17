@@ -26,6 +26,7 @@ VERIFICATION_SUBJECTS = {
 # MARKETING_FALLBACK_LANGUAGE for anyone else.
 MCP_ANNOUNCEMENT_SUBJECTS = {
     "pt": "O Sponda agora é um servidor MCP",
+    "en": "Sponda is now an MCP server",
 }
 
 MARKETING_FALLBACK_LANGUAGE = "pt"

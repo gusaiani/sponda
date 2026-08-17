@@ -6,14 +6,19 @@ reaches someone who did not opt in, it always carries a working one-click
 unsubscribe, and it refuses to blast anyone unless explicitly told to.
 """
 from io import StringIO
+from pathlib import Path
 
 import pytest
+from django.conf import settings
 from django.core import mail
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
+from accounts.email_subjects import MCP_ANNOUNCEMENT_SUBJECTS
 from accounts.models import User
 from accounts.unsubscribe import resolve_unsubscribe_token
+
+TEMPLATE_DIRECTORY = Path(__file__).resolve().parent.parent / "accounts" / "templates" / "emails"
 
 
 @pytest.fixture
@@ -24,6 +29,17 @@ def opted_in_user(db):
         password="pw123456",
         allow_contact=True,
         language="pt",
+    )
+
+
+@pytest.fixture
+def english_user(db):
+    return User.objects.create_user(
+        username="reader@example.com",
+        email="reader@example.com",
+        password="pw123456",
+        allow_contact=True,
+        language="en",
     )
 
 
@@ -162,3 +178,86 @@ class TestMessage:
 
         assert len(mail.outbox) == 1
         assert "servidor MCP" in mail.outbox[0].alternatives[0][0]
+
+
+class TestEnglishEdition:
+    """Nearly half the opted-in list reads English, so it is not a fallback."""
+
+    def test_an_english_speaker_gets_the_english_subject(self, english_user):
+        run_command(to=[english_user.email])
+
+        assert mail.outbox[0].subject == "Sponda is now an MCP server"
+
+    def test_both_bodies_are_in_english(self, english_user):
+        run_command(to=[english_user.email])
+
+        message = mail.outbox[0]
+        html_body = message.alternatives[0][0]
+
+        assert "MCP server" in html_body
+        assert "MCP server" in message.body
+        assert "servidor MCP" not in html_body
+        assert "servidor MCP" not in message.body
+
+    def test_declares_english_as_the_document_language(self, english_user):
+        """A wrong lang attribute sends screen readers into Portuguese."""
+        run_command(to=[english_user.email])
+
+        assert '<html lang="en">' in mail.outbox[0].alternatives[0][0]
+
+    def test_announces_the_mcp_endpoint(self, english_user):
+        run_command(to=[english_user.email])
+
+        assert "https://sponda.capital/api/mcp/" in mail.outbox[0].alternatives[0][0]
+        assert "https://sponda.capital/api/mcp/" in mail.outbox[0].body
+
+    def test_carries_a_working_unsubscribe_link(self, english_user):
+        run_command(to=[english_user.email])
+
+        header_url = mail.outbox[0].extra_headers["List-Unsubscribe"].strip("<>")
+        assert resolve_unsubscribe_token(token_from(header_url)) == english_user
+        assert "/unsubscribe/" in mail.outbox[0].alternatives[0][0]
+        assert "/unsubscribe/" in mail.outbox[0].body
+
+    def test_links_to_the_english_site(self, english_user):
+        """A /pt link drops an English reader onto a Portuguese page."""
+        run_command(to=[english_user.email])
+
+        base_url = settings.SITE_BASE_URL.rstrip("/")
+        for body in (mail.outbox[0].body, mail.outbox[0].alternatives[0][0]):
+            assert f"{base_url}/en" in body
+            assert f"{base_url}/pt" not in body
+
+    def test_the_footer_disclaimer_is_in_english(self, english_user):
+        """A Portuguese risk warning in an English email is not a warning."""
+        run_command(to=[english_user.email])
+
+        for body in (mail.outbox[0].body, mail.outbox[0].alternatives[0][0]):
+            assert "Past performance does not guarantee future results." in body
+            assert "Resultados passados" not in body
+
+    def test_the_performance_line_is_in_english(self, english_user):
+        run_command(to=[english_user.email])
+
+        for body in (mail.outbox[0].body, mail.outbox[0].alternatives[0][0]):
+            assert "Poema cumulative return" in body
+            assert "Retorno acumulado" not in body
+
+    def test_leaves_no_unrendered_template_syntax(self, english_user):
+        """The Portuguese edition shipped a visible template comment once."""
+        run_command(to=[english_user.email])
+
+        for body in (mail.outbox[0].body, mail.outbox[0].alternatives[0][0]):
+            assert "{{" not in body
+            assert "{%" not in body
+
+
+class TestTemplateCoverage:
+    """A subject with no template raises TemplateDoesNotExist mid-campaign."""
+
+    @pytest.mark.parametrize("language", sorted(MCP_ANNOUNCEMENT_SUBJECTS))
+    @pytest.mark.parametrize("extension", ["html", "txt"])
+    def test_every_announced_language_has_a_template(self, language, extension):
+        template = TEMPLATE_DIRECTORY / f"mcp_announcement_{language}.{extension}"
+
+        assert template.is_file(), f"missing {template.name}"

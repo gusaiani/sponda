@@ -17,7 +17,7 @@ from django.template.loader import render_to_string
 
 from assistant.mcp import MCP_PUBLIC_ENDPOINT_URL
 
-from ...branding import POEMA_DISCLAIMER, POEMA_PERFORMANCE_LINE
+from ...branding import poema_disclaimer, poema_performance_line
 from ...email_subjects import MCP_ANNOUNCEMENT_SUBJECTS, mcp_announcement_language
 from ...languages import resolve_user_language
 from ...models import User
@@ -101,8 +101,8 @@ class Command(BaseCommand):
             "base_url": _site_base_url(),
             "mcp_endpoint_url": MCP_PUBLIC_ENDPOINT_URL,
             "unsubscribe_url": build_unsubscribe_url(user),
-            "poema_performance_line": POEMA_PERFORMANCE_LINE,
-            "poema_disclaimer": POEMA_DISCLAIMER,
+            "poema_performance_line": poema_performance_line(language),
+            "poema_disclaimer": poema_disclaimer(language),
         }
 
         message = EmailMultiAlternatives(

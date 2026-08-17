@@ -630,9 +630,26 @@ Four rules are enforced by the command rather than by the operator remembering t
 - **Every message carries its own unsubscribe**, in the `List-Unsubscribe` headers and in the footer link, both minted per recipient.
 - **Failures are loud.** No `fail_silently`. A campaign that silently drops half its recipients is worse than one that stops and says so.
 
-Templates are `emails/mcp_announcement_<lang>.{html,txt}`, subjects live in `MCP_ANNOUNCEMENT_SUBJECTS` (`accounts/email_subjects.py`). Only `pt` exists today; `mcp_announcement_language()` falls back to `MARKETING_FALLBACK_LANGUAGE` for any other locale, so a German user gets the Portuguese copy rather than a crash. Both a plain-text and an HTML body go out, because HTML-only mail scores worse with every spam filter.
+Templates are `emails/mcp_announcement_<lang>.{html,txt}`, subjects live in `MCP_ANNOUNCEMENT_SUBJECTS` (`accounts/email_subjects.py`). `pt` and `en` exist; `mcp_announcement_language()` falls back to `MARKETING_FALLBACK_LANGUAGE` for any other locale, so a German user gets the Portuguese copy rather than a crash. Both a plain-text and an HTML body go out, because HTML-only mail scores worse with every spam filter.
+
+Adding a language means three things together: a subject in `MCP_ANNOUNCEMENT_SUBJECTS`, and both template files. `TestTemplateCoverage` fails if a subject is added without them, since a missing template raises `TemplateDoesNotExist` partway through a campaign, after some recipients have already been mailed.
 
 The endpoint advertised in the copy comes from `assistant.mcp.MCP_PUBLIC_ENDPOINT_URL`, which is absolute on purpose: the announcement must never go out quoting a localhost URL.
+
+The example questions in each edition are not decorative. Every one of them was run against production before it shipped, so a reader who pastes one gets a populated table rather than an empty result.
+
+### Branding copy in more than one language
+
+`accounts/branding.py` holds the Poema track record and the risk disclaimer. Portuguese is the original and the fallback for every locale; English exists alongside it because the marketing list is roughly half English-speaking, and a risk disclaimer nobody can read is not a disclaimer.
+
+| Helper | Returns |
+|---|---|
+| `poema_performance_line(language)` | The cumulative-return line, translated |
+| `poema_disclaimer(language)` | The past-performance warning, translated |
+
+Both fall back to Portuguese for any language with no translation. `tests/test_branding.py` compares the two editions digit by digit, so updating the figure in one language and forgetting the other fails the build.
+
+Note that the **welcome and verification emails still send the Portuguese footer to every locale** — `welcome_base.html` interpolates the constants directly rather than going through these helpers. That predates this change and is worth fixing, but it is a separate change with its own tests.
 
 ## Logos
 
