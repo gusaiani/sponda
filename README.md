@@ -1432,13 +1432,34 @@ What is in the baseline:
 
 | Count | Rule |
 |---|---|
-| 25 | `react-hooks/set-state-in-effect` |
 | 6 | `@next/next/no-html-link-for-pages` |
 | 4 | `react-hooks/refs` |
 | 4 | `@typescript-eslint/no-explicit-any` |
 | 1 | `react-hooks/purity` |
 
 To burn one down: fix the violations in a file, then `npx eslint src --prune-suppressions` to drop the stale entries.
+
+#### The set-state-in-effect burndown
+
+The baseline started with 25 `react-hooks/set-state-in-effect` entries and now has none. That rule is worth knowing about because chasing it found **three real bugs**, not just style problems:
+
+- **`CompanySearchInput` added the wrong company.** Its keyboard highlight reset was keyed on `results.length`, so typing a new query that happened to return the same number of rows left the old index highlighted, pointing at an unrelated ticker. Enter added that one.
+- **`AddFavoriteCard`'s arrow keys did not work at all.** `useFavorites` returned `favorites.map(...)` unmemoised, so a fresh array every render invalidated `excludeSet`, then `results`, then fired the highlight reset — wiping the selection on the render that followed each keypress.
+- **`ScreenerFilterPresets` synced state to a prop that never changes**, in a modal that unmounts on close. Pure dead code.
+
+Sixteen were fixed. The recurring shapes and their replacements:
+
+| Shape | Replacement |
+|---|---|
+| `mounted` flag from an empty effect, to gate a portal | `useIsHydrated()` |
+| Read localStorage on mount and `setState` | `useStoredState()` |
+| Read a client-only constant (timezone) on mount | `useSyncExternalStore` directly, as in `useRegion` |
+| Reset state when a prop or list changes | Adjust state during render, keyed on a **value** not an identity |
+| `fetch` in an effect with hand-synced loading/error/data | `useQuery` |
+
+**Keying on a value, not an identity, is the part that matters.** Both dropdown bugs came from an effect watching an array whose identity churned (or whose length did not). Comparing a joined string of symbols cannot go wrong in either direction.
+
+The remaining nine are deliberate and carry their reasoning inline at the call site rather than in the suppressions file, because in each the effect genuinely is the right primitive: one-shot token exchanges driven by a URL (`verify-email`, the Google callback), seeding state from a query that resolves later (`ticker-client`), reacting to an external change (`EmailVerificationGate`), or starting an operation the effect itself owns (`useTickerSearch`). Read the comment above any `// eslint-disable-next-line react-hooks/set-state-in-effect` before removing it.
 
 **Two `exhaustive-deps` disables are deliberate**, each with its reasoning inline:
 

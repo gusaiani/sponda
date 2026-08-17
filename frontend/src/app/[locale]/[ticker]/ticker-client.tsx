@@ -158,6 +158,9 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     const otherTickers = savedList.tickers.filter(
       (ticker) => ticker !== upperTicker
     );
+    // Same shape, seeded from a saved list named in the URL: the lists query
+    // resolves after the first render and the ref keeps this to once.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCompareTickers(otherTickers);
     setYears(savedList.years);
     setActiveListId(listId);
@@ -171,6 +174,11 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     if (!fullData) return;
 
     const peerSymbols = peers.map((peer) => peer.symbol);
+    // Seeds the compare list from the sector-peers query the first time it
+    // arrives, guarded by a ref so it happens once per ticker. The user edits
+    // the list afterwards, so this is state being initialised from a
+    // later-arriving source, not a value derived from it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCompareTickers(peerSymbols);
     seededForTicker.current = upperTicker;
 

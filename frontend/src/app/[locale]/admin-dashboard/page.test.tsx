@@ -1,6 +1,21 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
+import { render as renderBare, screen, cleanup, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+/**
+ * The page fetches through react-query, so it needs a client. Retries are off
+ * and gcTime is zero so a failing request fails once, immediately, and nothing
+ * leaks between tests.
+ */
+function render(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return renderBare(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
 
 const authState = {
   isAuthenticated: true,

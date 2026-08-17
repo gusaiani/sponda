@@ -12,6 +12,10 @@ export function GoogleCallbackContent() {
     const code = searchParams.get("code");
 
     if (!code) {
+      // One-shot OAuth code exchange on mount. This branch sets the error only
+      // when Google sent no code at all, which is a verdict on the URL rather
+      // than state derived from props.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError("No authorization code received from Google.");
       return;
     }

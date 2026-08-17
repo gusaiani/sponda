@@ -1394,6 +1394,10 @@ export function CompanyMetricsCard({ data, years, maxYears, onYearsChange, secto
     if (!hash) return;
     const allMetricIds = Object.values(METRIC_IDS) as string[];
     if (!allMetricIds.includes(hash)) return;
+    // Reads location.hash once on mount to highlight a deep-linked metric and
+    // scroll to it. The scroll must happen after paint, and the highlight is
+    // cleared by later interaction, so it cannot be derived from the URL.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHighlightedMetric(hash);
     const element = document.getElementById(hash);
     if (element) {

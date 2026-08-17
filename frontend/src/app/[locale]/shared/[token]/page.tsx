@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { fetchSharedList, type SharedListData } from "../../../../hooks/useSavedLists";
@@ -9,28 +10,28 @@ import { useTranslation } from "../../../../i18n";
 export default function SharedListPage() {
   const { t, locale, pluralize } = useTranslation();
   const { token: shareToken } = useParams<{ token: string }>();
-  const [listData, setListData] = useState<SharedListData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // react-query rather than fetch-in-an-effect. Besides dropping three pieces
+  // of hand-synced state, it fixes the reason `t` had to be kept out of the
+  // dependency array: error copy is now chosen at render time from the current
+  // locale, so switching language re-labels the error instead of re-fetching.
+  const {
+    data: listData = null,
+    isLoading,
+    isError,
+  } = useQuery<SharedListData>({
+    queryKey: ["shared-list", shareToken],
+    queryFn: () => fetchSharedList(shareToken),
+    enabled: Boolean(shareToken),
+    retry: false,
+  });
 
-  useEffect(() => {
-    if (!shareToken) {
-      setError(t("reset.invalid_link"));
-      setIsLoading(false);
-      return;
-    }
+  const error = !shareToken
+    ? t("reset.invalid_link")
+    : isError
+      ? t("shared.not_found")
+      : null;
 
-    fetchSharedList(shareToken)
-      .then((data) => setListData(data))
-      .catch(() => setError(t("shared.not_found")))
-      .finally(() => setIsLoading(false));
-    // `t` is left out on purpose. It is memoised per locale, so listing it
-    // would re-run the whole fetch on a language switch — a network round trip
-    // to re-fetch identical data, when `t` is only used here for error copy.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shareToken]);
-
-  if (isLoading) {
+  if (isLoading && shareToken) {
     return (
       <div className="auth-container">
         <div className="auth-card">

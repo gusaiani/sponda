@@ -428,11 +428,13 @@ function PreferencesSection({ allowContact }: { allowContact: boolean }) {
   const [status, setStatus] = useState<PreferencesStatus>("idle");
   const checked = pendingValue ?? allowContact;
 
-  useEffect(() => {
-    if (pendingValue !== null && pendingValue === allowContact) {
-      setPendingValue(null);
-    }
-  }, [pendingValue, allowContact]);
+  // Drop the optimistic value once the server prop catches up to it, adjusting
+  // state during render rather than in an effect. React documents this shape
+  // for state derived from changing props, and it avoids the extra pass an
+  // effect would cost on every reconciliation.
+  if (pendingValue !== null && pendingValue === allowContact) {
+    setPendingValue(null);
+  }
 
   useEffect(() => {
     if (status !== "saved") return;

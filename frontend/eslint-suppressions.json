@@ -2,34 +2,6 @@
   "src/app/[locale]/[ticker]/ticker-client.tsx": {
     "react-hooks/refs": {
       "count": 2
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 2
-    }
-  },
-  "src/app/[locale]/account/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/app/[locale]/admin-dashboard/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/app/[locale]/admin/most-visited-pages/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/app/[locale]/shared/[token]/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/app/[locale]/verify-email/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   },
   "src/app/[locale]/visitas/page.tsx": {
@@ -40,19 +12,6 @@
   "src/app/google/callback/GoogleCallbackContent.tsx": {
     "@next/next/no-html-link-for-pages": {
       "count": 6
-    },
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/CompanyMetricsCard.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/EmailVerificationGate.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   },
   "src/components/HomepageGrid.tsx": {
@@ -63,21 +22,6 @@
   "src/components/ListCard.test.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 4
-    }
-  },
-  "src/hooks/useTickerSearch.ts": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/i18n/LanguageContext.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/learning/LearningModeContext.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   }
 }

@@ -46,6 +46,10 @@ export function LanguageProvider({ children, initialLocale }: LanguageProviderPr
   // `initialLocale === locale` so this is a no-op.
   useEffect(() => {
     if (initialLocale !== locale) {
+      // Adopts a locale that changed in the URL as the user's new preference.
+      // setLocale also writes a cookie and PATCHes the backend, so this is a
+      // side effect of navigation rather than derived state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocale(initialLocale);
     }
   }, [initialLocale]); // eslint-disable-line react-hooks/exhaustive-deps

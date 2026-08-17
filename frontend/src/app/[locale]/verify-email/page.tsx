@@ -30,6 +30,10 @@ function VerifyEmailContent() {
     const token = searchParams.get("token");
 
     if (!token) {
+      // No token in the URL means there is nothing to verify, so the page
+      // falls back to its idle state. A verdict on the URL, reached by the
+      // effect that reads it, rather than state derived from props.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus("idle");
       setErrorMessage("");
       return;
