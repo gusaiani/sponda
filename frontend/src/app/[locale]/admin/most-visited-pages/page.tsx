@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
 import Link from "next/link";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useTranslation } from "../../../../i18n";
@@ -18,26 +19,24 @@ interface TopPagesResponse {
 export default function MostVisitedPagesPage() {
   const { isAuthenticated, isSuperuser, isLoading: authLoading } = useAuth();
   const { locale } = useTranslation();
-  const [pages, setPages] = useState<TopPage[] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isAuthenticated || !isSuperuser) {
-      setIsLoading(false);
-      return;
-    }
-
-    fetch("/api/auth/admin/top-pages/", { credentials: "include" })
-      .then((response) => {
-        if (!response.ok) throw new Error("Acesso negado");
-        return response.json() as Promise<TopPagesResponse>;
-      })
-      .then((data) => setPages(data.pages))
-      .catch((fetchError) => setError(fetchError.message))
-      .finally(() => setIsLoading(false));
-  }, [isAuthenticated, isSuperuser, authLoading]);
+  // react-query rather than fetch-in-an-effect: loading, error and data stop
+  // being three pieces of state kept in sync by hand, and `enabled` expresses
+  // "only admins fetch this" without an early return that has to remember to
+  // clear the loading flag.
+  const {
+    data: pages = null,
+    isLoading,
+    error,
+  } = useQuery<TopPage[]>({
+    queryKey: ["admin-top-pages"],
+    queryFn: async () => {
+      const response = await fetch("/api/auth/admin/top-pages/", { credentials: "include" });
+      if (!response.ok) throw new Error("Acesso negado");
+      const data = (await response.json()) as TopPagesResponse;
+      return data.pages;
+    },
+    enabled: !authLoading && isAuthenticated && isSuperuser,
+  });
 
   if (authLoading || isLoading) {
     return (
@@ -63,7 +62,7 @@ export default function MostVisitedPagesPage() {
     return (
       <div className="admin-container">
         <h1 className="admin-title">Erro</h1>
-        <p className="admin-text">{error || "Erro ao carregar dados"}</p>
+        <p className="admin-text">{error?.message || "Erro ao carregar dados"}</p>
       </div>
     );
   }

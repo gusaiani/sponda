@@ -69,6 +69,10 @@ export function EmailVerificationProvider({ children }: { children: React.ReactN
     if (!user?.email_verified) return;
     const action = pendingActionRef.current;
     pendingActionRef.current = null;
+    // Reacts to verification flipping true in another tab or window by
+    // closing the modal and replaying the queued action. Both are responses
+    // to an external change, not values computable during render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsOpen(false);
     if (action) void action();
   }, [isOpen, user?.email_verified]);

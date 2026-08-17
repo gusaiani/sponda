@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
 import Link from "next/link";
 import { useAuth } from "../../../hooks/useAuth";
 import { useTranslation } from "../../../i18n";
@@ -97,26 +98,23 @@ function formatDate(dateString: string | null): string {
 export default function AdminDashboardPage() {
   const { isAuthenticated, isSuperuser, isLoading: authLoading } = useAuth();
   const { locale } = useTranslation();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isAuthenticated || !isSuperuser) {
-      setIsLoading(false);
-      return;
-    }
-
-    fetch("/api/auth/admin/dashboard/", { credentials: "include" })
-      .then((response) => {
-        if (!response.ok) throw new Error("Acesso negado");
-        return response.json();
-      })
-      .then((data) => setDashboardData(data))
-      .catch((fetchError) => setError(fetchError.message))
-      .finally(() => setIsLoading(false));
-  }, [isAuthenticated, isSuperuser, authLoading]);
+  // react-query rather than fetch-in-an-effect: loading, error and data stop
+  // being three pieces of state kept in sync by hand, and `enabled` expresses
+  // "only admins fetch this" without an early return that has to remember to
+  // clear the loading flag.
+  const {
+    data: dashboardData = null,
+    isLoading,
+    error,
+  } = useQuery<DashboardData>({
+    queryKey: ["admin-dashboard"],
+    queryFn: async () => {
+      const response = await fetch("/api/auth/admin/dashboard/", { credentials: "include" });
+      if (!response.ok) throw new Error("Acesso negado");
+      return response.json() as Promise<DashboardData>;
+    },
+    enabled: !authLoading && isAuthenticated && isSuperuser,
+  });
 
   if (authLoading || isLoading) {
     return (
@@ -142,7 +140,7 @@ export default function AdminDashboardPage() {
     return (
       <div className="admin-container">
         <h1 className="admin-title">Erro</h1>
-        <p className="admin-text">{error || "Erro ao carregar dados"}</p>
+        <p className="admin-text">{error?.message || "Erro ao carregar dados"}</p>
       </div>
     );
   }

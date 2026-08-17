@@ -64,6 +64,10 @@ export function LearningModeProvider({ children }: LearningModeProviderProps) {
   // server-side preference. Guests: localStorage.
   useEffect(() => {
     if (isAuthenticated) {
+      // Resolves the flag once auth settles: the server preference for signed-in
+      // users, localStorage for guests. Which source applies is only known after
+      // the auth query resolves, so it cannot be an initial value.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setEnabledState(user?.learning_mode_enabled ?? false);
     } else {
       setEnabledState(readLocalStorageFlag());

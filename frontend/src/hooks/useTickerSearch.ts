@@ -26,6 +26,10 @@ export function useTickerSearch(query: string) {
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 1) {
+      // Clears the previous results the moment the query is emptied. `results`
+      // holds the response of an async fetch this effect owns, so there is no
+      // prop or argument to derive an empty list from; it has to be reset.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setResults([]);
       setIsSearching(false);
       return;
