@@ -271,3 +271,66 @@ class TestLintRunsInCI:
             "without ruff.toml, CI silently lints with ruff defaults, which "
             "report ~735 mostly-stylistic problems here"
         )
+
+
+class TestUvComesFromPyPI:
+    """CI must not depend on fetching astral-sh/setup-uv from codeload.
+
+    Every Python job needs `uv` for one `uv pip install` line, and the action
+    that provides it is downloaded from codeload.github.com per job — seven
+    times per CI run. On 2026-08-17 GitHub rate-limited that download and
+    returned 429/502/503 for hours, which failed five separate runs, twice on
+    main, while nothing was wrong with the code. Installing uv from PyPI keeps
+    the same speed benefit without putting a third-party action fetch on the
+    critical path of every job.
+    """
+
+    def test_the_setup_uv_action_is_not_used(self):
+        # Matches the `uses:` line, not the name: the comments explaining why
+        # the action was dropped mention it, and should keep doing so.
+        deploy = DEPLOY_WORKFLOW.read_text()
+        assert "uses: astral-sh/setup-uv" not in deploy, (
+            "uv should be installed from PyPI; the action is fetched from "
+            "codeload on every job and its rate limits have taken CI down"
+        )
+
+    def test_uv_is_installed_before_it_is_used(self):
+        workflow = yaml.safe_load(DEPLOY_WORKFLOW.read_text())
+        for job_name, job in workflow["jobs"].items():
+            steps = job.get("steps") or []
+            installed_at = None
+            for index, step in enumerate(steps):
+                run = step.get("run") or ""
+                if "pip install uv" in run:
+                    installed_at = index
+                if "uv pip install" in run:
+                    assert installed_at is not None and installed_at <= index, (
+                        f"{job_name} runs `uv pip install` without having "
+                        f"installed uv first"
+                    )
+
+
+class TestGateStepsAreUnconditional:
+    """A step that sets an output must not be gated on that output.
+
+    If it were, it would never run, the output would never be set, every
+    dependent step would skip, and the job would report green while testing
+    nothing. Silence is the dangerous failure mode again.
+
+    This is not hypothetical: removing the `astral-sh/setup-uv` step on
+    2026-08-17 left its `if:` line behind, and YAML attached it to the
+    preceding gate step.
+    """
+
+    def test_a_step_is_never_conditional_on_its_own_output(self):
+        workflow = yaml.safe_load(DEPLOY_WORKFLOW.read_text())
+        for job_name, job in workflow["jobs"].items():
+            for step in job.get("steps") or []:
+                step_id = step.get("id")
+                condition = step.get("if")
+                if not step_id or not condition:
+                    continue
+                assert f"steps.{step_id}.outputs" not in str(condition), (
+                    f"{job_name}: step '{step_id}' is gated on its own output, "
+                    f"so it can never run and everything downstream silently skips"
+                )

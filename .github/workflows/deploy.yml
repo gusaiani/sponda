@@ -26,13 +26,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: astral-sh/setup-uv@v6
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install Python dependencies
-        run: uv pip install --system -r backend/requirements.txt
+        # uv from PyPI, not astral-sh/setup-uv: that action is fetched from
+        # codeload on every job, and a GitHub rate limit on it failed five CI
+        # runs on 2026-08-17 with nothing wrong in the code. Must come after
+        # actions/setup-python so it installs into that interpreter.
+        run: |
+          pip install uv
+          uv pip install --system -r backend/requirements.txt
 
       # Narrow, high-signal ruleset (see backend/ruff.toml). The backend has
       # no suppressions baseline: `ruff check .` is clean, so anything this
@@ -119,8 +124,6 @@ jobs:
             echo "PR does not touch backend/assistant/ - skipping eval smoke."
           fi
 
-      - uses: astral-sh/setup-uv@v6
-        if: steps.gate.outputs.run == 'true'
       - name: Set up Python 3.12
         if: steps.gate.outputs.run == 'true'
         uses: actions/setup-python@v6
@@ -128,7 +131,13 @@ jobs:
           python-version: "3.12"
       - name: Install Python dependencies
         if: steps.gate.outputs.run == 'true'
-        run: uv pip install --system -r backend/requirements.txt
+        # uv from PyPI, not astral-sh/setup-uv: that action is fetched from
+        # codeload on every job, and a GitHub rate limit on it failed five CI
+        # runs on 2026-08-17 with nothing wrong in the code. Must come after
+        # actions/setup-python so it installs into that interpreter.
+        run: |
+          pip install uv
+          uv pip install --system -r backend/requirements.txt
 
       - name: Run screening eval smoke subset
         if: steps.gate.outputs.run == 'true'
@@ -179,13 +188,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: astral-sh/setup-uv@v6
       - name: Set up Python 3.12
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install Python dependencies
-        run: uv pip install --system -r backend/requirements.txt
+        # uv from PyPI, not astral-sh/setup-uv: that action is fetched from
+        # codeload on every job, and a GitHub rate limit on it failed five CI
+        # runs on 2026-08-17 with nothing wrong in the code. Must come after
+        # actions/setup-python so it installs into that interpreter.
+        run: |
+          pip install uv
+          uv pip install --system -r backend/requirements.txt
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
