@@ -45,11 +45,6 @@
       "count": 1
     }
   },
-  "src/components/AddFavoriteCard.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/CompanyMetricsCard.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -68,16 +63,6 @@
   "src/components/ListCard.test.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 4
-    }
-  },
-  "src/components/ScreenerFilterPresets.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/hooks/useRegion.ts": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   },
   "src/hooks/useTickerSearch.ts": {

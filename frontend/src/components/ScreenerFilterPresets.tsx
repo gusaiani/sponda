@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import {
   useSavedScreenerFilters,
@@ -104,11 +104,11 @@ interface SaveModalProps {
 
 export function SaveFilterPresetModal({ defaultName = "", onSave, onCancel }: SaveModalProps) {
   const { t } = useTranslation();
+  // No effect syncing this to `defaultName`: the screener renders the modal
+  // behind `showSavePresetModal &&`, so closing unmounts it and reopening
+  // builds a fresh one. The initial value is always current. A caller that
+  // ever needs to change the default on a mounted modal should pass a `key`.
   const [name, setName] = useState(defaultName);
-
-  useEffect(() => {
-    setName(defaultName);
-  }, [defaultName]);
 
   return (
     <div className="compare-save-overlay" onClick={onCancel}>
