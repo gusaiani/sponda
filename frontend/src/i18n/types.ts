@@ -184,6 +184,10 @@ export interface TranslationDictionary {
   "tabs.charts": string;
   "tabs.sponds": string;
 
+  /* ── Ticker page ── */
+  "ticker.not_found_title": string;
+  "ticker.not_found_text": string;
+
   /* ── Sector Peers ── */
   "sector.same_sector": string;
 
