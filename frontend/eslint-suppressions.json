@@ -60,11 +60,6 @@
       "count": 1
     }
   },
-  "src/components/CompanySearchInput.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/EmailVerificationGate.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -91,11 +86,6 @@
     }
   },
   "src/components/ScreenerFilterPresets.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/SearchBar.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
