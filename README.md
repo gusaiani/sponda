@@ -769,7 +769,23 @@ Two measurements made that safe:
 - **Quota is unaffected.** `lookup_quota` counts *distinct tickers per day*, not requests, so extra origin hits cannot exhaust an allowance. Repeat views of the same ticker add duplicate `LookupLog` rows and nothing else.
 - **Load is negligible.** Origin traffic for these three endpoints is ~48 requests/hour. Even the theoretical 12x worst case stays well under one request per second, and each is a Redis read.
 
-Sub-minute freshness would need a Cloudflare purge on write, which requires an API token in `/opt/sponda/.env` (none is configured today).
+Sub-minute freshness would need a Cloudflare purge on write. The credentials for that now exist (see "Cloudflare cache purge" below); the purge-on-write call itself is not wired up.
+
+#### Cloudflare cache purge
+
+`/opt/sponda/.env` holds `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ZONE_ID` (added 2026-08-17). The token is scoped to exactly one permission, `Zone · Cache Purge · Purge` on the `sponda.capital` zone, so a leaked copy can flush caches and nothing else. It is read by the services through the existing systemd `EnvironmentFile`, and the deploy script runs on the box, so anything that needs to purge can source it directly.
+
+```bash
+set -a; . /opt/sponda/.env; set +a
+curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/purge_cache" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"files":["https://sponda.capital/og/pt/VULC3.png"]}'
+```
+
+Purge **by URL** works on every Cloudflare plan, up to 30 URLs per call. Purge by prefix, hostname, or cache tag is Enterprise only, so "drop everything under `/og/`" is not available. `{"purge_everything": true}` works on all plans but dumps the entire edge cache and sends every subsequent request to the origin, so keep it out of routine deploys.
+
+**Why this matters beyond convenience.** Cloudflare rewrites `max-age` to 14400 (4h) on cacheable responses. Any URL fetched *before* a deploy keeps serving its pre-deploy body for four hours afterwards, wrong content-type included, and CF ignores client `Cache-Control: no-cache`. That is exactly how a `/og/` path ended up serving HTML with a `200` to crawlers after the card route shipped. When a deploy changes what a URL returns, purge that URL or verify against the origin directly (`ssh root@poe.ma "curl http://127.0.0.1:3100<path>"`), because the edge will lie to you for hours.
 
 The cache keys are defined once in `derived_data.py` and imported by the views, `warm_cache`, and the invalidator. An invalidator that clears a key nobody sets fails silently, which is the worst way for this to break, so the shared definition is load-bearing rather than tidiness.
 
