@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useStoredState } from "./useStoredState";
 
 const STORAGE_KEY = "sponda-social-seen-sponds";
 const SEEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // prune entries older than 7d
@@ -8,33 +9,30 @@ const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
 
 type SeenMap = Record<string, number>;
 
-function load(): SeenMap {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as SeenMap;
-    const now = Date.now();
-    // Prune entries older than the TTL so the map doesn't grow forever.
-    const filtered: SeenMap = {};
-    for (const [id, ts] of Object.entries(parsed)) {
-      if (now - ts < SEEN_TTL_MS) filtered[id] = ts;
-    }
-    return filtered;
-  } catch {
-    return {};
-  }
+/** Module-level so the server snapshot keeps a stable identity. */
+const NOTHING_SEEN: SeenMap = {};
+
+/**
+ * Pure in the raw string. Pruning used to happen here, on load, but reading
+ * the clock inside a parse makes it impure and `useStoredState` caches parsed
+ * values against the raw string. Pruning moved to the write path below, which
+ * bounds the stored size just as well: every markSeen rewrites the map.
+ */
+function parseSeen(raw: string | null): SeenMap {
+  if (!raw) return NOTHING_SEEN;
+  const parsed = JSON.parse(raw) as SeenMap;
+  return parsed && typeof parsed === "object" ? parsed : NOTHING_SEEN;
 }
 
-function save(map: SeenMap) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  } catch {
-    /* quota / private mode — silent fail is fine */
-  }
-}
+const serializeSeen = (map: SeenMap): string => JSON.stringify(map);
 
+function withoutExpired(map: SeenMap, now: number): SeenMap {
+  const kept: SeenMap = {};
+  for (const [id, timestamp] of Object.entries(map)) {
+    if (now - timestamp < SEEN_TTL_MS) kept[id] = timestamp;
+  }
+  return kept;
+}
 
 /**
  * Track which Sponds the viewer has "seen" so the collapsed-rail badge
@@ -45,25 +43,20 @@ function save(map: SeenMap) {
  *   - the user has explicitly observed it — i.e. it scrolled into the
  *     viewport (the IntersectionObserver in SpondCard calls markSeen).
  *
- * Persistence uses localStorage. The map is pruned of entries older
- * than 7 days on each load — long enough to debounce the "seen" rule
+ * Persistence uses localStorage. Entries older than 7 days are dropped
+ * whenever the map is written — long enough to debounce the "seen" rule
  * across sessions, short enough to keep the payload small.
  */
 export function useSeenSponds() {
-  const [seen, setSeen] = useState<SeenMap>({});
-
-  useEffect(() => {
-    setSeen(load());
-  }, []);
+  const [seen, setSeen] = useStoredState<SeenMap>(
+    STORAGE_KEY, NOTHING_SEEN, parseSeen, serializeSeen,
+  );
 
   const markSeen = useCallback((spondId: string) => {
-    setSeen((prev) => {
-      if (prev[spondId]) return prev;
-      const next = { ...prev, [spondId]: Date.now() };
-      save(next);
-      return next;
-    });
-  }, []);
+    if (seen[spondId]) return;
+    const now = Date.now();
+    setSeen({ ...withoutExpired(seen, now), [spondId]: now });
+  }, [seen, setSeen]);
 
   const isSeen = useCallback(
     (spondId: string, createdAt: string) => {

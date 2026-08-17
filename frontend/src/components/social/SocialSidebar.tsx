@@ -1,16 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useTranslation } from "../../i18n";
 import { useAuth } from "../../hooks/useAuth";
 import { useSocialFeed } from "../../hooks/useSocialFeed";
 import { useSeenSponds } from "../../hooks/useSeenSponds";
+import { useIsHydrated } from "../../hooks/useIsHydrated";
+import { useStoredState } from "../../hooks/useStoredState";
 import { SpondComposer } from "./SpondComposer";
 import { SpondFeed } from "./SpondFeed";
 
 const COLLAPSED_KEY = "sponda-social-sidebar-collapsed";
 const TAB_KEY = "sponda-social-feed-tab";
+
+/** Server render, and anyone with no stored choice, sees the global feed. */
+const DEFAULT_TAB: Tab = "global";
+const EXPANDED_WHILE_SERVER_RENDERING = false;
+
+const parseTab = (raw: string | null): Tab =>
+  raw === "following" || raw === "global" ? raw : DEFAULT_TAB;
+const serializeTab = (tab: Tab): string => tab;
+const parseCollapsed = (raw: string | null): boolean => raw === "1";
+const serializeCollapsed = (collapsed: boolean): string => (collapsed ? "1" : "0");
 const SIDEBAR_WIDTH = 380;
 const SIDEBAR_RAIL_WIDTH = 36;
 const HEADER_HEIGHT = 60;
@@ -25,18 +37,17 @@ type Tab = "following" | "global";
 export function SocialSidebar() {
   const { t, locale } = useTranslation();
   const { isAuthenticated } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
-  const [tab, setTab] = useState<Tab>("global");
-  const [hydrated, setHydrated] = useState(false);
+  const [collapsed, setCollapsed] = useStoredState(
+    COLLAPSED_KEY, EXPANDED_WHILE_SERVER_RENDERING, parseCollapsed, serializeCollapsed,
+  );
+  // TAB_KEY is shared with SocialHomeSection, so the two now agree on the
+  // active tab within a session instead of drifting until the next page load.
+  const [tab, selectTab] = useStoredState<Tab>(
+    TAB_KEY, DEFAULT_TAB, parseTab, serializeTab,
+  );
+  // The rail measures the viewport, so it renders nothing until hydrated.
+  const hydrated = useIsHydrated();
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(COLLAPSED_KEY);
-    if (stored === "1") setCollapsed(true);
-    const storedTab = window.localStorage.getItem(TAB_KEY);
-    if (storedTab === "following" || storedTab === "global") setTab(storedTab);
-    setHydrated(true);
-  }, []);
 
   // Publish the rail's current width as a CSS variable so the rest of
   // the layout can adjust without React knowing. The breakpoint here
@@ -64,18 +75,7 @@ export function SocialSidebar() {
   }, [collapsed, hydrated]);
 
   function toggleCollapsed() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
-      }
-      return next;
-    });
-  }
-
-  function selectTab(next: Tab) {
-    setTab(next);
-    if (typeof window !== "undefined") window.localStorage.setItem(TAB_KEY, next);
+    setCollapsed(!collapsed);
   }
 
   // Always run the active tab's feed query — even when collapsed — so the
