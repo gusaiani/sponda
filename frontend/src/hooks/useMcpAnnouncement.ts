@@ -1,17 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useStoredState } from "./useStoredState";
 
 export const MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY =
   "sponda-mcp-announcement-dismissed";
 
-function isMcpAnnouncementDismissed(): boolean {
-  if (typeof window === "undefined") return true;
-  return (
-    window.localStorage.getItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY) ===
-    "true"
-  );
-}
+/**
+ * The server has no localStorage and must not render the modal, so it renders
+ * as though the visitor had already dismissed it.
+ */
+const DISMISSED_WHILE_SERVER_RENDERING = true;
+
+const parseDismissed = (raw: string | null): boolean => raw === "true";
+const serializeDismissed = (dismissed: boolean): string => String(dismissed);
 
 /**
  * Controls the MCP announcement modal. It opens automatically on page load
@@ -20,18 +22,24 @@ function isMcpAnnouncementDismissed(): boolean {
  * from the "MCP" header button.
  */
 export function useMcpAnnouncement() {
-  const [isOpen, setIsOpen] = useState(false);
+  const [dismissed, setDismissed] = useStoredState(
+    MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY,
+    DISMISSED_WHILE_SERVER_RENDERING,
+    parseDismissed,
+    serializeDismissed,
+  );
 
-  useEffect(() => {
-    if (!isMcpAnnouncementDismissed()) setIsOpen(true);
-  }, []);
+  // Reopening from the header button overrides a past dismissal for this view
+  // only. It deliberately does not clear the stored flag: closing again should
+  // not make the modal come back on the next page load.
+  const [reopened, setReopened] = useState(false);
 
-  const open = useCallback(() => setIsOpen(true), []);
+  const open = useCallback(() => setReopened(true), []);
 
   const close = useCallback(() => {
-    window.localStorage.setItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, "true");
-    setIsOpen(false);
-  }, []);
+    setDismissed(true);
+    setReopened(false);
+  }, [setDismissed]);
 
-  return { isOpen, open, close } as const;
+  return { isOpen: reopened || !dismissed, open, close } as const;
 }

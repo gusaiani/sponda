@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "../../i18n";
+import { useStoredState } from "../../hooks/useStoredState";
 import { useAuth } from "../../hooks/useAuth";
 import { SpondComposer } from "./SpondComposer";
 import { SpondFeed } from "./SpondFeed";
@@ -11,21 +11,21 @@ const STORAGE_KEY = "sponda-social-feed-tab";
 
 type Tab = "following" | "global";
 
+/** Server render, and anyone with no stored choice, sees the global feed. */
+const DEFAULT_TAB: Tab = "global";
+
+const parseTab = (raw: string | null): Tab =>
+  raw === "following" || raw === "global" ? raw : DEFAULT_TAB;
+const serializeTab = (tab: Tab): string => tab;
+
 export function SocialHomeSection() {
   const { t, locale } = useTranslation();
   const { isAuthenticated } = useAuth();
-  const [tab, setTab] = useState<Tab>("global");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "following" || stored === "global") setTab(stored);
-  }, []);
-
-  function selectTab(next: Tab) {
-    setTab(next);
-    if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, next);
-  }
+  // Shares STORAGE_KEY with SocialSidebar, so the two now agree on the active
+  // tab within a session instead of drifting until the next page load.
+  const [tab, selectTab] = useStoredState<Tab>(
+    STORAGE_KEY, DEFAULT_TAB, parseTab, serializeTab,
+  );
 
   return (
     <section

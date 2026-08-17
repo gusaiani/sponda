@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "../i18n";
 import { useLearningMode } from "../learning";
+import { useIsHydrated } from "../hooks/useIsHydrated";
 import type { GradeBreakdown } from "./CompanyGradeCard";
 import "../styles/homepage-grade-badge.css";
 
@@ -38,11 +39,9 @@ export function HomepageGradeBadge({ ratings, years }: HomepageGradeBadgeProps) 
   const triggerRef = useRef<HTMLSpanElement>(null);
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // The tooltip portals into document.body, which does not exist while
+  // the server renders this.
+  const isHydrated = useIsHydrated();
 
   const positionTooltip = useCallback(() => {
     const trigger = triggerRef.current;
@@ -102,7 +101,7 @@ export function HomepageGradeBadge({ ratings, years }: HomepageGradeBadgeProps) 
       >
         <span className="homepage-grade-badge-numeral">{tier}</span>
       </span>
-      {mounted && tooltipVisible && createPortal(
+      {isHydrated && tooltipVisible && createPortal(
         <span
           className="homepage-grade-badge-tooltip"
           role="tooltip"
