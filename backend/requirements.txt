@@ -20,3 +20,7 @@ pytest-playwright==0.6.2
 pytest-timeout==2.3.1
 pytest-rerunfailures==15.0
 responses==0.25.6
+# test_deploy_config.py parses .github/workflows/deploy.yml. It resolves today
+# only because celery and responses happen to pull PyYAML in; declared here so
+# the guard does not start failing the day that stops being true.
+pyyaml==6.0.3
