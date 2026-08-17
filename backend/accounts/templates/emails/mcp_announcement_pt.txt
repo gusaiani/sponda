@@ -31,7 +31,7 @@ Depois experimente perguntar:
     Ordene as empresas brasileiras por P/FCL10 e mostre as cinco
     mais baratas.
 
-Instruções: {{ base_url }}/pt
+Instruções: {{ base_url }}/pt?mcp=1
 
 Grátis, sem chave de API, 200 chamadas por dia por IP.
 

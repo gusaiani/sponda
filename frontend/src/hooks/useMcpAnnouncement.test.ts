@@ -4,6 +4,7 @@ import { renderHook, act } from "@testing-library/react";
 import {
   useMcpAnnouncement,
   MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY,
+  MCP_ANNOUNCEMENT_QUERY_PARAM,
 } from "./useMcpAnnouncement";
 
 function createLocalStorageStub() {
@@ -22,8 +23,13 @@ function createLocalStorageStub() {
   };
 }
 
+function visit(url: string) {
+  window.history.replaceState({}, "", url);
+}
+
 beforeEach(() => {
   vi.stubGlobal("localStorage", createLocalStorageStub());
+  visit("/");
 });
 
 describe("useMcpAnnouncement", () => {
@@ -69,5 +75,61 @@ describe("useMcpAnnouncement", () => {
     act(() => result.current.open());
 
     expect(result.current.isOpen).toBe(true);
+  });
+});
+
+/**
+ * The announcement email links here to show the modal. Without the parameter
+ * the link is dead for exactly the people most likely to click it: anyone who
+ * already visited the site and dismissed the modal once.
+ */
+describe("useMcpAnnouncement, opened by the URL", () => {
+  it(`opens when ?${MCP_ANNOUNCEMENT_QUERY_PARAM} is present and it was dismissed before`, () => {
+    window.localStorage.setItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, "true");
+    visit(`/en?${MCP_ANNOUNCEMENT_QUERY_PARAM}=1`);
+
+    const { result } = renderHook(() => useMcpAnnouncement());
+
+    expect(result.current.isOpen).toBe(true);
+  });
+
+  it("opens on a bare parameter with no value", () => {
+    window.localStorage.setItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, "true");
+    visit(`/en?${MCP_ANNOUNCEMENT_QUERY_PARAM}`);
+
+    const { result } = renderHook(() => useMcpAnnouncement());
+
+    expect(result.current.isOpen).toBe(true);
+  });
+
+  it("stays closed when some other parameter is present", () => {
+    window.localStorage.setItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, "true");
+    visit("/en?utm_source=email");
+
+    const { result } = renderHook(() => useMcpAnnouncement());
+
+    expect(result.current.isOpen).toBe(false);
+  });
+
+  it("can still be closed while the parameter is in the URL", () => {
+    // The parameter must not outrank the close button, or the modal traps
+    // the visitor until they edit the address bar.
+    visit(`/en?${MCP_ANNOUNCEMENT_QUERY_PARAM}=1`);
+    const { result } = renderHook(() => useMcpAnnouncement());
+
+    act(() => result.current.close());
+
+    expect(result.current.isOpen).toBe(false);
+  });
+
+  it("persists the dismissal when closed from a link visit", () => {
+    visit(`/en?${MCP_ANNOUNCEMENT_QUERY_PARAM}=1`);
+    const { result } = renderHook(() => useMcpAnnouncement());
+
+    act(() => result.current.close());
+
+    expect(
+      window.localStorage.getItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY),
+    ).toBe("true");
   });
 });
