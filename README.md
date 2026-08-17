@@ -785,6 +785,18 @@ curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID
 
 Purge **by URL** works on every Cloudflare plan, up to 30 URLs per call. Purge by prefix, hostname, or cache tag is Enterprise only, so "drop everything under `/og/`" is not available. `{"purge_everything": true}` works on all plans but dumps the entire edge cache and sends every subsequent request to the origin, so keep it out of routine deploys.
 
+##### Deploy edge gate
+
+The deploy's existing health check polls `http://127.0.0.1:3100/` and rolls `.next` back if the frontend won't come up. It cannot see a stale edge, because it never crosses Cloudflare. `python manage.py verify_edge_cache` runs last in the deploy script and closes that gap:
+
+1. Fetch each canary in `backend/quotes/management/commands/verify_edge_cache.py` through Cloudflare and compare the content-type (a non-200 or a transport error counts as a mismatch).
+2. Purge anything that disagrees, using the credentials above.
+3. Re-check. Exit non-zero only if a URL is *still* wrong, which means the problem was never the cache.
+
+The canary list is deliberately tiny: one rendered card per URL shape and one static file, i.e. one per *kind* of asset whose route could change hands, not one per asset. It is a tripwire, not coverage. The card canaries use fixed tickers, which is safe because the route renders a card for unknown symbols too, so a delisting cannot make the check flaky.
+
+Run it by hand any time: `cd /opt/sponda/backend && python manage.py verify_edge_cache`.
+
 **Why this matters beyond convenience.** Cloudflare rewrites `max-age` to 14400 (4h) on cacheable responses. Any URL fetched *before* a deploy keeps serving its pre-deploy body for four hours afterwards, wrong content-type included, and CF ignores client `Cache-Control: no-cache`. That is exactly how a `/og/` path ended up serving HTML with a `200` to crawlers after the card route shipped. When a deploy changes what a URL returns, purge that URL or verify against the origin directly (`ssh root@poe.ma "curl http://127.0.0.1:3100<path>"`), because the edge will lie to you for hours.
 
 The cache keys are defined once in `derived_data.py` and imported by the views, `warm_cache`, and the invalidator. An invalidator that clears a key nobody sets fails silently, which is the worst way for this to break, so the shared definition is load-bearing rather than tidiness.
