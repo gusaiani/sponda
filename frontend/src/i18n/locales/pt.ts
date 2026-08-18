@@ -722,6 +722,8 @@ export const pt: TranslationDictionary = {
   "mcp.hint_claude_code": "Execute uma vez no seu terminal:",
   "mcp.hint_cursor": "Adicione ao .cursor/mcp.json, ou Cursor Settings › MCP › Add new server:",
   "mcp.hint_claude_app": "Configurações › Conectores › Adicionar conector personalizado, depois cole:",
+  "mcp.hint_chatgpt":
+    "Configurações › Conectores › Avançado › ative o Modo de desenvolvedor, depois Criar conector e cole:",
   "mcp.copy": "Copiar",
   "mcp.copied": "Copiado",
   "mcp.try_asking": "Depois experimente perguntar",

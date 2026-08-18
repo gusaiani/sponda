@@ -722,6 +722,8 @@ export const de: TranslationDictionary = {
   "mcp.hint_claude_code": "Einmal im Terminal ausführen:",
   "mcp.hint_cursor": "Zu .cursor/mcp.json hinzufügen, oder Cursor Settings › MCP › Add new server:",
   "mcp.hint_claude_app": "Einstellungen › Konnektoren › Benutzerdefinierten Konnektor hinzufügen, dann einfügen:",
+  "mcp.hint_chatgpt":
+    "Einstellungen › Konnektoren › Erweitert › Entwicklermodus aktivieren, dann Konnektor erstellen und einfügen:",
   "mcp.copy": "Kopieren",
   "mcp.copied": "Kopiert",
   "mcp.try_asking": "Dann fragen Sie zum Beispiel",
