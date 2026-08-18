@@ -15,7 +15,7 @@ const CURSOR_CONFIG_SNIPPET = `{
   }
 }`;
 
-type McpInstallTargetId = "claude-code" | "cursor" | "claude-app";
+type McpInstallTargetId = "claude-code" | "cursor" | "claude-app" | "chatgpt";
 
 interface McpInstallTarget {
   id: McpInstallTargetId;
@@ -37,6 +37,11 @@ const INSTALL_TARGETS: McpInstallTarget[] = [
   {
     id: "claude-app",
     hintKey: "mcp.hint_claude_app",
+    snippet: MCP_ENDPOINT_URL,
+  },
+  {
+    id: "chatgpt",
+    hintKey: "mcp.hint_chatgpt",
     snippet: MCP_ENDPOINT_URL,
   },
 ];
@@ -64,6 +69,7 @@ export function McpAnnouncementModal({ onClose }: McpAnnouncementModalProps) {
   function installTargetLabel(targetId: McpInstallTargetId): string {
     if (targetId === "claude-code") return "Claude Code";
     if (targetId === "cursor") return "Cursor";
+    if (targetId === "chatgpt") return "ChatGPT";
     return t("mcp.tab_claude_app");
   }
 

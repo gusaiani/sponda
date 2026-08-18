@@ -65,6 +65,18 @@ describe("McpAnnouncementModal", () => {
     expect(snippet!.textContent).toBe("https://sponda.capital/api/mcp/");
   });
 
+  it("switches to the ChatGPT tab and shows the endpoint URL", () => {
+    render(<McpAnnouncementModal {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "ChatGPT" }));
+
+    const snippet = document.querySelector(".mcp-announcement-code pre");
+    expect(snippet).not.toBeNull();
+    expect(snippet!.textContent).toBe("https://sponda.capital/api/mcp/");
+    const hint = document.querySelector(".mcp-announcement-hint");
+    expect(hint!.textContent).toContain("Developer mode");
+  });
+
   it("renders the three example queries with US companies in English", () => {
     render(<McpAnnouncementModal {...defaultProps} />);
 

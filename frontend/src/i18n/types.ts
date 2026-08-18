@@ -726,6 +726,7 @@ export interface TranslationDictionary {
   "mcp.hint_claude_code": string;
   "mcp.hint_cursor": string;
   "mcp.hint_claude_app": string;
+  "mcp.hint_chatgpt": string;
   "mcp.copy": string;
   "mcp.copied": string;
   "mcp.try_asking": string;
