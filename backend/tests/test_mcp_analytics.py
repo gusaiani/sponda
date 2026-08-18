@@ -9,11 +9,13 @@ snippet and MCP clients never load a page, so nothing upstream counts these
 calls; the rate-limit counters in ``assistant.mcp`` are per-IP cache keys
 that expire at midnight and can't answer "how many queries last month".
 """
+import io
 import json
 from unittest.mock import patch
 
 import pytest
 from django.core.cache import cache
+from django.core.management import call_command
 from django.utils import timezone
 
 from assistant.models import McpCall
@@ -176,6 +178,76 @@ class TestMcpCallRecording:
 
         assert McpCall.objects.count() == 2
 
+    def test_tool_call_arguments_are_recorded(self, client):
+        tool_call(client, "screen_companies", {
+            "filters": {"pe10": {"max": 10}},
+            "countries": ["BR"],
+            "sort": "pe10",
+        })
+
+        call = McpCall.objects.get()
+        assert call.arguments == {
+            "filters": {"pe10": {"max": 10}},
+            "countries": ["BR"],
+            "sort": "pe10",
+        }
+
+    def test_empty_arguments_are_recorded_as_null(self, client):
+        tool_call(client, "list_available_indicators", {})
+        assert McpCall.objects.get().arguments is None
+
+    def test_lifecycle_methods_record_no_arguments(self, client):
+        rpc_call(client, "initialize", {"protocolVersion": "2025-06-18"})
+        assert McpCall.objects.get().arguments is None
+
+    def test_oversized_arguments_are_truncated_not_dropped(self, client):
+        """The endpoint is unauthenticated, so a stored arguments blob must
+        be bounded — but the row itself still counts toward usage."""
+        tool_call(client, "screen_companies", {"padding": "x" * 30_000})
+
+        call = McpCall.objects.get()
+        assert call.arguments == {"_truncated": True}
+
+    def test_non_object_arguments_are_recorded_as_null(self, client):
+        response = rpc_call(client, "tools/call", {
+            "name": "screen_companies", "arguments": ["not", "an", "object"],
+        })
+
+        assert "error" in json.loads(response.content)
+        call = McpCall.objects.get()
+        assert call.failed is True
+        assert call.arguments is None
+
+    def test_rate_limited_call_still_records_its_arguments(self, client, settings):
+        """A turned-away call is still demand: what it asked for matters."""
+        settings.MCP_TOOL_CALLS_PER_DAY = 1
+        with patch("assistant.mcp.client_ip_hash", return_value=FAKE_IP_HASH):
+            tool_call(client, "screen_companies", {"countries": ["BR"]})
+            tool_call(client, "screen_companies", {"countries": ["US"]})
+
+        rejected = McpCall.objects.order_by("timestamp").last()
+        assert rejected.rate_limited is True
+        assert rejected.arguments == {"countries": ["US"]}
+
+    def test_screen_result_count_is_recorded(self, client):
+        # No companies exist, so the screen legitimately matches zero rows.
+        tool_call(client, "screen_companies", {"filters": {"pe10": {"max": 10}}})
+
+        call = McpCall.objects.get()
+        assert call.failed is False
+        assert call.result_count == 0
+
+    def test_result_count_is_null_for_non_screen_tools(self, client):
+        tool_call(client, "list_available_indicators")
+        assert McpCall.objects.get().result_count is None
+
+    def test_result_count_is_null_when_the_screen_itself_fails(self, client):
+        tool_call(client, "screen_companies", {"sectors": ["No Such Sector"]})
+
+        call = McpCall.objects.get()
+        assert call.failed is True
+        assert call.result_count is None
+
     def test_recording_failure_never_breaks_the_response(self, client):
         """Analytics is a side channel: if the write blows up, the client
         must still get its answer."""
@@ -195,7 +267,8 @@ class TestAdminDashboardMcpStats:
 
     def _record(self, *, method="tools/call", tool_name="screen_companies",
                 ip_hash="a" * 64, client_name="", failed=False,
-                rate_limited=False, days_ago=0):
+                rate_limited=False, days_ago=0, arguments=None,
+                result_count=None):
         call = McpCall.objects.create(
             method=method,
             tool_name=tool_name,
@@ -203,6 +276,8 @@ class TestAdminDashboardMcpStats:
             client_name=client_name,
             failed=failed,
             rate_limited=rate_limited,
+            arguments=arguments,
+            result_count=result_count,
         )
         if days_ago:
             # timestamp is auto_now_add, so back-date it after the fact.
@@ -216,7 +291,7 @@ class TestAdminDashboardMcpStats:
         assert response.status_code == 200
         mcp_stats = response.json()["mcp"]
         assert set(mcp_stats) == {
-            "periods", "top_tools", "top_clients", "daily_calls"
+            "periods", "top_tools", "top_clients", "daily_calls", "queries"
         }
 
     def test_period_totals_count_only_calls_inside_the_window(
@@ -316,11 +391,101 @@ class TestAdminDashboardMcpStats:
         assert dates == sorted(dates)
         assert dates[-1] == timezone.localdate().isoformat()
 
+    def test_top_indicators_count_filters_and_sort_from_screen_arguments(
+        self, superuser_client
+    ):
+        self._record(arguments={
+            "filters": {"pe10": {"max": 10}, "current_ratio": {"min": 1.5}},
+            "sort": "-pe5",
+        })
+        self._record(arguments={"filters": {"pe10": {"max": 8}}})
+        # Outside the 30-day window: must not count.
+        self._record(arguments={"filters": {"pe10": {"max": 8}}}, days_ago=40)
+
+        queries = superuser_client.get(DASHBOARD_URL).json()["mcp"]["queries"]
+        assert queries["top_indicators"] == [
+            {"indicator": "pe10", "screen_count": 2},
+            {"indicator": "current_ratio", "screen_count": 1},
+            {"indicator": "pe5", "screen_count": 1},
+        ]
+
+    def test_an_indicator_filtered_and_sorted_in_one_call_counts_once(
+        self, superuser_client
+    ):
+        self._record(arguments={
+            "filters": {"pe10": {"max": 10}}, "sort": "pe10",
+        })
+
+        queries = superuser_client.get(DASHBOARD_URL).json()["mcp"]["queries"]
+        assert queries["top_indicators"] == [
+            {"indicator": "pe10", "screen_count": 1},
+        ]
+
+    def test_non_indicator_sort_fields_are_not_ranked_as_indicators(
+        self, superuser_client
+    ):
+        self._record(arguments={"sort": "-market_cap"})
+
+        queries = superuser_client.get(DASHBOARD_URL).json()["mcp"]["queries"]
+        assert queries["top_indicators"] == []
+
+    def test_top_countries_and_sectors_come_from_screen_arguments(
+        self, superuser_client
+    ):
+        self._record(arguments={"countries": ["br", "US"], "sectors": ["Oil"]})
+        self._record(arguments={"countries": ["BR"]})
+
+        queries = superuser_client.get(DASHBOARD_URL).json()["mcp"]["queries"]
+        assert queries["top_countries"] == [
+            {"country": "BR", "screen_count": 2},
+            {"country": "US", "screen_count": 1},
+        ]
+        assert queries["top_sectors"] == [
+            {"sector": "Oil", "screen_count": 1},
+        ]
+
+    def test_zero_result_screens_are_counted_against_executed_screens(
+        self, superuser_client
+    ):
+        self._record(result_count=0)
+        self._record(result_count=17)
+        self._record(failed=True)  # never executed: not in the denominator
+
+        queries = superuser_client.get(DASHBOARD_URL).json()["mcp"]["queries"]
+        assert queries["zero_result_screens"] == {
+            "count": 1, "total_screens": 2,
+        }
+
+    def test_failed_symbol_lookups_are_ranked_case_insensitively(
+        self, superuser_client
+    ):
+        self._record(tool_name="get_company", failed=True,
+                     arguments={"symbol": "nope9"})
+        self._record(tool_name="get_company", failed=True,
+                     arguments={"symbol": "NOPE9"})
+        self._record(tool_name="get_fundamentals", failed=True,
+                     arguments={"symbol": "GHOST1"})
+        self._record(tool_name="get_company", arguments={"symbol": "PETR4"})
+        self._record(tool_name="get_company", failed=True)  # no arguments
+
+        queries = superuser_client.get(DASHBOARD_URL).json()["mcp"]["queries"]
+        assert queries["failed_symbol_lookups"] == [
+            {"symbol": "NOPE9", "request_count": 2},
+            {"symbol": "GHOST1", "request_count": 1},
+        ]
+
     def test_empty_history_returns_zeroes_not_errors(self, superuser_client):
         mcp_stats = superuser_client.get(DASHBOARD_URL).json()["mcp"]
         assert mcp_stats["periods"]["all_time"]["total_calls"] == 0
         assert mcp_stats["top_tools"] == []
         assert mcp_stats["top_clients"] == []
+        assert mcp_stats["queries"] == {
+            "top_indicators": [],
+            "top_countries": [],
+            "top_sectors": [],
+            "zero_result_screens": {"count": 0, "total_screens": 0},
+            "failed_symbol_lookups": [],
+        }
 
     def test_regular_user_cannot_read_mcp_stats(self, client, django_user_model):
         django_user_model.objects.create_user(
@@ -353,3 +518,47 @@ class TestAdminDashboardMcpStats:
 
         assert response.status_code == 200
         assert len(busy) == len(quiet)
+
+
+@pytest.mark.django_db
+class TestPruneMcpCalls:
+    """The prune_mcp_calls management command bounds the audit table.
+
+    McpCall rows accrue forever otherwise — the endpoint is public and the
+    arguments JSON makes each row heavier than before.
+    """
+
+    def _record_days_ago(self, days_ago):
+        call = McpCall.objects.create(method="ping", ip_hash="a" * 64)
+        McpCall.objects.filter(pk=call.pk).update(
+            timestamp=timezone.now() - timezone.timedelta(days=days_ago)
+        )
+        return call
+
+    def test_deletes_only_rows_older_than_the_retention_window(self, settings):
+        settings.MCP_CALL_RETENTION_DAYS = 30
+        kept = self._record_days_ago(10)
+        self._record_days_ago(40)
+        self._record_days_ago(400)
+
+        call_command("prune_mcp_calls", stdout=io.StringIO())
+
+        assert list(McpCall.objects.all()) == [kept]
+
+    def test_reports_how_many_rows_were_pruned(self, settings):
+        settings.MCP_CALL_RETENTION_DAYS = 30
+        self._record_days_ago(40)
+        self._record_days_ago(50)
+
+        output = io.StringIO()
+        call_command("prune_mcp_calls", stdout=output)
+
+        assert "2" in output.getvalue()
+
+    def test_noop_when_everything_is_recent(self, settings):
+        settings.MCP_CALL_RETENTION_DAYS = 30
+        self._record_days_ago(1)
+
+        call_command("prune_mcp_calls", stdout=io.StringIO())
+
+        assert McpCall.objects.count() == 1

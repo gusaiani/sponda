@@ -55,11 +55,41 @@ interface TopMcpClient {
   connection_count: number;
 }
 
+interface McpTopIndicator {
+  indicator: string;
+  screen_count: number;
+}
+
+interface McpTopCountry {
+  country: string;
+  screen_count: number;
+}
+
+interface McpTopSector {
+  sector: string;
+  screen_count: number;
+}
+
+interface McpFailedSymbolLookup {
+  symbol: string;
+  request_count: number;
+}
+
+interface McpQueryStats {
+  top_indicators: McpTopIndicator[];
+  top_countries: McpTopCountry[];
+  top_sectors: McpTopSector[];
+  zero_result_screens: { count: number; total_screens: number };
+  failed_symbol_lookups: McpFailedSymbolLookup[];
+}
+
 interface McpStats {
   periods: Record<string, PeriodMcpStats>;
   top_tools: TopMcpTool[];
   top_clients: TopMcpClient[];
   daily_calls: { date: string; call_count: number }[];
+  // Absent on a backend that predates query mining.
+  queries?: McpQueryStats;
 }
 
 interface DashboardData {
@@ -305,6 +335,49 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
+
+          {dashboardData.mcp.queries && (
+            <>
+              <h3 className="admin-subsection-title">Consultas (30 dias)</h3>
+              <p className="admin-text">
+                {`Screens sem resultado: ${dashboardData.mcp.queries.zero_result_screens.count} de ${dashboardData.mcp.queries.zero_result_screens.total_screens}`}
+              </p>
+              <div className="admin-tickers-grid">
+                <McpRankingTable
+                  title="Indicadores mais usados"
+                  rows={dashboardData.mcp.queries.top_indicators.map((entry) => ({
+                    label: entry.indicator,
+                    count: entry.screen_count,
+                  }))}
+                  locale={locale}
+                />
+                <McpRankingTable
+                  title="Países mais buscados"
+                  rows={dashboardData.mcp.queries.top_countries.map((entry) => ({
+                    label: entry.country,
+                    count: entry.screen_count,
+                  }))}
+                  locale={locale}
+                />
+                <McpRankingTable
+                  title="Setores mais buscados"
+                  rows={dashboardData.mcp.queries.top_sectors.map((entry) => ({
+                    label: entry.sector,
+                    count: entry.screen_count,
+                  }))}
+                  locale={locale}
+                />
+                <McpRankingTable
+                  title="Símbolos não atendidos"
+                  rows={dashboardData.mcp.queries.failed_symbol_lookups.map((entry) => ({
+                    label: entry.symbol,
+                    count: entry.request_count,
+                  }))}
+                  locale={locale}
+                />
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -340,6 +413,36 @@ export default function AdminDashboardPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function McpRankingTable({
+  title,
+  rows,
+  locale,
+}: {
+  title: string;
+  rows: { label: string; count: number }[];
+  locale: string;
+}) {
+  return (
+    <div>
+      <h3 className="admin-subsection-title">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="admin-text">Nenhum registro</p>
+      ) : (
+        <table className="admin-table admin-table-compact">
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label}>
+                <td>{row.label}</td>
+                <td>{formatNumber(row.count, 0, locale)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

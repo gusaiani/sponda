@@ -363,10 +363,45 @@ class TestExecuteScreenCompanies:
         assert "error" in result
         assert isinstance(result["error"], str)
 
-    def test_unknown_filter_field_is_ignored_not_an_error(self, snapshot_universe):
+    def test_unknown_filter_field_returns_corrective_error(self, snapshot_universe):
+        """Silently dropping an unknown filter key means the caller believes
+        it filtered and it did not — the model must be told, with the valid
+        keys, so its next call can be right (same pattern as sectors)."""
         result = execute_screen_companies({"filters": {"market_cap": {"min": 1}}})
-        assert "error" not in result
-        assert result["count"] == 3
+        assert "error" in result
+        assert "market_cap" in result["error"]
+        assert "pe10" in result["error"]
+
+    def test_non_numeric_filter_bound_returns_error_not_exception(
+        self, snapshot_universe
+    ):
+        result = execute_screen_companies({"filters": {"pe10": {"min": "cheap"}}})
+        assert "error" in result
+        assert "pe10" in result["error"]
+        assert "min" in result["error"]
+
+    def test_numeric_string_bound_is_still_accepted(self, snapshot_universe):
+        result = execute_screen_companies({"filters": {"pe10": {"max": "10"}}})
+        assert result["count"] == 1
+        assert result["rows_for_model"][0]["ticker"] == "PETR4"
+
+    def test_non_object_filter_bounds_return_error(self, snapshot_universe):
+        result = execute_screen_companies({"filters": {"pe10": 10}})
+        assert "error" in result
+        assert "pe10" in result["error"]
+
+    def test_unknown_country_returns_corrective_error(self, snapshot_universe):
+        result = execute_screen_companies({"countries": ["Brazil"]})
+        assert "error" in result
+        assert "BRAZIL" in result["error"]
+        assert "BR" in result["error"]
+        assert "US" in result["error"]
+
+    def test_lowercase_country_code_is_accepted(self, snapshot_universe):
+        result = execute_screen_companies({"countries": ["br"]})
+        assert {row["ticker"] for row in result["rows_for_model"]} == {
+            "PETR4", "WEGE3",
+        }
 
 
 # --- get_company --------------------------------------------------------

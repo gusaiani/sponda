@@ -1,10 +1,13 @@
+from collections import Counter
+
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.core.mail import send_mail
 from django.db import models
 from django.template.loader import render_to_string
 from django.db.models import Count, IntegerField, OuterRef, Q, Subquery
-from django.db.models.functions import TruncDate
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import TruncDate, Upper
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.utils.decorators import method_decorator
@@ -15,6 +18,7 @@ from rest_framework.views import APIView
 
 from assistant.models import McpCall
 from quotes.client_ip import client_ip_hash
+from quotes.screener import SCREENER_FILTERABLE_FIELDS
 from quotes.lookup_quota import lookup_quota
 from quotes.models import LookupLog
 
@@ -1194,6 +1198,55 @@ class GoogleAuthView(APIView):
 MCP_TOP_ROW_LIMIT = 10
 MCP_DAILY_SERIES_DAYS = 30
 
+# Tools whose recorded arguments the dashboard mines: screen_companies for
+# indicator/country/sector demand, the symbol tools for coverage gaps.
+MCP_SCREEN_TOOL = "screen_companies"
+MCP_SYMBOL_TOOLS = ("get_company", "get_fundamentals")
+
+
+def _screen_indicators_used(arguments):
+    """The distinct indicator keys one screen call exercised: every valid
+    filter key, plus the sort field when it is an indicator. A set, so an
+    indicator both filtered and sorted by in the same call counts once."""
+    used = set()
+    filters = arguments.get("filters")
+    if isinstance(filters, dict):
+        used.update(
+            field for field in filters if field in SCREENER_FILTERABLE_FIELDS
+        )
+    sort = arguments.get("sort")
+    if isinstance(sort, str):
+        sort_field = sort.lstrip("-")
+        if sort_field in SCREENER_FILTERABLE_FIELDS:
+            used.add(sort_field)
+    return used
+
+
+def _requested_values(values, uppercase=False):
+    """Distinct cleaned strings from one arguments list (countries, sectors).
+
+    Tolerant of malformed input — the arguments JSON is client-authored.
+    Returns a set, so one call counts a value once however often it
+    repeats it."""
+    if not isinstance(values, list):
+        return set()
+    cleaned = {
+        value.strip() for value in values
+        if isinstance(value, str) and value.strip()
+    }
+    if uppercase:
+        return {value.upper() for value in cleaned}
+    return cleaned
+
+
+def _ranked_counts(counter, value_name, count_name):
+    """Counter → the dashboard's ranked-rows shape, count desc then name."""
+    ranked = sorted(counter.items(), key=lambda item: (-item[1], item[0]))
+    return [
+        {value_name: value, count_name: count}
+        for value, count in ranked[:MCP_TOP_ROW_LIMIT]
+    ]
+
 
 def _time_boundaries():
     """Return cutoff timestamps for day, week, month, year."""
@@ -1362,15 +1415,102 @@ class AdminDashboardView(APIView):
     def _get_mcp_stats(self, boundaries):
         """Usage of the public MCP server, from the McpCall audit rows.
 
-        Four queries regardless of how many periods exist: one filtered
-        aggregate, one tool ranking, one client ranking, one daily series.
+        A fixed number of queries regardless of traffic: the period
+        aggregate, the tool/client rankings, the daily series, and the
+        three query-mining reads behind `queries`.
         """
         return {
             "periods": self._get_mcp_period_stats(boundaries),
             "top_tools": self._get_mcp_top_tools(boundaries),
             "top_clients": self._get_mcp_top_clients(boundaries),
             "daily_calls": self._get_mcp_daily_calls(),
+            "queries": self._get_mcp_query_stats(boundaries),
         }
+
+    def _get_mcp_query_stats(self, boundaries):
+        """What MCP callers actually asked for (last 30 days), mined from
+        the recorded tools/call arguments.
+
+        The screen-arguments aggregation runs in Python over one bounded
+        query: the interesting shape — keys of a nested JSON object — has
+        no portable SQL aggregation, and the per-IP recording cap already
+        bounds how many rows a window can hold.
+        """
+        month_cutoff = boundaries["month"]
+        indicator_counts = Counter()
+        country_counts = Counter()
+        sector_counts = Counter()
+
+        screen_arguments = McpCall.objects.filter(
+            timestamp__gte=month_cutoff,
+            method=McpCall.METHOD_TOOLS_CALL,
+            tool_name=MCP_SCREEN_TOOL,
+            arguments__isnull=False,
+        ).values_list("arguments", flat=True)
+        for arguments in screen_arguments:
+            if not isinstance(arguments, dict):
+                continue
+            indicator_counts.update(_screen_indicators_used(arguments))
+            country_counts.update(
+                _requested_values(arguments.get("countries"), uppercase=True)
+            )
+            sector_counts.update(_requested_values(arguments.get("sectors")))
+
+        return {
+            "top_indicators": _ranked_counts(
+                indicator_counts, "indicator", "screen_count"
+            ),
+            "top_countries": _ranked_counts(
+                country_counts, "country", "screen_count"
+            ),
+            "top_sectors": _ranked_counts(
+                sector_counts, "sector", "screen_count"
+            ),
+            "zero_result_screens": self._get_mcp_zero_result_screens(
+                month_cutoff
+            ),
+            "failed_symbol_lookups": self._get_mcp_failed_symbol_lookups(
+                month_cutoff
+            ),
+        }
+
+    def _get_mcp_zero_result_screens(self, month_cutoff):
+        """Screens that ran and matched nothing, against all that ran.
+
+        Every zero is a caller the data could not answer — a coverage gap
+        or an over-tight filter. The denominator is executed screens only
+        (result_count set): a screen that errored never ran.
+        """
+        return McpCall.objects.filter(
+            timestamp__gte=month_cutoff,
+            method=McpCall.METHOD_TOOLS_CALL,
+            tool_name=MCP_SCREEN_TOOL,
+            result_count__isnull=False,
+        ).aggregate(
+            count=Count("id", filter=Q(result_count=0)),
+            total_screens=Count("id"),
+        )
+
+    def _get_mcp_failed_symbol_lookups(self, month_cutoff):
+        """Symbols callers asked for and could not be served, ranked.
+
+        Unknown tickers and tickers without indicator data both land here;
+        either way it is demand the data did not meet, i.e. a coverage
+        wishlist collected for free.
+        """
+        return list(
+            McpCall.objects.filter(
+                timestamp__gte=month_cutoff,
+                method=McpCall.METHOD_TOOLS_CALL,
+                tool_name__in=MCP_SYMBOL_TOOLS,
+                failed=True,
+                arguments__symbol__isnull=False,
+            )
+            .exclude(arguments__symbol="")
+            .values(symbol=Upper(KeyTextTransform("symbol", "arguments")))
+            .annotate(request_count=Count("id"))
+            .order_by("-request_count", "symbol")[:MCP_TOP_ROW_LIMIT]
+        )
 
     def _get_mcp_period_stats(self, boundaries):
         """Call volume, distinct callers, and failures per period."""

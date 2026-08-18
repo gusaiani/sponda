@@ -200,6 +200,7 @@ agent and the MCP surface pick it up together.
 | `MCP_TOOL_CALLS_PER_DAY` | `200` | Per-IP daily cap across all `tools/call` requests |
 | `MCP_FUNDAMENTALS_CALLS_PER_DAY` | `25` | Per-IP daily sub-cap for `get_fundamentals` |
 | `MCP_RECORDED_CALLS_PER_DAY` | `1000` | Per-IP daily cap on `McpCall` audit rows (see [Usage stats](#usage-stats)) |
+| `MCP_CALL_RETENTION_DAYS` | `400` | How long `McpCall` rows are kept before the weekly `prune_mcp_calls` timer deletes them |
 
 Rate-limit counters are date-keyed entries in the Redis cache (`mcp:<scope>:<ip_hash>:<day>`),
 so caps reset at midnight and need no schema or cron.
@@ -253,6 +254,8 @@ as interesting as tool volume when the question is who actually wired Sponda up:
 | `failed` | Protocol errors, executor errors surfaced as `isError`, and rejected calls |
 | `rate_limited` | A subset of `failed`: turned away by a daily cap with HTTP 429 |
 | `latency_ms` | Server-side time to answer |
+| `arguments` | `tools/call` only: the arguments object, verbatim. Size-guarded at 20 KB serialized (stored as `{"_truncated": true}` beyond that, since the sender is unauthenticated); null for lifecycle methods and argument-less calls. Recorded even for rate-limited calls — a turned-away call is still demand |
+| `result_count` | `screen_companies` successes only: the total match count, not the page size. Zero flags a screen the data could not answer; null for other tools and for screens that errored |
 
 Writes are best effort. `_record_call` swallows and logs its own failures,
 because a statistic is never worth failing a tool call that already succeeded.
@@ -265,18 +268,58 @@ methods are deliberately uncapped so a client can always reconnect, which would
 otherwise let an unauthenticated caller grow the table without bound. Past the
 cap the endpoint keeps answering normally; only the bookkeeping stops.
 
-The dashboard section (`AdminDashboardView._get_mcp_stats`) adds four queries
-regardless of traffic: a filtered period aggregate (calls, tool calls, unique
-callers, failures, 429s for 24h/7d/30d/1y/all time), the top 10 tools and top 10
-clients over 30 days, and a 30-day daily series with gaps filled with zero so a
-quiet day and a missing day do not look the same.
+The dashboard section (`AdminDashboardView._get_mcp_stats`) adds a fixed number
+of queries regardless of traffic: a filtered period aggregate (calls, tool
+calls, unique callers, failures, 429s for 24h/7d/30d/1y/all time), the top 10
+tools and top 10 clients over 30 days, a 30-day daily series with gaps filled
+with zero so a quiet day and a missing day do not look the same, and the query
+mining below.
+
+### Query mining
+
+Because `McpCall.arguments` stores what each `tools/call` actually asked for,
+the dashboard's **Consultas (30 dias)** block turns the audit log into a
+demand signal (`AdminDashboardView._get_mcp_query_stats`):
+
+- **Indicadores mais usados** — which indicator keys screens filtered or
+  sorted by (an indicator used both ways in one call counts once). Tells you
+  which of Sponda's indicators earn their keep.
+- **Países / Setores mais buscados** — where callers point the screener.
+  Feeds the country/sector backfill priority.
+- **Screens sem resultado** — screens that ran and matched zero companies,
+  against all screens that ran. Every zero is a coverage gap or an over-tight
+  filter the data could not answer.
+- **Símbolos não atendidos** — symbols passed to `get_company` /
+  `get_fundamentals` that failed (unknown ticker or no indicator data),
+  ranked case-insensitively. A coverage wishlist collected for free.
+
+The screen-arguments aggregation runs in Python over one bounded query — the
+interesting shape (keys of a nested JSON object) has no portable SQL
+aggregation, and the per-IP recording cap bounds how many rows a 30-day window
+can hold. The zero-result and failed-symbol rankings aggregate in SQL.
+
+The tool layer was also hardened so the mined failures are actionable rather
+than noise: `screen_companies` now returns corrective errors (naming the valid
+values) for unknown indicator keys, non-numeric bounds, and unknown country
+codes, instead of silently dropping the filter — the same pattern
+`_resolve_sectors` already used. A silently dropped filter means the calling
+model believes it screened when it did not.
+
+Retention: the `prune_mcp_calls` management command deletes `McpCall` rows
+older than `MCP_CALL_RETENTION_DAYS` (default 400, so year-over-year
+comparisons survive). In production it runs weekly via the
+`sponda-prune-mcp-calls.timer` systemd unit (Sundays 04:30 UTC), installed by
+the deploy workflow like every other timer.
 
 Local testing: run the backend, POST a couple of calls with the curl snippets
 above, then sign in as a superuser and open `/admin-dashboard`. The **Chamadas
-MCP (24h)** card and the **Servidor MCP** tables should reflect them.
+MCP (24h)** card, the **Servidor MCP** tables, and the **Consultas (30 dias)**
+block should reflect them; `python manage.py prune_mcp_calls` reports how many
+rows it deleted.
 
-Tests: `pytest tests/test_mcp_analytics.py` (recording plus the dashboard
-section) and `npm test -- src/app/'[locale]'/admin-dashboard` for the UI.
+Tests: `pytest tests/test_mcp_analytics.py` (recording, dashboard section,
+query mining, pruning), `pytest tests/test_assistant_tools.py` (corrective
+errors), and `npm test -- src/app/'[locale]'/admin-dashboard` for the UI.
 
 ## Valuation ratios: one definition everywhere
 

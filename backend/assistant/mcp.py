@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from typing import NamedTuple, Optional
 
 from django.conf import settings
 from django.core.cache import cache
@@ -72,6 +73,24 @@ METHOD_NOT_FOUND = -32601
 INVALID_PARAMS = -32602
 
 EXPENSIVE_TOOL_NAME = "get_fundamentals"
+SCREEN_TOOL_NAME = "screen_companies"
+
+# Ceiling on the serialized size of a recorded arguments object. The sender
+# is unauthenticated, so anything bigger is stored as a truncation marker:
+# the row (and the demand it represents) still counts, the payload does not.
+ARGUMENTS_MAX_JSON_BYTES = 20 * 1024
+TRUNCATED_ARGUMENTS_MARKER = {"_truncated": True}
+
+
+class DispatchOutcome(NamedTuple):
+    """What answering one JSON-RPC message produced, for the audit row."""
+
+    response: HttpResponse
+    # True when the caller could not use the answer: protocol errors,
+    # executor errors surfaced as isError, and rejected calls.
+    failed: bool
+    # screen_companies successes only: total companies the screen matched.
+    result_count: Optional[int] = None
 
 # The agent loop's screen result carries a token-trimmed copy for the model
 # plus untrimmed rows for the frontend table. An MCP client is the model, so
@@ -160,29 +179,29 @@ def _shape_result_for_mcp(tool_name: str, tool_result: dict) -> dict:
     return tool_result
 
 
-def _handle_tools_call(request, request_id, params: dict):
-    """Run one tool. Returns (response, the caller could not use it)."""
+def _handle_tools_call(request, request_id, params: dict) -> DispatchOutcome:
+    """Run one tool."""
     tool_name = params.get("name")
     if tool_name not in MCP_TOOL_NAMES:
-        return _rpc_error(
+        return DispatchOutcome(_rpc_error(
             request_id, INVALID_PARAMS, f"Unknown tool: {tool_name!r}"
-        ), True
+        ), failed=True)
 
     ip_hash = client_ip_hash(request)
     if _increment_exceeds_cap(
         "calls", ip_hash, settings.MCP_TOOL_CALLS_PER_DAY
     ):
-        return HttpResponse(status=429), True
+        return DispatchOutcome(HttpResponse(status=429), failed=True)
     if tool_name == EXPENSIVE_TOOL_NAME and _increment_exceeds_cap(
         "fundamentals", ip_hash, settings.MCP_FUNDAMENTALS_CALLS_PER_DAY
     ):
-        return HttpResponse(status=429), True
+        return DispatchOutcome(HttpResponse(status=429), failed=True)
 
     arguments = params.get("arguments")
     if arguments is not None and not isinstance(arguments, dict):
-        return _rpc_error(
+        return DispatchOutcome(_rpc_error(
             request_id, INVALID_PARAMS, "arguments must be an object"
-        ), True
+        ), failed=True)
 
     tool_result = _shape_result_for_mcp(
         tool_name, execute_tool(tool_name, arguments or {})
@@ -192,29 +211,34 @@ def _handle_tools_call(request, request_id, params: dict):
     # Executor failures ("unknown symbol") are tool results with
     # isError=true, not protocol errors — the calling model is meant to
     # read them and adjust, exactly as the in-house agent loop does.
-    return _rpc_result(request_id, {
+    return DispatchOutcome(_rpc_result(request_id, {
         "content": [{
             "type": "text",
             "text": json.dumps(tool_result, ensure_ascii=False),
         }],
         "structuredContent": tool_result,
         "isError": tool_failed,
-    }), tool_failed
+    }), failed=tool_failed, result_count=(
+        tool_result["count"]
+        if tool_name == SCREEN_TOOL_NAME and not tool_failed else None
+    ))
 
 
-def _dispatch(request, request_id, method: str, params: dict):
-    """Route one JSON-RPC request. Returns (response, failed)."""
+def _dispatch(request, request_id, method: str, params: dict) -> DispatchOutcome:
+    """Route one JSON-RPC request."""
     if method == "initialize":
-        return _handle_initialize(request_id, params), False
+        return DispatchOutcome(
+            _handle_initialize(request_id, params), failed=False
+        )
     if method == "ping":
-        return _rpc_result(request_id, {}), False
+        return DispatchOutcome(_rpc_result(request_id, {}), failed=False)
     if method == "tools/list":
-        return _handle_tools_list(request_id), False
+        return DispatchOutcome(_handle_tools_list(request_id), failed=False)
     if method == "tools/call":
         return _handle_tools_call(request, request_id, params)
-    return _rpc_error(
+    return DispatchOutcome(_rpc_error(
         request_id, METHOD_NOT_FOUND, f"Method not supported: {method!r}"
-    ), True
+    ), failed=True)
 
 
 def _column_safe(value, field_name: str) -> str:
@@ -228,9 +252,27 @@ def _column_safe(value, field_name: str) -> str:
     return str(value if value is not None else "")[:max_length]
 
 
+def _recordable_arguments(method, params: dict) -> Optional[dict]:
+    """The arguments object worth persisting for one message, or None.
+
+    Only tools/call carries arguments. A non-dict (already rejected as
+    INVALID_PARAMS) and an empty dict both store as null; an oversized
+    object stores as a marker so the row still counts without the payload.
+    """
+    if method != McpCall.METHOD_TOOLS_CALL:
+        return None
+    arguments = params.get("arguments")
+    if not isinstance(arguments, dict) or not arguments:
+        return None
+    serialized_size = len(json.dumps(arguments, ensure_ascii=False).encode("utf-8"))
+    if serialized_size > ARGUMENTS_MAX_JSON_BYTES:
+        return dict(TRUNCATED_ARGUMENTS_MARKER)
+    return arguments
+
+
 def _record_call(
     request, *, method, params: dict, failed: bool, latency_ms: int,
-    rate_limited: bool = False,
+    rate_limited: bool = False, result_count: Optional[int] = None,
 ) -> None:
     """Log one answered MCP message for the usage dashboard.
 
@@ -272,6 +314,8 @@ def _record_call(
             failed=failed,
             rate_limited=rate_limited,
             latency_ms=latency_ms,
+            arguments=_recordable_arguments(method, params),
+            result_count=result_count,
         )
     except Exception:
         logger.warning("Failed to record MCP call", exc_info=True)
@@ -313,16 +357,17 @@ def mcp_endpoint(request):
     if "id" not in message:
         # A notification. Nothing we serve requires acting on any of them
         # (no sessions, no subscriptions), so acknowledge and move on.
-        response, failed = HttpResponse(status=202), False
+        outcome = DispatchOutcome(HttpResponse(status=202), failed=False)
     else:
-        response, failed = _dispatch(request, message["id"], method, params)
+        outcome = _dispatch(request, message["id"], method, params)
 
     _record_call(
         request,
         method=method,
         params=params,
-        failed=failed,
-        rate_limited=response.status_code == 429,
+        failed=outcome.failed,
+        rate_limited=outcome.response.status_code == 429,
         latency_ms=round((time.monotonic() - started_at) * 1000),
+        result_count=outcome.result_count,
     )
-    return response
+    return outcome.response

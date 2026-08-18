@@ -9,7 +9,7 @@ about, never as a raised exception the loop has to special-case.
 """
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 from quotes.models import IndicatorSnapshot, Ticker
@@ -435,27 +435,59 @@ def execute_list_available_indicators() -> dict:
     }
 
 
-def _bounds_from_filters(filters: Optional[dict]) -> dict:
+def _resolve_filter_bounds(
+    filters: Optional[dict],
+) -> tuple[dict, Optional[str]]:
     """Convert the model's {field: {min?, max?}} JSON numbers into the
     {field: {min?: Decimal, max?: Decimal}} shape run_screener expects.
 
-    Unknown fields are dropped here (defense in depth — run_screener
-    already ignores them too) and non-dict values are skipped rather than
-    raising, since this is untrusted model-authored input.
+    Returns (bounds, error). Malformed input — an unknown indicator key, a
+    non-object bound, a non-numeric min/max — returns a corrective error
+    naming what is valid, never silently drops the filter: a dropped filter
+    means the caller believes it screened and it did not (the same
+    observed-live failure mode _resolve_sectors exists to prevent).
     """
+    if filters is None:
+        return {}, None
+    if not isinstance(filters, dict):
+        return {}, (
+            "filters must be an object mapping indicator keys to "
+            "{min, max} bounds."
+        )
+
+    unknown_fields = [
+        field for field in filters if field not in SCREENER_FILTERABLE_FIELDS
+    ]
+    if unknown_fields:
+        return {}, (
+            f"Unknown indicator(s) in filters: "
+            f"{', '.join(repr(field) for field in unknown_fields)}. "
+            f"Valid indicator keys are: "
+            f"{', '.join(SCREENER_FILTERABLE_FIELDS)}. Call "
+            "list_available_indicators for definitions."
+        )
+
     bounds: dict[str, dict[str, Decimal]] = {}
-    for field, field_bounds in (filters or {}).items():
-        if field not in SCREENER_FILTERABLE_FIELDS or not isinstance(field_bounds, dict):
-            continue
+    for field, field_bounds in filters.items():
+        if not isinstance(field_bounds, dict):
+            return {}, (
+                f"filters.{field} must be an object with optional numeric "
+                "'min' and 'max' properties."
+            )
         converted: dict[str, Decimal] = {}
-        min_value = field_bounds.get("min")
-        if min_value is not None:
-            converted["min"] = Decimal(str(min_value))
-        max_value = field_bounds.get("max")
-        if max_value is not None:
-            converted["max"] = Decimal(str(max_value))
+        for bound_name in ("min", "max"):
+            bound_value = field_bounds.get(bound_name)
+            if bound_value is None:
+                continue
+            try:
+                converted[bound_name] = Decimal(str(bound_value))
+            except (InvalidOperation, ValueError, TypeError):
+                return {}, (
+                    f"filters.{field}.{bound_name} must be a number, "
+                    f"got {bound_value!r}."
+                )
         bounds[field] = converted
-    return bounds
+    return bounds, None
 
 
 def _clamp_screen_limit(raw_limit: Any) -> int:
@@ -540,33 +572,69 @@ def _resolve_sectors(requested_sectors: list) -> tuple[list, Optional[str]]:
     return resolved, None
 
 
-def _normalize_countries(requested_countries: list) -> list:
-    """Uppercase ISO-2 codes so "br" matches Ticker.country="BR"."""
-    return [(country or "").strip().upper() for country in requested_countries if country]
+def _resolve_countries(requested_countries: list) -> tuple[list, Optional[str]]:
+    """Map model-provided country codes onto the exact DB values.
+
+    Case-insensitive: "br" resolves to "BR". A code with no companies in
+    the data returns a corrective error naming the valid codes — same
+    rationale as _resolve_sectors: a silent zero-match screen teaches the
+    caller nothing, a corrective error fixes its next call.
+    """
+    if not requested_countries:
+        return [], None
+    normalized = [
+        (country or "").strip().upper()
+        for country in requested_countries if country
+    ]
+    valid_countries = list(
+        Ticker.objects.exclude(country="")
+        .values_list("country", flat=True)
+        .distinct()
+        .order_by("country"),
+    )
+    unknown = sorted(set(normalized) - set(valid_countries))
+    if unknown:
+        return [], (
+            f"Unknown country code(s): "
+            f"{', '.join(repr(code) for code in unknown)}. Valid ISO 3166-1 "
+            f"alpha-2 codes present in the data are: "
+            f"{', '.join(valid_countries)}."
+        )
+    return normalized, None
 
 
 def execute_screen_companies(arguments: dict) -> dict:
     """Run the screener in-process and shape the result for the tool loop.
 
     Returns ``{"count", "rows_for_model", "full_rows"}`` on success, or
-    ``{"error": message}`` for a ScreenerError (e.g. an invalid sort field)
-    or an unknown sector — never raises, so the agent loop can always feed
-    the result straight back to the model as a tool message.
+    ``{"error": message}`` for a ScreenerError (e.g. an invalid sort field),
+    a malformed filter, or an unknown indicator/sector/country — always a
+    corrective message naming the valid values, and never a raise, so the
+    agent loop can always feed the result straight back to the model as a
+    tool message.
     """
     arguments = arguments or {}
-    bounds = _bounds_from_filters(arguments.get("filters"))
+    bounds, filter_error = _resolve_filter_bounds(arguments.get("filters"))
+    if filter_error:
+        return {"error": filter_error}
     limit = _clamp_screen_limit(arguments.get("limit"))
 
     sectors, sector_error = _resolve_sectors(arguments.get("sectors") or [])
     if sector_error:
         return {"error": sector_error}
 
+    countries, country_error = _resolve_countries(
+        arguments.get("countries") or []
+    )
+    if country_error:
+        return {"error": country_error}
+
     sort = arguments.get("sort") or SCREENER_DEFAULT_SORT
     try:
         total_count, rows = run_screener(
             bounds=bounds,
             sectors=sectors,
-            countries=_normalize_countries(arguments.get("countries") or []),
+            countries=countries,
             sort=sort,
             limit=limit,
         )
