@@ -204,6 +204,10 @@ MCP_FUNDAMENTALS_CALLS_PER_DAY = env.int("MCP_FUNDAMENTALS_CALLS_PER_DAY", defau
 # reaches it, and the service keeps answering after it does; only the
 # bookkeeping stops.
 MCP_RECORDED_CALLS_PER_DAY = env.int("MCP_RECORDED_CALLS_PER_DAY", default=1000)
+# How long McpCall audit rows are kept before prune_mcp_calls (weekly systemd
+# timer) deletes them. 400 days preserves a full year-over-year comparison;
+# the per-day recording cap bounds growth rate, this bounds total size.
+MCP_CALL_RETENTION_DAYS = env.int("MCP_CALL_RETENTION_DAYS", default=400)
 
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight

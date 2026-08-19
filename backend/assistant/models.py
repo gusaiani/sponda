@@ -105,6 +105,18 @@ class McpCall(models.Model):
     # The one per-request client signal that is always present.
     user_agent = models.CharField(max_length=300, blank=True, default="")
 
+    # tools/call rows only: the arguments object the client sent, stored
+    # verbatim so the dashboard can mine what callers actually ask for
+    # (indicators, countries, sectors, symbols). Size-guarded at write time
+    # (assistant.mcp) because the sender is unauthenticated; null for
+    # lifecycle methods, argument-less calls, and rows predating the field.
+    arguments = models.JSONField(null=True, blank=True)
+    # screen_companies rows only: how many companies matched the screen
+    # (the total match count, not the page size). Zero here is the signal
+    # that a caller asked for something the data could not answer. Null for
+    # every other tool and for screens that errored before running.
+    result_count = models.IntegerField(null=True, blank=True)
+
     # SHA-256 of the client IP (quotes.client_ip.client_ip_hash), the same
     # identity the rate limiter counts against and PageView stores.
     ip_hash = models.CharField(max_length=64, db_index=True)

@@ -1,0 +1,16 @@
+[Unit]
+Description=Prune Sponda MCP call audit rows past the retention window
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py prune_mcp_calls
+Restart=on-failure
+RestartSec=120

@@ -1,0 +1,10 @@
+[Unit]
+Description=Prune Sponda MCP call audit rows weekly, Sundays at 04:30 UTC
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
