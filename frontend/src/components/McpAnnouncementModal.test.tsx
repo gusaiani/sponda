@@ -65,6 +65,30 @@ describe("McpAnnouncementModal", () => {
     expect(snippet!.textContent).toBe("https://sponda.capital/api/mcp/");
   });
 
+  it("links the Claude app breadcrumb to the prefilled install dialog", () => {
+    render(<McpAnnouncementModal {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Claude app" }));
+
+    // claude.ai's official install-link format: opens Customize › Connectors
+    // with the Add custom connector dialog prefilled (docs: connectors/building).
+    const link = document.querySelector<HTMLAnchorElement>(
+      ".mcp-announcement-hint a",
+    );
+    expect(link).not.toBeNull();
+    expect(link!.href).toBe(
+      "https://claude.ai/customize/connectors?modal=add-custom-connector" +
+        "&connectorName=Sponda" +
+        "&connectorUrl=https%3A%2F%2Fsponda.capital%2Fapi%2Fmcp%2F",
+    );
+    expect(link!.target).toBe("_blank");
+    expect(link!.rel).toContain("noreferrer");
+    // claude.ai moved connectors from Settings to Customize.
+    expect(link!.textContent).toContain("Customize › Connectors");
+    const hint = document.querySelector(".mcp-announcement-hint");
+    expect(hint!.textContent).toContain("then paste:");
+  });
+
   it("switches to the ChatGPT tab and shows the endpoint URL", () => {
     render(<McpAnnouncementModal {...defaultProps} />);
 
@@ -75,6 +99,26 @@ describe("McpAnnouncementModal", () => {
     expect(snippet!.textContent).toBe("https://sponda.capital/api/mcp/");
     const hint = document.querySelector(".mcp-announcement-hint");
     expect(hint!.textContent).toContain("Developer mode");
+  });
+
+  it("links the ChatGPT breadcrumb to the connectors settings page", () => {
+    render(<McpAnnouncementModal {...defaultProps} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "ChatGPT" }));
+
+    const link = document.querySelector<HTMLAnchorElement>(
+      ".mcp-announcement-hint a",
+    );
+    expect(link).not.toBeNull();
+    expect(link!.href).toBe("https://chatgpt.com/#settings/Connectors");
+    expect(link!.target).toBe("_blank");
+    expect(link!.textContent).toContain("Settings › Connectors");
+  });
+
+  it("renders no link in the hint for terminal-based installs", () => {
+    render(<McpAnnouncementModal {...defaultProps} />);
+
+    expect(document.querySelector(".mcp-announcement-hint a")).toBeNull();
   });
 
   it("renders the three example queries with US companies in English", () => {

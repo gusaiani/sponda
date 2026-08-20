@@ -275,6 +275,12 @@ tools and top 10 clients over 30 days, a 30-day daily series with gaps filled
 with zero so a quiet day and a missing day do not look the same, and the query
 mining below.
 
+Raw rows are browsable in Django admin (`/admin/`, Assistant → Mcp calls):
+filterable by method, tool, and outcome, navigable by date, with each call's
+recorded `arguments` JSON on the detail page. The page is strictly read-only —
+the table is an audit log written by the MCP endpoint, and add, change, and
+delete are all denied even for superusers.
+
 ### Query mining
 
 Because `McpCall.arguments` stores what each `tools/call` actually asked for,

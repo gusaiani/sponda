@@ -721,9 +721,11 @@ export const de: TranslationDictionary = {
   "mcp.tab_claude_app": "Claude-App",
   "mcp.hint_claude_code": "Einmal im Terminal ausführen:",
   "mcp.hint_cursor": "Zu .cursor/mcp.json hinzufügen, oder Cursor Settings › MCP › Add new server:",
-  "mcp.hint_claude_app": "Einstellungen › Konnektoren › Benutzerdefinierten Konnektor hinzufügen, dann einfügen:",
-  "mcp.hint_chatgpt":
-    "Einstellungen › Konnektoren › Erweitert › Entwicklermodus aktivieren, dann Konnektor erstellen und einfügen:",
+  "mcp.hint_claude_app_path": "Anpassen › Konnektoren › Benutzerdefinierten Konnektor hinzufügen",
+  "mcp.hint_claude_app_rest": ", dann einfügen:",
+  "mcp.hint_chatgpt_path": "Einstellungen › Konnektoren",
+  "mcp.hint_chatgpt_rest":
+    " › Erweitert › Entwicklermodus aktivieren, dann Konnektor erstellen und einfügen:",
   "mcp.copy": "Kopieren",
   "mcp.copied": "Kopiert",
   "mcp.try_asking": "Dann fragen Sie zum Beispiel",

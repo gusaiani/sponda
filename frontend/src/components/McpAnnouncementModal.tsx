@@ -15,33 +15,56 @@ const CURSOR_CONFIG_SNIPPET = `{
   }
 }`;
 
+// claude.ai's official install-link format: opens Customize › Connectors with
+// the Add custom connector dialog prefilled (the user still reviews and
+// confirms). Documented at claude.com/docs/connectors/building.
+const CLAUDE_APP_INSTALL_URL =
+  "https://claude.ai/customize/connectors?modal=add-custom-connector" +
+  `&connectorName=Sponda&connectorUrl=${encodeURIComponent(MCP_ENDPOINT_URL)}`;
+
+const CHATGPT_CONNECTORS_SETTINGS_URL = "https://chatgpt.com/#settings/Connectors";
+
 type McpInstallTargetId = "claude-code" | "cursor" | "claude-app" | "chatgpt";
+
+// A hint is either one plain sentence, or a linked breadcrumb (the path
+// through the assistant's settings) followed by the rest of the sentence.
+type McpInstallHint =
+  | { textKey: TranslationKey }
+  | { linkUrl: string; linkTextKey: TranslationKey; restKey: TranslationKey };
 
 interface McpInstallTarget {
   id: McpInstallTargetId;
-  hintKey: TranslationKey;
+  hint: McpInstallHint;
   snippet: string;
 }
 
 const INSTALL_TARGETS: McpInstallTarget[] = [
   {
     id: "claude-code",
-    hintKey: "mcp.hint_claude_code",
+    hint: { textKey: "mcp.hint_claude_code" },
     snippet: CLAUDE_CODE_INSTALL_COMMAND,
   },
   {
     id: "cursor",
-    hintKey: "mcp.hint_cursor",
+    hint: { textKey: "mcp.hint_cursor" },
     snippet: CURSOR_CONFIG_SNIPPET,
   },
   {
     id: "claude-app",
-    hintKey: "mcp.hint_claude_app",
+    hint: {
+      linkUrl: CLAUDE_APP_INSTALL_URL,
+      linkTextKey: "mcp.hint_claude_app_path",
+      restKey: "mcp.hint_claude_app_rest",
+    },
     snippet: MCP_ENDPOINT_URL,
   },
   {
     id: "chatgpt",
-    hintKey: "mcp.hint_chatgpt",
+    hint: {
+      linkUrl: CHATGPT_CONNECTORS_SETTINGS_URL,
+      linkTextKey: "mcp.hint_chatgpt_path",
+      restKey: "mcp.hint_chatgpt_rest",
+    },
     snippet: MCP_ENDPOINT_URL,
   },
 ];
@@ -117,7 +140,7 @@ export function McpAnnouncementModal({ onClose }: McpAnnouncementModalProps) {
             </button>
           ))}
         </div>
-        <p className="mcp-announcement-hint">{t(activeTarget.hintKey)}</p>
+        <InstallHint hint={activeTarget.hint} />
         <div className="mcp-announcement-code">
           <pre>{activeTarget.snippet}</pre>
           <CopySnippetButton snippet={activeTarget.snippet} />
@@ -147,6 +170,22 @@ export function McpAnnouncementModal({ onClose }: McpAnnouncementModalProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+function InstallHint({ hint }: { hint: McpInstallHint }) {
+  const { t } = useTranslation();
+
+  if ("textKey" in hint) {
+    return <p className="mcp-announcement-hint">{t(hint.textKey)}</p>;
+  }
+  return (
+    <p className="mcp-announcement-hint">
+      <a href={hint.linkUrl} target="_blank" rel="noreferrer">
+        {t(hint.linkTextKey)}
+      </a>
+      {t(hint.restKey)}
+    </p>
   );
 }
 
