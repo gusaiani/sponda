@@ -8,7 +8,6 @@ audit row is worse than no row.
 """
 import pytest
 from django.contrib import admin
-from django.utils import timezone
 
 from assistant.models import McpCall
 
