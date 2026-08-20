@@ -37,6 +37,10 @@ MIDDLEWARE = [
     "config.middleware.request_id.RequestIDMiddleware",
     "config.middleware.server_timing.ServerTimingMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # Serves /static/ (the Django admin's stylesheets) from this process.
+    # Every request reaches Django through the Next.js middleware proxy, so
+    # nginx never gets a chance to serve the files itself.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     # Runs on the response after SessionMiddleware has added its Set-Cookie
     # and Vary: Cookie, so we can strip them on anonymous public-cached
     # responses before the response leaves the process.

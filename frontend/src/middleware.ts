@@ -88,12 +88,14 @@ export function middleware(request: NextRequest) {
   }
 
   // 3. Proxy API, sitemap, admin, and the email opt-out page to Django.
-  // /unsubscribe/ is locale-free on purpose: the link sits in an inbox
-  // forever, so it must never be rewritten, uppercased, or locale-prefixed —
-  // the signed token is part of the path.
+  // /static/ is Django's static files (the admin's stylesheets), served by
+  // WhiteNoise. /unsubscribe/ is locale-free on purpose: the link sits in
+  // an inbox forever, so it must never be rewritten, uppercased, or
+  // locale-prefixed — the signed token is part of the path.
   if (
     pathname.startsWith("/api/") ||
     pathname.startsWith("/admin/") ||
+    pathname.startsWith("/static/") ||
     pathname.startsWith("/unsubscribe/")
   ) {
     const target = new URL(pathname + request.nextUrl.search, DJANGO_API_URL);
@@ -185,6 +187,9 @@ export const config = {
     "/api/((?!assistant/ask).*)",
     "/og/:path*",
     "/admin/:path*",
+    // Django's static files (admin css) — explicit, because the filenames
+    // contain dots and the catch-all below skips any path that does.
+    "/static/:path*",
     // Explicit, because a signed unsubscribe token can contain a dot and the
     // catch-all below skips any path that does.
     "/unsubscribe/:path*",

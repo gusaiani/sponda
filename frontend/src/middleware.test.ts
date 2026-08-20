@@ -97,6 +97,34 @@ describe("middleware config.matcher", () => {
   });
 });
 
+describe("middleware Django static file proxying", () => {
+  // Django admin's stylesheets live under /static/. The catch-all matcher
+  // skips any path with a dot, so without an explicit matcher the request
+  // dies inside Next as a 404 and the admin renders unstyled.
+  it("matches /static/* despite the dot in the filename", () => {
+    expect(pathIsMatched("/static/admin/css/base.css")).toBe(true);
+    expect(pathIsMatched("/static/admin/img/search.svg")).toBe(true);
+  });
+
+  it("rewrites static files to Django, which serves them", async () => {
+    const response = await middleware(
+      buildRequest("/static/admin/css/base.css"),
+    );
+
+    expect(response.headers.get("x-middleware-rewrite")).toContain(
+      "/static/admin/css/base.css",
+    );
+  });
+
+  it("never prefixes a static URL with a locale", async () => {
+    const response = await middleware(
+      buildRequest("/static/admin/css/base.css"),
+    );
+
+    expect(response.headers.get("location")).toBeNull();
+  });
+});
+
 describe("middleware unsubscribe proxying", () => {
   // A real django.core.signing token: compressed payloads start with a dot,
   // and the three parts are separated by colons. Both characters have to

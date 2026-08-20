@@ -275,6 +275,16 @@ tools and top 10 clients over 30 days, a 30-day daily series with gaps filled
 with zero so a quiet day and a missing day do not look the same, and the query
 mining below.
 
+Django admin's static files (its stylesheets, under `/static/`) are served by
+WhiteNoise from the Django process itself: every request reaches Django
+through the Next.js middleware proxy (`/static/:path*` is an explicit matcher
+entry, because the filenames contain dots and the catch-all matcher skips any
+path with one), so nginx never gets a chance to serve the files. Production
+collects them into `backend/staticfiles/` during deploy (`collectstatic`);
+dev and CI serve straight from the app finders (`WHITENOISE_USE_FINDERS`),
+so neither needs a build step. Tests: `backend/tests/test_static_files.py`,
+`frontend/src/middleware.test.ts`.
+
 Raw rows are browsable in Django admin (`/admin/`, Assistant → Mcp calls):
 filterable by method, tool, and outcome, navigable by date, with each call's
 recorded `arguments` JSON on the detail page. The page is strictly read-only —
