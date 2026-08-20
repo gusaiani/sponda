@@ -355,5 +355,7 @@ urlpatterns = [
     # no JavaScript, and no round trip through the SPA.
     path("unsubscribe/<str:token>/", unsubscribe_view, name="unsubscribe"),
     re_path(r"^(?P<filepath>assets/.*)$", _serve_frontend),
-    re_path(r"^(?!api/|admin/)(?P<filepath>.*)$", _serve_frontend),
+    # static/ excluded: WhiteNoise answers for files that exist, and a
+    # missing stylesheet must 404, not come back as the SPA shell with a 200.
+    re_path(r"^(?!api/|admin/|static/)(?P<filepath>.*)$", _serve_frontend),
 ]

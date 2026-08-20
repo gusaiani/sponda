@@ -22,6 +22,11 @@ CORS_ALLOWED_ORIGINS = [
 # Serve built frontend in dev/test when available
 FRONTEND_DIST_DIR = BASE_DIR.parent / "frontend" / "dist"  # noqa: F405
 
+# WhiteNoise serves app static dirs (django.contrib.admin's css) straight
+# from the finders, so dev and CI need no collectstatic step. Production
+# collects into STATIC_ROOT during deploy and leaves this off.
+WHITENOISE_USE_FINDERS = True
+
 REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"].append(  # noqa: F405
     "rest_framework.renderers.BrowsableAPIRenderer"
 )
