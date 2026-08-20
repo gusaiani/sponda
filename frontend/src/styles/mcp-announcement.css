@@ -149,6 +149,16 @@
   margin-bottom: 8px;
 }
 
+.mcp-announcement-hint a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.mcp-announcement-hint a:hover {
+  color: var(--color-ink);
+}
+
 .mcp-announcement-code {
   position: relative;
   background: #0f1d42;
