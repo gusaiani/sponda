@@ -118,6 +118,7 @@ export function LeftNav() {
               {/* Django-rendered page (the McpCall audit log), so a plain
                   anchor: Next's client router has no route there and Link
                   prefetch would just 302 against the admin login. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a
                 href="/admin/assistant/mcpcall/"
                 className={navItemClass(false)}
