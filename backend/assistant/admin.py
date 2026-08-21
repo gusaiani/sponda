@@ -27,6 +27,15 @@ class McpCallAdmin(admin.ModelAdmin):
     date_hierarchy = "timestamp"
     search_fields = ("ip_hash", "user_agent", "client_name")
 
+    # Superusers only, even for viewing: Django's permission system would
+    # let any staff user granted view_mcpcall in, and the arguments JSON
+    # carries whatever callers typed.
+    def has_view_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def has_module_permission(self, request):
+        return request.user.is_superuser
+
     def has_add_permission(self, request):
         return False
 

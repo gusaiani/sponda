@@ -285,11 +285,14 @@ dev and CI serve straight from the app finders (`WHITENOISE_USE_FINDERS`),
 so neither needs a build step. Tests: `backend/tests/test_static_files.py`,
 `frontend/src/middleware.test.ts`.
 
-Raw rows are browsable in Django admin (`/admin/`, Assistant → Mcp calls):
-filterable by method, tool, and outcome, navigable by date, with each call's
-recorded `arguments` JSON on the detail page. The page is strictly read-only —
-the table is an audit log written by the MCP endpoint, and add, change, and
-delete are all denied even for superusers.
+Raw rows are browsable in Django admin (`/admin/`, Assistant → Mcp calls;
+the left nav shows an "MCP calls" shortcut to superusers): filterable by
+method, tool, and outcome, navigable by date, with each call's recorded
+`arguments` JSON on the detail page. The page is strictly read-only — the
+table is an audit log written by the MCP endpoint, and add, change, and
+delete are all denied even for superusers. Viewing is superuser-only:
+Django's permission system would let any staff user granted `view_mcpcall`
+in, so `McpCallAdmin` requires `is_superuser` outright.
 
 ### Query mining
 

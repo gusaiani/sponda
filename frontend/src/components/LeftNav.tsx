@@ -113,6 +113,22 @@ export function LeftNav() {
             </li>
           )}
 
+          {isSuperuser && (
+            <li>
+              {/* Django-rendered page (the McpCall audit log), so a plain
+                  anchor: Next's client router has no route there and Link
+                  prefetch would just 302 against the admin login. */}
+              <a
+                href="/admin/assistant/mcpcall/"
+                className={navItemClass(false)}
+                onClick={close}
+              >
+                <span className="left-nav-icon"><TerminalIcon /></span>
+                <span className="left-nav-label">MCP calls</span>
+              </a>
+            </li>
+          )}
+
           <li><div className="left-nav-divider" /></li>
 
           {learningMode.available && (
@@ -400,6 +416,15 @@ function ShieldIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20" aria-hidden>
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+
+function TerminalIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20" aria-hidden>
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
     </svg>
   );
 }
