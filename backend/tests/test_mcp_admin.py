@@ -8,6 +8,8 @@ audit row is worse than no row.
 """
 import pytest
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 
 from assistant.models import McpCall
 
@@ -44,6 +46,45 @@ class TestRegistration:
 
     def test_list_is_navigable_by_date(self):
         assert admin.site._registry[McpCall].date_hierarchy == "timestamp"
+
+
+@pytest.mark.django_db
+class TestAccess:
+    """The audit log is for Sponda's superusers only.
+
+    Django admin already turns anonymous visitors away at the login page
+    and staff users without the model permission at a 403. The stricter
+    guarantee tested here: even a staff user who has been granted
+    view_mcpcall stays out — the arguments JSON carries whatever callers
+    typed, and only a superuser gets to read it.
+    """
+
+    def test_anonymous_is_redirected_to_the_admin_login(self, client):
+        response = client.get(CHANGELIST_URL)
+
+        assert response.status_code == 302
+        assert "/admin/login/" in response.headers["Location"]
+
+    def test_staff_user_with_the_view_permission_is_still_denied(self, client):
+        staff_user = get_user_model().objects.create_user(
+            username="staff@example.com",
+            email="staff@example.com",
+            password="pw123456",
+            is_staff=True,
+        )
+        staff_user.user_permissions.add(
+            Permission.objects.get(codename="view_mcpcall")
+        )
+        client.force_login(staff_user)
+
+        response = client.get(CHANGELIST_URL)
+
+        assert response.status_code == 403
+
+    def test_superuser_can_view(self, superuser_client):
+        response = superuser_client.get(CHANGELIST_URL)
+
+        assert response.status_code == 200
 
 
 @pytest.mark.django_db
