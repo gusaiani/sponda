@@ -122,12 +122,23 @@ class TestMcpCallRecording:
         assert call.method == "tools/call"
         assert call.failed is True
 
-    def test_unsupported_method_is_recorded_as_failed(self, client):
-        rpc_call(client, "resources/list")
+    @pytest.mark.parametrize("method", ["server/discover", "resources/list"])
+    def test_unsupported_method_probe_is_recorded_but_not_failed(
+        self, client, method
+    ):
+        """Clients probe optional capabilities on every connect.
+
+        Claude's connector sends server/discover, others try resources/list;
+        answering "method not found" is the protocol-correct "no" and the
+        caller proceeds normally, so the audit row must not count it as an
+        error — before this, every handshake inflated the dashboard's error
+        column by one.
+        """
+        rpc_call(client, method)
 
         call = McpCall.objects.get()
-        assert call.method == "resources/list"
-        assert call.failed is True
+        assert call.method == method
+        assert call.failed is False
 
     def test_rate_limited_call_is_recorded_and_flagged(self, client, settings):
         settings.MCP_TOOL_CALLS_PER_DAY = 1

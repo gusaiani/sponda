@@ -121,8 +121,10 @@ class McpCall(models.Model):
     # identity the rate limiter counts against and PageView stores.
     ip_hash = models.CharField(max_length=64, db_index=True)
 
-    # True for JSON-RPC protocol errors, executor errors surfaced as
-    # isError, and rejected calls. Anything the caller could not use.
+    # True for invalid params, executor errors surfaced as isError, and
+    # rejected calls — anything the caller could not use. A "method not
+    # found" answer to a capability probe (server/discover, resources/list)
+    # is a usable answer and does not count.
     failed = models.BooleanField(default=False)
     # A subset of `failed`: turned away by a daily cap with HTTP 429.
     rate_limited = models.BooleanField(default=False)

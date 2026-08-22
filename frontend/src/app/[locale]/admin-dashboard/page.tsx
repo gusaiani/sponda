@@ -187,9 +187,12 @@ export default function AdminDashboardPage() {
         <OverviewCard label="Views (24h)" value={dashboardData.page_views.day?.total_views ?? 0} locale={locale} />
         <OverviewCard label="Únicos (24h)" value={dashboardData.page_views.day?.unique_visitors ?? 0} locale={locale} />
         <OverviewCard label="Novos usuários (7d)" value={dashboardData.signup_stats.week} locale={locale} />
+        {/* tool_calls, not total_calls: every connection also logs its
+            protocol handshake (initialize, tools/list, notifications),
+            which is audit detail, not usage. */}
         <OverviewCard
-          label="Chamadas MCP (24h)"
-          value={dashboardData.mcp?.periods.day?.total_calls ?? 0}
+          label="Tools MCP (24h)"
+          value={dashboardData.mcp?.periods.day?.tool_calls ?? 0}
           locale={locale}
         />
       </div>
