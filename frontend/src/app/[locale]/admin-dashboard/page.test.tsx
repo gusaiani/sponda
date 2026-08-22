@@ -117,12 +117,15 @@ describe("AdminDashboardPage — MCP usage section", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows MCP calls in the last 24h as an overview card", async () => {
+  it("shows MCP tool calls in the last 24h as an overview card", async () => {
+    // tool_calls (9), not total_calls (12): every connection also logs its
+    // protocol handshake (initialize, tools/list, notifications), which is
+    // audit detail, not usage — the card must count real tool invocations.
     mockDashboardResponse(makeDashboardData());
     render(<AdminDashboardPage />);
 
-    const card = await screen.findByText("Chamadas MCP (24h)");
-    expect(within(card.parentElement as HTMLElement).getByText("12")).toBeTruthy();
+    const card = await screen.findByText("Tools MCP (24h)");
+    expect(within(card.parentElement as HTMLElement).getByText("9")).toBeTruthy();
   });
 
   it("renders one row per period with calls, tool calls and unique clients", async () => {

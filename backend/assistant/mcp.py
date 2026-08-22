@@ -86,8 +86,10 @@ class DispatchOutcome(NamedTuple):
     """What answering one JSON-RPC message produced, for the audit row."""
 
     response: HttpResponse
-    # True when the caller could not use the answer: protocol errors,
-    # executor errors surfaced as isError, and rejected calls.
+    # True when the caller could not use the answer: invalid params,
+    # executor errors surfaced as isError, and rejected calls. A "method
+    # not found" answer to a capability probe is a usable answer, not a
+    # failure.
     failed: bool
     # screen_companies successes only: total companies the screen matched.
     result_count: Optional[int] = None
@@ -236,9 +238,13 @@ def _dispatch(request, request_id, method: str, params: dict) -> DispatchOutcome
         return DispatchOutcome(_handle_tools_list(request_id), failed=False)
     if method == "tools/call":
         return _handle_tools_call(request, request_id, params)
+    # Clients probe optional capabilities on every connect (Claude sends
+    # server/discover, others resources/list). "Method not found" is the
+    # protocol-correct "no" and the caller proceeds normally, so the audit
+    # row must not count the exchange as an error.
     return DispatchOutcome(_rpc_error(
         request_id, METHOD_NOT_FOUND, f"Method not supported: {method!r}"
-    ), failed=True)
+    ), failed=False)
 
 
 def _column_safe(value, field_name: str) -> str:
