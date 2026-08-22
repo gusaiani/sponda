@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "accounts",
     "social",
     "assistant",
+    "slackbot",
 ]
 
 MIDDLEWARE = [
@@ -212,6 +213,18 @@ MCP_RECORDED_CALLS_PER_DAY = env.int("MCP_RECORDED_CALLS_PER_DAY", default=1000)
 # timer) deletes them. 400 days preserves a full year-over-year comparison;
 # the per-day recording cap bounds growth rate, this bounds total size.
 MCP_CALL_RETENTION_DAYS = env.int("MCP_CALL_RETENTION_DAYS", default=400)
+
+# Slack app (BYOK assistant). Users register their own OpenAI/Anthropic
+# key via /sponda-key; questions run on their key, so there is no quota
+# apparatus here. Everything defaults to off/empty: without the signing
+# secret the Slack endpoints answer 503, and without the encryption key
+# storing a user key raises rather than falling back to plaintext.
+SLACK_SIGNING_SECRET = env("SLACK_SIGNING_SECRET", default="")
+SLACK_BOT_TOKEN = env("SLACK_BOT_TOKEN", default="")
+# Fernet key for encrypting stored user API keys. Generate with:
+# python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+SLACKBOT_KEY_ENCRYPTION_KEY = env("SLACKBOT_KEY_ENCRYPTION_KEY", default="")
+SLACKBOT_ANTHROPIC_MODEL = env("SLACKBOT_ANTHROPIC_MODEL", default="claude-opus-5")
 
 # Redis cache (production override can change LOCATION via env).
 # max_connections sizes the pool for the home-page fanout (~60 in-flight

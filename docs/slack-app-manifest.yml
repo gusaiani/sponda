@@ -1,0 +1,38 @@
+# Slack app manifest for the Sponda BYOK bot.
+# Create the app at https://api.slack.com/apps → "From manifest" → paste this.
+# See README.md → "Slack app (BYOK)" for the server-side env vars.
+display_information:
+  name: Sponda
+  description: Screen ~23,000 listed companies by Sponda's inflation-adjusted value indicators — on your own LLM API key.
+  background_color: "#1a1a2e"
+features:
+  bot_user:
+    display_name: Sponda
+    always_online: true
+  slash_commands:
+    - command: /sponda-key
+      url: https://sponda.capital/api/slack/commands/
+      description: Register, check, or delete your own LLM API key
+      usage_hint: "[status | delete]"
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - chat:write
+      - commands
+      - im:history
+      - im:write
+      - users:read
+settings:
+  event_subscriptions:
+    request_url: https://sponda.capital/api/slack/events/
+    bot_events:
+      - app_mention
+      - message.im
+  interactivity:
+    is_enabled: true
+    request_url: https://sponda.capital/api/slack/interactions/
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
