@@ -294,3 +294,32 @@ class TestNetworkFailures:
 
         assert isinstance(events[-1], Failed)
         assert events[-1].code == "internal"
+
+
+class TestByokClientOverride:
+    """The Slack BYOK path injects a per-user OpenAI client; the default
+    server-key singleton must only be built when no client is passed."""
+
+    def test_injected_client_is_used_and_singleton_untouched(self):
+        client = make_client([[make_content_chunk("hi"), make_usage_chunk(1, 1)]])
+        with patch("assistant.agent.get_openai_client") as get_client, \
+             patch("assistant.agent.execute_tool", MagicMock()):
+            events = list(run_screening_agent(
+                question="q", history_messages=[], locale="en", client=client,
+            ))
+        get_client.assert_not_called()
+        assert AnswerToken("hi") in events
+
+    def test_authentication_error_yields_invalid_api_key(self):
+        from openai import AuthenticationError
+
+        client = MagicMock()
+        client.chat.completions.create.side_effect = AuthenticationError(
+            "bad key", response=MagicMock(status_code=401), body=None
+        )
+        with patch("assistant.agent.get_openai_client", return_value=client), \
+             patch("assistant.agent.execute_tool", MagicMock()):
+            events = list(run_screening_agent(
+                question="q", history_messages=[], locale="en",
+            ))
+        assert events[-1] == Failed("invalid_api_key")

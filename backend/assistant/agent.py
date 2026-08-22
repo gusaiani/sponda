@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 import httpx
 from django.conf import settings
-from openai import APIError, APITimeoutError, RateLimitError
+from openai import APIError, APITimeoutError, AuthenticationError, RateLimitError
 
 from .openai_client import get_openai_client
 from .prompts import SCREENING_SYSTEM_PROMPT
@@ -111,11 +111,20 @@ def _execute_pending_tool_call(pending):
         arguments = json.loads(pending.arguments_json)
     except json.JSONDecodeError:
         return [], {"error": f"Invalid JSON arguments for {pending.name}"}
+    return execute_named_tool(pending.name, arguments)
 
-    events = [ToolCallStarted(pending.name)]
-    result = execute_tool(pending.name, arguments)
 
-    if pending.name == "screen_companies" and "error" not in result:
+def execute_named_tool(name, arguments):
+    """Run one tool call with already-parsed arguments.
+
+    Shared by both agent loops — the OpenAI one above and the Anthropic
+    one in slackbot.anthropic_agent — so tool dispatch, event emission,
+    and the screen_companies row trimming can never drift between them.
+    """
+    events = [ToolCallStarted(name)]
+    result = execute_tool(name, arguments)
+
+    if name == "screen_companies" and "error" not in result:
         events.append(InterpretedFilters(arguments))
         events.append(
             ScreenResults(
@@ -135,13 +144,16 @@ def _execute_pending_tool_call(pending):
     return events, payload_for_model
 
 
-def run_screening_agent(*, question: str, history_messages: list, locale: str):
+def run_screening_agent(*, question: str, history_messages: list, locale: str, client=None):
     """Yield agent events for one screening question.
 
     Terminates with exactly one Completed (token totals for cost logging)
     or one Failed (mirrors the error codes the ask() view already uses).
+
+    `client` lets the Slack BYOK path inject an OpenAI client built with
+    the asker's own key; without it, the server-key singleton is used.
     """
-    client = get_openai_client()
+    client = client or get_openai_client()
     messages = [
         {"role": "system", "content": SCREENING_SYSTEM_PROMPT},
         *history_messages,
@@ -211,6 +223,10 @@ def run_screening_agent(*, question: str, history_messages: list, locale: str):
         # Defensive: the forced-final round returns above; reaching here
         # means the model somehow kept calling tools with tool_choice="none".
         yield totals
+    except AuthenticationError:
+        # Only reachable with an injected BYOK client — the user's key was
+        # revoked or mistyped, and they must hear that, not "internal".
+        yield Failed("invalid_api_key")
     except (APITimeoutError, httpx.TimeoutException):
         # httpx.TimeoutException covers mid-stream read timeouts, which the
         # OpenAI SDK does not always wrap into APITimeoutError once the

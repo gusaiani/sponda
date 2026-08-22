@@ -18,6 +18,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Screener](#screener)
 - [Assistant (LLM Q&A)](#assistant-llm-qa)
 - [MCP server](#mcp-server)
+- [Slack app (BYOK)](#slack-app-byok)
 - [Valuation ratios: one definition everywhere](#valuation-ratios-one-definition-everywhere)
 - [Cross-currency indicators](#cross-currency-indicators)
 - [Comparison chart (expanded indicator view)](#comparison-chart-expanded-indicator-view)
@@ -339,6 +340,102 @@ rows it deleted.
 Tests: `pytest tests/test_mcp_analytics.py` (recording, dashboard section,
 query mining, pruning), `pytest tests/test_assistant_tools.py` (corrective
 errors), and `npm test -- src/app/'[locale]'/admin-dashboard` for the UI.
+
+## Slack app (BYOK)
+
+A Slack bot that answers screening questions in any workspace channel or DM,
+running each question on the asker's **own** LLM API key (bring-your-own-key).
+Users register an OpenAI or Anthropic key with `/sponda-key`; from then on,
+mentioning the bot (`@Sponda cheapest BR banks by P/E10?`) or DMing it runs
+the screening agent on their key — their account, their cost. There is no
+quota apparatus here because Sponda pays no inference: the only house cost is
+the database work the tool layer already bounds.
+
+### How it works
+
+Backend app: `backend/slackbot/`.
+
+- **Tool surface** — identical to the site agent and the public MCP server:
+  `assistant/tools.py` executors, shared through
+  `assistant.agent.execute_named_tool`, so the three surfaces can never drift.
+- **Two agent loops, one event vocabulary** — OpenAI questions reuse
+  `assistant.agent.run_screening_agent` with a per-user client injected;
+  Anthropic questions run `slackbot/anthropic_agent.py`, a non-streaming
+  tool-calling loop over the same prompt, tools, and round bound
+  (`ASSISTANT_MAX_TOOL_ROUNDS`). Both yield the same event dataclasses;
+  `slackbot/providers.py` folds either stream into one answer.
+- **HTTP surface** (`/api/slack/…`, all signature-verified with Slack's v0
+  HMAC scheme, replay-bounded to 5 minutes, failing closed when
+  unconfigured):
+  - `events/` — Events API callback. Acks inside Slack's 3-second window:
+    the only inline work is the signature check, `event_id` dedup (Slack
+    redelivers events it thinks failed; a cache `add` makes redelivery a
+    no-op), and a Celery enqueue. Answers `app_mention` events anywhere and
+    plain messages in DMs; ignores bot posts and message edits so it can
+    never loop on itself.
+  - `commands/` — the `/sponda-key` slash command. Bare → opens a modal
+    (provider select + key input); `status` → which provider is registered;
+    `delete` → removes the stored key.
+  - `interactions/` — the modal submission. The key is liveness-checked
+    against the provider's models endpoint (2.5 s budget; an explicit
+    401/403 shows an in-modal error, a provider blip stores the key anyway
+    rather than locking the user out) and stored Fernet-encrypted.
+- **The answer task** (`slackbot/tasks.py`, Celery) — decrypts the asker's
+  key, posts a placeholder in the thread, rebuilds conversation memory from
+  the thread's prior `SlackQuery` rows (server-side, nothing client-sent is
+  trusted), runs the agent, converts the markdown answer to Slack mrkdwn,
+  and edits the placeholder into the answer. Errors map to human messages
+  (`invalid_api_key` → "re-register with /sponda-key", timeouts, rate
+  limits); every outcome lands as a `SlackQuery` audit row with token
+  totals and latency. Answer language follows the user's Slack locale
+  (`users.info`, cached for a day).
+- **Key custody** — keys are encrypted at rest with a dedicated Fernet key
+  (`SLACKBOT_KEY_ENCRYPTION_KEY`, deliberately separate from
+  `DJANGO_SECRET_KEY`), never logged, never shown in admin (the ciphertext
+  is read-only there), and deletable by the user at any time. If the Fernet
+  key ever rotates, stored keys fail loudly on decrypt and the bot asks the
+  user to re-register.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SLACK_SIGNING_SECRET` | `""` | Slack app signing secret. Empty → all `/api/slack/` endpoints answer 503. |
+| `SLACK_BOT_TOKEN` | `""` | Bot token (`xoxb-…`) for Web API calls (`chat.postMessage`, `views.open`, `users.info`). |
+| `SLACKBOT_KEY_ENCRYPTION_KEY` | `""` | Fernet key encrypting stored user API keys. Generate: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Empty → storing a key raises; it never falls back to plaintext. |
+| `SLACKBOT_ANTHROPIC_MODEL` | `claude-opus-5` | Model for questions running on an Anthropic key. |
+
+OpenAI questions use the existing `ASSISTANT_SCREENING_MODEL` (default
+`gpt-4o`); question/history bounds reuse `ASSISTANT_MAX_QUESTION_CHARS`,
+`ASSISTANT_MAX_HISTORY_TURNS`, and `ASSISTANT_MAX_TOOL_ROUNDS`.
+
+### Creating the Slack app
+
+1. <https://api.slack.com/apps> → Create New App → From manifest → paste
+   [docs/slack-app-manifest.yml](docs/slack-app-manifest.yml).
+2. Install to workspace; copy the **Signing Secret** and **Bot Token** into
+   the server's `.env` along with a freshly generated
+   `SLACKBOT_KEY_ENCRYPTION_KEY`; restart `sponda` and `sponda-celery`.
+3. Slack will verify the events URL (`https://sponda.capital/api/slack/events/`)
+   with a `url_verification` challenge — the endpoint answers it once the
+   signing secret is configured.
+
+### Local testing
+
+```bash
+# Backend up, then simulate Slack (signature required — use the test helper):
+cd backend && python -m pytest tests/test_slackbot_views.py -q
+
+# Full slackbot suite (signing, crypto, views, task, both agent loops):
+python -m pytest tests/test_slackbot_crypto.py tests/test_slackbot_signing.py \
+  tests/test_slackbot_views.py tests/test_slackbot_task.py \
+  tests/test_slackbot_providers.py tests/test_slackbot_anthropic_agent.py \
+  tests/test_slackbot_settings.py -q
+```
+
+Against real Slack from a dev machine, expose the backend with a tunnel
+(e.g. `cloudflared tunnel --url http://localhost:8000`) and point the
+manifest's URLs at the tunnel host.
 
 ## Valuation ratios: one definition everywhere
 
