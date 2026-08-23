@@ -6,6 +6,12 @@ display_information:
   description: Screen ~23,000 listed companies by Sponda's inflation-adjusted value indicators — on your own LLM API key.
   background_color: "#1a1a2e"
 features:
+  # The Messages tab is off by default, and without it users cannot DM the
+  # bot at all — the message.im subscription below would never fire.
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: false
   bot_user:
     display_name: Sponda
     always_online: true

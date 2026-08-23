@@ -18,6 +18,7 @@ from django.core.cache import cache
 
 from assistant.history import build_history_messages
 from slackbot.crypto import decrypt_api_key
+from slackbot.links import linkify_tickers, resolve_known_symbols
 from slackbot.markdown import to_mrkdwn
 from slackbot.models import SlackLLMKey, SlackQuery
 from slackbot.providers import run_agent_for_provider
@@ -127,20 +128,32 @@ def answer_slack_question(*, team_id: str, slack_user_id: str, channel_id: str,
     )
     placeholder_ts = placeholder.get("ts", "")
 
+    locale = _user_locale(slack_user_id)
     started_at = time.monotonic()
     answer = run_agent_for_provider(
         provider=stored_key.provider,
         api_key=api_key,
         question=question,
         history_messages=_thread_history(channel_id, thread_ts),
-        locale=_user_locale(slack_user_id),
+        locale=locale,
     )
     latency_ms = int((time.monotonic() - started_at) * 1000)
 
     if answer.error_code:
         final_text = ERROR_MESSAGES.get(answer.error_code, ERROR_MESSAGES["internal"])
     else:
-        final_text = to_mrkdwn(answer.text)[:ANSWER_CHAR_LIMIT]
+        # Symbols the screener returned, plus any the asker named that the
+        # ticker table confirms — a get_company answer surfaces no rows,
+        # so the question is the only place its symbol appears.
+        linkable_symbols = answer.symbols | resolve_known_symbols(question)
+        # Clamp before linking: clamping after could sever a "<url|SYM>"
+        # span and leave Slack rendering raw link syntax. Links only ever
+        # add characters, and the result stays far under Slack's own cap.
+        final_text = linkify_tickers(
+            to_mrkdwn(answer.text)[:ANSWER_CHAR_LIMIT],
+            symbols=linkable_symbols,
+            locale=locale,
+        )
 
     try:
         update_message(channel=channel_id, ts=placeholder_ts, text=final_text)

@@ -5,7 +5,7 @@ dataclasses); this module picks the loop for the stored provider, feeds
 it a client built from the user's key, and folds the event stream into
 one AgentAnswer the Celery task can post to Slack.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from openai import OpenAI
 
@@ -13,6 +13,7 @@ from assistant.agent import (
     AnswerToken,
     Completed,
     Failed,
+    ScreenResults,
     ToolCallStarted,
     run_screening_agent,
 )
@@ -31,6 +32,9 @@ class AgentAnswer:
     input_tokens: int
     output_tokens: int
     error_code: str | None
+    # Symbols the screener actually returned this turn — the allowlist for
+    # rewriting tickers into links to their Sponda pages.
+    symbols: set = field(default_factory=set)
 
 
 def _events_for_provider(*, provider, api_key, question, history_messages, locale):
@@ -55,6 +59,7 @@ def _events_for_provider(*, provider, api_key, question, history_messages, local
 def run_agent_for_provider(*, provider: str, api_key: str, question: str,
                            history_messages: list, locale: str) -> AgentAnswer:
     answer_fragments: list[str] = []
+    symbols: set[str] = set()
     input_tokens = output_tokens = 0
     error_code = None
 
@@ -64,6 +69,10 @@ def run_agent_for_provider(*, provider: str, api_key: str, question: str,
     ):
         if isinstance(event, AnswerToken):
             answer_fragments.append(event.text)
+        elif isinstance(event, ScreenResults):
+            symbols.update(
+                row["ticker"] for row in event.rows if row.get("ticker")
+            )
         elif isinstance(event, ToolCallStarted):
             # Anything said before a tool round ("let me screen that…")
             # is preamble, not the answer — start over.
@@ -80,4 +89,5 @@ def run_agent_for_provider(*, provider: str, api_key: str, question: str,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         error_code=error_code,
+        symbols=symbols,
     )

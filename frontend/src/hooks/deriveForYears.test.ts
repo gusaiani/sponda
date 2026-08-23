@@ -776,3 +776,62 @@ describe("effectiveYearsForCompany", () => {
     expect(effectiveYearsForCompany(10, -5)).toBe(1);
   });
 });
+
+describe("cross-currency market cap", () => {
+  /** A company whose price is quoted in one currency and whose statements
+   * are filed in another (e.g. a US-listed ADR of a Brazilian issuer). */
+  function makeCrossCurrency(overrides: Partial<QuoteResult>): QuoteResult {
+    return {
+      ...makeFullData({ years: 10, marketCap: 1_000_000 }),
+      listingCurrency: "USD",
+      reportedCurrency: "BRL",
+      ...overrides,
+    };
+  }
+
+  it("uses the translated market cap when the backend supplies one", () => {
+    const derived = deriveForYears(
+      makeCrossCurrency({ marketCapInReportedCurrency: 5_400_000 }),
+      10,
+    );
+    // 5,400,000 / 100,000 average adjusted earnings
+    expect(derived.pe10).toBe(54);
+  });
+
+  it("reports no PE10 when the translation is unavailable", () => {
+    // Falling back to the listing-currency cap here would divide a USD
+    // market cap by BRL earnings and invent a ~5x-too-cheap bargain.
+    const derived = deriveForYears(
+      makeCrossCurrency({ marketCapInReportedCurrency: null }),
+      10,
+    );
+    expect(derived.pe10).toBeNull();
+  });
+
+  it("reports no PFCF10 when the translation is unavailable", () => {
+    const derived = deriveForYears(
+      makeCrossCurrency({ marketCapInReportedCurrency: null }),
+      10,
+    );
+    expect(derived.pfcf10).toBeNull();
+  });
+
+  it("still falls back for same-currency reporters", () => {
+    // BRL-listed and BRL-reporting: the backend omits the translated cap
+    // because no conversion is needed, and the raw cap is correct.
+    const derived = deriveForYears(
+      makeCrossCurrency({
+        listingCurrency: "BRL",
+        reportedCurrency: "BRL",
+        marketCapInReportedCurrency: null,
+      }),
+      10,
+    );
+    expect(derived.pe10).toBe(10);
+  });
+
+  it("still falls back when the payload omits currency fields entirely", () => {
+    const full = makeFullData({ years: 10, marketCap: 1_000_000 });
+    expect(deriveForYears(full, 10).pe10).toBe(10);
+  });
+});
