@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 from cryptography.fernet import Fernet
 
+from quotes.models import Ticker
 from slackbot.crypto import encrypt_api_key
 from slackbot.markdown import to_mrkdwn
 from slackbot.models import SlackLLMKey, SlackQuery
@@ -187,3 +188,83 @@ class TestToMrkdwn:
 
     def test_plain_text_untouched(self):
         assert to_mrkdwn("a * b = c") == "a * b = c"
+
+
+@pytest.mark.django_db
+@patch("slackbot.tasks.fetch_user_locale", return_value="en-US")
+@patch("slackbot.tasks.update_message")
+@patch("slackbot.tasks.post_message", return_value={"ok": True, "ts": "1700000001.000200"})
+class TestAnswerLinksTickersToSponda:
+    @pytest.fixture(autouse=True)
+    def _encryption_key(self, settings):
+        settings.SLACKBOT_KEY_ENCRYPTION_KEY = TEST_FERNET_KEY
+
+    @patch("slackbot.tasks.run_agent_for_provider")
+    def test_screened_tickers_become_sponda_links(
+        self, run_agent, post_message, update_message, fetch_locale
+    ):
+        make_key()
+        run_agent.return_value = AgentAnswer(
+            "LREN3.SA leads on P/E10.", 10, 5, None, symbols={"LREN3"},
+        )
+
+        answer_slack_question(**TASK_KWARGS)
+
+        posted = update_message.call_args.kwargs["text"]
+        assert "<https://sponda.capital/en/LREN3|LREN3>" in posted
+        # The invented Yahoo-style suffix is gone from the posted text.
+        assert "LREN3.SA" not in posted
+
+    @patch("slackbot.tasks.run_agent_for_provider")
+    def test_stored_answer_stays_unlinked_for_reuse_as_history(
+        self, run_agent, post_message, update_message, fetch_locale
+    ):
+        # Feeding Slack link syntax back as conversation memory would
+        # teach the model to imitate it; the audit row keeps plain text.
+        make_key()
+        run_agent.return_value = AgentAnswer(
+            "LREN3 leads.", 10, 5, None, symbols={"LREN3"},
+        )
+
+        answer_slack_question(**TASK_KWARGS)
+
+        assert SlackQuery.objects.get().answer == "LREN3 leads."
+
+    @patch("slackbot.tasks.run_agent_for_provider")
+    def test_ticker_named_only_in_the_question_is_linked(
+        self, run_agent, post_message, update_message, fetch_locale
+    ):
+        # get_company answers surface no screener rows, so the allowlist
+        # falls back to symbols the asker named that really exist.
+        make_key()
+        Ticker.objects.create(symbol="PETR4", name="Petrobras", type="stock")
+        run_agent.return_value = AgentAnswer(
+            "PETR4 trades at 4x.", 10, 5, None, symbols=set(),
+        )
+
+        answer_slack_question(
+            **{**TASK_KWARGS, "text": "<@U0BOT> how is PETR4 doing?"}
+        )
+
+        assert "<https://sponda.capital/en/PETR4|PETR4>" in (
+            update_message.call_args.kwargs["text"]
+        )
+
+    @patch("slackbot.tasks.run_agent_for_provider")
+    def test_long_answer_is_truncated_without_severing_a_link(
+        self, run_agent, post_message, update_message, fetch_locale
+    ):
+        # Clamping after linkifying could cut "<url|LREN3>" in half and
+        # leave Slack rendering raw link syntax.
+        make_key()
+        long_answer = ("xx LREN3 yy " * 1200)
+        run_agent.return_value = AgentAnswer(
+            long_answer, 10, 5, None, symbols={"LREN3"},
+        )
+
+        answer_slack_question(**TASK_KWARGS)
+
+        posted = update_message.call_args.kwargs["text"]
+        assert posted.count("<") == posted.count(">")
+        assert not posted.endswith("<")
+        assert "|LREN3" not in posted.rsplit(">", 1)[-1]

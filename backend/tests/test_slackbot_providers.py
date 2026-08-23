@@ -8,7 +8,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from assistant.agent import AnswerToken, Completed, Failed, ToolCallStarted
+from assistant.agent import (
+    AnswerToken,
+    Completed,
+    Failed,
+    ScreenResults,
+    ToolCallStarted,
+)
 from slackbot.providers import run_agent_for_provider
 
 RUN_KWARGS = {
@@ -87,3 +93,43 @@ class TestRunAgentForProvider:
     def test_unknown_provider_raises(self):
         with pytest.raises(ValueError):
             run_agent_for_provider(provider="grok", **RUN_KWARGS)
+
+
+class TestSymbolCollection:
+    """Answers link tickers to Sponda pages, so the screener rows the
+    agent actually saw are carried out as the link allowlist."""
+
+    def test_screen_results_symbols_are_collected(self):
+        events = [
+            ScreenResults(count=2, rows=[{"ticker": "LREN3"}, {"ticker": "ELET3"}]),
+            AnswerToken("LREN3 and ELET3 are cheap."),
+            Completed(1, 1),
+        ]
+        with patch(
+            "slackbot.providers.run_screening_agent", events_generator(events)
+        ):
+            answer = run_agent_for_provider(provider="openai", **RUN_KWARGS)
+        assert answer.symbols == {"LREN3", "ELET3"}
+
+    def test_symbols_accumulate_across_several_screens(self):
+        events = [
+            ScreenResults(count=1, rows=[{"ticker": "LREN3"}]),
+            ScreenResults(count=1, rows=[{"ticker": "PETR4"}]),
+            Completed(1, 1),
+        ]
+        with patch(
+            "slackbot.providers.run_screening_agent", events_generator(events)
+        ):
+            answer = run_agent_for_provider(provider="openai", **RUN_KWARGS)
+        assert answer.symbols == {"LREN3", "PETR4"}
+
+    def test_rows_without_a_ticker_key_are_skipped(self):
+        events = [
+            ScreenResults(count=1, rows=[{"name": "no ticker here"}]),
+            Completed(1, 1),
+        ]
+        with patch(
+            "slackbot.providers.run_screening_agent", events_generator(events)
+        ):
+            answer = run_agent_for_provider(provider="openai", **RUN_KWARGS)
+        assert answer.symbols == set()
