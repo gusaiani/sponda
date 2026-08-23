@@ -210,11 +210,19 @@ export function trailingQuartersAverage<Y extends YearAggregateLike>(
 export function deriveForYears(full: QuoteResult, years: number): QuoteResult {
   // Market-cap-based ratios divide by reporting-currency averages, so use
   // the FX-translated market cap from the backend (in reporting currency).
-  // Fall back to the raw listing-currency market cap when the backend did
-  // not send the translated value — same-currency reporters yield identical
-  // numbers either way.
+  //
+  // The raw listing-currency cap is only a safe fallback when no conversion
+  // was needed in the first place. A missing translation on a cross-currency
+  // ticker means the backend *could not* convert (no FX for that pair), and
+  // substituting the untranslated cap there divides, say, a USD market cap
+  // by BRL earnings — inventing a ratio several times too cheap. Those must
+  // read as "unavailable", the same answer the backend gives.
+  const isCrossCurrency =
+    full.listingCurrency !== undefined &&
+    full.reportedCurrency !== undefined &&
+    full.listingCurrency !== full.reportedCurrency;
   const marketCapForRatios =
-    full.marketCapInReportedCurrency ?? full.marketCap;
+    full.marketCapInReportedCurrency ?? (isCrossCurrency ? null : full.marketCap);
 
   // PE — trailing N × periodsPerYear filings
   const earningsPeriodsPerYear =

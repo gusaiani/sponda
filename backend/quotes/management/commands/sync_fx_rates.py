@@ -5,8 +5,13 @@ By default, syncs the union of:
     (DKK, EUR, JPY, GBP, CNY, TWD, CHF, CAD, AUD, MXN, INR, KRW, SGD,
     HKD, NOK, SEK)
   * any currency that appears in `Ticker.reported_currency` other than
-    USD/BRL (so a newly-added ticker reporting in PLN gets picked up
+    USD (so a newly-added ticker reporting in PLN gets picked up
     automatically)
+
+BRL is in the baseline rather than excluded as a pure listing currency:
+US-listed ADRs of Brazilian issuers are priced in USD but file in BRL,
+so translating their market cap needs a USD→BRL anchor like any other
+cross-currency pair.
 
 Pass `--currencies XXX,YYY` to override the list.
 """
@@ -17,7 +22,7 @@ from quotes.models import Ticker
 
 
 BASELINE_CURRENCIES = [
-    "DKK", "EUR", "JPY", "GBP", "CNY", "TWD",
+    "BRL", "DKK", "EUR", "JPY", "GBP", "CNY", "TWD",
     "CHF", "CAD", "AUD", "MXN", "INR", "KRW",
     "SGD", "HKD", "NOK", "SEK",
 ]
@@ -38,7 +43,7 @@ class Command(BaseCommand):
         else:
             discovered = set(
                 Ticker.objects
-                .exclude(reported_currency__in=("", "USD", "BRL"))
+                .exclude(reported_currency__in=("", "USD"))
                 .values_list("reported_currency", flat=True)
                 .distinct()
             )

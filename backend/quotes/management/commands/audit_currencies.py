@@ -39,7 +39,11 @@ class Command(BaseCommand):
         fx_currencies = set(
             FxRate.objects.values_list("quote_currency", flat=True).distinct()
         )
-        reported_set = {r for _, r in tickers if r and r not in ("USD", "BRL")}
+        # USD is the base of every stored pair, so it never needs its own
+        # rate. BRL does: a USD-listed ADR filing in BRL has to be
+        # translated, and excluding BRL here blinded this audit to exactly
+        # the gap it exists to find.
+        reported_set = {r for _, r in tickers if r and r != "USD"}
         fx_missing = sorted(reported_set - fx_currencies)
         self.stdout.write("")
         self.stdout.write(self.style.MIGRATE_HEADING("FX coverage:"))
