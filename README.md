@@ -461,7 +461,22 @@ Foreign-domiciled companies (NVO, ASML, TM, BABA, ...) trade in USD on US exchan
 - `quotes/fx.py::market_cap_in_reported_currency` is the bridge used by every indicator calculator.
 - `quotes/inflation.py::get_inflation_adjustment_factors` dispatches: BRL → IPCA, USD → USCPI, everything else → CountryCPIIndex.
 
+**BRL is a cross-currency case too.** It is tempting to treat BRL as a pure *listing* currency needing no conversion — true for a B3 ticker, which is priced and files in BRL. It is false for US-listed ADRs of Brazilian issuers (SID, PBR, VALE, ABEV, BBD, ...), which are priced in USD and file in BRL. BRL was originally excluded from both `sync_fx_rates` and `audit_currencies`, so no USD→BRL rate ever existed, those ADRs could not translate their market cap, and every market-cap indicator came back empty for them (August 2026 fix). When adding a currency exclusion here, exclude only USD — the base of every stored pair.
+
+**A missing translation is never a fallback to the untranslated cap.** `deriveForYears` (frontend) recomputes the ratios for the year slider. It falls back to `marketCap` when `marketCapInReportedCurrency` is absent, which is correct *only* when listing and reported currency match; for a cross-currency ticker an absent translation means the conversion was impossible, and substituting the listing-currency cap divides (say) a USD market cap by BRL earnings, producing a ratio several times too cheap that then sorts to the top of every value screen. The guard is `listingCurrency !== reportedCurrency → null`, which mirrors what the backend already returns.
+
 **Coverage audit:** `python manage.py audit_currencies` lists every (listing, reported) pair, flags reporting currencies missing FX history, and flags currencies missing a FRED series mapping.
+
+**After a currency-coverage change**, stored data needs rebuilding — the screener reads `IndicatorSnapshot`, not a live calculation:
+
+```bash
+python manage.py sync_fx_rates                    # write the missing rates
+python manage.py backfill_reported_currency       # one FMP call, stamps reported_currency in bulk
+# then recompute snapshots + drop derived caches for cross-currency tickers
+#   (invalidate_statement_caches per symbol; see quotes/derived_data.py)
+```
+
+Note `refresh_indicator_snapshots` skips tickers whose `Ticker.market_cap` is null, but their `IndicatorSnapshot` rows can still hold a market cap and keep serving stale ratios — recompute those from the snapshot's own market cap.
 
 **Multiples-history chart:** when historical FX is unavailable for any year on the chart, falls back to the latest FX rate uniformly and surfaces `currency_warning=true` in the API; the frontend renders a banner explaining the approximation.
 
