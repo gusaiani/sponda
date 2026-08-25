@@ -38,7 +38,7 @@ frontend/tsconfig.tsbuildinfo
 .DS_Store
 Thumbs.db
 
-# Docker
+# Logs
 *.log
 
 # Local working notes · this repo is public, keep strategy docs out of it

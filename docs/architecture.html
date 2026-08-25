@@ -1112,9 +1112,9 @@
       </div>
 
       <div class="why-item">
-        <div class="why-tech">venv deploys (Docker for local dev only)</div>
-        <div class="why-reason">Production runs straight on the host: CI builds the Next.js bundle, the server does <code>uv pip install</code> into a venv and <code>npm ci</code>, and systemd restarts the services. No image registry, no container runtime in the hot path. <code>docker-compose</code> (web + postgres:15) remains for spinning up a clean local environment.</div>
-        <div class="why-tradeoff">Trade-off: Host state (Python version, system packages) is not pinned by an image. Acceptable on a single long-lived droplet where the deploy script is the source of truth.</div>
+        <div class="why-tech">venv deploys (no Docker)</div>
+        <div class="why-reason">Every environment runs the code directly in a Python virtualenv · there is no Docker anywhere. Production: CI builds the Next.js bundle, the server does <code>uv pip install</code> into a venv and <code>npm ci</code>, and systemd restarts the services. Local dev: <code>make dev</code> runs Django (<code>runserver 8710</code>) and the Next.js dev server against a local venv and local Postgres. No image registry, no container runtime.</div>
+        <div class="why-tradeoff">Trade-off: Host state (Python version, system packages) is not pinned by an image, and dev/prod parity rests on the deploy script rather than a shared image. Acceptable on a single long-lived droplet where the deploy script is the source of truth.</div>
       </div>
 
       <div class="why-item">
