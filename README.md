@@ -1536,7 +1536,7 @@ The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retrie
 
 ## Deployment
 
-Pushes to `main` trigger a GitHub Actions workflow that runs all test suites, builds the Next.js bundle in CI, then SSHs to `poe.ma`: pulls the latest code, installs backend deps into the venv (`uv pip install`), runs `npm ci` against the prebuilt bundle, migrates, installs the systemd units and timers, reloads nginx, and restarts `sponda`, `sponda-celery`, and `sponda-frontend`. (Docker Compose exists for local development only · see `docker-compose.yml`.)
+Pushes to `main` trigger a GitHub Actions workflow that runs all test suites, builds the Next.js bundle in CI, then SSHs to `poe.ma`: pulls the latest code, installs backend deps into the venv (`uv pip install`), runs `npm ci` against the prebuilt bundle, migrates, installs the systemd units and timers, reloads nginx, and restarts `sponda`, `sponda-celery`, and `sponda-frontend`. There is no Docker anywhere · every environment runs the code directly in a Python virtualenv (prod under gunicorn + systemd, local dev via `make dev`).
 
 ### Manual Deploy
 
@@ -1559,6 +1559,8 @@ systemctl restart sponda sponda-celery sponda-frontend
 - A [BRAPI](https://brapi.dev) API key (Brazilian tickers)
 - An [FMP](https://site.financialmodelingprep.com) API key (US tickers)
 
+There is no Docker · everything runs directly in a Python virtualenv. Once the one-time setup below is done, `make dev` is the everyday command: it starts Django (`runserver 8710`) and the Next.js dev server (`next dev --turbopack`) together and opens `http://localhost:3000`.
+
 ### Backend Setup
 
 ```bash
@@ -1574,7 +1576,7 @@ cp ../.env.example ../.env
 python manage.py migrate
 python manage.py refresh_ipca     # fetch IPCA data
 python manage.py refresh_tickers  # fetch B3 ticker list
-python manage.py runserver
+python manage.py runserver 8710   # port the frontend proxies to (see below)
 ```
 
 ### Frontend Setup
@@ -1585,7 +1587,7 @@ npm install
 npm run dev
 ```
 
-The Vite dev server proxies `/api` requests to Django on `localhost:8000`.
+The Next.js dev server runs on `localhost:3000`. Browser `/api/*` calls are proxied to Django by Next.js middleware (`frontend/src/middleware.ts`), which rewrites them to `DJANGO_API_URL` (default `http://localhost:8710`). The browser only ever talks to Next.js · Django is never exposed directly.
 
 ### Backend linting
 
