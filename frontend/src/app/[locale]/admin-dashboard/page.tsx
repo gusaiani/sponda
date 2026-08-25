@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import Link from "next/link";
@@ -128,6 +129,9 @@ function formatDate(dateString: string | null): string {
 export default function AdminDashboardPage() {
   const { isAuthenticated, isSuperuser, isLoading: authLoading } = useAuth();
   const { locale } = useTranslation();
+  // The user table is long; it starts collapsed so the dashboard opens on the
+  // aggregate stats, and the heading toggles it.
+  const [userListVisible, setUserListVisible] = useState(false);
   // react-query rather than fetch-in-an-effect: loading, error and data stop
   // being three pieces of state kept in sync by hand, and `enabled` expresses
   // "only admins fetch this" without an early return that has to remember to
@@ -384,38 +388,52 @@ export default function AdminDashboardPage() {
         </section>
       )}
 
-      <h2 className="admin-section-title">Usuários ({dashboardData.users.length})</h2>
-      <div className="admin-table-scroll">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Email</th><th>Cadastro</th><th>Último login</th><th>Contato</th>
-              <th>Views 24h</th><th>Views 7d</th><th>Views 30d</th><th>Lookups 7d</th>
-              <th>Favoritos</th><th>Listas</th><th>Visitadas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dashboardData.users.map((user) => (
-              <tr key={user.email}>
-                <td className="admin-email-cell">
-                  {user.email}
-                  {user.is_superuser && <span className="admin-badge">admin</span>}
-                </td>
-                <td>{formatDate(user.date_joined)}</td>
-                <td>{formatDate(user.last_login)}</td>
-                <td>{user.allow_contact ? "✓" : "—"}</td>
-                <td>{user.page_views.day}</td>
-                <td>{user.page_views.week}</td>
-                <td>{user.page_views.month}</td>
-                <td>{user.lookups.week}</td>
-                <td>{user.favorites_count}</td>
-                <td>{user.saved_lists_count}</td>
-                <td>{user.visits_count}</td>
+      <h2 className="admin-section-title">
+        <button
+          type="button"
+          className="admin-section-toggle"
+          aria-expanded={userListVisible}
+          onClick={() => setUserListVisible((visible) => !visible)}
+        >
+          <span aria-hidden="true" className="admin-section-toggle-indicator">
+            {userListVisible ? "▾" : "▸"}
+          </span>
+          Usuários ({dashboardData.users.length})
+        </button>
+      </h2>
+      {userListVisible && (
+        <div className="admin-table-scroll">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Email</th><th>Cadastro</th><th>Último login</th><th>Contato</th>
+                <th>Views 24h</th><th>Views 7d</th><th>Views 30d</th><th>Lookups 7d</th>
+                <th>Favoritos</th><th>Listas</th><th>Visitadas</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {dashboardData.users.map((user) => (
+                <tr key={user.email}>
+                  <td className="admin-email-cell">
+                    {user.email}
+                    {user.is_superuser && <span className="admin-badge">admin</span>}
+                  </td>
+                  <td>{formatDate(user.date_joined)}</td>
+                  <td>{formatDate(user.last_login)}</td>
+                  <td>{user.allow_contact ? "✓" : "—"}</td>
+                  <td>{user.page_views.day}</td>
+                  <td>{user.page_views.week}</td>
+                  <td>{user.page_views.month}</td>
+                  <td>{user.lookups.week}</td>
+                  <td>{user.favorites_count}</td>
+                  <td>{user.saved_lists_count}</td>
+                  <td>{user.visits_count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
