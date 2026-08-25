@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render as renderBare, screen, cleanup, waitFor, within } from "@testing-library/react";
+import { render as renderBare, screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /**
@@ -78,6 +78,22 @@ function makeMcpStats(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function makeUserStats(overrides: Record<string, unknown> = {}) {
+  return {
+    email: "someone@example.com",
+    date_joined: "2026-03-21T16:01:00Z",
+    last_login: "2026-08-19T14:07:00Z",
+    allow_contact: false,
+    is_superuser: false,
+    page_views: { day: 1, week: 2, month: 3 },
+    lookups: { week: 4 },
+    favorites_count: 0,
+    saved_lists_count: 0,
+    visits_count: 0,
+    ...overrides,
+  };
+}
+
 function makeDashboardData(overrides: Record<string, unknown> = {}) {
   return {
     users: [],
@@ -104,6 +120,51 @@ function mockDashboardResponse(data: Record<string, unknown>) {
 async function findMcpSection(): Promise<HTMLElement> {
   return screen.findByRole("region", { name: "Servidor MCP" });
 }
+
+describe("AdminDashboardPage — users section", () => {
+  beforeEach(() => {
+    authState.isAuthenticated = true;
+    authState.isSuperuser = true;
+    authState.isLoading = false;
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows only the collapsed heading with the user count on page load", async () => {
+    mockDashboardResponse(makeDashboardData({ users: [makeUserStats()] }));
+    render(<AdminDashboardPage />);
+
+    const toggle = await screen.findByRole("button", { name: "Usuários (1)" });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("someone@example.com")).toBeNull();
+  });
+
+  it("reveals the user table when the heading is clicked", async () => {
+    mockDashboardResponse(makeDashboardData({ users: [makeUserStats()] }));
+    render(<AdminDashboardPage />);
+
+    const toggle = await screen.findByRole("button", { name: "Usuários (1)" });
+    fireEvent.click(toggle);
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText("someone@example.com")).toBeTruthy();
+  });
+
+  it("collapses the user table again on a second click", async () => {
+    mockDashboardResponse(makeDashboardData({ users: [makeUserStats()] }));
+    render(<AdminDashboardPage />);
+
+    const toggle = await screen.findByRole("button", { name: "Usuários (1)" });
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("someone@example.com")).toBeNull();
+  });
+});
 
 describe("AdminDashboardPage — MCP usage section", () => {
   beforeEach(() => {
