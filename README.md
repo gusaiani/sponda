@@ -38,6 +38,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 **Engineering**
 
 - [Performance](#performance)
+- [Server-side rendering and hydration](#server-side-rendering-and-hydration)
 - [Observability](#observability)
 - [Seeding a quarter from CVM](#seeding-a-quarter-from-cvm)
 - [Measuring CVM publication latency](#measuring-cvm-publication-latency)
@@ -723,18 +724,22 @@ content they have already opened.
   `X-Forwarded-For` → `REMOTE_ADDR` (`quotes.client_ip`) and stored only
   as a salted hash (`LookupLog.ip_hash`). A cleared session cookie no
   longer resets the cap.
-- The server-rendered company page forwards those headers too.
-  `fetchQuoteServer` used to call Django with no headers at all, so
-  `client_ip()` fell through to `REMOTE_ADDR = 127.0.0.1` and **every** SSR
-  render in production shared one anonymous bucket. Past 20 distinct tickers
-  a day the SSR fetch got a 429, `page.tsx` read any non-404 as
-  `server-error`, and the page quietly fell back to client-side fetching for
-  the rest of the day. Nobody saw an error; the prefetch just stopped
-  working. Only the IP headers are forwarded, never the cookie, so the fetch
-  stays anonymous.
 - Over-cap requests get `429` with `{"code": "lookup_limit", ...}` and
   `Cache-Control: no-store`; no payload is computed and no quota is
   burned.
+- **Server-side renders count against the visitor, not against the
+  server.** A Server Component fetching from Django opens a fresh
+  connection out of the Node process, so without help Django sees
+  `127.0.0.1` and no session, and every server-rendered quote on the site
+  shares one anonymous bucket of twenty tickers a day. Past the
+  twentieth, `/api/quote/*` answers `429` to the renderer and the ticker
+  page ships an empty skeleton to browsers and crawlers alike, all day,
+  for every ticker but the first twenty. `lib/requestIdentity.ts`
+  forwards the visitor's `Cookie`, `CF-Connecting-IP` and
+  `X-Forwarded-For` on every server-side call, which puts the lookup back
+  on the visitor's own quota. Counting the same ticker twice costs
+  nothing (the cap counts distinct companies), so the page's own
+  client-side refetch is free.
 - **There is a Cache Rule for `/api/quote/*`, and it does nothing.** A
   Cloudflare Cache Rule (`starts_with(http.request.uri.path,
   "/api/quote/") and http.request.method eq "GET"`, cache eligible, edge
@@ -1511,6 +1516,37 @@ For rows already stored:
 It drops the derived caches for every company it touches. `IndicatorSnapshot`
 rows are recomputed by the usual refresh jobs; run
 `refresh_snapshot_fundamentals` if you want it sooner.
+
+## Server-side rendering and hydration
+
+Every page is server-rendered, so the browser's **first** render has to
+produce exactly the markup the server sent. Two house rules keep it that
+way; both were learned from Sentry issues that ran for months.
+
+**Never gate markup on React Query's `isLoading`.** The persisted cache
+(`@tanstack/react-query-persist-client`) restores from `localStorage` in an
+effect, and while it is restoring React Query reports a pending query with
+`fetchStatus: "idle"`, so `isLoading` is `false`. Only the browser restores
+anything: the server has no persister. A query with no `initialData`
+therefore reports `isLoading: true` on the server and `isLoading: false` on
+the browser's first pass, and anything gated on it renders two different
+trees before a single effect has run. React then throws error #418, and
+sometimes takes a `removeChild` `NotFoundError` down with it while it
+rebuilds the DOM it no longer trusts.
+
+Gate on the data instead. `[locale]/[ticker]/ticker-client.tsx` derives a
+single `company` value and every section reads it, so server and browser
+agree by construction: both start from exactly what the server fetched.
+`ticker-client.hydration.test.tsx` pins the invariant by rendering the page
+twice, once with `IsRestoringProvider` set the way the browser reports it
+and once the way the server does, and asserting the two strings are equal.
+
+**Never render auth-dependent markup on the first pass.** The server has no
+session, so it cannot know the answer. `AccountButton` renders a placeholder
+until `useIsHydrated` (`hooks/useIsHydrated.ts`, a `useSyncExternalStore`
+wrapper) says the browser has taken over. Use that hook rather than a
+`useState` + `useEffect` mount flag, which trips
+`react-hooks/set-state-in-effect`.
 
 ## Observability
 

@@ -1,19 +1,21 @@
 /**
  * Server-only fetch helpers for prefetching Django data inside Server
- * Components. Forwards the user's session cookie so authenticated
- * endpoints (favorites, saved lists) work without re-authentication.
+ * Components. Forwards the visitor's session cookie so authenticated
+ * endpoints (favorites, saved lists) work without re-authentication, and
+ * their client address so per-IP limits count the visitor rather than the
+ * Node process.
  *
  * Use only in Server Components / Route Handlers — calling this on the
  * client throws.
  */
 import "server-only";
 
-import { cookies } from "next/headers";
+import { requestIdentityHeaders } from "./requestIdentity";
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
 
 interface ServerFetchOptions extends RequestInit {
-  /** Skip cookie forwarding (anonymous fetch). Default: false. */
+  /** Skip identity forwarding (anonymous fetch). Default: false. */
   anonymous?: boolean;
 }
 
@@ -26,14 +28,8 @@ export async function serverFetch(
 
   const requestHeaders = new Headers(headers);
   if (!anonymous) {
-    const cookieStore = await cookies();
-    const cookieHeader = cookieStore
-      .getAll()
-      .map((cookie) => `${cookie.name}=${cookie.value}`)
-      .join("; ");
-    if (cookieHeader) {
-      requestHeaders.set("Cookie", cookieHeader);
-    }
+    const identityHeaders = await requestIdentityHeaders();
+    identityHeaders.forEach((value, name) => requestHeaders.set(name, value));
   }
 
   return fetch(target, {
