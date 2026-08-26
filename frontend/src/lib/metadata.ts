@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SUPPORTED_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type SupportedLocale } from "./i18n-config";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 import { djangoApiBaseUrl } from "./django-api";
+import { markdownUrlFor } from "./markdown-routes";
 import { ogImageUrlForTicker } from "./og-card";
 
 const BASE_URL = "https://sponda.capital";
@@ -159,6 +160,7 @@ export async function generateTickerMetadata(
 
   // Build locale-specific path
   const localePath = tabSlug ? `${locale}/${ticker}/${tabSlug}` : `${locale}/${ticker}`;
+  const markdownTab = tabSlug ? (SLUG_TO_TAB[tabSlug] ?? "metrics") : "metrics";
   const url = `${BASE_URL}/${localePath}`;
 
   // Build alternates for all supported locales
@@ -199,6 +201,12 @@ export async function generateTickerMetadata(
     alternates: {
       canonical: url,
       languages: alternateLanguages,
+      // The plain-markdown twin of this page. A crawler that parses link
+      // alternates finds it here; one that does not can still guess it,
+      // which is the whole point of the .md suffix convention.
+      types: {
+        "text/markdown": `${BASE_URL}${markdownUrlFor(locale, ticker, markdownTab)}`,
+      },
     },
     openGraph: {
       type: "website",

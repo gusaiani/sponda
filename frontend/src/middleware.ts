@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSupportedLocale, detectLocaleFromHeader } from "./lib/i18n-config";
+import { MARKDOWN_EXTENSION, markdownRewritePath } from "./lib/markdown-routes";
+import { KNOWN_LOCALE_ROUTES } from "./lib/site-routes";
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
+
+/** Kept in step with `src/app/md/[...slug]/route.ts`. */
+const MARKDOWN_CONTENT_TYPE = "text/markdown; charset=utf-8";
 export const LANGUAGE_COOKIE_NAME = "sponda-lang";
 const LANGUAGE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
@@ -52,15 +57,6 @@ const CANONICAL_TO_LOCALE_SLUG: Record<string, Record<string, string>> = {
   it: { charts: "grafici", fundamentals: "fondamentali", compare: "confronta" },
 };
 
-const KNOWN_LOCALE_ROUTES = new Set([
-  "screener", "shared", "login", "signup", "forgot-password",
-  "reset-password", "verify-email", "account", "admin-dashboard",
-  "admin", "listas", "alertas", "notificacoes", "visitas",
-  // Social routes — without these the middleware uppercases /pt/user
-  // to /pt/USER (treating it as a ticker symbol), which then 404s.
-  "user", "spond",
-]);
-
 function correctSlugForLocale(locale: string, slug: string): string | null {
   const canonical = SLUG_TO_CANONICAL[slug];
   if (!canonical) return null;
@@ -104,7 +100,37 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(target, { request: { headers } });
   }
 
-  // 4. Already locale-prefixed: validate and handle cross-locale tab slugs
+  // 4. Markdown twin of a public page: /en/PETR4.md -> /md/en/PETR4.
+  // Handled here rather than through a next.config rewrite because all the
+  // other URL shaping lives in this file, because path-to-regexp's treatment
+  // of a ".md" literal after a greedy :param is the kind of thing that fails
+  // silently in production, and because this file has a test harness.
+  //
+  // The rewrite deliberately never redirects: a crawler that guessed the URL
+  // from an HTML link should get the document, not a hop into a locale it did
+  // not ask for. Ticker case is fixed in place instead.
+  if (pathname.endsWith(MARKDOWN_EXTENSION)) {
+    const markdownPath = markdownRewritePath(pathname);
+    if (!markdownPath) {
+      // A .md URL we do not publish, such as /en/login.md. Answer 404 here
+      // rather than fall through: the ticker-case rule below would redirect
+      // it to /en/LOGIN.MD, and `[locale]/[ticker]` would then answer that
+      // with a 200 HTML shell. We own the .md namespace, so an unknown one
+      // is a miss and should say so.
+      return new NextResponse("Not found\n", {
+        status: 404,
+        headers: {
+          "Content-Type": MARKDOWN_CONTENT_TYPE,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = markdownPath;
+    return NextResponse.rewrite(url);
+  }
+
+  // 5. Already locale-prefixed: validate and handle cross-locale tab slugs
   const segments = pathname.split("/").filter(Boolean);
   const firstSegment = segments[0];
 
@@ -144,7 +170,7 @@ export function middleware(request: NextRequest) {
     return persistLocaleCookie(NextResponse.next(), locale);
   }
 
-  // 5. Bare URL → redirect to locale-prefixed version
+  // 6. Bare URL → redirect to locale-prefixed version
   // Priority: cookie (user's explicit choice) → Accept-Language → default
   const cookieLocale = request.cookies.get("sponda-lang")?.value;
   const locale = (cookieLocale && isSupportedLocale(cookieLocale))
@@ -193,6 +219,11 @@ export const config = {
     // Explicit, because a signed unsubscribe token can contain a dot and the
     // catch-all below skips any path that does.
     "/unsubscribe/:path*",
+    // The markdown twin of every public page. Explicit, because the
+    // catch-all below skips any path that contains a dot and would
+    // otherwise let every .md URL fall through to a 404. The negative
+    // lookahead keeps this from stealing paths the entries above own.
+    "/((?!_next|api|og|admin|static|unsubscribe|images|fonts).*\\.md)",
     "/((?!_next|images|fonts|favicon|api/assistant/ask|.*\\..*).*)",
   ],
 };

@@ -271,3 +271,99 @@ describe("middleware ticker case normalization", () => {
     expect(response.headers.get("location")).not.toContain("/en/SCREENER");
   });
 });
+
+describe("middleware markdown routing", () => {
+  // The catch-all matcher excludes any path containing a dot, so .md URLs
+  // reach the middleware only because of an explicit matcher entry. Without
+  // it they fall straight through to the filesystem and 404.
+  it("matches .md paths", () => {
+    expect(pathIsMatched("/en/PETR4.md")).toBe(true);
+    expect(pathIsMatched("/pt/PETR4/graficos.md")).toBe(true);
+    expect(pathIsMatched("/PETR4.md")).toBe(true);
+    expect(pathIsMatched("/en.md")).toBe(true);
+  });
+
+  it("rewrites a company page onto the markdown handler", async () => {
+    const response = await middleware(buildRequest("/en/PETR4.md"));
+    expect(response.headers.get("x-middleware-rewrite")).toContain("/md/en/PETR4");
+  });
+
+  it("rewrites a tab page, slug intact", async () => {
+    const response = await middleware(buildRequest("/pt/PETR4/graficos.md"));
+    expect(response.headers.get("x-middleware-rewrite")).toContain("/md/pt/PETR4/graficos");
+  });
+
+  it("rewrites the screener and the home page", async () => {
+    const screener = await middleware(buildRequest("/en/screener.md"));
+    expect(screener.headers.get("x-middleware-rewrite")).toContain("/md/en/screener");
+
+    const home = await middleware(buildRequest("/pt.md"));
+    expect(home.headers.get("x-middleware-rewrite")).toContain("/md/pt");
+  });
+
+  it("serves a locale-free markdown URL without a redirect", async () => {
+    // A model that guessed the URL from an HTML link should get the document,
+    // not a 302 into a locale it did not ask for.
+    const response = await middleware(buildRequest("/PETR4.md"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-rewrite")).toContain("/md/en/PETR4");
+  });
+
+  it("uppercases the ticker in place instead of redirecting", async () => {
+    const response = await middleware(buildRequest("/en/petr4.md"));
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-rewrite")).toContain("/md/en/PETR4");
+  });
+
+  it("preserves the query string", async () => {
+    const url = new URL("https://sponda.capital/en/PETR4.md?utm_source=x");
+    const response = await middleware(new NextRequest(url, { headers: new Headers() }));
+    expect(response.headers.get("x-middleware-rewrite")).toContain("utm_source=x");
+  });
+
+  it("does not rewrite an Open Graph card that ends in .md", async () => {
+    const response = await middleware(buildRequest("/og/en/AAPL.md"));
+    expect(response.headers.get("x-middleware-rewrite") ?? "").not.toContain("/md/");
+  });
+
+  it("still proxies /api/ paths that end in .md to Django", async () => {
+    const response = await middleware(buildRequest("/api/thing.md"));
+    const rewrite = response.headers.get("x-middleware-rewrite") ?? "";
+    expect(rewrite).toContain("/api/thing.md");
+    expect(rewrite).not.toContain("/md/");
+  });
+
+  it("leaves robots.txt, sitemap.xml and llms.txt alone", async () => {
+    for (const path of ["/robots.txt", "/sitemap.xml", "/llms.txt"]) {
+      expect(pathIsMatched(path), path).toBe(false);
+    }
+  });
+
+  it("does not publish auth or social pages as markdown", async () => {
+    for (const path of ["/en/login.md", "/en/account.md", "/en/user.md"]) {
+      const response = await middleware(buildRequest(path));
+      expect(response.headers.get("x-middleware-rewrite") ?? "", path).not.toContain("/md/");
+    }
+  });
+
+  it("404s a .md URL we do not publish", async () => {
+    // Falling through would send /en/login.md to the ticker-case rule, which
+    // redirects to /en/LOGIN.MD, where [locale]/[ticker] answers 200 with an
+    // HTML shell. A crawler reading that as a real markdown page is worse
+    // than a miss.
+    for (const path of ["/en/login.md", "/xx/AAPL.md", "/en/screener/extra.md"]) {
+      const response = await middleware(buildRequest(path));
+      expect(response.status, path).toBe(404);
+      expect(response.headers.get("location"), path).toBeNull();
+      expect(response.headers.get("content-type"), path).toContain("text/markdown");
+    }
+  });
+
+  it("does not cache a markdown 404", async () => {
+    // A ticker we do not know today we may know tomorrow, and Cloudflare
+    // would otherwise pin the miss for hours.
+    const response = await middleware(buildRequest("/en/login.md"));
+    expect(response.headers.get("cache-control")).toContain("no-store");
+  });
+});

@@ -217,3 +217,49 @@ class TestNetworkFailures:
             _run(stub)
 
         assert "Invalid API Token" in str(excinfo.value)
+
+
+class TestMarkdownCanaries:
+    """The markdown pages need a tripwire more than the cards did.
+
+    `.md` is not in Cloudflare's default cacheable-extension list, so these
+    URLs are only edge-cached because of a Cache Rule set by hand in the
+    dashboard. A rule that is deleted, or a middleware rewrite that stops
+    firing, both surface the same way: a URL that used to answer
+    `text/markdown` starts answering `text/html` from the Next 404 page.
+    """
+
+    def _markdown_canaries(self):
+        return [
+            canary for canary in verify_edge_cache.CANARIES
+            if canary.url.endswith(".md")
+        ]
+
+    def test_a_company_page_is_watched(self):
+        assert self._markdown_canaries(), "no .md canary is being checked"
+
+    def test_markdown_canaries_expect_the_markdown_content_type(self):
+        for canary in self._markdown_canaries():
+            assert canary.expected_content_type == "text/markdown", canary.url
+
+    def test_the_canary_set_covers_more_than_one_locale(self):
+        urls = [canary.url for canary in self._markdown_canaries()]
+        assert any("/pt" in url for url in urls)
+        assert any("/en" in url for url in urls)
+
+    def test_most_canaries_cannot_404_on_a_data_gap(self):
+        """A company with no snapshot 404s, which is not a cache problem.
+
+        The deploy gate must not fail because a canary ticker was delisted, so
+        the set leans on pages that render from static copy.
+        """
+        urls = [canary.url for canary in self._markdown_canaries()]
+        company_pages = [
+            url for url in urls
+            if not url.endswith(("/screener.md", "/en.md", "/pt.md"))
+        ]
+        assert len(company_pages) < len(urls)
+
+    def test_stays_within_the_cloudflare_purge_ceiling(self):
+        # Cloudflare accepts 30 URLs per purge call.
+        assert len(verify_edge_cache.CANARIES) <= 30

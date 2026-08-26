@@ -18,6 +18,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Screener](#screener)
 - [Assistant (LLM Q&A)](#assistant-llm-qa)
 - [MCP server](#mcp-server)
+- [Markdown pages](#markdown-pages)
 - [Slack app (BYOK)](#slack-app-byok)
 - [Valuation ratios: one definition everywhere](#valuation-ratios-one-definition-everywhere)
 - [Cross-currency indicators](#cross-currency-indicators)
@@ -856,6 +857,125 @@ Real logos are cached to disk at `LOGO_CACHE_DIR` for 30 days. When all sources 
 | `./manage.py warm_logo_cache [--region ...]` | Pre-warm the disk cache for popular tickers. |
 | `./manage.py audit_logos [--limit N] [--symbols ...]` | List tickers whose logo resolution ends in the generated fallback — use the output to populate `LOGO_OVERRIDE_URLS`. |
 
+## Markdown pages
+
+Every public page is also served as plain markdown at the same URL with `.md`
+appended. `sponda.capital/en/PETR4` renders its numbers client-side, so the HTML
+a crawler receives carries a title, some meta tags and no data at all;
+`sponda.capital/en/PETR4.md` carries the table.
+
+The suffix convention is the one Anthropic, Stripe and Mintlify docs use, and
+that is the point: a model holding an HTML URL can guess the markdown one
+without being told. Every company page also advertises it as
+`<link rel="alternate" type="text/markdown">`, and `/llms.txt` documents it.
+
+### What is served
+
+| URL | Contents |
+|---|---|
+| `/{locale}/{TICKER}.md` | Identity, price, market cap, P/E10, P/FCF10, PEG, PFCF-PEG, leverage, liquidity, debt coverage, and the stored `CompanyAnalysis` when there is one. |
+| `/{locale}/{TICKER}/charts.md` | The P/E1..P/E15 term structure, with windows the company cannot fill named as such rather than left blank. |
+| `/{locale}/{TICKER}/fundamentals.md` | The per-year revenue / net income / FCF / debt / equity table, inflation-adjusted. |
+| `/{locale}/{TICKER}/compare.md` | Sector peers with their own indicators. |
+| `/{locale}/screener.md` | The indicator glossary and the screener query API. Every company page links here instead of repeating twenty definitions across 23,000 documents. |
+| `/{locale}.md` | What Sponda measures. |
+| `/llms.txt` | Generated, not static: what Sponda is, the URL conventions, the indicator list, and how to read data at volume. |
+| `blog.sponda.capital/{slug}/index.md` | Each post's own source, shortcodes expanded. |
+
+All seven locales, labels drawn from `frontend/src/i18n/locales/*.ts`. Tab slugs
+are localized the same way the HTML routes are, so `/pt/PETR4/graficos.md` works
+and `/en/PETR4/graficos.md` is a 404. A URL with no locale prefix, such as
+`/PETR4.md`, is served in English rather than redirected: a crawler that guessed
+the URL should not pay for a hop.
+
+### Why it is not built on `/api/quote/`
+
+This is the load-bearing decision. `PE10View` syncs statements and fetches a
+live quote from BRAPI or FMP on a cache miss, which is exactly why it sits
+behind `LookupQuotaEnforcedView` and its cap of `SPONDA_ANON_LOOKUPS_PER_DAY`
+(20) distinct companies per IP per day. Pointing 23,000 crawlable pages at it
+would exhaust the monthly provider budget and then start answering 429s.
+
+So the markdown pages read from `IndicatorSnapshot` instead, through a new
+endpoint that is deliberately **not** quota-enforced because it can never reach
+a provider:
+
+```
+GET /api/tickers/{SYMBOL}/indicators/            # one company
+GET /api/tickers/{SYMBOL}/indicators/?symbols=A,B,C   # bulk, for the peer table
+GET /api/tickers/{SYMBOL}/indicators/?analysis=1      # + the stored analysis, or null
+GET /api/tickers/{SYMBOL}/indicators/?fundamentals=1  # + the per-year table
+```
+
+Two indexed reads and no provider call, so a full page render is cheap enough
+to serve on demand with no pre-generation and no new scheduled job. The
+accessors live in `backend/quotes/company_snapshot.py`, and
+`assistant.tools.execute_get_company` (the `get_company` MCP tool) was rewired
+to call the same functions so the two surfaces cannot drift.
+
+`?analysis=1` returns `200` with a null analysis rather than `404` on purpose:
+most companies have none, and a 404 is not storable in the Next data cache, so
+a 404 here would mean one Django round trip per markdown page view for the
+whole catalogue, forever.
+
+The invariant is pinned by
+`backend/tests/test_company_snapshot.py::TestNoProviderCalls`, which asserts
+that no function in `quotes.providers` is called on any path. Measured on a
+cold cache: 150 markdown page renders (50 companies × 3 locales) produced 50
+Django requests, zero `/api/quote/` calls, and zero `LookupLog` rows.
+
+### How it fits together
+
+```
+GET /en/PETR4.md
+  -> middleware.ts rewrites to /md/en/PETR4
+  -> src/app/md/[...slug]/route.ts
+       -> GET /api/tickers/PETR4/indicators/?analysis=1   (Next data cache, 15 min)
+  -> src/lib/company-markdown.ts renders
+  -> text/markdown; charset=utf-8
+     Cache-Control: public, max-age=900, s-maxage=86400, stale-while-revalidate=604800
+```
+
+The rewrite lives in `frontend/src/middleware.ts` rather than in a
+`next.config.ts` rewrite: all the other URL shaping is there, it has a test
+harness, and path-to-regexp's treatment of a `.md` literal after a greedy
+`:param` is the kind of thing that fails silently in production. The middleware
+matcher needs an explicit `.md` entry because the catch-all excludes any path
+containing a dot. A `.md` URL we do not publish, such as `/en/login.md`, is
+answered with a `404` there rather than falling through to the ticker-case rule,
+which would redirect it to `/en/LOGIN.MD` and get a 200 HTML shell.
+
+Because the indicators URL does not vary by locale, all seven locales of one
+company share a single Django request per 15-minute window.
+
+### Setup: the Cloudflare Cache Rule
+
+`.md` is **not** in Cloudflare's default cacheable-extension list. `/og/*.png`
+is edge-cached today only because `.png` is on that list. Without a rule, every
+markdown request reaches the 2-core origin.
+
+In the Cloudflare dashboard, Caching → Cache Rules, add:
+
+| Field | Value |
+|---|---|
+| Match | `http.request.uri.path wildcard "*.md"` |
+| Cache eligibility | Eligible for cache |
+| Edge TTL | Use cache-control header from origin |
+
+Note that Cloudflare rewrites `max-age` to 4 hours on cacheable responses.
+`verify_edge_cache` now carries three `.md` canaries (`/en.md`,
+`/pt/screener.md`, `/en/AAPL.md`) alongside the Open Graph ones, so a deploy
+that breaks the rewrite is caught before anyone notices. Two of the three
+cannot 404 on a data gap, deliberately: the markdown route 404s a company with
+no `IndicatorSnapshot` row, so a delisted canary ticker would fail the deploy
+gate for a reason that is not a cache problem.
+
+Blog markdown is static, served by nginx from `blog/public/`. It needs
+`default_type text/markdown` in a `location ~* \.md$` block, which
+`nginx/blog.sponda.capital.conf` now has. A `types` block would collide with
+the `mime.types` already included at the http level; because `.md` has no entry
+there, naming the default type is enough.
+
 ## Blog
 
 The blog at [blog.sponda.capital](https://blog.sponda.capital) is a [Hugo](https://gohugo.io/) static site living in `blog/` in this repo. It serves flat HTML from nginx — no runtime, no database, no JavaScript.
@@ -900,8 +1020,15 @@ hugo server
 - `blog/assets/css/main.css` · site CSS (fingerprinted and minified at build).
 - `blog/static/` · favicon and fonts, copied verbatim to the output.
 - `blog/hugo.toml` · site config.
+- `blog/layouts/_default/single.md` · the markdown twin of a post, built alongside `index.html`.
+- `blog/layouts/shortcodes/youtube.md` · renders the embed as a plain URL for markdown readers.
 
 Tags and categories auto-generate index pages at `/tags/*` and `/categories/*`. RSS feed is auto-generated at `/index.xml`.
+
+Every post is also written out as plain markdown at `{slug}/index.md`, via the
+`Markdown` output format in `blog/hugo.toml`. The template uses
+`.RenderShortcodes`, not `.RawContent`, so a reader gets the prose as written
+with a real URL where the video embed was instead of a literal shortcode tag.
 
 ### One-time server setup
 

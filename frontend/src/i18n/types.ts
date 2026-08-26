@@ -737,6 +737,33 @@ export interface TranslationDictionary {
   "mcp.query_ranking": string;
   "mcp.meta": string;
   "mcp.maybe_later": string;
+  /* ── Markdown pages ── */
+  "markdown.intro": string;
+  "markdown.section_price": string;
+  "markdown.section_valuation": string;
+  "markdown.section_leverage": string;
+  "markdown.section_debt_coverage": string;
+  "markdown.section_pe_windows": string;
+  "markdown.section_analysis": string;
+  "markdown.section_peers": string;
+  "markdown.section_annual": string;
+  "markdown.section_other_views": string;
+  "markdown.col_indicator": string;
+  "markdown.col_value": string;
+  "markdown.col_window": string;
+  "markdown.col_year": string;
+  "markdown.col_company": string;
+  "markdown.html_version": string;
+  "markdown.definitions": string;
+  "markdown.widest_window": string;
+  "markdown.data_as_of": string;
+  "markdown.no_indicators": string;
+  "markdown.no_peers": string;
+  "markdown.analysis_in_portuguese": string;
+  "markdown.omitted_columns": string;
+  "markdown.reports_in": string;
+  "markdown.unavailable_window": string;
+  "markdown.glossary_in_english": string;
 }
 
 export type TranslationKey = keyof TranslationDictionary;

@@ -2,16 +2,8 @@
 
 import { useContext, useCallback } from "react";
 import { LanguageContext } from "./LanguageContext";
-import { pt } from "./locales/pt";
-import { en } from "./locales/en";
-import { es } from "./locales/es";
-import { zh } from "./locales/zh";
-import { fr } from "./locales/fr";
-import { de } from "./locales/de";
-import { it } from "./locales/it";
-import type { Locale, TranslationKey, TranslationDictionary } from "./types";
-
-const DICTIONARIES: Record<Locale, TranslationDictionary> = { pt, en, es, zh, fr, de, it };
+import { DICTIONARIES, translate } from "./dictionaries";
+import type { TranslationKey } from "./types";
 
 /**
  * Returns:
@@ -26,15 +18,8 @@ export function useTranslation() {
   const dictionary = DICTIONARIES[locale];
 
   const t = useCallback(
-    (key: TranslationKey, params?: Record<string, string | number>): string => {
-      let value = dictionary[key];
-      if (params) {
-        for (const [paramKey, paramValue] of Object.entries(params)) {
-          value = value.replace(new RegExp(`\\{${paramKey}\\}`, "g"), String(paramValue));
-        }
-      }
-      return value;
-    },
+    (key: TranslationKey, params?: Record<string, string | number>): string =>
+      translate(dictionary, key, params),
     [dictionary],
   );
 

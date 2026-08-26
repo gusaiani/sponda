@@ -74,3 +74,19 @@ describe("homepage Open Graph image", () => {
     expect(getOgImageUrl("pt")).toBe("/images/sponda-og-v2.jpg");
   });
 });
+
+describe("markdown alternate", () => {
+  it("advertises the markdown twin of a company page", async () => {
+    const metadata = await generateTickerMetadata("PETR4", "en");
+    expect(metadata.alternates?.types?.["text/markdown"]).toBe(
+      "https://sponda.capital/en/PETR4.md",
+    );
+  });
+
+  it("points at the markdown twin of the tab, not the company root", async () => {
+    const metadata = await generateTickerMetadata("PETR4", "pt", "graficos");
+    expect(metadata.alternates?.types?.["text/markdown"]).toBe(
+      "https://sponda.capital/pt/PETR4/graficos.md",
+    );
+  });
+});

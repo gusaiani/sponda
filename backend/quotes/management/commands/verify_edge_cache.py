@@ -42,6 +42,21 @@ CANARIES: tuple[Canary, ...] = (
     Canary("https://sponda.capital/og/en/AAPL.png", "image/png"),
     # Static file from frontend/public/, used by pages with no company to render.
     Canary("https://sponda.capital/images/sponda-og-v2.jpg", "image/jpeg"),
+    # The markdown twin of a public page, rewritten by middleware onto
+    # src/app/md/[...slug]/route.ts. What this catches is the middleware
+    # matcher losing its .md entry: the URL then falls through to the Next
+    # 404 page, which answers text/html with a 404 through the edge.
+    #
+    # Two of the three cannot 404 by construction. Unlike the Open Graph
+    # route, which renders a card for any symbol, the markdown route 404s a
+    # company with no IndicatorSnapshot row, so a delisted ticker as the only
+    # canary would fail the deploy gate for a reason that is not a cache
+    # problem. The home page and the screener glossary render from static copy
+    # and the indicator catalogue; the company canary is the largest listing
+    # we cover.
+    Canary("https://sponda.capital/en.md", "text/markdown"),
+    Canary("https://sponda.capital/pt/screener.md", "text/markdown"),
+    Canary("https://sponda.capital/en/AAPL.md", "text/markdown"),
 )
 
 PURGE_ENDPOINT = "https://api.cloudflare.com/client/v4/zones/{zone_id}/purge_cache"
