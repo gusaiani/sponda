@@ -10,6 +10,7 @@
  * Next serves the public directory ahead of app routes.
  */
 import { fetchIndicatorCatalogue, type IndicatorCatalogue } from "../../lib/site-markdown";
+import { fetchCompanySymbols } from "../../lib/sitemap-data";
 import { INDEXABLE_LOCALES, SUPPORTED_LOCALES } from "../../lib/i18n-config";
 import { SITE_BASE_URL } from "../../lib/site-routes";
 
@@ -21,16 +22,33 @@ const ONE_WEEK_IN_SECONDS = 604800;
 /** Canonical tab slugs, in English. Every locale has its own; the file says so. */
 const TAB_SLUGS = ["charts", "fundamentals", "compare"];
 
-function header(): string[] {
+/**
+ * The opening paragraph, with the company count derived rather than typed.
+ *
+ * The first version of this file said "roughly 23,000 listed companies". The
+ * real figure is the number of companies we hold indicators for, and it was
+ * wrong by nearly 5,000. A generated file that hand-types its one important
+ * number is not generated, so the count now comes from the same endpoint the
+ * sitemap is built from, and is simply omitted when that is unavailable.
+ */
+function header(companyCount: number | null): string[] {
+  const coverage = companyCount === null
+    ? ["It calculates valuation and quality metrics",
+       "from inflation-adjusted historical data."]
+    : [`It holds valuation and quality`,
+       `metrics for ${companyCount.toLocaleString("en-US")} listed companies across the U.S. and Brazil,`,
+       "all computed from inflation-adjusted historical data."];
+
   return [
     "# Sponda",
     "",
     "> Fundamental analysis indicators for global stocks, adjusted for inflation.",
     "",
     "Sponda is a free platform for value investors analyzing publicly traded",
-    "companies worldwide. It calculates valuation and quality metrics from",
-    "inflation-adjusted historical data, covering roughly 23,000 listed",
-    "companies across the U.S. and Brazil.",
+    // The first fragment joins the previous sentence so the paragraph does
+    // not start a sentence at a line break.
+    `companies worldwide. ${coverage[0]}`,
+    ...coverage.slice(1),
   ];
 }
 
@@ -55,10 +73,18 @@ function markdownSection(): string[] {
     `- \`${SITE_BASE_URL}/{locale}/screener.md\` · indicator definitions and the query API`,
     `- \`${SITE_BASE_URL}/{locale}.md\` · what Sponda measures`,
     "",
+    `- \`${SITE_BASE_URL}/{locale}/for-ai.md\` · how to read Sponda from a program`,
+    "- `https://blog.sponda.capital/{slug}/index.md` · a blog post, as written",
+    "",
     "The tab slug is localized: `charts` is `graficos` in pt and es,",
     "`graphiques` in fr, `diagramme` in de, `grafici` in it. A company page",
     "with no locale prefix, such as `/PETR4.md`, is served in English rather",
     "than redirected.",
+    "",
+    "Every HTML page also advertises its twin two ways: a",
+    "`<link rel=\"alternate\" type=\"text/markdown\">` tag in the document, and",
+    "a `Link:` response header carrying the same URL, so a HEAD request is",
+    "enough to find it.",
   ];
 }
 
@@ -118,7 +144,10 @@ function apiSection(): string[] {
     "  every indicator for one company, as JSON. This is what the markdown",
     "  pages are rendered from.",
     `- \`${SITE_BASE_URL}/api/mcp\` · MCP server, for AI assistants.`,
-    `- \`${SITE_BASE_URL}/sitemap.xml\``,
+    `- \`${SITE_BASE_URL}/api/tickers/symbols/\``,
+    "  every listed company symbol, and nothing else. About 150KB.",
+    `- \`${SITE_BASE_URL}/sitemap.xml\` · a sitemap index. Its children under`,
+    "  `/sitemaps/` enumerate every company page, so nothing here needs guessing.",
     "",
     "`/api/quote/{TICKER}/` also exists and is richer, but it is rate limited",
     "to 20 distinct companies per day per IP because it fetches from upstream",
@@ -137,10 +166,13 @@ function footer(): string[] {
 }
 
 export async function GET(): Promise<Response> {
-  const catalogue = await fetchIndicatorCatalogue();
+  const [catalogue, symbols] = await Promise.all([
+    fetchIndicatorCatalogue(),
+    fetchCompanySymbols(),
+  ]);
 
   const body = [
-    header(),
+    header(symbols.length > 0 ? symbols.length : null),
     markdownSection(),
     localeSection(),
     indicatorSection(catalogue),

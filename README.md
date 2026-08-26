@@ -987,6 +987,41 @@ which would redirect it to `/en/LOGIN.MD` and get a 200 HTML shell.
 Because the indicators URL does not vary by locale, all seven locales of one
 company share a single Django request per 15-minute window.
 
+### Telling machines the data is here
+
+Four signals, cheapest for a client to find first:
+
+| Signal | Where | Who sees it |
+|---|---|---|
+| `Link:` response header | `middleware.ts`, on every page with a twin | A crawler doing `HEAD`, which never parses a body |
+| `<link rel="alternate" type="text/markdown">` | `generateTickerMetadata`, plus the `for-ai` page | Anything parsing the document head |
+| `Dataset.distribution` in JSON-LD | `lib/metadata.ts` | Anything already reading our structured data. `distribution` is schema.org's own vocabulary for "the machine-readable version lives here", so this needs no convention of ours |
+| `/llms.txt` and `/{locale}/for-ai` | Generated routes | A human wiring Sponda into a program, and whatever they point at it |
+
+`/{locale}/for-ai` and its markdown twin both render from
+`frontend/src/lib/ai-access-copy.ts`. A page whose subject is machine-readable
+access would be a poor advertisement for itself if its two versions disagreed.
+It is English only on purpose: the audience is whoever is writing the client,
+and every identifier on the page is English regardless of their locale.
+
+`llms.txt` derives its company count from `/api/tickers/symbols/` rather than
+stating one. The first version said "roughly 23,000 listed companies" and was
+wrong by nearly 5,000, which is what a generated file that hand-types its one
+important number gets you.
+
+**Still to do, outside the code.** Discovery is a distribution problem, and
+the in-page signals above are the cheap half:
+
+- Resubmit `sitemap.xml` in Google Search Console and Bing Webmaster Tools.
+  It changed shape from ~1,240 URLs to an index over every company.
+- List the MCP server in the registries. That channel puts Sponda inside the
+  assistant rather than hoping the assistant crawls us, and it is the highest
+  leverage of anything here.
+- `PerplexityBot` was answering `403` through Cloudflare on 2026-08-26 while
+  GPTBot, ClaudeBot, Claude-User and Googlebot all got `200`. Same IP, same
+  request, only the User-Agent differed. `docs/seo-checklist.md` claims none
+  are blocked. Check the bot settings.
+
 ### Setup: the Cloudflare Cache Rule
 
 `.md` is **not** in Cloudflare's default cacheable-extension list. `/og/*.png`
@@ -997,7 +1032,7 @@ In the Cloudflare dashboard, Caching → Cache Rules, add:
 
 | Field | Value |
 |---|---|
-| Match | `http.request.uri.path wildcard "*.md"` |
+| Match | `ends_with(http.request.uri.path, ".md") and not starts_with(http.request.uri.path, "/api/")` |
 | Cache eligibility | Eligible for cache |
 | Edge TTL | Use cache-control header from origin |
 

@@ -691,6 +691,7 @@ export const de: TranslationDictionary = {
   "nav.toggle_close": "Menü schließen",
   "nav.home": "Start",
   "nav.blog": "Blog",
+  "nav.for_ai": "Für KI-Agenten",
   "nav.account_menu_label": "Konto",
   "nav.account_login": "Anmelden",
   "nav.account_settings": "Einstellungen",

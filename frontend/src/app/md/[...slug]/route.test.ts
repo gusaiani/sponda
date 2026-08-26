@@ -158,3 +158,34 @@ describe("GET /md/[...slug]", () => {
     }
   });
 });
+
+describe("GET /md/[locale]/for-ai", () => {
+  beforeEach(() => stubApi());
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it("serves the AI access page as markdown", async () => {
+    const response = await get(["en", "for-ai"]);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("# Reading Sponda from a program");
+    expect(body).toContain("https://sponda.capital/api/mcp");
+  });
+
+  it("renders from the same source as the HTML page", async () => {
+    const { AI_ACCESS_SECTIONS } = await import("../../../lib/ai-access-copy");
+    const body = await (await get(["en", "for-ai"])).text();
+    for (const section of AI_ACCESS_SECTIONS) {
+      expect(body, section.heading).toContain(`## ${section.heading}`);
+    }
+  });
+
+  it("serves it in every locale", async () => {
+    for (const locale of ["pt", "en", "de"]) {
+      expect((await get([locale, "for-ai"])).status, locale).toBe(200);
+    }
+  });
+
+  it("404s a tab under it", async () => {
+    expect((await get(["en", "for-ai", "extra"])).status).toBe(404);
+  });
+});

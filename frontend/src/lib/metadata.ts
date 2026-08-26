@@ -235,6 +235,23 @@ export async function generateTickerMetadata(
           creator: { "@type": "Organization", name: "Sponda", url: BASE_URL },
           inLanguage: htmlLang,
           ...(sector ? { about: { "@type": "Thing", name: sector } } : {}),
+          // Where the machine-readable versions of this page live.
+          // `distribution` is schema.org's own vocabulary for exactly that,
+          // so a crawler that already parses the Dataset block gets pointed
+          // at the markdown and the JSON without having to guess a URL
+          // convention or read llms.txt.
+          distribution: [
+            {
+              "@type": "DataDownload",
+              encodingFormat: "text/markdown",
+              contentUrl: `${BASE_URL}${markdownUrlFor(locale, ticker, markdownTab)}`,
+            },
+            {
+              "@type": "DataDownload",
+              encodingFormat: "application/json",
+              contentUrl: `${BASE_URL}/api/tickers/${ticker}/indicators/`,
+            },
+          ],
         },
         {
           "@context": "https://schema.org",

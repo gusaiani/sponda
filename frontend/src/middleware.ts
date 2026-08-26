@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isSupportedLocale, detectLocaleFromHeader } from "./lib/i18n-config";
-import { MARKDOWN_EXTENSION, markdownRewritePath } from "./lib/markdown-routes";
+import {
+  MARKDOWN_EXTENSION,
+  markdownAlternateFor,
+  markdownRewritePath,
+} from "./lib/markdown-routes";
 import { KNOWN_LOCALE_ROUTES } from "./lib/site-routes";
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
 
 /** Kept in step with `src/app/md/[...slug]/route.ts`. */
 const MARKDOWN_CONTENT_TYPE = "text/markdown; charset=utf-8";
+
+/** Absolute origin, for the Link header. */
+const SITE_ORIGIN = "https://sponda.capital";
 export const LANGUAGE_COOKIE_NAME = "sponda-lang";
 const LANGUAGE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60;
 
@@ -166,8 +173,21 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // Valid locale prefix — pass through, persist cookie so bare visits keep it
-    return persistLocaleCookie(NextResponse.next(), locale);
+    // Valid locale prefix. Pass through, persist the cookie so bare visits
+    // keep it, and advertise the markdown twin.
+    //
+    // The document already carries <link rel="alternate" type="text/markdown">
+    // from generateTickerMetadata, but a crawler doing a HEAD probe never
+    // parses a body. The header is the only way it finds out.
+    const response = NextResponse.next();
+    const markdownAlternate = markdownAlternateFor(pathname);
+    if (markdownAlternate) {
+      response.headers.set(
+        "Link",
+        `<${SITE_ORIGIN}${markdownAlternate}>; rel="alternate"; type="text/markdown"`,
+      );
+    }
+    return persistLocaleCookie(response, locale);
   }
 
   // 6. Bare URL → redirect to locale-prefixed version

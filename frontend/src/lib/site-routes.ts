@@ -13,6 +13,8 @@ export const KNOWN_LOCALE_ROUTES: ReadonlySet<string> = new Set([
   // Social routes. Without these the middleware uppercases /pt/user
   // to /pt/USER (treating it as a ticker symbol), which then 404s.
   "user", "spond",
+  // How to read Sponda from a program.
+  "for-ai",
 ]);
 
 /**
@@ -22,7 +24,7 @@ export const KNOWN_LOCALE_ROUTES: ReadonlySet<string> = new Set([
  * page. They are already `Disallow`ed in robots.txt and there is nothing in
  * them worth serving to a reader who wants plain text.
  */
-export const MARKDOWN_LOCALE_ROUTES: ReadonlySet<string> = new Set(["screener"]);
+export const MARKDOWN_LOCALE_ROUTES: ReadonlySet<string> = new Set(["screener", "for-ai"]);
 
 /** Canonical origin every absolute URL on the site is built from. */
 export const SITE_BASE_URL = "https://sponda.capital";
