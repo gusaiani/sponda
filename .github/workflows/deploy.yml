@@ -458,7 +458,13 @@ jobs:
             nginx -t && systemctl reload nginx
 
             # Restart services
-            systemctl restart sponda
+            # Reload, not restart: gunicorn keeps the listening socket while
+            # its workers re-fork, so a deploy no longer answers 502 to
+            # whoever is mid-request. See ExecReload in sponda.service.
+            # Falls back to restart if the unit on the box predates ExecReload,
+            # or if reload fails for any other reason. A brief 502 window is
+            # bad; a deploy that aborts halfway is worse.
+            systemctl reload sponda || systemctl restart sponda
             # The Celery worker is a long-running process: without a restart it
             # keeps executing the code it loaded at boot, so deployed task fixes
             # never take effect (an open-circuit error kept reaching Sentry from

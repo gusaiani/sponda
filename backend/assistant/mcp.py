@@ -30,6 +30,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from assistant.models import McpCall
+from quotes.company_snapshot import covered_company_count
 from assistant.tools import (
     OPENAI_TOOL_SCHEMAS,
     execute_tool,
@@ -56,15 +57,30 @@ MCP_SERVER_INFO = {
     "version": "1.0.0",
 }
 
-MCP_INSTRUCTIONS = (
-    "Screen ~23,000 listed companies by Sponda's inflation-adjusted value "
-    "indicators (P/E10, P/FCF10, PEG, leverage and liquidity ratios). Call "
-    "list_available_indicators first to learn the exact indicator keys, "
-    "countries, and sectors; screen_companies to filter and rank; "
-    "get_company for one company's current values; get_fundamentals only "
-    "for a deep follow-up on a single company — it is expensive and "
-    "rate-limited. All data is served from sponda.capital."
-)
+def _mcp_instructions() -> str:
+    """What the server tells a client it is for, on connect.
+
+    The company count is read rather than typed. The first version of this
+    string said "~23,000", which was wrong by several thousand, and registry
+    listings are generated from this text verbatim: Smithery reads it off the
+    wire and puts it in the public listing. A number nobody can verify is a
+    number that goes stale.
+    """
+    covered = covered_company_count()
+    coverage = (
+        f"Screen {covered:,} listed companies"
+        if covered
+        else "Screen listed companies"
+    )
+    return (
+        f"{coverage} by Sponda's inflation-adjusted value "
+        "indicators (P/E10, P/FCF10, PEG, leverage and liquidity ratios). Call "
+        "list_available_indicators first to learn the exact indicator keys, "
+        "countries, and sectors; screen_companies to filter and rank; "
+        "get_company for one company's current values; get_fundamentals only "
+        "for a deep follow-up on a single company, which is expensive and "
+        "rate-limited. All data is served from sponda.capital."
+    )
 
 # JSON-RPC 2.0 error codes.
 PARSE_ERROR = -32700
@@ -99,11 +115,43 @@ class DispatchOutcome(NamedTuple):
 # it gets one lean list under a plain name and never the duplicated payload.
 SCREEN_AGENT_ONLY_KEYS = ("rows_for_model", "full_rows")
 
+# Human-readable titles, required by the Anthropic Connectors Directory and
+# shown by clients in place of the snake_case name.
+MCP_TOOL_TITLES = {
+    "list_available_indicators": "List available indicators",
+    "screen_companies": "Screen companies",
+    "get_company": "Get company indicators",
+    "get_fundamentals": "Get company fundamentals",
+}
+
+
+def _tool_annotations(tool_name: str) -> dict:
+    """Behavioural hints for one tool.
+
+    Every tool on this surface only ever reads, so `readOnlyHint` is true
+    across the board and a client never has to ask the user to confirm a
+    call. If a writing tool is ever added, the test that asserts this will
+    fail and force the question rather than let it default.
+
+    `openWorldHint` is false: these tools query Sponda's own fixed universe
+    of listed companies, not an open-ended external space the way a web
+    search would.
+    """
+    return {
+        "title": MCP_TOOL_TITLES[tool_name],
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    }
+
+
 MCP_TOOL_DEFINITIONS = [
     {
         "name": schema["function"]["name"],
+        "title": MCP_TOOL_TITLES[schema["function"]["name"]],
         "description": schema["function"]["description"],
         "inputSchema": schema["function"]["parameters"],
+        "annotations": _tool_annotations(schema["function"]["name"]),
     }
     for schema in OPENAI_TOOL_SCHEMAS
 ]
@@ -158,14 +206,126 @@ def _negotiated_protocol_version(params: dict) -> str:
 def _handle_initialize(request_id, params: dict) -> JsonResponse:
     return _rpc_result(request_id, {
         "protocolVersion": _negotiated_protocol_version(params),
-        "capabilities": {"tools": {}},
+        "capabilities": {"tools": {}, "prompts": {}},
         "serverInfo": MCP_SERVER_INFO,
-        "instructions": MCP_INSTRUCTIONS,
+        "instructions": _mcp_instructions(),
     })
 
 
 def _handle_tools_list(request_id) -> JsonResponse:
     return _rpc_result(request_id, {"tools": MCP_TOOL_DEFINITIONS})
+
+
+# Prompts are the menu a user picks from when they do not yet know the
+# indicator names. Each one is a question phrased the way someone actually
+# asks it, which the model then answers using the tools above.
+MCP_PROMPT_DEFINITIONS = [
+    {
+        "name": "screen_for_value",
+        "title": "Find cheap companies",
+        "description": (
+            "Screen for companies trading cheaply on inflation-adjusted "
+            "earnings, with conservative leverage."
+        ),
+        "arguments": [
+            {
+                "name": "country",
+                "description": "ISO country code, e.g. BR or US. Omit for all.",
+                "required": False,
+            },
+            {
+                "name": "max_pe10",
+                "description": "Highest acceptable P/E10. Defaults to 10.",
+                "required": False,
+            },
+        ],
+    },
+    {
+        "name": "compare_companies",
+        "title": "Compare companies",
+        "description": "Compare several companies across Sponda's indicators.",
+        "arguments": [
+            {
+                "name": "symbols",
+                "description": "Comma-separated tickers, e.g. PETR4,VALE3,AAPL.",
+                "required": True,
+            },
+        ],
+    },
+    {
+        "name": "explain_company",
+        "title": "Explain one company's numbers",
+        "description": (
+            "Walk through a company's valuation, leverage and growth, and "
+            "say what the indicators do and do not support."
+        ),
+        "arguments": [
+            {
+                "name": "symbol",
+                "description": "Ticker, e.g. PETR4.",
+                "required": True,
+            },
+        ],
+    },
+]
+
+MCP_PROMPTS_BY_NAME = {prompt["name"]: prompt for prompt in MCP_PROMPT_DEFINITIONS}
+
+
+def _prompt_text(name: str, arguments: dict) -> str:
+    """The question a prompt expands into, with the caller's arguments in it."""
+    if name == "screen_for_value":
+        country = arguments.get("country")
+        max_pe10 = arguments.get("max_pe10") or "10"
+        where = f" in {country}" if country else ""
+        return (
+            f"Using Sponda, find listed companies{where} with a P/E10 below "
+            f"{max_pe10} and debt-to-equity below 1. Rank them by market cap "
+            "and explain what makes the top few interesting. Call "
+            "list_available_indicators first so you use the exact keys, and "
+            "say explicitly when an indicator is absent rather than treating "
+            "a missing value as zero."
+        )
+    if name == "compare_companies":
+        symbols = arguments.get("symbols") or "PETR4,VALE3"
+        return (
+            f"Using Sponda, compare {symbols} across P/E10, P/FCF10, PEG and "
+            "leverage. Note where a company lacks the history for a given "
+            "P/E window, since a shorter window is not comparable to a "
+            "longer one."
+        )
+    symbol = arguments.get("symbol") or "PETR4"
+    return (
+        f"Using Sponda, explain {symbol}'s current numbers: what the "
+        "inflation-adjusted P/E10 and P/FCF10 say about the price, what the "
+        "leverage ratios say about the balance sheet, and how many years of "
+        "history back each figure. Be explicit about what the data does not "
+        "cover."
+    )
+
+
+def _handle_prompts_list(request_id) -> JsonResponse:
+    return _rpc_result(request_id, {"prompts": MCP_PROMPT_DEFINITIONS})
+
+
+def _handle_prompts_get(request_id, params: dict) -> DispatchOutcome:
+    name = params.get("name")
+    if name not in MCP_PROMPTS_BY_NAME:
+        return DispatchOutcome(_rpc_error(
+            request_id, INVALID_PARAMS, f"Unknown prompt: {name!r}"
+        ), failed=True)
+
+    arguments = params.get("arguments")
+    if not isinstance(arguments, dict):
+        arguments = {}
+
+    return DispatchOutcome(_rpc_result(request_id, {
+        "description": MCP_PROMPTS_BY_NAME[name]["description"],
+        "messages": [{
+            "role": "user",
+            "content": {"type": "text", "text": _prompt_text(name, arguments)},
+        }],
+    }), failed=False)
 
 
 def _shape_result_for_mcp(tool_name: str, tool_result: dict) -> dict:
@@ -238,6 +398,10 @@ def _dispatch(request, request_id, method: str, params: dict) -> DispatchOutcome
         return DispatchOutcome(_handle_tools_list(request_id), failed=False)
     if method == "tools/call":
         return _handle_tools_call(request, request_id, params)
+    if method == "prompts/list":
+        return DispatchOutcome(_handle_prompts_list(request_id), failed=False)
+    if method == "prompts/get":
+        return _handle_prompts_get(request_id, params)
     # Clients probe optional capabilities on every connect (Claude sends
     # server/discover, others resources/list). "Method not found" is the
     # protocol-correct "no" and the caller proceeds normally, so the audit

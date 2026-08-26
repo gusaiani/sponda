@@ -7,6 +7,20 @@ User=root
 WorkingDirectory=/opt/sponda/backend
 EnvironmentFile=/opt/sponda/.env
 ExecStart=/opt/sponda/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1:8710 --workers 5
+# Graceful reload. SIGHUP makes the gunicorn master re-fork its workers while
+# it keeps the listening socket open, so no connection is ever refused and no
+# in-flight request is cut off. A `restart` does the opposite: it closes the
+# socket, and for the couple of seconds before the new master binds, nginx
+# answers every request with a 502.
+#
+# That window is not theoretical. On 2026-08-26 a registry crawler probing
+# /api/mcp walked straight into it during a deploy and recorded the server as
+# having no capabilities.
+#
+# Workers re-import the application on HUP, so deployed code does take effect.
+# That holds only while gunicorn runs without --preload; if --preload is ever
+# added, this stops picking up changes and the deploy must go back to restart.
+ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always
 
 [Install]

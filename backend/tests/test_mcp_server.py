@@ -216,7 +216,9 @@ class TestMCPLifecycle:
         )
         result = result_of(response)
         assert result["protocolVersion"] == requested
-        assert result["capabilities"] == {"tools": {}}
+        # Prompts joined tools when the server started shipping a prompt
+        # catalogue; a client that sees neither has nothing to offer a user.
+        assert result["capabilities"] == {"tools": {}, "prompts": {}}
         assert result["serverInfo"]["name"] == "sponda"
         assert "sponda.capital" in result["instructions"]
 
