@@ -7,7 +7,7 @@ from decimal import Decimal
 from .fx import (
     _resolve_listing_currency,
     _resolve_reported_currency,
-    get_fx_rate,
+    get_fx_rates_for_dates,
 )
 from .inflation import get_inflation_adjustment_factors
 from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings
@@ -278,6 +278,20 @@ def compute_fundamentals(
         )
         latest_fx = latest_row.rate if latest_row else None
 
+    # Every year in the table translates its market cap at that year's end.
+    # Resolving them one at a time was the N+1 Sentry reported here; one bulk
+    # lookup answers the whole column.
+    fx_by_year: dict[int, Decimal | None] = {}
+    if needs_fx:
+        year_end_by_year = {year: date_type(year, 12, 31) for year in all_years}
+        rate_by_date = get_fx_rates_for_dates(
+            year_end_by_year.values(), listing_currency, reported_currency,
+        )
+        fx_by_year = {
+            year: rate_by_date.get(year_end)
+            for year, year_end in year_end_by_year.items()
+        }
+
     results = []
     for year in all_years:
         balance = balance_by_year.get(year, {})
@@ -348,7 +362,7 @@ def compute_fundamentals(
         elif not needs_fx:
             year_market_cap = year_market_cap_listing
         else:
-            fx_rate = get_fx_rate(date_type(year, 12, 31), listing_currency, reported_currency)
+            fx_rate = fx_by_year.get(year)
             if fx_rate is None:
                 fx_rate = latest_fx  # fallback to current FX (better than dropping the data point)
             if fx_rate is None:

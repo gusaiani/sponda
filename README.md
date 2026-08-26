@@ -925,6 +925,40 @@ Every subsequent `git push` to `main` rebuilds and publishes automatically.
 - **PostgreSQL tuning** for SSD + 2 GB RAM: `shared_buffers=512MB`, `work_mem=8MB`, `random_page_cost=1.1`
 - **pg_stat_statements** enabled for query performance monitoring
 
+### Query counts that must not grow with the data
+
+Three endpoints were doing per-row work that Sentry caught as N+1s. Each fix is
+pinned by a test that fails if the cost starts scaling again, because that is
+the only property worth asserting: adding rows must not add queries.
+
+| Endpoint | Was | Now |
+|---|---|---|
+| `/api/social/feed/global/` | 10 + 4 per Spond (110 for a 25-row page) | 10, flat |
+| `/api/quote/{ticker}/multiples-history/` | 2 per year (64 for 30 years) | 4, flat |
+| `/api/quote/{ticker}/fundamentals/` | 1 per year | flat |
+
+**The social feed** had `_annotate_sponds` in place already, and the serializer
+was throwing the annotations away four different ways:
+
+- `get_like_count` and `get_reply_count` read the annotation through
+  `getattr(spond, "annotated_like_count", spond.likes.count())`. Python
+  evaluates arguments before the call, so the fallback COUNT ran on every row
+  even though its result was discarded in favour of the annotation. This is the
+  trap to remember: a `getattr` default that is a query is a query.
+- `get_viewer_has_liked` ran an `EXISTS` per row. It now reads an
+  `annotated_viewer_has_liked` annotation, which is why `_annotate_sponds` takes
+  the viewer.
+- `get_handle_mentions` called `.select_related()` on the related manager, which
+  builds a fresh queryset and ignores the `prefetch_related` the view had
+  already paid for. Only `.all()` reads the prefetch cache.
+
+**The FX translation** behind multiples history and the fundamentals table
+resolved one year at a time, and multiples history did it twice over (once per
+multiple). `quotes.fx.get_fx_rates_for_dates` loads each non-USD leg once and
+resolves every date against it with `bisect`, so the cost is one query per leg
+regardless of how many years a company has. `fx_series` uses it too, where the
+old loop was one query per anchor date.
+
 ### Caching (Redis)
 
 Three-layer caching strategy eliminates redundant external API calls:
@@ -1132,6 +1166,9 @@ Unified error, performance, and cron monitoring through Sentry (free tier) plus 
 - **Request IDs.** `config.middleware.request_id.RequestIDMiddleware` attaches a UUID to every request (or honors an inbound `X-Request-ID`, capped at 128 chars). The ID is echoed back in the `X-Request-ID` response header, tagged on the Sentry scope, and included in every JSON log line emitted during the request.
 - **Structured logging.** `config.logging_formatter.JSONLogFormatter` emits one JSON object per log record (`timestamp`, `level`, `logger`, `message`, `request_id`, `exception`). Writes to stderr → captured by journald on production. No external log shipping yet; when we want it, point Promtail/Vector at the journal.
 - **External uptime.** UptimeRobot (free) hits `https://sponda.capital/` and `https://sponda.capital/api/health/` every 5 minutes. Setup is manual, outside the repo.
+- **Interactive shells are not reported.** `init_sentry` returns early for `manage.py shell`, `shell_plus` and `dbshell` (see `is_interactive_shell_session`). A traceback at a REPL is an operator mistyping a model name, not the service failing, and five such typos were sitting in the inbox looking like production errors. Skipping init also drops the two-second Sentry flush that every shell exit was paying. Gunicorn, Celery, pytest and all timer-driven management commands are untouched, which is the part the tests pin.
+- **Third-party browser noise is dropped.** `src/lib/sentry.ts` ships a default `ignoreErrors` list covering wallet extensions (`Failed to connect to MetaMask`, `window.ethereum`), iOS in-app webviews reaching for Safari-only handlers (`window.webkit.messageHandlers`), and extension bootstraps (`ext:core/`, `<name:bootstrap>`). None of it is code we ship. A caller can pass its own `ignoreErrors` to replace the defaults.
+- **A DFP archive the CVM has not published is not an error.** `download_dfp_archive` raises `DfpArchiveNotPublished` on a 404 and `sync_cvm_fourth_quarters` reports it and stops. Any other HTTP failure still raises. The job necessarily runs for a reporting year before the CVM publishes it, so without this the same page fires every year.
 
 **Environment variables**
 

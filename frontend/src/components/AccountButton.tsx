@@ -4,21 +4,31 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslation } from "../i18n";
 import { useAuth } from "../hooks/useAuth";
+import { useIsHydrated } from "../hooks/useIsHydrated";
 import { UserAvatar } from "./social/UserAvatar";
 import { ProfileEditModal } from "./social/ProfileEditModal";
 
 /**
  * Single account control in the top header. Replaces the previous pair
- * of "Minha conta" link + "@handle" pill — those concepts are now one
+ * of "Minha conta" link + "@handle" pill - those concepts are now one
  * affordance. Signed-out users see a "Sign in" link; signed-in users
  * see their avatar + handle, which opens a dropdown with profile,
  * settings, and sign-out actions.
+ *
+ * The first render is deliberately auth-blind. The server has no session
+ * and always emits the placeholder, while the client can know the answer
+ * immediately: React Query resolves `isLoading` to false on the spot when
+ * its persisted cache already holds `auth-user`. Rendering the real
+ * control on that first pass made the two trees disagree and produced a
+ * hydration mismatch on every page of the site. `useIsHydrated` is how the
+ * rest of the codebase spells "not until the browser has it".
  */
 export function AccountButton() {
   const { t, locale } = useTranslation();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const isHydrated = useIsHydrated();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,7 +39,7 @@ export function AccountButton() {
     return () => document.removeEventListener("mousedown", clickOutside);
   }, [open]);
 
-  if (isLoading) {
+  if (!isHydrated || isLoading) {
     return <div className="account-button-placeholder" aria-hidden />;
   }
 

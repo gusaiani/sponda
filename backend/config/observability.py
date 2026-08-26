@@ -10,12 +10,20 @@ before they leave the process.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from typing import Any
 
 import sentry_sdk
 from sentry_sdk.integrations.celery import CeleryIntegration
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
+
+# Management commands that drop an operator at a prompt. What goes wrong in
+# one of these is somebody mistyping a model name, not the service failing,
+# and Sentry has no way to tell the difference from the traceback alone.
+INTERACTIVE_SHELL_COMMANDS = frozenset({"shell", "shell_plus", "dbshell"})
+DJANGO_ENTRYPOINT_NAMES = frozenset({"manage.py", "django-admin", "django-admin.py"})
 
 SENSITIVE_HEADER_NAMES = frozenset({"authorization", "cookie", "set-cookie"})
 SENSITIVE_EXTRA_KEYS = frozenset({"DATABASE_URL", "SECRET_KEY", "DJANGO_SECRET_KEY"})
@@ -41,8 +49,15 @@ def init_sentry(
     profiles_sample_rate: float = 0.0,
     trace_propagation_targets: list[str] | None = None,
 ) -> bool:
-    """Initialize Sentry if a DSN is configured. Returns True when initialized."""
+    """Initialize Sentry if a DSN is configured. Returns True when initialized.
+
+    Interactive shells are skipped even with a DSN present: a traceback at a
+    REPL is an operator's typo, and reporting it buries real faults (and
+    makes every shell exit wait on a Sentry flush).
+    """
     if not dsn:
+        return False
+    if is_interactive_shell_session():
         return False
 
     sentry_sdk.init(
@@ -65,6 +80,22 @@ def init_sentry(
         ),
     )
     return True
+
+
+def is_interactive_shell_session() -> bool:
+    """Whether this process is a Django REPL rather than a served workload.
+
+    Matches how the shell is actually launched, ``manage.py shell`` or
+    ``django-admin shell``, so that gunicorn, celery, pytest and every
+    timer-driven management command are untouched.
+    """
+    argv = sys.argv
+    if len(argv) < 2:
+        return False
+    entrypoint = os.path.basename(argv[0])
+    if entrypoint not in DJANGO_ENTRYPOINT_NAMES:
+        return False
+    return argv[1] in INTERACTIVE_SHELL_COMMANDS
 
 
 def scrub_event(event: dict[str, Any], hint: dict[str, Any]) -> dict[str, Any]:

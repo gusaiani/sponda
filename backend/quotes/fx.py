@@ -8,6 +8,8 @@ how to degrade (e.g. apply current FX with a warning, skip the indicator).
 """
 from __future__ import annotations
 
+from bisect import bisect_right
+from collections.abc import Iterable
 from datetime import date as date_type
 from decimal import Decimal
 
@@ -53,6 +55,107 @@ def _lookup_usd_to(on_date: date_type, quote_currency: str) -> Decimal | None:
     return row.rate if row else None
 
 
+def get_fx_rates_for_dates(
+    dates: Iterable[date_type], from_currency: str, to_currency: str,
+) -> dict[date_type, Decimal | None]:
+    """Resolve many dates at once, with one query per non-USD leg.
+
+    Same contract as :func:`get_fx_rate`, applied to a whole set of dates:
+    each entry is the rate on the most recent anchor at or before that
+    date, or ``None`` when no anchor is old enough. Identical currencies
+    resolve to 1 without touching the database.
+
+    Callers that translate a value per year (multiples history, the
+    fundamentals table) were previously issuing one query per year, which
+    Sentry reported as an N+1 on both endpoints. Loading each leg's series
+    once and searching it in memory keeps the cost flat in the number of
+    dates.
+    """
+    from_currency = from_currency.upper()
+    to_currency = to_currency.upper()
+
+    requested_dates = list(dates)
+    if not requested_dates:
+        return {}
+    if from_currency == to_currency:
+        return {on_date: Decimal("1") for on_date in requested_dates}
+
+    newest_requested = max(requested_dates)
+    legs = {
+        currency: _load_usd_anchor_series(currency, newest_requested)
+        for currency in {from_currency, to_currency}
+        if currency != "USD"
+    }
+
+    resolved: dict[date_type, Decimal | None] = {}
+    for on_date in requested_dates:
+        resolved[on_date] = _cross_rate_from_series(
+            legs, on_date, from_currency, to_currency,
+        )
+    return resolved
+
+
+def _load_usd_anchor_series(
+    quote_currency: str, newest_requested: date_type,
+) -> tuple[list[date_type], list[Decimal]]:
+    """Every USD -> quote_currency anchor that any requested date could use.
+
+    Anchors later than the newest requested date can never be the answer
+    to "latest rate at or before this date", so they are left in the
+    database. Everything older is kept, because the oldest requested date
+    may have to reach a long way back for its anchor. Two parallel lists
+    (dates ascending, rates in the same order) is the shape
+    :func:`bisect_right` wants.
+    """
+    anchor_dates: list[date_type] = []
+    anchor_rates: list[Decimal] = []
+    rows = (
+        FxRate.objects
+        .filter(
+            base_currency="USD",
+            quote_currency=quote_currency,
+            date__lte=newest_requested,
+        )
+        .order_by("date")
+        .values_list("date", "rate")
+    )
+    for anchor_date, rate in rows:
+        anchor_dates.append(anchor_date)
+        anchor_rates.append(rate)
+    return anchor_dates, anchor_rates
+
+
+def _rate_from_series(
+    series: tuple[list[date_type], list[Decimal]], on_date: date_type,
+) -> Decimal | None:
+    """The latest rate in ``series`` at or before ``on_date``."""
+    anchor_dates, anchor_rates = series
+    position = bisect_right(anchor_dates, on_date)
+    if position == 0:
+        return None
+    return anchor_rates[position - 1]
+
+
+def _cross_rate_from_series(
+    legs: dict[str, tuple[list[date_type], list[Decimal]]],
+    on_date: date_type,
+    from_currency: str,
+    to_currency: str,
+) -> Decimal | None:
+    """Mirror of :func:`get_fx_rate`'s pivot logic, over preloaded series."""
+    if from_currency == "USD":
+        return _rate_from_series(legs[to_currency], on_date)
+
+    usd_to_base = _rate_from_series(legs[from_currency], on_date)
+    if to_currency == "USD":
+        return Decimal("1") / usd_to_base if usd_to_base else None
+
+    usd_to_quote = _rate_from_series(legs[to_currency], on_date)
+    if usd_to_quote is None or usd_to_base is None:
+        return None
+    return usd_to_quote / usd_to_base
+
+
 def fx_series(
     from_currency: str,
     to_currency: str,
@@ -83,12 +186,14 @@ def fx_series(
         anchor_dates = anchor_dates.filter(date__gte=start)
     dates = sorted(set(anchor_dates.values_list("date", flat=True)))
 
-    series: list[tuple[date_type, Decimal]] = []
-    for on_date in dates:
-        rate = get_fx_rate(on_date, from_currency, to_currency)
-        if rate is not None:
-            series.append((on_date, rate))
-    return series
+    # One resolution pass for the whole series. Asking date by date meant a
+    # query per anchor, which for a daily currency pair is thousands.
+    rate_by_date = get_fx_rates_for_dates(dates, from_currency, to_currency)
+    return [
+        (on_date, rate_by_date[on_date])
+        for on_date in dates
+        if rate_by_date[on_date] is not None
+    ]
 
 
 def _resolve_listing_currency(ticker: str) -> str:

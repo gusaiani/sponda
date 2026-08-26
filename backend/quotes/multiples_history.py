@@ -12,7 +12,11 @@ from datetime import date as date_type
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from .fx import _resolve_listing_currency, _resolve_reported_currency, get_fx_rate
+from .fx import (
+    _resolve_listing_currency,
+    _resolve_reported_currency,
+    get_fx_rates_for_dates,
+)
 from .models import FxRate
 from .pe10 import get_annual_earnings
 from .pfcf10 import get_annual_fcf
@@ -133,6 +137,22 @@ def compute_multiples_history(
     earnings_by_year = {d["year"]: float(d["net_income"]) for d in earnings_data}
     fcf_by_year = {d["year"]: float(d["fcf"]) for d in fcf_data}
 
+    # Both multiple loops below translate the same set of year ends, so the
+    # rates are resolved once here instead of per year per loop. That repeated
+    # single-date lookup was the N+1 Sentry reported on this endpoint.
+    fx_by_year: dict[int, Decimal | None] = {}
+    if needs_fx_translation:
+        year_end_by_year = {
+            year: date_type(year, 12, 31) for year in year_end_prices
+        }
+        rate_by_date = get_fx_rates_for_dates(
+            year_end_by_year.values(), listing_currency, reported_currency,
+        )
+        fx_by_year = {
+            year: rate_by_date.get(year_end)
+            for year, year_end in year_end_by_year.items()
+        }
+
     def _market_cap_in_reported(year: int, year_end_price: float) -> float | None:
         """Translate a year-end market cap from listing into reported currency.
         Sets `currency_warning` when we fall back to the latest FX rate."""
@@ -140,7 +160,7 @@ def compute_multiples_history(
         listing_cap = year_end_price * shares_outstanding
         if not needs_fx_translation:
             return listing_cap
-        fx = get_fx_rate(date_type(year, 12, 31), listing_currency, reported_currency)
+        fx = fx_by_year.get(year)
         if fx is None:
             if latest_fx_fallback is None:
                 return None
