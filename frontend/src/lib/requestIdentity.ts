@@ -17,7 +17,11 @@ import { headers } from "next/headers";
 
 /**
  * Client-address headers, in the order `quotes.client_ip.client_ip` reads
- * them. Cloudflare sets the first; nginx sets the second.
+ * them. nginx sets both, from a `$remote_addr` the realip module resolves
+ * from `CF-Connecting-IP` only for connections arriving from a published
+ * Cloudflare range. That gating is what makes them safe to forward: whatever
+ * the original caller sent has already been overwritten by the time this code
+ * sees it. See "Origin trust" in the README.
  */
 const CLIENT_ADDRESS_HEADERS = ["cf-connecting-ip", "x-forwarded-for"] as const;
 

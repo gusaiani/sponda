@@ -448,6 +448,11 @@ jobs:
 
             # Update Nginx config and reload
             cp /opt/sponda/nginx/gzip.conf /etc/nginx/conf.d/gzip.conf
+            # snippets/, not conf.d/: conf.d is included at http scope, and the
+            # trust list must apply to sponda.capital alone. The site config
+            # includes this path by name, so it has to land before nginx -t.
+            mkdir -p /etc/nginx/snippets
+            cp /opt/sponda/nginx/cloudflare-real-ip.conf /etc/nginx/snippets/sponda-cloudflare-real-ip.conf
             cp /opt/sponda/nginx/sponda.capital.conf /etc/nginx/sites-available/
             cp /opt/sponda/nginx/blog.sponda.capital.conf /etc/nginx/sites-available/
             nginx -t && systemctl reload nginx
