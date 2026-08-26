@@ -12,7 +12,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -61,8 +61,15 @@ def _serializer_context(request):
     return {"viewer": user, "request": request}
 
 
-def _annotate_sponds(qs):
-    return qs.select_related("author").prefetch_related(
+def _annotate_sponds(spond_queryset, viewer=None):
+    """Attach everything the serializer needs, so it never queries per row.
+
+    ``viewer`` is optional only because a few write paths re-serialize a
+    single Spond; pass it whenever one is in hand. Without it the
+    serializer falls back to an EXISTS per row, which is exactly the N+1
+    this function exists to prevent.
+    """
+    spond_queryset = spond_queryset.select_related("author").prefetch_related(
         "ticker_mentions", "handle_mentions__mentioned_user",
     ).annotate(
         annotated_like_count=Count("likes", distinct=True),
@@ -72,6 +79,15 @@ def _annotate_sponds(qs):
             distinct=True,
         ),
     )
+
+    if viewer is not None and viewer.is_authenticated:
+        spond_queryset = spond_queryset.annotate(
+            annotated_viewer_has_liked=Exists(
+                SpondLike.objects.filter(spond=OuterRef("pk"), user=viewer),
+            ),
+        )
+
+    return spond_queryset
 
 
 # ─── Pagination ───────────────────────────────────────────────────────────────
@@ -122,7 +138,9 @@ class SpondCreateView(APIView):
                 notifications.notify_replied(spond)
 
         out = SpondSerializer(
-            _annotate_sponds(Spond.objects.filter(pk=spond.pk)).first(),
+            _annotate_sponds(
+                Spond.objects.filter(pk=spond.pk), request.user,
+            ).first(),
             context=_serializer_context(request),
         )
         return Response(out.data, status=status.HTTP_201_CREATED)
@@ -183,9 +201,11 @@ class SpondDetailView(APIView):
 
     def get(self, request, pk):
         viewer = request.user if request.user.is_authenticated else None
-        spond = get_object_or_404(_annotate_sponds(visible_sponds(viewer)), pk=pk)
+        spond = get_object_or_404(
+            _annotate_sponds(visible_sponds(viewer), viewer), pk=pk,
+        )
         replies = _annotate_sponds(
-            visible_sponds(viewer).filter(parent_id=spond.pk),
+            visible_sponds(viewer).filter(parent_id=spond.pk), viewer,
         ).order_by("created_at")
         ctx = _serializer_context(request)
         return Response({
@@ -208,7 +228,9 @@ class SpondDetailView(APIView):
         spond.body = ser.validated_data["body"]
         spond.save(update_fields=["body", "updated_at"])
         out = SpondSerializer(
-            _annotate_sponds(Spond.objects.filter(pk=spond.pk)).first(),
+            _annotate_sponds(
+                Spond.objects.filter(pk=spond.pk), request.user,
+            ).first(),
             context=_serializer_context(request),
         )
         return Response(out.data)
@@ -290,7 +312,8 @@ class CompanyFeedView(APIView):
 
 
 def _paginated_spond_response(qs, request):
-    qs = _annotate_sponds(qs)
+    viewer = request.user if request.user.is_authenticated else None
+    qs = _annotate_sponds(qs, viewer)
     paginator = SpondCursorPagination()
     page = paginator.paginate_queryset(qs, request)
     ctx = _serializer_context(request)
@@ -328,7 +351,7 @@ class UserProfileView(APIView):
                 ).values_list("state", flat=True).first()
             ),
             "sponds": SpondSerializer(
-                _annotate_sponds(qs)[:25],
+                _annotate_sponds(qs, viewer)[:25],
                 many=True,
                 context=_serializer_context(request),
             ).data,

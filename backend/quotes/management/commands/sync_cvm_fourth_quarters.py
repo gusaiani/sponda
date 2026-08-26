@@ -25,6 +25,7 @@ from django.utils import timezone
 from config.monitored_command import MonitoredCommand
 from quotes.cvm import (
     CvmParseError,
+    DfpArchiveNotPublished,
     download_dfp_archive,
     extract_annual_statements,
     parse_itr_index,
@@ -94,7 +95,14 @@ class Command(MonitoredCommand):
         return pending
 
     def _ingest(self, year: int, pending) -> None:
-        archive = download_dfp_archive(year)
+        try:
+            archive = download_dfp_archive(year)
+        except DfpArchiveNotPublished as absent:
+            # Expected for part of every year: the job runs for a reporting
+            # year before the CVM puts the archive online. Say so and stop,
+            # rather than raising into Sentry as though something broke.
+            self.stdout.write(f"CVM {year}: {absent} · nothing to ingest yet.")
+            return
         filed = self._filing_dates(archive, year)
         annuals: dict[str, object] = {}
         written = refused = failed = 0

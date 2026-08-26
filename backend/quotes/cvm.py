@@ -669,11 +669,31 @@ def build_dfp_archive_url(year: int) -> str:
     return DFP_ARCHIVE_URL_TEMPLATE.format(year=year)
 
 
+class DfpArchiveNotPublished(Exception):
+    """The CVM has not put a given year's DFP archive online yet.
+
+    Distinct from a transport failure on purpose. This job necessarily runs
+    for a reporting year before the CVM publishes it, so a 404 here is the
+    expected state for part of every year, and the caller should say so and
+    stop rather than treat it as a fault.
+    """
+
+
 def download_dfp_archive(year: int) -> bytes:
-    """Fetch the annual DFP archive published by the CVM."""
+    """Fetch the annual DFP archive published by the CVM.
+
+    Raises :class:`DfpArchiveNotPublished` when the archive is not online
+    yet. Every other HTTP failure is re-raised untouched, because a 500 or a
+    timeout is a genuine problem worth waking someone for.
+    """
     response = requests.get(
         build_dfp_archive_url(year), timeout=DOWNLOAD_TIMEOUT_SECONDS,
     )
+    if response.status_code == 404:
+        raise DfpArchiveNotPublished(
+            f"CVM has not published the {year} DFP archive yet "
+            f"({build_dfp_archive_url(year)})",
+        )
     response.raise_for_status()
     return response.content
 

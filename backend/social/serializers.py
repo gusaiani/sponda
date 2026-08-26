@@ -67,29 +67,42 @@ class SpondSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_like_count(self, obj):
-        return getattr(obj, "annotated_like_count", obj.likes.count())
+    def get_like_count(self, spond):
+        # The annotation has to be read with an explicit check rather than
+        # through getattr's default: Python evaluates the default argument
+        # before the call, so passing the fallback query there ran a COUNT
+        # for every row even when the annotation was present and won.
+        annotated_count = getattr(spond, "annotated_like_count", None)
+        if annotated_count is not None:
+            return annotated_count
+        return spond.likes.count()
 
-    def get_reply_count(self, obj):
-        return getattr(
-            obj, "annotated_reply_count",
-            obj.replies.filter(deleted_at__isnull=True).count(),
-        )
+    def get_reply_count(self, spond):
+        annotated_count = getattr(spond, "annotated_reply_count", None)
+        if annotated_count is not None:
+            return annotated_count
+        return spond.replies.filter(deleted_at__isnull=True).count()
 
-    def get_viewer_has_liked(self, obj):
+    def get_viewer_has_liked(self, spond):
         viewer = self.context.get("viewer")
         if viewer is None or not viewer.is_authenticated:
             return False
-        return SpondLike.objects.filter(user=viewer, spond=obj).exists()
+        annotated_has_liked = getattr(spond, "annotated_viewer_has_liked", None)
+        if annotated_has_liked is not None:
+            return annotated_has_liked
+        return SpondLike.objects.filter(user=viewer, spond=spond).exists()
 
-    def get_ticker_mentions(self, obj):
-        return [m.ticker for m in obj.ticker_mentions.all()]
+    def get_ticker_mentions(self, spond):
+        return [mention.ticker for mention in spond.ticker_mentions.all()]
 
-    def get_handle_mentions(self, obj):
+    def get_handle_mentions(self, spond):
+        # `.all()` is what reads the prefetch cache. Calling `.select_related()`
+        # on the related manager builds a fresh queryset instead, throwing away
+        # the prefetch the view already paid for and querying once per row.
         return [
-            m.mentioned_user.handle
-            for m in obj.handle_mentions.select_related("mentioned_user")
-            if m.mentioned_user.handle
+            mention.mentioned_user.handle
+            for mention in spond.handle_mentions.all()
+            if mention.mentioned_user.handle
         ]
 
 

@@ -88,3 +88,52 @@ describe("initSentry", () => {
     expect(options.tracesSampler).toBe(tracesSampler);
   });
 });
+
+describe("initSentry noise filtering", () => {
+  const init = (overrides = {}) => {
+    const sdk = { init: vi.fn() };
+    initSentry(sdk, {
+      dsn: "https://public@o0.ingest.sentry.io/0",
+      environment: "production",
+      release: "deadbeef",
+      ...overrides,
+    });
+    return sdk.init.mock.calls[0][0] as Record<string, unknown>;
+  };
+
+  const matches = (patterns: (string | RegExp)[], message: string) =>
+    patterns.some((pattern) =>
+      typeof pattern === "string"
+        ? message.includes(pattern)
+        : pattern.test(message),
+    );
+
+  it("ships a default ignoreErrors list", () => {
+    expect(init().ignoreErrors).toBeInstanceOf(Array);
+  });
+
+  // Every one of these was an unresolved issue in the Sentry inbox, and
+  // none of them is our code: a wallet extension, an iOS webview probing
+  // for a Safari-only handler, and a Deno-based extension bootstrap.
+  it.each([
+    "i: Failed to connect to MetaMask",
+    "TypeError: undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+    "Cannot read properties of undefined (reading 'toLowerCase')\n    at <obscura:bootstrap>:346:75",
+  ])("drops third-party noise: %s", (message) => {
+    const patterns = init().ignoreErrors as (string | RegExp)[];
+    expect(matches(patterns, message)).toBe(true);
+  });
+
+  it("keeps real application errors", () => {
+    const patterns = init().ignoreErrors as (string | RegExp)[];
+    expect(
+      matches(patterns, "TypeError: company.ticker is undefined"),
+    ).toBe(false);
+    expect(matches(patterns, "Failed to fetch fundamentals")).toBe(false);
+  });
+
+  it("lets a caller replace the defaults", () => {
+    const options = init({ ignoreErrors: ["only-this"] });
+    expect(options.ignoreErrors).toEqual(["only-this"]);
+  });
+});

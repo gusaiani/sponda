@@ -21,6 +21,8 @@ export interface InitSentryOptions {
   replaysSessionSampleRate?: number;
   replaysOnErrorSampleRate?: number;
   integrations?: unknown[];
+  /** Overrides the third-party noise defaults when provided. */
+  ignoreErrors?: (string | RegExp)[];
 }
 
 // Default down from 1.0: traces are linear in cost and the home-page
@@ -28,6 +30,21 @@ export interface InitSentryOptions {
 // sample without burning quota; routes that need more (e.g. /) can
 // override per-transaction via `tracesSampler`.
 const DEFAULT_TRACES_SAMPLE_RATE = 0.2;
+
+// Errors thrown by code we do not ship and cannot fix. Each of these was
+// sitting unresolved in the Sentry inbox, crowding out real defects:
+// a wallet extension that fails when no wallet is installed, an iOS
+// in-app webview reaching for a handler only Safari defines, and
+// extension bootstraps (Deno-based ones announce themselves with
+// `ext:core/` or an `<extension:bootstrap>` frame).
+const THIRD_PARTY_NOISE_PATTERNS: (string | RegExp)[] = [
+  "Failed to connect to MetaMask",
+  "window.webkit.messageHandlers",
+  "window.ethereum",
+  /\bext:core\//,
+  /<[a-z0-9-]+:bootstrap>/i,
+  /^(chrome|moz|safari)-extension:\/\//i,
+];
 
 export function initSentry(sdk: SentrySDKLike, options: InitSentryOptions): boolean {
   if (!options.dsn) {
@@ -42,6 +59,7 @@ export function initSentry(sdk: SentrySDKLike, options: InitSentryOptions): bool
     replaysOnErrorSampleRate: options.replaysOnErrorSampleRate ?? 1.0,
     sendDefaultPii: false,
     integrations: options.integrations,
+    ignoreErrors: options.ignoreErrors ?? THIRD_PARTY_NOISE_PATTERNS,
   };
 
   if (options.tracesSampler) {
