@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 
+import { fetchFromDjango } from "../../../lib/django-fetch";
 import type { QuoteResult } from "../../../hooks/usePE10";
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL || "http://localhost:8710";
@@ -72,10 +73,14 @@ export type FetchQuoteServerResult =
 
 export async function fetchQuoteServer(ticker: string): Promise<FetchQuoteServerResult> {
   try {
-    const response = await fetch(`${DJANGO_API_URL}/api/quote/${ticker}/`, {
+    const response = await fetchFromDjango(`${DJANGO_API_URL}/api/quote/${ticker}/`, {
       cache: "no-store",
       headers: await clientIpHeaders(),
     });
+
+    if (!response) {
+      return { data: null, error: "server-error" };
+    }
 
     if (response.status === 404) {
       return { data: null, error: "not-found" };

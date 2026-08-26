@@ -808,7 +808,7 @@ Opting out flips `User.allow_contact` to `False`. It is the same flag a signed-i
 | Proxy rule that gets the request to Django | `frontend/src/middleware.ts` |
 | Tests | `backend/tests/test_unsubscribe.py`, `frontend/src/middleware.test.ts` |
 
-**Routing.** In production nginx sends everything except `/api/logos/` and `/api/assistant/ask` to Next on `:3100`, so `/unsubscribe/` only reaches Django because the Next middleware proxies that prefix, exactly as it does for `/api/`, `/og/` and `/admin/`. Two details there are load-bearing: `/unsubscribe/:path*` is an explicit matcher entry, because a compressed signing token starts with a dot and the catch-all matcher skips any path containing one; and the prefix is handled before the locale logic, which would otherwise redirect `/unsubscribe/<token>/` to `/en/UNSUBSCRIBE/<token>/` and strand the reader on a 404.
+**Routing.** In production nginx sends everything except `/api/` (see "The API no longer traverses Next") to Next on `:3100`, so `/unsubscribe/` only reaches Django because the Next middleware proxies that prefix, exactly as it does for `/admin/` and `/static/`. Two details there are load-bearing: `/unsubscribe/:path*` is an explicit matcher entry, because a compressed signing token starts with a dot and the catch-all matcher skips any path containing one; and the prefix is handled before the locale logic, which would otherwise redirect `/unsubscribe/<token>/` to `/en/UNSUBSCRIBE/<token>/` and strand the reader on a 404.
 
 The page answers in the recipient's `User.language` and has four states: confirm, done, already opted out, and invalid link (HTTP 404). An unknown locale falls back to `DEFAULT_LANGUAGE` instead of erroring.
 
@@ -1357,6 +1357,45 @@ for an hour, so being dynamic costs one Redis-backed call.
 
 Django's `SitemapView` at `/api/sitemap.xml` still exists for API consumers.
 It is not what production serves and it still exceeds the protocol limits.
+
+### The API no longer traverses Next
+
+nginx routes `/api/` straight to Django on :8710. It used to go to Next on
+:3100, which rewrote it to Django in `middleware.ts`, so every API call on the
+site crossed an extra Node process.
+
+That hop was not just slow, it was broken for `HEAD`. gunicorn's sync workers
+do not support keep-alive and close the connection on every response; Node's
+HTTP client cannot reliably parse a bodyless response that ends that way, and
+throws `HPE_CLOSED_CONNECTION` ("Data after `Connection: close`"), which Next
+answers as a **500**. Measured 2026-08-26 through the edge:
+
+| Request | Result |
+|---|---|
+| `HEAD /api/health/` x15 | 13 x 500, 2 x 200 |
+| `HEAD /api/tickers/PETR4/` x15 | 14 x 500, 1 x 200 |
+| `HEAD /api/tickers/NOPE99/` x15 | 15 x 500 |
+| `HEAD /api/quote/T{1..20}/` | 7 x 500, 13 x 429 |
+| `GET` on all of the above | no failures |
+
+Every status code, not just errors. GET was unaffected, which is why browsers
+never hit it and monitors, link checkers and anything doing a cheap existence
+probe did. If UptimeRobot is pointed at an `/api/` path with `HEAD`, it was
+seeing roughly 90% failure and reporting flapping downtime that was not real.
+
+`/api/logos/` and `/api/assistant/ask` already had their own direct blocks for
+related reasons. nginx matches the longest prefix, so they still win over the
+general `/api/` one.
+
+The rewrite stays in `frontend/src/middleware.ts` because local development
+has no nginx. In production that branch is now dead.
+
+**Next still calls Django directly** for server-rendered pages, the markdown
+twins, the sitemap and the Open Graph cards, and those calls can still hit the
+same parser bug. They go through `frontend/src/lib/django-fetch.ts`, which
+retries once on a transport failure: a second attempt gets a fresh socket. It
+never retries an HTTP error status, because a `429` is an answer rather than a
+failure, and never retries a non-idempotent method.
 
 ### Provider zeros that are not zeros
 

@@ -9,6 +9,7 @@
  * tools are described from. One definition, three readers.
  */
 import { djangoApiBaseUrl } from "./django-api";
+import { fetchFromDjango } from "./django-fetch";
 import { escapeTableCell } from "./company-markdown";
 import { SITE_BASE_URL } from "./site-routes";
 import { ARTICLES } from "./site-copy";
@@ -38,10 +39,10 @@ export interface IndicatorCatalogue {
 
 export async function fetchIndicatorCatalogue(): Promise<IndicatorCatalogue | null> {
   try {
-    const response = await fetch(`${djangoApiBaseUrl()}/api/assistant/indicators/`, {
+    const response = await fetchFromDjango(`${djangoApiBaseUrl()}/api/assistant/indicators/`, {
       next: { revalidate: CATALOGUE_REVALIDATE_SECONDS },
     });
-    if (!response.ok) return null;
+    if (!response || !response.ok) return null;
     return (await response.json()) as IndicatorCatalogue;
   } catch {
     return null;

@@ -1,6 +1,7 @@
 import { formatNumber } from "../utils/format";
 import { translateSector } from "../utils/sectorLabels";
 import { djangoApiBaseUrl } from "./django-api";
+import { fetchFromDjango } from "./django-fetch";
 import type { SupportedLocale } from "./i18n-config";
 
 import { de } from "../i18n/locales/de";
@@ -185,8 +186,8 @@ const QUOTE_REVALIDATE_SECONDS = 3600;
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    const response = await fetch(url, { next: { revalidate: QUOTE_REVALIDATE_SECONDS } });
-    if (!response.ok) return null;
+    const response = await fetchFromDjango(url, { next: { revalidate: QUOTE_REVALIDATE_SECONDS } });
+    if (!response || !response.ok) return null;
     return (await response.json()) as T;
   } catch {
     return null;

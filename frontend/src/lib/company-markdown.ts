@@ -18,6 +18,7 @@
  * output format.
  */
 import { djangoApiBaseUrl } from "./django-api";
+import { fetchFromDjango } from "./django-fetch";
 import { markdownUrlFor } from "./markdown-routes";
 import { SITE_BASE_URL } from "./site-routes";
 import { translatorFor, type Translator } from "../i18n/dictionaries";
@@ -144,8 +145,8 @@ function isTable(block: MarkdownBlock): block is MarkdownTable {
 
 async function fetchJson<T>(url: string, revalidate: number): Promise<T | null> {
   try {
-    const response = await fetch(url, { next: { revalidate } });
-    if (!response.ok) return null;
+    const response = await fetchFromDjango(url, { next: { revalidate } });
+    if (!response || !response.ok) return null;
     return (await response.json()) as T;
   } catch {
     return null;

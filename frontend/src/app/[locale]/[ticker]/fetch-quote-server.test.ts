@@ -76,7 +76,7 @@ describe("fetchQuoteServer", () => {
   });
 
   it("returns server-error when fetch throws", async () => {
-    mockFetch.mockRejectedValueOnce(new Error("network failure"));
+    mockFetch.mockRejectedValue(new Error("network failure"));
 
     const { fetchQuoteServer } = await import("./fetch-quote-server");
     const result = await fetchQuoteServer("PETR4");
@@ -146,5 +146,48 @@ describe("fetchQuoteServer", () => {
 
       expect(result.error).toBeNull();
     });
+  });
+});
+describe("transport failures", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    incomingHeaders = new Headers();
+    headersUnavailable = false;
+  });
+
+  it("retries once when the connection dies mid-parse", async () => {
+    // gunicorn closes the connection on every response and Node's HTTP
+    // client intermittently fails to parse that, which is what turned
+    // lookup-cap 429s into 500s.
+    const parseError = new Error("Parse Error: Data after `Connection: close`");
+    mockFetch
+      .mockRejectedValueOnce(parseError)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ pe10: 7 }) });
+
+    const { fetchQuoteServer } = await import("./fetch-quote-server");
+    const result = await fetchQuoteServer("PETR4");
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(result.error).toBeNull();
+    expect(result.data?.pe10).toBe(7);
+  });
+
+  it("still reports server-error when both attempts fail", async () => {
+    mockFetch.mockRejectedValue(new Error("network failure"));
+
+    const { fetchQuoteServer } = await import("./fetch-quote-server");
+    const result = await fetchQuoteServer("PETR4");
+
+    expect(result.error).toBe("server-error");
+  });
+
+  it("does not retry a 429, which is an answer rather than a failure", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 429 });
+
+    const { fetchQuoteServer } = await import("./fetch-quote-server");
+    const result = await fetchQuoteServer("PETR4");
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    expect(result.error).toBe("server-error");
   });
 });
