@@ -691,6 +691,7 @@ export const zh: TranslationDictionary = {
   "nav.toggle_close": "关闭菜单",
   "nav.home": "首页",
   "nav.blog": "博客",
+  "nav.for_ai": "面向 AI 代理",
   "nav.account_menu_label": "账号",
   "nav.account_login": "登录",
   "nav.account_settings": "设置",

@@ -90,3 +90,43 @@ describe("markdown alternate", () => {
     );
   });
 });
+
+describe("Dataset distribution", () => {
+  async function dataset(ticker: string, locale: string, tabSlug?: string) {
+    const metadata = await generateTickerMetadata(ticker, locale as never, tabSlug);
+    const schemas = JSON.parse(metadata.other?.["structured-data"] as string);
+    return schemas.find((s: { "@type": string }) => s["@type"] === "Dataset");
+  }
+
+  it("advertises the markdown twin as a distribution", async () => {
+    // schema.org's `distribution` is the standard vocabulary for "the
+    // machine-readable version of this page lives here".
+    const distributions = (await dataset("PETR4", "en")).distribution;
+    const markdown = distributions.find(
+      (d: { encodingFormat: string }) => d.encodingFormat === "text/markdown",
+    );
+    expect(markdown.contentUrl).toBe("https://sponda.capital/en/PETR4.md");
+  });
+
+  it("advertises the JSON endpoint as a distribution", async () => {
+    const distributions = (await dataset("PETR4", "en")).distribution;
+    const json = distributions.find(
+      (d: { encodingFormat: string }) => d.encodingFormat === "application/json",
+    );
+    expect(json.contentUrl).toBe("https://sponda.capital/api/tickers/PETR4/indicators/");
+  });
+
+  it("points the markdown distribution at the tab being viewed", async () => {
+    const distributions = (await dataset("PETR4", "pt", "graficos")).distribution;
+    const markdown = distributions.find(
+      (d: { encodingFormat: string }) => d.encodingFormat === "text/markdown",
+    );
+    expect(markdown.contentUrl).toBe("https://sponda.capital/pt/PETR4/graficos.md");
+  });
+
+  it("types every distribution as a DataDownload", async () => {
+    for (const entry of (await dataset("PETR4", "en")).distribution) {
+      expect(entry["@type"]).toBe("DataDownload");
+    }
+  });
+});

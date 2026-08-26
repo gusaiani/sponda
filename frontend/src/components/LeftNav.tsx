@@ -88,6 +88,17 @@ export function LeftNav() {
           )}
 
           <li>
+            <Link
+              href={`/${locale}/for-ai`}
+              className={navItemClass(pathname === `/${locale}/for-ai`)}
+              onClick={close}
+            >
+              <span className="left-nav-icon"><FileIcon /></span>
+              <span className="left-nav-label">{t("nav.for_ai")}</span>
+            </Link>
+          </li>
+
+          <li>
             <a
               href="https://blog.sponda.capital"
               target="_blank"

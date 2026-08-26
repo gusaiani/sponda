@@ -17,6 +17,7 @@ import {
 } from "../../../lib/company-markdown";
 import {
   fetchIndicatorCatalogue,
+  renderAiAccessMarkdown,
   renderHomeMarkdown,
   renderScreenerMarkdown,
 } from "../../../lib/site-markdown";
@@ -103,6 +104,9 @@ export async function GET(
 
   if (MARKDOWN_LOCALE_ROUTES.has(second)) {
     if (third !== undefined) return notFound();
+    if (second === "for-ai") {
+      return markdown(renderAiAccessMarkdown(locale), ONE_HOUR_IN_SECONDS);
+    }
     return markdown(
       renderScreenerMarkdown(locale, await fetchIndicatorCatalogue()),
       ONE_HOUR_IN_SECONDS,

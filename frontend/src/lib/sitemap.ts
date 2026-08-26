@@ -141,6 +141,7 @@ export function buildStaticEntries(lastModified: string): SitemapEntry[] {
   const pages: { path: (locale: string) => string; priority: number }[] = [
     { path: (locale) => `/${locale}`, priority: 1 },
     { path: (locale) => `/${locale}/screener`, priority: 0.9 },
+    { path: (locale) => `/${locale}/for-ai`, priority: 0.5 },
   ];
 
   return pages.flatMap(({ path, priority }) =>

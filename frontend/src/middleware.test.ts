@@ -367,3 +367,45 @@ describe("middleware markdown routing", () => {
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
 });
+
+describe("middleware markdown Link header", () => {
+  // A crawler that issues HEAD never parses the body, so it cannot see the
+  // <link rel="alternate"> tag. The header is how it learns the markdown
+  // twin exists. HEAD against /api/ was 500ing until nginx started routing
+  // it directly, so these probes are only now worth serving well.
+  it("advertises the markdown twin of a company page", async () => {
+    const response = await middleware(buildRequest("/en/PETR4"));
+    expect(response.headers.get("link")).toBe(
+      '<https://sponda.capital/en/PETR4.md>; rel="alternate"; type="text/markdown"',
+    );
+  });
+
+  it("advertises the twin of a tab, with the locale's own slug", async () => {
+    const response = await middleware(buildRequest("/pt/PETR4/graficos"));
+    expect(response.headers.get("link")).toContain("/pt/PETR4/graficos.md");
+  });
+
+  it("advertises the screener and the home page", async () => {
+    expect((await middleware(buildRequest("/en/screener"))).headers.get("link"))
+      .toContain("/en/screener.md");
+    expect((await middleware(buildRequest("/pt"))).headers.get("link"))
+      .toContain("/pt.md");
+  });
+
+  it("sends no Link header for pages with no markdown twin", async () => {
+    for (const path of ["/en/login", "/en/account", "/en/user/gustavo"]) {
+      expect((await middleware(buildRequest(path))).headers.get("link"), path).toBeNull();
+    }
+  });
+
+  it("sends no Link header on the markdown page itself", async () => {
+    expect((await middleware(buildRequest("/en/PETR4.md"))).headers.get("link")).toBeNull();
+  });
+
+  it("sends no Link header on a redirect", async () => {
+    // A bare path is about to be redirected to a locale-prefixed one.
+    const response = await middleware(buildRequest("/PETR4"));
+    expect(response.status).toBe(302);
+    expect(response.headers.get("link")).toBeNull();
+  });
+});

@@ -99,3 +99,31 @@ function normalizeAfterLocale(segments: string[]): string[] | null {
   }
   return [first.toUpperCase(), ...rest];
 }
+
+/**
+ * The markdown twin of an HTML page path, or null when we publish none.
+ *
+ * Used for the `Link: <...>; rel="alternate"; type="text/markdown"` header.
+ * A crawler that issues HEAD and never parses a body cannot see the
+ * equivalent `<link>` tag in the document, and those are exactly the clients
+ * doing cheap existence probes across a catalogue this size.
+ *
+ * Locale-prefixed paths only. A bare path is about to be redirected to one,
+ * and advertising an alternate on a 302 helps nobody.
+ */
+export function markdownAlternateFor(pathname: string): string | null {
+  if (pathname.endsWith(MARKDOWN_EXTENSION)) return null;
+
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0 || !isSupportedLocale(segments[0])) return null;
+
+  const candidate = `${pathname.replace(/\/$/, "")}${MARKDOWN_EXTENSION}`;
+  const internal = markdownRewritePath(candidate);
+  if (!internal) return null;
+
+  // Rebuild from the validated internal path so the ticker is upper-cased
+  // exactly as the served URL will have it.
+  const [, locale, ...rest] = internal.split("/").filter(Boolean);
+  const tail = rest.length > 0 ? `/${rest.join("/")}` : "";
+  return `/${locale}${tail}${MARKDOWN_EXTENSION}`;
+}

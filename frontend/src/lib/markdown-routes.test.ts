@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   MARKDOWN_EXTENSION,
   MARKDOWN_ROUTE_PREFIX,
+  markdownAlternateFor,
   markdownRewritePath,
   markdownUrlFor,
 } from "./markdown-routes";
@@ -118,5 +119,40 @@ describe("named routes under a locale", () => {
 
   it("returns null for a tab under a named route", () => {
     expect(markdownRewritePath("/en/screener/extra.md")).toBeNull();
+  });
+});
+
+describe("markdownAlternateFor", () => {
+  it("gives the markdown twin of a company page", () => {
+    expect(markdownAlternateFor("/en/PETR4")).toBe("/en/PETR4.md");
+  });
+
+  it("gives the twin of a tab, keeping the locale's slug", () => {
+    expect(markdownAlternateFor("/pt/PETR4/graficos")).toBe("/pt/PETR4/graficos.md");
+  });
+
+  it("gives the twin of the screener and the home page", () => {
+    expect(markdownAlternateFor("/en/screener")).toBe("/en/screener.md");
+    expect(markdownAlternateFor("/pt")).toBe("/pt.md");
+  });
+
+  it("uppercases a lowercase ticker", () => {
+    expect(markdownAlternateFor("/en/petr4")).toBe("/en/PETR4.md");
+  });
+
+  it("returns null for pages with no markdown twin", () => {
+    for (const path of ["/en/login", "/en/account", "/en/user/gustavo", "/en/spond/1"]) {
+      expect(markdownAlternateFor(path), path).toBeNull();
+    }
+  });
+
+  it("returns null for paths that are not pages", () => {
+    for (const path of ["/api/quote/PETR4/", "/og/en/AAPL.png", "/_next/static/x.js", "/robots.txt", "/en/PETR4.md"]) {
+      expect(markdownAlternateFor(path), path).toBeNull();
+    }
+  });
+
+  it("returns null without a locale prefix, since middleware redirects those anyway", () => {
+    expect(markdownAlternateFor("/PETR4")).toBeNull();
   });
 });

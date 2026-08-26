@@ -12,6 +12,7 @@ import { djangoApiBaseUrl } from "./django-api";
 import { fetchFromDjango } from "./django-fetch";
 import { escapeTableCell } from "./company-markdown";
 import { SITE_BASE_URL } from "./site-routes";
+import { AI_ACCESS_INTRO, AI_ACCESS_SECTIONS, AI_ACCESS_TITLE } from "./ai-access-copy";
 import { ARTICLES } from "./site-copy";
 import { translatorFor } from "../i18n/dictionaries";
 import { DEFAULT_LOCALE, type SupportedLocale } from "./i18n-config";
@@ -163,4 +164,25 @@ function queryDocumentation(catalogue: IndicatorCatalogue): string {
     "Returns `{ count, results[] }`. The same data is available to AI agents",
     `through Sponda's MCP server at \`${SITE_BASE_URL}/api/mcp\`.`,
   ].join("\n");
+}
+
+
+/**
+ * The markdown twin of `/{locale}/for-ai`.
+ *
+ * Rendered from the same `AI_ACCESS_SECTIONS` the HTML page uses. A page whose
+ * subject is machine-readable access would be a poor advertisement for itself
+ * if its two versions disagreed.
+ */
+export function renderAiAccessMarkdown(locale: SupportedLocale): string {
+  const translate = translatorFor(locale);
+
+  const blocks = [
+    `# ${AI_ACCESS_TITLE}`,
+    AI_ACCESS_INTRO,
+    `[${translate("markdown.html_version")}](${SITE_BASE_URL}/${locale}/for-ai)`,
+    ...AI_ACCESS_SECTIONS.flatMap((section) => [`## ${section.heading}`, ...section.body]),
+  ];
+
+  return `${blocks.join("\n\n")}\n`;
 }

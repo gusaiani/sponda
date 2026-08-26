@@ -180,3 +180,10 @@ describe("SYMBOLS_PER_SITEMAP", () => {
     expect(entries.length).toBeGreaterThan(MAX_URLS_PER_SITEMAP * 0.9);
   });
 });
+
+describe("the AI access page is discoverable", () => {
+  it("appears in the static sitemap", () => {
+    const paths = buildStaticEntries("2026-08-26T00:00:00Z").map((e) => new URL(e.url).pathname);
+    expect(paths).toContain("/en/for-ai");
+  });
+});

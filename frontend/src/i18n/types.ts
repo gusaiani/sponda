@@ -695,6 +695,7 @@ export interface TranslationDictionary {
   "nav.toggle_close": string;
   "nav.home": string;
   "nav.blog": string;
+  "nav.for_ai": string;
   "nav.account_menu_label": string;
   "nav.account_login": string;
   "nav.account_settings": string;

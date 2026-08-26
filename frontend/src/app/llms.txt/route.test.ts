@@ -15,6 +15,19 @@ async function body(): Promise<string> {
   return (await GET()).text();
 }
 
+function stubWithSymbols(count: number) {
+  vi.stubGlobal("fetch", vi.fn(async (input: unknown) => {
+    const url = String(input);
+    if (url.includes("/api/tickers/symbols/")) {
+      return new Response(JSON.stringify({
+        count,
+        symbols: Array.from({ length: count }, (_u, i) => `T${i}`),
+      }), { status: 200 });
+    }
+    return new Response(JSON.stringify(CATALOGUE), { status: 200 });
+  }));
+}
+
 describe("GET /llms.txt", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn(async () =>
@@ -78,6 +91,39 @@ describe("GET /llms.txt", () => {
   it("is cacheable", async () => {
     const { GET } = await import("./route");
     expect((await GET()).headers.get("cache-control")).toContain("public");
+  });
+});
+
+describe("llms.txt company count", () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it("counts companies from the live symbol list", async () => {
+    // The first version of this file hardcoded "roughly 23,000", which was
+    // wrong by nearly 5,000 and could not be caught by anything. A generated
+    // file that hand-types its one important number is not generated.
+    stubWithSymbols(17_632);
+    const output = await body();
+    expect(output).toContain("17,632");
+    expect(output).not.toContain("23,000");
+  });
+
+  it("says nothing about a count when the list is unavailable", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 500 })));
+    const output = await body();
+    expect(output).not.toMatch(/[\d,]+ listed companies/);
+    expect(output).toContain("# Sponda");
+  });
+
+  it("points at the sitemap index and says what it covers", async () => {
+    stubWithSymbols(17_632);
+    const output = await body();
+    expect(output).toContain("/sitemap.xml");
+    expect(output).toMatch(/index/i);
+  });
+
+  it("mentions the blog markdown", async () => {
+    stubWithSymbols(17_632);
+    expect(await body()).toContain("blog.sponda.capital");
   });
 });
 
