@@ -723,7 +723,9 @@ content they have already opened.
 - Anonymous scope is per **IP**, resolved via `CF-Connecting-IP` →
   `X-Forwarded-For` → `REMOTE_ADDR` (`quotes.client_ip`) and stored only
   as a salted hash (`LookupLog.ip_hash`). A cleared session cookie no
-  longer resets the cap.
+  longer resets the cap. Those headers are only worth trusting because
+  nginx overwrites them from a Cloudflare-gated `$remote_addr`; see
+  [Origin trust](#origin-trust-only-cloudflare-gets-to-name-the-visitor).
 - Over-cap requests get `429` with `{"code": "lookup_limit", ...}` and
   `Cache-Control: no-store`; no payload is computed and no quota is
   burned.
@@ -1487,6 +1489,82 @@ same parser bug. They go through `frontend/src/lib/django-fetch.ts`, which
 retries once on a transport failure: a second attempt gets a fresh socket. It
 never retries an HTTP error status, because a `429` is an answer rather than a
 failure, and never retries a non-idempotent method.
+
+### Origin trust: only Cloudflare gets to name the visitor
+
+`sponda.capital` is Cloudflare-proxied, and the origin is a DigitalOcean VPS on
+a public address. Cloudflare reaches it over TLS on 443 (the port-80 block only
+redirects, so a `Flexible` zone setting would have redirect-looped years ago),
+but encryption is not authentication: nginx had no way to tell a Cloudflare
+connection from anyone who had learned the origin IP from a Certificate
+Transparency log or old DNS.
+
+That mattered because `quotes.client_ip.client_ip` trusts `CF-Connecting-IP` to
+identify the anonymous visitor behind the [lookup cap](#lookup-limits), and
+nothing enforced where the header came from. nginx passes unknown request
+headers through untouched, so a direct request could carry its own
+`CF-Connecting-IP`, mint a fresh identity per ticker, and walk the catalogue
+with the cap intact but useless. `X-Forwarded-For` was the same hole with a
+second door: it was built with `$proxy_add_x_forwarded_for`, which **appends**
+to whatever chain the peer sent, and `client_ip()` reads the leftmost entry.
+
+Two layers now stand in the way.
+
+**Layer one, on by default.** `nginx/cloudflare-real-ip.conf` lists Cloudflare's
+published ranges and sets `real_ip_header CF-Connecting-IP`, so nginx resolves
+`$remote_addr` from that header **only** for connections opening from those
+ranges. A direct connection keeps its real peer address no matter what it sends.
+`sponda.capital.conf` then rebuilds `X-Real-IP`, `X-Forwarded-For` and
+`CF-Connecting-IP` from `$remote_addr`, so the value Django reads is nginx's in
+both cases. The list is committed rather than fetched at reload time: nginx has
+to start when Cloudflare is unreachable, and a list that silently came back
+empty would collapse every visitor into one shared rate-limit bucket. Cloudflare
+changes the ranges about once a year; run `./nginx/update-cloudflare-ips.sh`,
+read the diff, commit it.
+
+The include sits at **server** scope, not in `conf.d/`. That box fronts eighteen
+sites and only `sponda.capital` is behind Cloudflare, so trusting these ranges
+globally would rewrite `$remote_addr` for the other seventeen too. The
+`proxy_set_header` directives moved to server scope for the opposite reason:
+they were copy-pasted into four locations, and the newest one had to remember
+all four lines. Note the inheritance rule if you add a location: nginx inherits
+`proxy_set_header` from the enclosing level only when the location declares
+**none** of its own, so one header inside a location silently drops all five.
+
+One side effect worth knowing: the default `combined` log format writes
+`$remote_addr`, so `/var/log/nginx/sponda.capital-access.log` now records the
+visitor rather than the Cloudflare edge node that relayed them. Counting unique
+IPs in that file finally means something. Log lines from before this shipped are
+not comparable. (`$realip_remote_addr` still holds the edge address if a log
+format ever needs both.) No fail2ban jail reads these logs, so nothing bans on
+the new values.
+
+**Layer two, opt-in.** Authenticated Origin Pulls is mTLS against Cloudflare's
+client certificate: nginx refuses a direct connection during the handshake
+rather than merely distrusting its headers. It needs a CA file on the box *and*
+a zone setting in the dashboard, and enabling either without the other is an
+outage, so the deploy cannot own it. `sponda.capital.conf` carries a **wildcard**
+include for it, because `include` of a literal missing path is a hard `nginx -t`
+failure that would redden every deploy until someone installed the CA, while a
+mask matching no files is simply empty.
+
+To turn it on:
+
+```bash
+ssh root@poe.ma
+/opt/sponda/nginx/enable-cloudflare-origin-pull.sh
+```
+
+The script installs the CA, verifies it really is `origin-pull.cloudflare.net`,
+makes you confirm the dashboard toggle before it writes anything nginx reads,
+runs `nginx -t`, and removes its own snippet if the test fails. Roll back by
+deleting `/etc/nginx/snippets/sponda-origin-pull.conf` and reloading.
+
+While you are in that dashboard, check SSL/TLS → Overview reads **Full
+(strict)**, not **Full**. Plain `Full` accepts any origin certificate, expired
+or self-signed included, so the hop is encrypted against a passive listener but
+not against an active one. There is a valid Let's Encrypt certificate on the
+box, so there is no reason to be on the weaker setting.
 
 ### Provider zeros that are not zeros
 

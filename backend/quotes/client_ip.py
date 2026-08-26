@@ -1,12 +1,18 @@
 """Client IP extraction and privacy-preserving hashing.
 
-The app sits behind Cloudflare -> nginx -> gunicorn. Cloudflare sets
-``CF-Connecting-IP`` to the true client address; trust that first.
-``X-Forwarded-For`` is the next-best signal (first hop = client), and
-``REMOTE_ADDR`` is the last resort (only the proxy in this topology).
+The app sits behind Cloudflare -> nginx -> gunicorn, and this module decides
+who a request belongs to for the anonymous lookup cap. Read the order below as
+a preference list, not as a trust boundary: none of these headers is
+self-authenticating, and any peer can send all three.
 
-IPs are never stored raw — only a salted SHA-256, matching
-``PageView.hash_ip`` so the two subsystems agree on identity.
+What makes them trustworthy is nginx. ``nginx/sponda.capital.conf`` resolves
+``$remote_addr`` from ``CF-Connecting-IP`` only for connections arriving from a
+published Cloudflare range, then overwrites all three headers from that value,
+so a forged one cannot survive the hop. Change that config and this function
+starts reading attacker-supplied data. See "Origin trust" in the README.
+
+IPs are never stored raw, only as a salted SHA-256 matching ``PageView.hash_ip``
+so the two subsystems agree on identity.
 """
 from __future__ import annotations
 
