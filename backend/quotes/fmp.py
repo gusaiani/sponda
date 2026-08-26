@@ -5,6 +5,7 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
+from .statement_quality import normalize_net_income
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
 from .models import (
     SOURCE_FMP,
@@ -262,6 +263,11 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
 
         revenue_raw = statement.get("revenue")
         revenue_value = int(revenue_raw) if revenue_raw is not None else None
+
+        # A zero profit reported alongside real revenue is the provider's way
+        # of saying it does not have the figure. Left as 0 it would be averaged
+        # into P/E10 as a real result. See quotes.statement_quality.
+        net_income_value = normalize_net_income(net_income_value, revenue_value)
 
         by_end_date[end_date] = QuarterlyEarnings(
             ticker=upper_ticker,

@@ -723,11 +723,50 @@ content they have already opened.
   `X-Forwarded-For` → `REMOTE_ADDR` (`quotes.client_ip`) and stored only
   as a salted hash (`LookupLog.ip_hash`). A cleared session cookie no
   longer resets the cap.
+- The server-rendered company page forwards those headers too.
+  `fetchQuoteServer` used to call Django with no headers at all, so
+  `client_ip()` fell through to `REMOTE_ADDR = 127.0.0.1` and **every** SSR
+  render in production shared one anonymous bucket. Past 20 distinct tickers
+  a day the SSR fetch got a 429, `page.tsx` read any non-404 as
+  `server-error`, and the page quietly fell back to client-side fetching for
+  the rest of the day. Nobody saw an error; the prefetch just stopped
+  working. Only the IP headers are forwarded, never the cookie, so the fetch
+  stays anonymous.
 - Over-cap requests get `429` with `{"code": "lookup_limit", ...}` and
   `Cache-Control: no-store`; no payload is computed and no quota is
-  burned. Because the response now varies by IP/quota state,
-  `/api/quote/*` is **not** edge-cacheable — keep it off any Cloudflare
-  Cache Rule.
+  burned.
+- **There is a Cache Rule for `/api/quote/*`, and it does nothing.** A
+  Cloudflare Cache Rule (`starts_with(http.request.uri.path,
+  "/api/quote/") and http.request.method eq "GET"`, cache eligible, edge
+  TTL `bypass_by_default`) marks the path cacheable. It has never produced
+  a cache hit. Verified 2026-08-26: a `200` for `/api/quote/PETR4/` comes
+  back through the edge as `cf-cache-status: DYNAMIC`, meaning Cloudflare
+  declined to store it.
+  - The reason is `Vary`. The origin answers with `Vary: origin, Cookie`,
+    and Cloudflare only caches responses that vary on `Accept-Encoding`.
+    Any other `Vary` value makes a response uncacheable no matter what a
+    Cache Rule says.
+  - `StripSessionFromPublicCacheMiddleware`
+    (`backend/config/middleware/public_cache_strip.py`) exists precisely to
+    remove `Cookie` from `Vary` on anonymous `Cache-Control: public` GETs
+    so this would work. On `/api/quote/*` it is not doing so. That is a
+    bug, not a design choice.
+  - So the earlier warning in this section, that the path must be kept off
+    any Cache Rule because responses vary by IP and quota state, has never
+    been tested in production. Its premise is also weaker than it reads: a
+    `429` carries `no-store`, so Cloudflare would not store one even if the
+    rule worked, and the `200` payload is identical for every caller.
+  - The real trade, if the middleware is ever fixed: a cached payload would
+    be served to a visitor who is **over** their daily cap, so the ceiling
+    goes porous for 300s per ticker. That is probably worth it, since the
+    cap exists to protect the BRAPI and FMP budgets and an edge hit spends
+    nothing. But `record_lookup` never runs for an edge hit, so `LookupLog`
+    would start undercounting demand. Do not read it as traffic; `PageView`
+    is the honest counter.
+  - Decide one way or the other. Either delete the rule, or fix
+    `StripSessionFromPublicCacheMiddleware` and accept the porous cap.
+    Leaving an inert rule in place is the worst of the three, because it
+    reads as intent that is not happening.
 - Frontend: a `429 lookup_limit` throws `LookupLimitError`. Anonymous
   users get the login/signup modal; logged-in-unverified users get the
   email-verification prompt (they already have an account).
@@ -1232,7 +1271,7 @@ Locale-prefixed URLs serve region-specific metadata to search engines across all
 Some locales are served but excluded from search indexing. `NOINDEX_LOCALES` in `frontend/src/lib/i18n-config.ts` is the single source of truth; `zh` is currently in it (its traffic was overwhelmingly automated scraping, not a real audience — see the June 2026 scraper incident). The helpers built on it:
 
 - `robotsForLocale(locale)` → `"noindex, follow"` for noindex locales, `"index, follow"` otherwise. Used by the locale layout's `generateMetadata` (`frontend/src/app/[locale]/layout.tsx`), so it cascades to every page under that locale, including ticker pages.
-- `INDEXABLE_LOCALES` (every supported locale minus the noindex set) drives the hreflang alternates in both the layout and the sitemap (`frontend/src/app/sitemap.ts`), so a noindexed locale is never advertised as a crawlable alternate.
+- `INDEXABLE_LOCALES` (every supported locale minus the noindex set) drives the hreflang alternates in both the layout and the sitemap (`frontend/src/lib/sitemap.ts`), so a noindexed locale is never advertised as a crawlable alternate.
 
 `noindex` only affects compliant search engines — it does not stop scrapers (they ignore robots directives). To add or remove a noindex locale, edit `NOINDEX_LOCALES` and the unit tests in `frontend/src/lib/i18n-config.test.ts`.
 
@@ -1274,12 +1313,79 @@ X caches a card per page URL for about seven days, so an already-shared link kee
 
 #### Sitemaps
 
-Two sitemaps are emitted; both advertise URLs with full `xhtml:link rel="alternate" hreflang` alternates across the indexable locales (noindex locales such as `zh` are omitted from the alternates — see "Noindex locales" above):
+A sitemap **index** at `/sitemap.xml`, pointing at paginated children under
+`/sitemaps/`. Every entry carries `xhtml:link rel="alternate" hreflang="..."` alternates
+across the indexable locales (noindex locales such as `zh` are omitted from
+the alternates, see "Noindex locales" above).
 
-- `/sitemap.xml` · Next.js, generated by `frontend/src/app/sitemap.ts` (production source of truth — Nginx routes the root `/sitemap.xml` to Next.js on port 3100)
-- `/api/sitemap.xml` · Django, generated by `SitemapView` in `backend/quotes/views.py` (fallback / API consumers)
+| URL | Contents |
+|---|---|
+| `/sitemap.xml` | The index. Lists `pages.xml` and one `companies-{n}.xml` per chunk |
+| `/sitemaps/pages.xml` | Home and screener, per sitemap locale |
+| `/sitemaps/companies-{n}.xml` | One slice of the universe: company root plus the charts, fundamentals and compare tabs |
 
-Both use shared constants: canonical tab keys (`charts`, `fundamentals`, `compare`) map to localized slugs in `SITEMAP_TAB_SLUGS` (backend) and `tabSlugForLocale` (frontend). Keep these in sync when adding a new locale.
+Generated by `frontend/src/app/sitemap.xml/route.ts` and
+`frontend/src/app/sitemaps/[file]/route.ts`, both rendering through
+`frontend/src/lib/sitemap.ts`. Symbols come from
+`GET /api/tickers/symbols/`, which returns strings and nothing else, about
+150KB for the whole catalogue.
+
+**What this replaced, and why.** The old `frontend/src/app/sitemap.ts`
+enumerated `CURATED_TICKERS`, roughly 155 hand-picked symbols across two
+locales: **under 1% of the catalogue**. Django's `SitemapView` did enumerate
+everything, but built 600k `<url>` entries in one uncompressed document,
+past the 50,000-URL protocol limit, and was unreachable in production anyway
+because `/sitemap.xml` contains a dot and Next's middleware skips dotted
+paths. So neither one was pointing crawlers at the company pages, and by
+extension neither was pointing them at the markdown twins.
+
+**Sizing.** `MAX_URLS_PER_SITEMAP` is 20,000, not the protocol's 50,000. The
+binding limit is bytes, not URLs: each entry carries up to six `xhtml:link`
+alternates, and a full 20,000-URL file measures about 17MB against the 50MB
+ceiling. `SYMBOLS_PER_SITEMAP` is derived from it in `lib/sitemap.ts` so the
+index and the children cannot disagree about which chunk holds what.
+
+**Only companies with data are listed.** `/api/tickers/symbols/` requires an
+`IndicatorSnapshot` row. 768 of the 18,400 listed tickers had none when this
+was built, and a company page with no numbers is a thin page; a few hundred
+of them in a sitemap invites a soft-404 judgement across the whole domain.
+
+`/sitemap.xml` is `force-dynamic` on purpose. The symbol list comes from
+Django, which is not reachable from the CI runner where `next build` runs, so
+a prerendered index would be baked empty. The underlying fetches are cached
+for an hour, so being dynamic costs one Redis-backed call.
+
+Django's `SitemapView` at `/api/sitemap.xml` still exists for API consumers.
+It is not what production serves and it still exceeds the protocol limits.
+
+### Provider zeros that are not zeros
+
+BRAPI and FMP both encode a missing net income as a literal `0` on some
+filings rather than omitting the field. Stored as-is it is indistinguishable
+from a real result and gets averaged into the inflation-adjusted earnings
+behind every P/E window that covers it, dragging the average down and
+inflating the multiple.
+
+BBAS3 reported roughly R$31bn of revenue per quarter and precisely R$0 of
+profit for every quarter from 2013 to 2019. Corpus-wide when found: **2,801
+quarters across 565 companies**, from both providers plus older rows with no
+recorded source.
+
+The tell is revenue. `quotes/statement_quality.py::normalize_net_income`
+treats a zero as missing when revenue is positive, and keeps it when there is
+no revenue, because a pre-revenue company can genuinely earn nothing. Both
+`brapi.sync_earnings` and `fmp.sync_earnings` apply it at ingestion.
+
+For rows already stored:
+
+```bash
+./manage.py repair_zero_net_income --dry-run   # report only
+./manage.py repair_zero_net_income             # null them, invalidate caches
+```
+
+It drops the derived caches for every company it touches. `IndicatorSnapshot`
+rows are recomputed by the usual refresh jobs; run
+`refresh_snapshot_fundamentals` if you want it sooner.
 
 ## Observability
 
