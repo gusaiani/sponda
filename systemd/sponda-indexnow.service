@@ -1,0 +1,20 @@
+[Unit]
+Description=Sponda IndexNow submission for newly covered companies
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# Submits only companies that have gained indicator data and have not been
+# submitted before, so a run with nothing new is a no-op. Deliberately not
+# hooked into refresh_indicator_snapshots: a data job should not block on a
+# third-party HTTP endpoint.
+ExecStart=/opt/sponda/venv/bin/python manage.py submit_indexnow
+Restart=on-failure
+RestartSec=300
