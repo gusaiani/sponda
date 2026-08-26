@@ -15,6 +15,7 @@ from .models import (
     QuarterlyEarnings,
     Ticker,
 )
+from .statement_quality import normalize_net_income
 from .ticker_symbols import BRAZILIAN_SYMBOL_REGEX
 
 # (connect, read) — fail fast on connection issues, give the read a
@@ -172,6 +173,11 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
 
         revenue_raw = stmt.get("totalRevenue")
         revenue_value = int(revenue_raw) if revenue_raw is not None else None
+
+        # A zero profit reported alongside real revenue is the provider's way
+        # of saying it does not have the figure. Left as 0 it would be averaged
+        # into P/E10 as a real result. See quotes.statement_quality.
+        net_income_value = normalize_net_income(net_income_value, revenue_value)
 
         by_end_date[end_date] = QuarterlyEarnings(
             ticker=upper_ticker,

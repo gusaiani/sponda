@@ -226,6 +226,49 @@ INDICATORS_CACHE_CONTROL = "public, max-age=900"
 MAX_BULK_SYMBOLS = 25
 
 
+# Fractional B3 symbols (PETR4F) are the same company as the round lot and
+# must never appear as a separate URL. Matches SitemapView's exclusion.
+FRACTIONAL_SYMBOL_PATTERN = r"^[A-Z]+\d+F$"
+
+SYMBOL_LIST_CACHE_KEY = "ticker_symbols_v1"
+
+
+class TickerSymbolsView(APIView):
+    """GET /api/tickers/symbols/ · every listed company symbol, and nothing else.
+
+    The sitemap needs one string per company. Asking /api/tickers/ for that
+    means transferring names, sectors and logo URLs for ~27K rows to answer a
+    question that fits in about 150KB.
+
+    Only companies that have an ``IndicatorSnapshot`` are listed. A company
+    page with no numbers is a thin page, and 768 of the 18,400 listed
+    tickers were in that state when this was written. Putting hundreds of
+    them in a sitemap invites a soft-404 judgement that costs the whole
+    domain, not just those URLs.
+
+    Sorted, so two builds of the sitemap for an unchanged universe produce
+    byte-identical output and crawlers are not handed spurious churn.
+    """
+
+    def get(self, request):
+        symbols = cache.get(SYMBOL_LIST_CACHE_KEY)
+        if symbols is None:
+            symbols = list(
+                Ticker.objects.filter(
+                    type="stock",
+                    symbol__in=IndicatorSnapshot.objects.values("ticker"),
+                )
+                .exclude(symbol__regex=FRACTIONAL_SYMBOL_PATTERN)
+                .order_by("symbol")
+                .values_list("symbol", flat=True)
+            )
+            cache.set(SYMBOL_LIST_CACHE_KEY, symbols, TICKER_LIST_CACHE_TIMEOUT)
+
+        response = Response({"count": len(symbols), "symbols": symbols})
+        response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
 def _flag(request, name: str) -> bool:
     """True for `?name=1` and `?name=true`."""
     return request.query_params.get(name) in ("1", "true")
