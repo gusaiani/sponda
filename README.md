@@ -115,6 +115,28 @@ at `https://sponda.capital/api/mcp/` (Streamable HTTP, stateless, no auth). The 
 surface is `assistant/tools.py` verbatim: the same JSON Schemas and executors the
 in-house screening agent uses, so the public MCP surface and the agent can never drift.
 
+### What the server advertises
+
+`initialize` reports `tools` and `prompts`. Every tool carries a human
+readable `title` and `readOnlyHint: true`, which is both a hard requirement
+for the Anthropic Connectors Directory and the flag clients read to decide
+whether a call needs the user to confirm it. Without it a read-only screener
+gets treated as potentially destructive.
+
+Nothing on this surface writes. `backend/tests/test_mcp_capabilities.py`
+asserts that, so adding a writing tool fails a test rather than silently
+inheriting the wrong annotation.
+
+**Prompts** are the menu for someone who does not know the indicator names:
+`screen_for_value`, `compare_companies`, `explain_company`. Each expands into
+a question phrased the way a person asks it, which the model then answers
+using the tools.
+
+**The company count in `instructions` is read, not typed.** It comes from the
+same cached symbol list the sitemap uses. The first version said "~23,000",
+which was wrong by several thousand, and it matters because registries
+generate listings from this text verbatim: Smithery reads it off the wire.
+
 ### Using it (any MCP client)
 
 **Claude Code** — one command, then just ask:
@@ -1448,6 +1470,32 @@ for an hour, so being dynamic costs one Redis-backed call.
 
 Django's `SitemapView` at `/api/sitemap.xml` still exists for API consumers.
 It is not what production serves and it still exceeds the protocol limits.
+
+### Deploys reload gunicorn, they do not restart it
+
+`systemctl restart` closes the listening socket, and for the couple of
+seconds before the new master binds, nginx answers every request with a
+`502`. `ExecReload=/bin/kill -s HUP $MAINPID` lets the deploy send `reload`
+instead: the master keeps the socket while its workers re-fork, so nothing is
+refused and nothing in flight is cut off.
+
+That window was not theoretical. On 2026-08-26 a registry crawler probing
+`/api/mcp` walked into it during a deploy and recorded the server as having
+no capabilities at all:
+
+```
+23:05:54  Stopping Sponda Gunicorn...
+23:05:55  nginx: recv() failed (104) reading response header from upstream
+23:05:56  nginx: connect() failed (111) connecting to upstream
+23:05:56  Started Sponda Gunicorn.
+```
+
+Workers re-import the application on `HUP`, so deployed code does take
+effect. That holds only while gunicorn runs without `--preload`; adding that
+flag would silently stop reloads from picking up new code, and the deploy
+would have to go back to `restart`. The deploy falls back to `restart` if
+`reload` fails, because a brief `502` window is bad and a deploy that aborts
+halfway is worse.
 
 ### The API no longer traverses Next
 

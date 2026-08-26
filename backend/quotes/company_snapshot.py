@@ -193,3 +193,28 @@ def company_analysis(symbol: str | None) -> dict | None:
         "dataQuarter": latest["data_quarter"],
         "generatedAt": latest["generated_at"].isoformat(),
     }
+
+
+def covered_company_count() -> int:
+    """How many listed companies we hold indicators for.
+
+    Cached alongside the sitemap's symbol list, so the MCP handshake and the
+    sitemap can never quote different numbers.
+    """
+    from django.core.cache import cache
+
+    from quotes.views import SYMBOL_LIST_CACHE_KEY, TICKER_LIST_CACHE_TIMEOUT
+
+    symbols = cache.get(SYMBOL_LIST_CACHE_KEY)
+    if symbols is None:
+        symbols = list(
+            Ticker.objects.filter(
+                type=COMPANY_TYPE,
+                symbol__in=IndicatorSnapshot.objects.values("ticker"),
+            )
+            .exclude(symbol__regex=r"^[A-Z]+\d+F$")
+            .order_by("symbol")
+            .values_list("symbol", flat=True)
+        )
+        cache.set(SYMBOL_LIST_CACHE_KEY, symbols, TICKER_LIST_CACHE_TIMEOUT)
+    return len(symbols)
