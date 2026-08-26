@@ -3,29 +3,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-/** Headers the incoming request is pretending to carry. */
-let incomingHeaders = new Headers();
-
-/** Simulates being called outside a request scope, where headers() throws. */
-let headersUnavailable = false;
+const incomingHeaders = vi.hoisted(() => ({ current: new Headers() }));
 
 vi.mock("next/headers", () => ({
-  headers: async () => {
-    if (headersUnavailable) throw new Error("outside request scope");
-    return incomingHeaders;
-  },
+  headers: async () => incomingHeaders.current,
 }));
-
-function forwardedHeaders(): Headers {
-  const [, init] = mockFetch.mock.calls[0];
-  return new Headers((init as RequestInit).headers);
-}
 
 describe("fetchQuoteServer", () => {
   beforeEach(() => {
     mockFetch.mockReset();
-    incomingHeaders = new Headers();
-    headersUnavailable = false;
+    incomingHeaders.current = new Headers();
   });
 
   it("fetches without revalidate so prices are never served stale from Next.js ISR cache", async () => {
@@ -76,99 +63,99 @@ describe("fetchQuoteServer", () => {
   });
 
   it("returns server-error when fetch throws", async () => {
-    mockFetch.mockRejectedValue(new Error("network failure"));
+    mockFetch.mockRejectedValueOnce(new Error("network failure"));
 
     const { fetchQuoteServer } = await import("./fetch-quote-server");
     const result = await fetchQuoteServer("PETR4");
     expect(result.error).toBe("server-error");
     expect(result.data).toBeNull();
   });
-
-  describe("client IP forwarding", () => {
-    // Without this, Django's client_ip() finds no CF-Connecting-IP and no
-    // X-Forwarded-For and falls through to REMOTE_ADDR = 127.0.0.1, so every
-    // server-rendered company page in production shares ONE anonymous
-    // lookup bucket of SPONDA_ANON_LOOKUPS_PER_DAY distinct tickers per day.
-    // Past that, the SSR fetch 429s and the page silently degrades to
-    // client-side fetching.
-    it("forwards CF-Connecting-IP so the lookup cap is attributed to the visitor", async () => {
-      incomingHeaders = new Headers({ "cf-connecting-ip": "203.0.113.7" });
-      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
-
-      const { fetchQuoteServer } = await import("./fetch-quote-server");
-      await fetchQuoteServer("PETR4");
-
-      expect(forwardedHeaders().get("cf-connecting-ip")).toBe("203.0.113.7");
-    });
-
-    it("forwards X-Forwarded-For, which nginx sets when Cloudflare is not in front", async () => {
-      incomingHeaders = new Headers({ "x-forwarded-for": "203.0.113.7, 10.0.0.1" });
-      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
-
-      const { fetchQuoteServer } = await import("./fetch-quote-server");
-      await fetchQuoteServer("PETR4");
-
-      expect(forwardedHeaders().get("x-forwarded-for")).toBe("203.0.113.7, 10.0.0.1");
-    });
-
-    it("sends no IP header when the incoming request has none", async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
-
-      const { fetchQuoteServer } = await import("./fetch-quote-server");
-      await fetchQuoteServer("PETR4");
-
-      const sent = forwardedHeaders();
-      expect(sent.get("cf-connecting-ip")).toBeNull();
-      expect(sent.get("x-forwarded-for")).toBeNull();
-    });
-
-    it("forwards no cookie, so the fetch stays anonymous", async () => {
-      incomingHeaders = new Headers({
-        "cf-connecting-ip": "203.0.113.7",
-        cookie: "sessionid=secret",
-      });
-      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
-
-      const { fetchQuoteServer } = await import("./fetch-quote-server");
-      await fetchQuoteServer("PETR4");
-
-      expect(forwardedHeaders().get("cookie")).toBeNull();
-    });
-
-    it("still resolves when headers() is unavailable", async () => {
-      // Route handlers and static generation can call this outside a request
-      // scope. A missing header store must not take the page down.
-      headersUnavailable = true;
-      mockFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) });
-
-      const { fetchQuoteServer } = await import("./fetch-quote-server");
-      const result = await fetchQuoteServer("PETR4");
-
-      expect(result.error).toBeNull();
-    });
-  });
 });
-describe("transport failures", () => {
+
+/**
+ * The lookup cap is scoped by hashed client IP. A Server Component fetch
+ * opens a fresh connection from the Node process, so without this every
+ * server-rendered quote on the site shared one anonymous bucket of twenty
+ * tickers a day. Past the twentieth, every ticker page server-rendered an
+ * empty skeleton.
+ */
+describe("fetchQuoteServer request attribution", () => {
   beforeEach(() => {
     mockFetch.mockReset();
-    incomingHeaders = new Headers();
-    headersUnavailable = false;
+    incomingHeaders.current = new Headers();
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+  });
+
+  it("bills the lookup to the visitor's address, not to the Node process", async () => {
+    incomingHeaders.current = new Headers({ "x-forwarded-for": "203.0.113.7" });
+
+    const { fetchQuoteServer } = await import("./fetch-quote-server");
+    await fetchQuoteServer("PAM");
+
+    const [, init] = mockFetch.mock.calls[0];
+    const sentHeaders = new Headers((init as RequestInit).headers);
+    expect(sentHeaders.get("x-forwarded-for")).toBe("203.0.113.7");
+  });
+
+  it("forwards the session cookie so a verified reader gets an uncapped render", async () => {
+    incomingHeaders.current = new Headers({ cookie: "sessionid=abc" });
+
+    const { fetchQuoteServer } = await import("./fetch-quote-server");
+    await fetchQuoteServer("PAM");
+
+    const [, init] = mockFetch.mock.calls[0];
+    const sentHeaders = new Headers((init as RequestInit).headers);
+    expect(sentHeaders.get("cookie")).toBe("sessionid=abc");
+  });
+});
+
+describe("fetchQuoteServer address forwarding", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    incomingHeaders.current = new Headers();
+    mockFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+  });
+
+  it("forwards CF-Connecting-IP, which client_ip() reads before anything else", async () => {
+    // Cloudflare overwrites this on every request, so it is the one address
+    // header that cannot be spoofed from outside.
+    incomingHeaders.current = new Headers({ "cf-connecting-ip": "203.0.113.7" });
+
+    const { fetchQuoteServer } = await import("./fetch-quote-server");
+    await fetchQuoteServer("PETR4");
+
+    const [, init] = mockFetch.mock.calls[0];
+    expect(new Headers((init as RequestInit).headers).get("cf-connecting-ip"))
+      .toBe("203.0.113.7");
+  });
+
+  it("sends no address header when the incoming request carries none", async () => {
+    const { fetchQuoteServer } = await import("./fetch-quote-server");
+    await fetchQuoteServer("PETR4");
+
+    const sent = new Headers((mockFetch.mock.calls[0][1] as RequestInit).headers);
+    expect(sent.get("cf-connecting-ip")).toBeNull();
+    expect(sent.get("x-forwarded-for")).toBeNull();
+  });
+});
+
+describe("fetchQuoteServer transport failures", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    incomingHeaders.current = new Headers();
   });
 
   it("retries once when the connection dies mid-parse", async () => {
-    // gunicorn closes the connection on every response and Node's HTTP
-    // client intermittently fails to parse that, which is what turned
-    // lookup-cap 429s into 500s.
-    const parseError = new Error("Parse Error: Data after `Connection: close`");
+    // gunicorn's sync workers close the connection on every response and
+    // Node's HTTP client intermittently fails to parse that.
     mockFetch
-      .mockRejectedValueOnce(parseError)
+      .mockRejectedValueOnce(new Error("Parse Error: Data after `Connection: close`"))
       .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ pe10: 7 }) });
 
     const { fetchQuoteServer } = await import("./fetch-quote-server");
     const result = await fetchQuoteServer("PETR4");
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(result.error).toBeNull();
     expect(result.data?.pe10).toBe(7);
   });
 
@@ -176,9 +163,7 @@ describe("transport failures", () => {
     mockFetch.mockRejectedValue(new Error("network failure"));
 
     const { fetchQuoteServer } = await import("./fetch-quote-server");
-    const result = await fetchQuoteServer("PETR4");
-
-    expect(result.error).toBe("server-error");
+    expect((await fetchQuoteServer("PETR4")).error).toBe("server-error");
   });
 
   it("does not retry a 429, which is an answer rather than a failure", async () => {

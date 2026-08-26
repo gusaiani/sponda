@@ -122,7 +122,18 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const [sliderFixedTop, setSliderFixedTop] = useState<number | null>(null);
   const [inflationMode, setInflationMode] = useState<InflationMode>("nominal");
 
-  const { data: fullData, isLoading, error } = usePE10(upperTicker, initialData ?? undefined);
+  // Deliberately no `isLoading`. React Query reports a pending query as
+  // idle, and so not loading, while the persisted cache is being restored,
+  // and only the browser restores anything. Gating markup on `isLoading`
+  // therefore renders one tree on the server and a different one on the
+  // browser's first pass, which is the hydration mismatch behind
+  // JAVASCRIPT-NEXTJS-2 and the `removeChild` crash behind
+  // JAVASCRIPT-NEXTJS-5. Gate on the data instead: both sides start from
+  // exactly what the server fetched.
+  const { data: fullData, error } = usePE10(upperTicker, initialData ?? undefined);
+  // The company to render, or null while the quote is still missing or the
+  // lookup failed. One value, so every section agrees on what is on screen.
+  const company = error ? null : fullData ?? null;
 
   // Daily company-lookup cap hit. Anonymous -> push to sign up via the
   // auth modal; logged-in-but-unverified -> nudge email verification
@@ -192,11 +203,10 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   }, [upperTicker, peers, fullData, queryClient]);
 
   // Lazy: only fetch when charts tab is active
-  const {
-    data: historyData,
-    isLoading: historyLoading,
-    error: historyError,
-  } = useMultiplesHistory(upperTicker, true);
+  const { data: historyData, error: historyError } = useMultiplesHistory(
+    upperTicker,
+    true,
+  );
 
   const maxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
   const effectiveYears = Math.min(years, maxYears);
@@ -244,7 +254,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       window.removeEventListener("resize", measure);
       resizeObserver?.disconnect();
     };
-  }, [isLoading, error, fullData, activeTab]);
+  }, [error, fullData, activeTab]);
 
   function switchTab(tab: TabKey) {
     router.push(buildTabPath(locale, upperTicker, tab));
@@ -272,23 +282,23 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     <div>
 
       {/* Company header */}
-      {fullData && !isLoading && !error && (
+      {company && (
         <div className="company-header">
           <div className="company-header-left">
-            {fullData.logo && (
+            {company.logo && (
               <img
                 className="company-header-logo"
-                src={logoUrl(fullData.ticker)}
-                alt={`Logo ${fullData.name}`}
+                src={logoUrl(company.ticker)}
+                alt={`Logo ${company.name}`}
                 loading="lazy"
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             )}
-            <h2 className="company-header-name">{fullData.name} <span className="company-header-ticker">· {upperTicker} · {t("header.currency")}: {
-              fullData.reportedCurrency && fullData.listingCurrency &&
-              fullData.reportedCurrency !== fullData.listingCurrency
-                ? `${fullData.listingCurrency} (${t("header.reportsIn")} ${fullData.reportedCurrency})`
-                : currencyCode(upperTicker, fullData.reportedCurrency)
+            <h2 className="company-header-name">{company.name} <span className="company-header-ticker">· {upperTicker} · {t("header.currency")}: {
+              company.reportedCurrency && company.listingCurrency &&
+              company.reportedCurrency !== company.listingCurrency
+                ? `${company.listingCurrency} (${t("header.reportsIn")} ${company.reportedCurrency})`
+                : currencyCode(upperTicker, company.reportedCurrency)
             }{learningModeEnabled && derivedData?.ratings?.overall != null ? " · " : ""}</span><CompanyGradeCard ratings={derivedData?.ratings ?? null} years={effectiveYears} /></h2>
           </div>
           <div className="company-header-actions">
@@ -298,10 +308,10 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
         </div>
       )}
 
-      {!isLoading && !error && <RevisitBanner ticker={upperTicker} />}
+      {company && <RevisitBanner ticker={upperTicker} />}
 
       {/* Tab bar: tabs left, years slider floats fixed on the right (desktop) */}
-      {!isLoading && !error && (
+      {company && (
         <>
           <div className="tab-bar" ref={tabBarRef}>
             <TabPills
@@ -339,7 +349,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Fixed slider (desktop) */}
-      {!isLoading && !error && (activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && sliderFixedTop !== null && (
+      {company && (activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && sliderFixedTop !== null && (
         <div className="years-slider-fixed" style={{ top: sliderFixedTop }}>
           <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
           {activeTab === "fundamentals" && (
@@ -355,8 +365,8 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       {/* Metrics tab */}
       {activeTab === "metrics" && (
         <>
-          {isLoading && <CompanyMetricsCardLoading />}
-          {derivedData && !isLoading && (
+          {!derivedData && !error && <CompanyMetricsCardLoading />}
+          {derivedData && (
             <CompanyMetricsCard
               data={derivedData}
               years={effectiveYears}
@@ -368,7 +378,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
               priceHistory={historyData?.prices}
             />
           )}
-          {error && !isLoading && (
+          {error && (
             <div className="pe10-card">
               <div className="pe10-error">
                 {lookupLimit
@@ -385,11 +395,9 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       {/* Charts tab */}
       {activeTab === "charts" && (
         <>
-          {historyLoading && <MultiplesChartLoading />}
-          {historyData && !historyLoading && (
-            <MultiplesChart data={historyData} />
-          )}
-          {historyError && !historyLoading && (
+          {!historyData && !historyError && <MultiplesChartLoading />}
+          {historyData && <MultiplesChart data={historyData} />}
+          {historyError && (
             <div className="chart-container">
               <div className="chart-error">{(historyError as Error).message}</div>
             </div>
@@ -424,9 +432,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* AI Analysis */}
-      {fullData && !isLoading && !error && (
-        <CompanyAnalysis ticker={upperTicker} />
-      )}
+      {company && <CompanyAnalysis ticker={upperTicker} />}
 
       {/* Sector peers */}
       {peers.length > 0 && (
