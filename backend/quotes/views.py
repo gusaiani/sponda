@@ -26,6 +26,12 @@ from .derived_data import (
     multiples_history_cache_key,
     pe10_cache_key,
 )
+from .company_snapshot import (
+    company_analysis,
+    company_fundamentals,
+    company_snapshot,
+    company_snapshots,
+)
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .lookup_enforcement import LookupQuotaEnforcedView
@@ -206,6 +212,70 @@ class TickerListView(APIView):
             cache.set(TICKER_LIST_CACHE_KEY, result, TICKER_LIST_CACHE_TIMEOUT)
         response = Response(result)
         response["Cache-Control"] = "public, max-age=3600"
+        return response
+
+
+# Browser and edge cache TTL for the snapshot endpoint. Matched to the
+# 15-minute cadence of the refresh_snapshot_prices timer, so a cached copy is
+# never advertised as fresher than the data behind it actually is.
+INDICATORS_CACHE_CONTROL = "public, max-age=900"
+
+# How many symbols one bulk request may ask for. A comparison page asks for at
+# most MAX_PEERS + 1; the ceiling is here to keep the endpoint from becoming a
+# way to dump the whole catalogue in one call.
+MAX_BULK_SYMBOLS = 25
+
+
+def _flag(request, name: str) -> bool:
+    """True for `?name=1` and `?name=true`."""
+    return request.query_params.get(name) in ("1", "true")
+
+
+class TickerIndicatorsView(APIView):
+    """GET /api/tickers/<symbol>/indicators/ · screener snapshot for one company.
+
+    Deliberately *not* a ``LookupQuotaEnforcedView``, unlike PE10View,
+    FundamentalsView and MultiplesHistoryView. That cap exists to stop a
+    client enumerating the catalogue through endpoints that fetch from
+    BRAPI or FMP once per ticker. This one reads two indexed rows and
+    contacts nobody, so capping it would buy nothing and would break the
+    markdown pages, which exist precisely to be swept.
+
+    ``?symbols=A,B,C`` returns a ``{"companies": {...}}`` map instead, for
+    the peer table on a comparison page.
+    ``?fundamentals=1`` adds the per-year statement table.
+    ``?analysis=1`` adds the stored analysis, or null when there is none.
+    """
+
+    def get(self, request, symbol):
+        bulk_symbols = request.query_params.get("symbols")
+        if bulk_symbols:
+            return self._bulk(bulk_symbols)
+
+        payload = company_snapshot(symbol)
+        if payload is None:
+            return Response({"detail": "Not found"}, status=404)
+
+        if _flag(request, "fundamentals"):
+            payload = {**payload, "fundamentals": company_fundamentals(symbol)}
+        if _flag(request, "analysis"):
+            # Null rather than absent, and 200 rather than 404, so a company
+            # with no analysis still produces a response the caller can cache.
+            payload = {**payload, "analysis": company_analysis(symbol)}
+
+        response = Response(payload)
+        response["Cache-Control"] = INDICATORS_CACHE_CONTROL
+        return response
+
+    def _bulk(self, raw_symbols: str):
+        symbols = [part for part in raw_symbols.split(",") if part.strip()]
+        if len(symbols) > MAX_BULK_SYMBOLS:
+            return Response(
+                {"detail": f"At most {MAX_BULK_SYMBOLS} symbols per request."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        response = Response({"companies": company_snapshots(symbols)})
+        response["Cache-Control"] = INDICATORS_CACHE_CONTROL
         return response
 
 

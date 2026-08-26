@@ -15,6 +15,7 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
 from django.views.decorators.http import require_POST
 from openai import APIError, APITimeoutError, RateLimitError
 
@@ -38,7 +39,7 @@ from assistant.prompts import (
     OFF_TOPIC_RESPONSE,
     SCREENING_OFF_TOPIC_RESPONSE,
 )
-from assistant.tools import json_safe
+from assistant.tools import execute_list_available_indicators, json_safe
 from assistant.assistant_quota import would_exceed_assistant_limit
 from quotes.client_ip import client_ip_hash
 
@@ -424,4 +425,29 @@ def screen(request):
     )
 
     response["X-Accel-Buffering"] = "no"
+    return response
+
+# The catalogue is a static tuple plus two DISTINCT queries over Ticker. An
+# hour is plenty: a new sector or country appears when the universe grows,
+# which is a weekly event at most.
+INDICATOR_CATALOGUE_CACHE_CONTROL = "public, max-age=3600"
+
+
+@require_GET
+def indicators(request):
+    """GET /api/assistant/indicators/ · the indicator glossary, as JSON.
+
+    Same payload the ``list_available_indicators`` MCP tool returns:
+    every screenable indicator with its definition, whether higher or
+    lower is better, the countries and sectors actually present in the
+    data, and an explicit list of metrics Sponda does *not* track.
+
+    It lives here rather than under ``/api/screener/`` because
+    ``assistant.tools`` owns ``INDICATOR_CATALOGUE`` and already imports
+    from ``quotes``; pointing the dependency the other way would be a
+    cycle. The markdown screener page renders straight from this, so the
+    glossary has one definition and not two.
+    """
+    response = JsonResponse(json_safe(execute_list_available_indicators()))
+    response["Cache-Control"] = INDICATOR_CATALOGUE_CACHE_CONTROL
     return response

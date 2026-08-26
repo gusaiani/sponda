@@ -24,3 +24,19 @@ pagination.pagerSize = 50
   description = "Notes on stock investing."
   author = "Sponda"
   mainSiteURL = "https://sponda.capital"
+
+# Every post is also served as plain markdown at its permalink plus
+# `index.md`, matching the `.md` convention the main site uses. The source is
+# already markdown, so this costs a template and nothing at runtime.
+[outputFormats.Markdown]
+  mediaType = "text/markdown"
+  baseName = "index"
+  isPlainText = true
+  isHTML = false
+  suffix = "md"
+  permalinkable = true
+
+[outputs]
+  home = ["HTML", "RSS"]
+  page = ["HTML", "Markdown"]
+  section = ["HTML", "RSS"]

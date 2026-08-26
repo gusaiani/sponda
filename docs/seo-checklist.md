@@ -14,7 +14,9 @@
 
 ## AI (ChatGPT, Perplexity, Claude, etc.)
 
-5. **`llms.txt`** — Servido em `/llms.txt`. Explica o que o Sponda faz e como as URLs funcionam para crawlers de AI.
+5. **`llms.txt`** · Servido em `/llms.txt`, gerado em `frontend/src/app/llms.txt/route.ts` (não é mais um arquivo estático em `public/`, que tinha ficado desatualizado). Explica o que o Sponda faz, lista os indicadores a partir do catálogo real e documenta a convenção `.md`.
+
+5b. **Páginas em markdown** · Toda página pública também é servida como markdown puro na mesma URL com `.md` no fim (`/en/PETR4.md`). O HTML das páginas de empresa não contém nenhum número; o markdown contém. Cada página anuncia a sua gêmea via `<link rel="alternate" type="text/markdown">`. Depende de uma Cache Rule no Cloudflare para `*.md`; ver a seção *Markdown pages* no README.
 
 6. **Não bloquear AI crawlers** — O `robots.txt` permite tudo exceto `/api/` e rotas auth. Não bloqueia `GPTBot`, `ClaudeBot`, `PerplexityBot`.
 

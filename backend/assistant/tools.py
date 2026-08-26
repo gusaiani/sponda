@@ -12,7 +12,9 @@ from __future__ import annotations
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
-from quotes.models import IndicatorSnapshot, Ticker
+from quotes.company_snapshot import company_snapshot
+from quotes.json_utils import json_safe
+from quotes.models import Ticker
 from quotes.pe10 import PE_WINDOW_MAX_YEARS, PE_WINDOW_YEARS
 from quotes.screener import (
     SCREENER_DEFAULT_SORT,
@@ -207,20 +209,6 @@ UNSUPPORTED_METRIC_EXAMPLES = (
 )
 
 
-def json_safe(value: Any) -> Any:
-    """Recursively convert Decimal to float so a structure is json.dumps-able.
-
-    Tool executors source values from Django DecimalFields; both the OpenAI
-    SDK and the SSE frame writer call json.dumps on tool results, which
-    raises on a bare Decimal without this conversion.
-    """
-    if isinstance(value, Decimal):
-        return float(value)
-    if isinstance(value, dict):
-        return {key: json_safe(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [json_safe(item) for item in value]
-    return value
 
 
 def _filter_property_schema(field: str) -> dict:
@@ -657,35 +645,47 @@ def execute_screen_companies(arguments: dict) -> dict:
     }
 
 
+# The exact key set this tool has always returned. Pinned as a constant so
+# that widening quotes.company_snapshot (which also feeds the public markdown
+# pages) can never silently reshape a payload an LLM is prompted against.
+GET_COMPANY_FIELDS = (
+    "symbol",
+    "name",
+    "sector",
+    "country",
+    "market_cap",
+    "current_price",
+    *SCREENER_FILTERABLE_FIELDS,
+)
+
+
 def execute_get_company(symbol: str) -> dict:
     """Ticker metadata + IndicatorSnapshot values for one stock symbol.
 
     Case-insensitive; only ``type="stock"`` rows match (funds/ETFs are out
     of scope for this tool). Unknown symbol or missing snapshot both come
     back as an ``{"error": ...}`` dict rather than raising.
+
+    Delegates the read to ``quotes.company_snapshot``, which is the same
+    DB-only accessor the markdown company pages render from, so the two
+    surfaces cannot drift.
     """
     normalized_symbol = (symbol or "").strip().upper()
     if not normalized_symbol:
         return {"error": "No symbol provided."}
 
-    ticker = Ticker.objects.filter(symbol__iexact=normalized_symbol, type="stock").first()
-    if ticker is None:
-        return {"error": f"Unknown symbol: {symbol!r}"}
+    payload = company_snapshot(normalized_symbol)
+    if payload is None:
+        # Two different facts for the model to relay: a symbol that does not
+        # exist is a typo to correct, a company with no snapshot is a coverage
+        # gap to admit. Worth one extra query on the error path.
+        if not Ticker.objects.filter(
+            symbol__iexact=normalized_symbol, type="stock",
+        ).exists():
+            return {"error": f"Unknown symbol: {symbol!r}"}
+        return {"error": f"No indicator data available for {normalized_symbol}."}
 
-    snapshot = IndicatorSnapshot.objects.filter(ticker__iexact=ticker.symbol).first()
-    if snapshot is None:
-        return {"error": f"No indicator data available for {ticker.symbol}."}
-
-    indicator_values = {field: getattr(snapshot, field) for field in SCREENER_FILTERABLE_FIELDS}
-    return json_safe({
-        "symbol": ticker.symbol,
-        "name": ticker.display_name or ticker.name,
-        "sector": ticker.sector,
-        "country": ticker.country,
-        "market_cap": snapshot.market_cap,
-        "current_price": snapshot.current_price,
-        **indicator_values,
-    })
+    return {field: payload[field] for field in GET_COMPANY_FIELDS}
 
 
 def execute_get_fundamentals(symbol: str) -> dict:
