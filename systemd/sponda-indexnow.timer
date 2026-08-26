@@ -1,0 +1,12 @@
+[Unit]
+Description=Submit newly covered Sponda companies to IndexNow, daily
+
+[Timer]
+# After the daily ticker refresh at 06:00, so a company onboarded overnight is
+# pushed the same morning. Nothing new means nothing sent.
+OnCalendar=*-*-* 07:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

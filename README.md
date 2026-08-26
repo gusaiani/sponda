@@ -1017,10 +1017,61 @@ the in-page signals above are the cheap half:
 - List the MCP server in the registries. That channel puts Sponda inside the
   assistant rather than hoping the assistant crawls us, and it is the highest
   leverage of anything here.
+- Submit the site in Bing Webmaster Tools. The one-click import from Google
+  Search Console handles verification and pulls the sitemap across. See
+  "IndexNow" above for the faster channel once that is done.
 - `PerplexityBot` was answering `403` through Cloudflare on 2026-08-26 while
   GPTBot, ClaudeBot, Claude-User and Googlebot all got `200`. Same IP, same
   request, only the User-Agent differed. `docs/seo-checklist.md` claims none
   are blocked. Check the bot settings.
+
+### IndexNow
+
+Pushes changed URLs to Bing, DuckDuckGo, Yandex, Seznam and Naver instead of
+waiting to be crawled. Google does not participate, which matters less than it
+sounds: Bing's index feeds DuckDuckGo and Microsoft Copilot, so this is a
+direct route to the assistants the markdown pages were built for.
+
+```bash
+./manage.py submit_indexnow --dry-run       # what would be sent
+./manage.py submit_indexnow                 # send it
+./manage.py submit_indexnow --resubmit      # include companies already sent
+```
+
+Runs daily at 07:00 from `sponda-indexnow.timer`, after the 06:00 ticker
+refresh, so a company onboarded overnight is pushed the same morning. A run
+with nothing new is a no-op.
+
+**One submission per company, on purpose.** Prices move every fifteen minutes,
+and resubmitting 17,000 companies on every tick is how a host gets
+deprioritised for abuse. A price tick is not a content change.
+`IndexNowSubmission` records what has been sent; `--resubmit` overrides it
+after something that genuinely rewrites the pages.
+
+**What gets submitted:** the HTML company page, per sitemap locale, for
+companies that have indicator data. Not the markdown twins, which are for
+direct readers rather than search results, and not the tab pages, which are
+detail views of a page already being submitted.
+
+| Setting | Purpose |
+|---|---|
+| `INDEXNOW_KEY` | 8 to 128 characters of `a-z A-Z 0-9 -`. Must equal the name and the contents of the key file. |
+
+**The key is public by design.** It is served at
+`https://sponda.capital/<key>.txt` from `frontend/public/`, and its only power
+is to submit URLs for a host you already control. There is nothing to keep
+secret and no registration step: ownership is proved by the file, not by
+anything in Bing Webmaster Tools.
+
+**The failure this guards against is silence.** A key file that drifts from
+`INDEXNOW_KEY` makes every submission a `403` and nothing anywhere says so.
+`submit_indexnow` fetches the live key file and compares before sending, so
+the drift is a `CommandError` rather than a quiet nothing. A test also pins
+that the committed file is named after its own contents, which catches it in
+CI for free.
+
+**Rotating the key:** add the new file, deploy, change `INDEXNOW_KEY`, then
+delete the old file. In that order, or the pre-flight check will refuse.
 
 ### Setup: the Cloudflare Cache Rule
 

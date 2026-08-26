@@ -156,6 +156,12 @@ FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 # Daily distinct-company lookup caps. Anonymous is scoped per client IP
 # (see quotes.lookup_quota); unverified accounts per user; verified
 # accounts are unlimited.
+# IndexNow key. Public by design: it is served at
+# https://sponda.capital/<key>.txt and its only power is to submit URLs for a
+# host you already control. It must match that file exactly, which
+# submit_indexnow checks before sending anything.
+INDEXNOW_KEY = env("INDEXNOW_KEY", default="")
+
 SPONDA_ANON_LOOKUPS_PER_DAY = env.int("SPONDA_ANON_LOOKUPS_PER_DAY", default=20)
 SPONDA_UNVERIFIED_LOOKUPS_PER_DAY = env.int(
     "SPONDA_UNVERIFIED_LOOKUPS_PER_DAY", default=50

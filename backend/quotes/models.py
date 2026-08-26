@@ -501,3 +501,27 @@ class CvmFiling(models.Model):
             return None
         published_on = timezone.localtime(self.first_seen_in.last_modified).date()
         return (published_on - self.filed_at).days
+
+
+class IndexNowSubmission(models.Model):
+    """One company whose pages have been pushed to IndexNow.
+
+    Kept out of :class:`IndicatorSnapshot` deliberately. That table is the
+    screener's precomputed indicators and is rewritten wholesale by the
+    refresh jobs; a crawler-notification timestamp living there would be one
+    more thing to reason about on every write.
+
+    Its only job is to stop the same company being submitted twice. Prices
+    move every fifteen minutes and resubmitting the catalogue on every tick
+    is how a host gets deprioritised for abuse, so a submission is a
+    one-time event per company unless an operator forces otherwise.
+    """
+
+    ticker = models.CharField(max_length=20, unique=True, db_index=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["ticker"]
+
+    def __str__(self):
+        return f"{self.ticker} @ {self.submitted_at:%Y-%m-%d}"
