@@ -425,3 +425,34 @@ class TestBackfillCommand:
 
         assert QuarterlyEarnings.objects.get(ticker="CRM").fiscal_year == 2027
         assert QuarterlyCashFlow.objects.get(ticker="CRM").fiscal_year == 2027
+
+
+@pytest.mark.django_db
+class TestFetchYearEndMonth:
+    """One annual statement is the whole question the backfill has to ask."""
+
+    def test_reads_the_closing_month_off_the_annual_statement(self, monkeypatch):
+        from quotes import fmp
+        from quotes.management.commands import backfill_fiscal_year
+
+        monkeypatch.setattr(
+            fmp, "_get", lambda endpoint, params=None: [{"date": "2026-01-31"}],
+        )
+        assert backfill_fiscal_year.fetch_year_end_month("CRM") == 1
+
+    def test_a_provider_failure_is_a_skip_not_a_crash(self, monkeypatch):
+        from quotes import fmp
+        from quotes.management.commands import backfill_fiscal_year
+
+        def _raise(endpoint, params=None):
+            raise fmp.FMPError("circuit open")
+
+        monkeypatch.setattr(fmp, "_get", _raise)
+        assert backfill_fiscal_year.fetch_year_end_month("CRM") is None
+
+    def test_a_company_with_no_annual_statement_is_a_skip(self, monkeypatch):
+        from quotes import fmp
+        from quotes.management.commands import backfill_fiscal_year
+
+        monkeypatch.setattr(fmp, "_get", lambda endpoint, params=None: [])
+        assert backfill_fiscal_year.fetch_year_end_month("NEWCO") is None

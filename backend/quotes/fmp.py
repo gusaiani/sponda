@@ -106,6 +106,22 @@ def fetch_income_statements(ticker: str) -> list[dict]:
     )
 
 
+def fetch_latest_annual_income_statement(ticker: str) -> dict | None:
+    """The most recent *annual* income statement, or None if there is none.
+
+    Its period end date is the company's fiscal year end, which is the one
+    fact `backfill_fiscal_year` needs to label every quarter already stored
+    for that company.
+    """
+    statements = _get(
+        "/stable/income-statement",
+        params={"symbol": ticker, "period": "annual", "limit": 1},
+    )
+    if not isinstance(statements, list) or not statements:
+        return None
+    return statements[0]
+
+
 def fetch_cash_flow_statements(ticker: str) -> list[dict]:
     """Fetch quarterly cash flow statements for a US ticker."""
     return _get(

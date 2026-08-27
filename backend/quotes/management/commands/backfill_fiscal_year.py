@@ -29,7 +29,7 @@ from django.core.management.base import BaseCommand
 
 from quotes.derived_data import invalidate_statement_caches
 from quotes.fiscal_year import fiscal_year_from_year_end_month
-from quotes.fmp import FMPError, _get
+from quotes.fmp import FMPError, fetch_latest_annual_income_statement
 from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
 
 STATEMENT_MODELS = (BalanceSheet, QuarterlyEarnings, QuarterlyCashFlow)
@@ -45,17 +45,14 @@ def fetch_year_end_month(ticker: str) -> int | None:
     rather than an aborted run.
     """
     try:
-        statements = _get(
-            "/stable/income-statement",
-            params={"symbol": ticker, "period": "annual", "limit": 1},
-        )
+        statement = fetch_latest_annual_income_statement(ticker)
     except FMPError:
         return None
 
-    if not isinstance(statements, list) or not statements:
+    if statement is None:
         return None
 
-    end_date_string = (statements[0].get("date") or "")[:10]
+    end_date_string = (statement.get("date") or "")[:10]
     if not end_date_string:
         return None
     return date.fromisoformat(end_date_string).month
