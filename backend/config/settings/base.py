@@ -3,6 +3,7 @@ from pathlib import Path
 import environ
 
 from config.observability import init_sentry
+from config.redis_urls import redis_url_with_database
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -232,7 +233,27 @@ SLACK_BOT_TOKEN = env("SLACK_BOT_TOKEN", default="")
 SLACKBOT_KEY_ENCRYPTION_KEY = env("SLACKBOT_KEY_ENCRYPTION_KEY", default="")
 SLACKBOT_ANTHROPIC_MODEL = env("SLACKBOT_ANTHROPIC_MODEL", default="claude-opus-5")
 
-# Redis cache (production override can change LOCATION via env).
+# One Redis server, two databases, on purpose.
+#
+# The cache and the Celery broker used to share db 0. Django's RedisCache
+# implements clear() as FLUSHDB, which erases every key in the selected
+# database, so a single cache.clear() also deleted every queued task and
+# every stored result. Splitting the cache onto db 1 makes that impossible.
+#
+# The broker keeps db 0 so an existing queue survives the change: moving the
+# cache is a cold-cache event, moving the broker would strand queued tasks.
+BROKER_REDIS_DATABASE = 0
+CACHE_REDIS_DATABASE = 1
+
+REDIS_URL = env(
+    "REDIS_URL",
+    default=f"redis://127.0.0.1:6379/{BROKER_REDIS_DATABASE}",
+)
+REDIS_CACHE_URL = env(
+    "REDIS_CACHE_URL",
+    default=redis_url_with_database(REDIS_URL, CACHE_REDIS_DATABASE),
+)
+
 # max_connections sizes the pool for the home-page fanout (~60 in-flight
 # requests on a fresh visit) so pool exhaustion does not become the bottleneck.
 # Django's built-in RedisCache forwards leftover OPTIONS to redis.ConnectionPool.from_url,
@@ -242,7 +263,7 @@ SLACKBOT_ANTHROPIC_MODEL = env("SLACKBOT_ANTHROPIC_MODEL", default="claude-opus-
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/0"),
+        "LOCATION": REDIS_CACHE_URL,
         "OPTIONS": {
             "max_connections": 50,
         },
@@ -250,7 +271,7 @@ CACHES = {
 }
 
 # Celery
-CELERY_BROKER_URL = env("REDIS_URL", default="redis://127.0.0.1:6379/0")
+CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"

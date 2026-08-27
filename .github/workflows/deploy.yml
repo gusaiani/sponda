@@ -398,6 +398,21 @@ jobs:
             python manage.py collectstatic --noinput
             python manage.py import_analyses /opt/sponda/backend/analyses.json
 
+            # Bound Redis memory, and pick a policy that cannot eat the queue.
+            #
+            # maxmemory is per-server, not per-database, so the policy applies
+            # to the cache (db 1) and the Celery broker (db 0) alike. That is
+            # why this is volatile-lru and not allkeys-lru: volatile-lru only
+            # evicts keys carrying a TTL. Every cache.set in this codebase
+            # passes an explicit timeout, so cache entries are evictable, while
+            # the broker's queue and unacked lists have no TTL and are not.
+            # Without a maxmemory at all, the default noeviction turns a full
+            # Redis into failed writes and, eventually, an OOM on the box.
+            redis-cli CONFIG SET maxmemory 512mb
+            redis-cli CONFIG SET maxmemory-policy volatile-lru
+            # Persist into /etc/redis/redis.conf so a reboot keeps the policy.
+            redis-cli CONFIG REWRITE
+
             # Install systemd services and timers
             cp /opt/sponda/systemd/sponda.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-celery.service /etc/systemd/system/
