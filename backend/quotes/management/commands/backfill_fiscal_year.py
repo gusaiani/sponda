@@ -17,6 +17,12 @@ re-run and safe to run alongside the ordinary sync. Companies whose closing
 month cannot be learned are skipped and reported rather than guessed at:
 the calendar-year fallback in ``fiscal_year_of`` is a known quantity.
 
+One call per company means 25,000 of them, so it runs in tranches:
+``--limit`` sets the size and ``--after`` resumes past the last one done.
+The cursor is not a convenience. A company that can never be labelled stays
+in the queue, so without one it would head every later tranche and cost a
+call each time; each run prints the cursor for the next.
+
 Grouping changes for every company it touches, so the derived caches are
 dropped. ``IndicatorSnapshot`` rows are recomputed by the usual refresh
 jobs; run ``refresh_snapshot_fundamentals`` if you want it sooner.
@@ -72,12 +78,25 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             "--limit", type=int, default=None,
-            help="Stop after this many companies (for a cautious first pass).",
+            help="Stop after this many companies, one FMP call each.",
+        )
+        parser.add_argument(
+            "--after", default=None,
+            help=(
+                "Resume past this ticker. The queue is in ticker order, and a "
+                "company whose closing month cannot be learned stays in it, so "
+                "without a cursor it heads every later tranche and costs a call "
+                "each time. Each run prints the cursor for the next one."
+            ),
         )
 
     def handle(self, *args, **options):
-        tickers = self._tickers_needing_a_label(options["ticker"], options["limit"])
-        self.stdout.write(f"{len(tickers)} companies with unlabelled rows")
+        tickers, remaining = self._tickers_needing_a_label(
+            options["ticker"], options["limit"], options["after"],
+        )
+        self.stdout.write(
+            f"{len(tickers)} companies this run, {remaining} still queued after it"
+        )
 
         labelled_rows = 0
         labelled_tickers = 0
@@ -111,15 +130,27 @@ class Command(BaseCommand):
                 f"dry run: {labelled_rows} rows across {labelled_tickers} "
                 "companies would be labelled, nothing written"
             ))
+            self._report_cursor(tickers, remaining)
             return
 
         self.stdout.write(self.style.SUCCESS(
             f"labelled {labelled_rows} rows across {labelled_tickers} companies"
         ))
+        self._report_cursor(tickers, remaining)
 
-    def _tickers_needing_a_label(self, ticker: str | None, limit: int | None) -> list[str]:
+    def _report_cursor(self, tickers: list[str], remaining: int) -> None:
+        """Say how to pick up the next tranche, or that there is none."""
+        if remaining and tickers:
+            self.stdout.write(
+                f"next tranche: --after {tickers[-1]} ({remaining} companies left)"
+            )
+
+    def _tickers_needing_a_label(
+        self, ticker: str | None, limit: int | None, after: str | None,
+    ) -> tuple[list[str], int]:
+        """The tranche to process, and how many companies remain behind it."""
         if ticker:
-            return [ticker.upper()]
+            return [ticker.upper()], 0
 
         needing: set[str] = set()
         for model in STATEMENT_MODELS:
@@ -131,7 +162,13 @@ class Command(BaseCommand):
             )
 
         ordered = sorted(needing)
-        return ordered[:limit] if limit else ordered
+        if after:
+            cursor = after.upper()
+            ordered = [symbol for symbol in ordered if symbol > cursor]
+
+        if limit is None:
+            return ordered, 0
+        return ordered[:limit], max(0, len(ordered) - limit)
 
     def _label(self, ticker: str, year_end_month: int, dry_run: bool) -> int:
         """Write the derived fiscal year onto one company's unlabelled rows."""

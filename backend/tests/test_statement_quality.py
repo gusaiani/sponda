@@ -421,3 +421,56 @@ class TestRepairCollapsedDebtCommand:
         call_command("repair_collapsed_debt", "--dry-run", stdout=output)
 
         assert "1 of them the company's latest quarter" in output.getvalue()
+
+    def test_latest_only_repairs_the_quarter_driving_live_ratios(self):
+        # The live debt/equity, debt/EARN10 and debt/FCF10 all read the most
+        # recent quarter. Repairing just those fixes what a visitor sees
+        # without rewriting a decade of history in one transaction.
+        from django.core.management import call_command
+        self._sheets("CRM", [
+            (date(2025, 10, 31), 41_884_000_000, 72_445_000_000),
+            (date(2026, 1, 31), 2_400_000_000, 71_900_000_000),
+            (date(2026, 4, 30), 2_455_000_000, 71_242_000_000),
+        ])
+        call_command("repair_collapsed_debt", "--latest-only")
+
+        by_end_date = {
+            sheet.end_date: sheet.total_debt
+            for sheet in BalanceSheet.objects.filter(ticker="CRM")
+        }
+        assert by_end_date[date(2026, 4, 30)] is None
+        assert by_end_date[date(2026, 1, 31)] == 2_400_000_000  # history untouched
+
+    def test_latest_only_leaves_a_company_whose_latest_quarter_is_sound(self):
+        from django.core.management import call_command
+        self._sheets("SBUX", [
+            (date(2025, 9, 28), 26_611_000_000, 40_108_000_000),
+            (date(2025, 12, 28), 2_000_000_000, 40_609_000_000),
+            (date(2026, 3, 29), 24_391_000_000, 39_015_000_000),
+        ])
+        call_command("repair_collapsed_debt", "--latest-only")
+
+        assert BalanceSheet.objects.get(
+            ticker="SBUX", end_date=date(2026, 3, 29),
+        ).total_debt == 24_391_000_000
+
+    def test_limit_takes_a_tranche_and_successive_runs_converge(self):
+        # A 31,000-row mutation is worth taking in bites. Each run nulls what
+        # it takes; a nulled quarter no longer looks like a collapse, so the
+        # next run picks up where the last stopped rather than redoing it.
+        from django.core.management import call_command
+        self._sheets("AAA", [
+            (date(2025, 3, 31), 40_000_000_000, 70_000_000_000),
+            (date(2025, 6, 30), 1_000_000_000, 69_500_000_000),
+        ])
+        self._sheets("BBB", [
+            (date(2025, 3, 31), 40_000_000_000, 70_000_000_000),
+            (date(2025, 6, 30), 1_000_000_000, 69_500_000_000),
+        ])
+
+        call_command("repair_collapsed_debt", "--limit", "1")
+        nulled_after_first = BalanceSheet.objects.filter(total_debt__isnull=True).count()
+        assert nulled_after_first == 1
+
+        call_command("repair_collapsed_debt", "--limit", "1")
+        assert BalanceSheet.objects.filter(total_debt__isnull=True).count() == 2
