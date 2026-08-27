@@ -23,12 +23,23 @@ The cursor is not a convenience. A company that can never be labelled stays
 in the queue, so without one it would head every later tranche and cost a
 call each time; each run prints the cursor for the next.
 
+The first production run is why the retry logic exists. Pushed at 2,000
+companies with no gap between calls, FMP's circuit breaker opened, every
+call for the next minute raised, and each one was recorded as a company
+whose closing month could not be learned. 1,611 of 2,000 were "skipped",
+American Airlines among them, and the cursor would have stepped past all of
+them. A provider that cannot answer says nothing about a company, so
+``ProviderUnavailable`` is now separate from a None closing month, a refusal
+is waited out rather than counted, and a run that still cannot reach the
+provider stops with the cursor at the last company it actually reached.
+
 Grouping changes for every company it touches, so the derived caches are
 dropped. ``IndicatorSnapshot`` rows are recomputed by the usual refresh
 jobs; run ``refresh_snapshot_fundamentals`` if you want it sooner.
 """
 from __future__ import annotations
 
+import time
 from datetime import date
 
 from django.core.management.base import BaseCommand
@@ -41,19 +52,39 @@ from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings
 STATEMENT_MODELS = (BalanceSheet, QuarterlyEarnings, QuarterlyCashFlow)
 PROGRESS_EVERY_TICKERS = 200
 
+# How long to wait out a provider that has started refusing, and how many
+# times to try before giving the run back. FMP's breaker opens for 60
+# seconds, so the last wait has to outlast a full cool-down.
+RETRY_WAITS_SECONDS = (5, 20, 65)
 
-def fetch_year_end_month(ticker: str) -> int | None:
-    """Which month `ticker` closes its books in, or None if unknown.
+# A small gap between calls, so a long run does not trip the breaker in the
+# first place. Overridable with --pause.
+DEFAULT_PAUSE_SECONDS = 0.2
 
-    One annual income statement is enough: its period end date is the
-    company's year end. Isolated here so the backfill can be tested without
-    reaching the network, and so a provider failure on one company is a skip
-    rather than an aborted run.
+
+class ProviderUnavailable(Exception):
+    """The provider could not answer. Says nothing about the company.
+
+    Kept distinct from a None closing month because conflating the two is
+    what cost the first production run 1,611 companies: FMP's breaker
+    opened, every call for the next minute raised, and each one was recorded
+    as a company whose books apparently close in no month at all.
     """
+
+
+def fetch_year_end_month(ticker: str, _get=None) -> int | None:
+    """Which month `ticker` closes its books in.
+
+    Returns None only when a healthy provider says the company has no annual
+    statement, which is a fact about the company. Raises
+    ``ProviderUnavailable`` when the provider itself could not answer, which
+    is not.
+    """
+    fetch = _get or fetch_latest_annual_income_statement
     try:
-        statement = fetch_latest_annual_income_statement(ticker)
-    except FMPError:
-        return None
+        statement = fetch(ticker)
+    except FMPError as error:
+        raise ProviderUnavailable(str(error)) from error
 
     if statement is None:
         return None
@@ -81,6 +112,13 @@ class Command(BaseCommand):
             help="Stop after this many companies, one FMP call each.",
         )
         parser.add_argument(
+            "--pause", type=float, default=DEFAULT_PAUSE_SECONDS,
+            help=(
+                "Seconds to wait between companies. A long run with no gap "
+                "trips the provider's circuit breaker."
+            ),
+        )
+        parser.add_argument(
             "--after", default=None,
             help=(
                 "Resume past this ticker. The queue is in ticker order, and a "
@@ -101,9 +139,21 @@ class Command(BaseCommand):
         labelled_rows = 0
         labelled_tickers = 0
         skipped: list[str] = []
+        reached: list[str] = []
+        gave_up_on: str | None = None
 
         for index, ticker in enumerate(tickers, start=1):
-            year_end_month = fetch_year_end_month(ticker)
+            time.sleep(options["pause"])
+            try:
+                year_end_month = self._year_end_month(ticker)
+            except ProviderUnavailable as error:
+                # Everything from here on is unreached, not unlabellable.
+                # Stopping leaves it in the queue; skipping would step the
+                # cursor past companies nobody ever asked about.
+                gave_up_on = f"{ticker}: {error}"
+                break
+
+            reached.append(ticker)
             if year_end_month is None:
                 skipped.append(ticker)
                 continue
@@ -118,6 +168,13 @@ class Command(BaseCommand):
             if index % PROGRESS_EVERY_TICKERS == 0:
                 self.stdout.write(f"  {index}/{len(tickers)} companies")
 
+        if gave_up_on:
+            self.stdout.write(self.style.ERROR(
+                f"stopped: provider unavailable at {gave_up_on}. "
+                f"{len(tickers) - len(reached)} companies left unreached and "
+                "still queued."
+            ))
+
         if skipped:
             self.stdout.write(self.style.WARNING(
                 f"{len(skipped)} companies skipped, closing month unknown: "
@@ -130,20 +187,39 @@ class Command(BaseCommand):
                 f"dry run: {labelled_rows} rows across {labelled_tickers} "
                 "companies would be labelled, nothing written"
             ))
-            self._report_cursor(tickers, remaining)
+            self._report_cursor(reached, remaining + len(tickers) - len(reached))
             return
 
         self.stdout.write(self.style.SUCCESS(
             f"labelled {labelled_rows} rows across {labelled_tickers} companies"
         ))
-        self._report_cursor(tickers, remaining)
+        self._report_cursor(reached, remaining + len(tickers) - len(reached))
 
-    def _report_cursor(self, tickers: list[str], remaining: int) -> None:
-        """Say how to pick up the next tranche, or that there is none."""
-        if remaining and tickers:
+    def _report_cursor(self, reached: list[str], remaining: int) -> None:
+        """Say how to pick up the next tranche, or that there is none.
+
+        The cursor is the last company actually reached, never the last one
+        the tranche intended to reach. A run cut short by the provider must
+        leave everything it did not touch in the queue.
+        """
+        if remaining and reached:
             self.stdout.write(
-                f"next tranche: --after {tickers[-1]} ({remaining} companies left)"
+                f"next tranche: --after {reached[-1]} ({remaining} companies left)"
             )
+
+    def _year_end_month(self, ticker: str) -> int | None:
+        """`fetch_year_end_month`, waiting out a provider that is refusing.
+
+        A rate limit should cost a pause, not a company. Only when the
+        provider is still refusing after the last wait does this give up,
+        and then it gives up on the whole run rather than on this company.
+        """
+        for wait_seconds in RETRY_WAITS_SECONDS:
+            try:
+                return fetch_year_end_month(ticker)
+            except ProviderUnavailable:
+                time.sleep(wait_seconds)
+        return fetch_year_end_month(ticker)
 
     def _tickers_needing_a_label(
         self, ticker: str | None, limit: int | None, after: str | None,
