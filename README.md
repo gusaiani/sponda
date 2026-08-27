@@ -1818,6 +1818,26 @@ The cursor is not a convenience. A company whose closing month can never be
 learned stays unlabelled, so without it that company would head every later
 tranche and burn a call on each one.
 
+**A provider that cannot answer says nothing about a company.** The first
+production run pushed 2,000 companies with no gap between calls, FMP's
+circuit breaker opened (`failure_threshold=8`, `cool_down_seconds=60`), and
+every call for the next minute raised. Each one was recorded as a company
+whose closing month could not be learned: **1,611 of 2,000 "skipped"**,
+American Airlines among them, and the cursor would have stepped past every
+one. Nothing was corrupted, since a skipped company keeps a null
+`fiscal_year`, but ~1,600 calls bought nothing.
+
+Three things follow from that, all of them now covered by tests:
+
+| | |
+| --- | --- |
+| `ProviderUnavailable` is separate from a null closing month | Only an empty answer from a *healthy* provider is a fact about the company, and only that earns a skip |
+| A refusal is waited out, not counted | `RETRY_WAITS_SECONDS = (5, 20, 65)`, the last outlasting a full breaker cool-down |
+| A run that still cannot reach the provider stops | And reports the cursor at the last company it actually **reached**, so everything unreached stays queued |
+
+`--pause` (default 0.2s) keeps a long run from tripping the breaker in the
+first place.
+
 `--dry-run` still makes the call per company, because the closing month is
 the thing it has to fetch to know what it would write. Bound it with
 `--limit` rather than dry-running the universe.

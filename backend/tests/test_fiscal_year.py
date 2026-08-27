@@ -440,17 +440,28 @@ class TestFetchYearEndMonth:
         )
         assert backfill_fiscal_year.fetch_year_end_month("CRM") == 1
 
-    def test_a_provider_failure_is_a_skip_not_a_crash(self, monkeypatch):
+    def test_a_provider_failure_is_not_a_missing_closing_month(self):
+        """The distinction the first production run got wrong.
+
+        Pushed at 2,000 companies with no pacing, FMP's circuit breaker
+        opened and every call for the next minute raised. Treating that as
+        "this company has no annual statement" skipped 1,611 of 2,000
+        companies, American Airlines among them, and the cursor advanced
+        past every one of them. A provider being unavailable says nothing
+        about the company.
+        """
         from quotes import fmp
         from quotes.management.commands import backfill_fiscal_year
 
         def _raise(endpoint, params=None):
             raise fmp.FMPError("circuit open")
 
-        monkeypatch.setattr(fmp, "_get", _raise)
-        assert backfill_fiscal_year.fetch_year_end_month("CRM") is None
+        with pytest.raises(backfill_fiscal_year.ProviderUnavailable):
+            backfill_fiscal_year.fetch_year_end_month("CRM", _get=_raise)
 
-    def test_a_company_with_no_annual_statement_is_a_skip(self, monkeypatch):
+    def test_a_company_with_no_annual_statement_is_a_genuine_skip(self, monkeypatch):
+        # An empty answer from a healthy provider is a fact about the
+        # company, and the only thing that earns a permanent skip.
         from quotes import fmp
         from quotes.management.commands import backfill_fiscal_year
 
@@ -537,3 +548,117 @@ class TestBackfillChunking:
         call_command("backfill_fiscal_year", "--limit", "5", stdout=output)
 
         assert "--after" not in output.getvalue()
+
+
+@pytest.mark.django_db
+class TestBackfillSurvivesAProviderOutage:
+    """A rate limit must cost a pause, never a company.
+
+    The first production run lost 1,611 companies to FMP's circuit breaker
+    because a transient failure looked exactly like a missing statement, and
+    the resume cursor then stepped past all of them. These hold the command
+    to retrying, and to stopping rather than stepping past what it could not
+    reach.
+    """
+
+    def _sheets(self, *tickers):
+        BalanceSheet.objects.bulk_create([
+            BalanceSheet(ticker=ticker, end_date=date(2026, 4, 30),
+                         total_debt=1, total_liabilities=2, stockholders_equity=3)
+            for ticker in tickers
+        ])
+
+    def test_retries_a_transient_failure_and_carries_on(self, monkeypatch):
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA")
+        attempts = {"count": 0}
+
+        def _flaky(ticker):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise backfill_fiscal_year.ProviderUnavailable("circuit open")
+            return 1
+
+        monkeypatch.setattr(backfill_fiscal_year, "fetch_year_end_month", _flaky)
+        monkeypatch.setattr(backfill_fiscal_year.time, "sleep", lambda seconds: None)
+        call_command("backfill_fiscal_year")
+
+        assert attempts["count"] == 2
+        assert BalanceSheet.objects.get(ticker="AAA").fiscal_year == 2027
+
+    def test_stops_rather_than_stepping_past_what_it_could_not_reach(self, monkeypatch):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA", "BBB", "CCC")
+
+        def _down_after_the_first(ticker):
+            if ticker == "AAA":
+                return 1
+            raise backfill_fiscal_year.ProviderUnavailable("circuit open")
+
+        monkeypatch.setattr(
+            backfill_fiscal_year, "fetch_year_end_month", _down_after_the_first,
+        )
+        monkeypatch.setattr(backfill_fiscal_year.time, "sleep", lambda seconds: None)
+        output = StringIO()
+        call_command("backfill_fiscal_year", stdout=output)
+
+        assert BalanceSheet.objects.get(ticker="AAA").fiscal_year == 2027
+        # BBB was unreachable, not unlabellable. It must stay in the queue.
+        assert BalanceSheet.objects.get(ticker="BBB").fiscal_year is None
+        assert BalanceSheet.objects.get(ticker="CCC").fiscal_year is None
+        assert "--after AAA" in output.getvalue()
+
+    def test_says_plainly_that_it_stopped_on_the_provider(self, monkeypatch):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA")
+
+        def _down(ticker):
+            raise backfill_fiscal_year.ProviderUnavailable("circuit open")
+
+        monkeypatch.setattr(backfill_fiscal_year, "fetch_year_end_month", _down)
+        monkeypatch.setattr(backfill_fiscal_year.time, "sleep", lambda seconds: None)
+        output = StringIO()
+        call_command("backfill_fiscal_year", stdout=output)
+
+        assert "provider unavailable" in output.getvalue().lower()
+
+    def test_a_genuinely_unlabellable_company_is_still_only_skipped(self, monkeypatch):
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA", "BBB")
+        monkeypatch.setattr(
+            backfill_fiscal_year, "fetch_year_end_month",
+            lambda ticker: None if ticker == "AAA" else 1,
+        )
+        monkeypatch.setattr(backfill_fiscal_year.time, "sleep", lambda seconds: None)
+        call_command("backfill_fiscal_year")
+
+        assert BalanceSheet.objects.get(ticker="AAA").fiscal_year is None
+        assert BalanceSheet.objects.get(ticker="BBB").fiscal_year == 2027
+
+    def test_paces_its_calls_so_the_breaker_stays_shut(self, monkeypatch):
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA", "BBB", "CCC")
+        pauses = []
+        monkeypatch.setattr(
+            backfill_fiscal_year, "fetch_year_end_month", lambda ticker: 1,
+        )
+        monkeypatch.setattr(
+            backfill_fiscal_year.time, "sleep", lambda seconds: pauses.append(seconds),
+        )
+        call_command("backfill_fiscal_year", "--pause", "0.5")
+
+        assert pauses == [0.5, 0.5, 0.5]
