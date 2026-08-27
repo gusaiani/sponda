@@ -30,7 +30,7 @@ function makeEntry(ticker: string, overrides: Partial<CompareEntry> = {}): Compa
   };
 }
 
-function renderRow(entry: CompareEntry, isCurrentTicker: boolean) {
+function renderRow(entry: CompareEntry, isPinned: boolean) {
   const dragIndexRef = { current: null } as React.MutableRefObject<number | null>;
   return render(
     <table>
@@ -38,7 +38,7 @@ function renderRow(entry: CompareEntry, isCurrentTicker: boolean) {
         <CompareRow
           entry={entry}
           index={0}
-          isCurrentTicker={isCurrentTicker}
+          isPinned={isPinned}
           onRemove={vi.fn()}
           columns={getColumns(7, translateEn)}
           dragIndexRef={dragIndexRef}
@@ -64,11 +64,20 @@ describe("CompareRow remove column", () => {
     expect(removeButton!.getAttribute("aria-label")).toBe("Remove NVDA");
   });
 
-  it("keeps the sticky remove cell (without a button) on the current ticker's row", () => {
+  it("keeps the sticky remove cell (without a button) on the pinned company's row", () => {
     const { container } = renderRow(makeEntry("DUOL"), true);
     const removeCell = container.querySelector("td.compare-remove-col");
     expect(removeCell).not.toBeNull();
     expect(removeCell!.querySelector("button")).toBeNull();
+  });
+
+  it("lets the top row of a saved list be removed like any other", () => {
+    // A list has no pinned company, so its first row is not privileged.
+    // Losing the anchor company must not be impossible.
+    const { container } = renderRow(makeEntry("DEXP4"), false);
+    const removeButton = container.querySelector("td.compare-remove-col button.compare-remove-btn");
+    expect(removeButton).not.toBeNull();
+    expect(removeButton!.getAttribute("aria-label")).toBe("Remove DEXP4");
   });
 
   it("keeps the sticky remove cell on the error row", () => {
