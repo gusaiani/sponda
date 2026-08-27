@@ -1699,20 +1699,48 @@ baseline for the next one. Both `brapi.sync_balance_sheets` and
 `fmp.sync_balance_sheets` run it before writing, so the next successful sync
 restores the figure once the provider corrects the filing.
 
-Corpus-wide when found: **9,716 quarters across 6,307 companies**, of which
-**458 were a company's most recent quarter** and so were driving its live
-ratios, with **409** of those already carrying a debt/equity in the screener
-snapshot. Honda and BMW were reporting zero debt against trillions of yen and
-billions of euros of liabilities; Orange showed $7.5bn the quarter after
-$42.7bn.
+Corpus-wide when found: **31,483 quarters across 6,307 companies**, of which
+**1,372 were a company's most recent quarter** and so were driving its live
+ratios. Honda and BMW were reporting zero debt against trillions of yen and
+billions of euros of liabilities.
+
+Orange is the clearest case, because it shows the rule discriminating rather
+than just firing:
+
+| Quarter end | Debt (M) | Liabilities (M) | Distrusted |
+| --- | --- | --- | --- |
+| 2025-06-30 | 7,508 | 68,999 | yes |
+| 2024-12-31 | 42,666 | 68,713 | no |
+| 2024-06-30 | 7,404 | 69,936 | yes |
+| 2023-12-31 | 52,650 | 83,579 | no |
+
+FMP mis-tags Orange's interim filings and gets its annuals right. Each
+annual restores the trusted baseline, so the walk flags exactly the interims
+and does not run away.
+
+Note the shape of that walk when reading these numbers. It compares each
+quarter against the last one whose debt it still *trusts*, not against the
+row immediately before, so a mis-tag sustained across several quarters is
+caught for its whole span. A naive `lag()` query sees only the quarter where
+debt drops and undercounts by roughly 3x · it was what produced the 9,716
+and 458 first reported here.
 
 For rows already stored:
 
 ```bash
-./manage.py repair_collapsed_debt --dry-run     # report only
-./manage.py repair_collapsed_debt --ticker CRM  # one company
-./manage.py repair_collapsed_debt               # null them, invalidate caches
+./manage.py repair_collapsed_debt --dry-run       # report only
+./manage.py repair_collapsed_debt --ticker CRM    # one company
+./manage.py repair_collapsed_debt --latest-only   # just the live ratios (1,372)
+./manage.py repair_collapsed_debt --limit 5000    # one tranche
+./manage.py repair_collapsed_debt                 # all of it
 ```
+
+**No provider is called.** Every figure the repair needs is already stored,
+so it costs no API budget however it is run. `--latest-only` takes the
+quarter each company's live ratios and screener row are computed from, which
+is the visible damage. `--limit` takes a tranche of any size: a nulled
+quarter no longer looks like a collapse, so successive runs pick up where the
+last one stopped rather than redoing it.
 
 Nulling drops debt/equity, debt/EARN10 and debt/FCF10 from the company's
 rating rather than scoring them on a fiction. The rating still forms from the
@@ -1761,19 +1789,38 @@ so the year label only ever picked its CPI factor. It had to stay that way.
 For rows stored before the field existed:
 
 ```bash
-./manage.py backfill_fiscal_year --dry-run       # report only
-./manage.py backfill_fiscal_year --ticker CRM    # one company
-./manage.py backfill_fiscal_year --limit 500     # a cautious first pass
-./manage.py backfill_fiscal_year                 # the whole universe
+./manage.py backfill_fiscal_year --ticker CRM              # one company
+./manage.py backfill_fiscal_year --limit 40 --dry-run      # sample, no writes
+./manage.py backfill_fiscal_year --limit 2000              # one tranche
+./manage.py backfill_fiscal_year --limit 2000 --after CRM  # the next one
 ```
 
 It asks each company's **annual** statement which month it closes in, once,
 and derives the label for every row that company already has. That is one FMP
-call per ticker (~25,000) rather than re-pulling twenty years of quarterly
-statements across three endpoints (~75,000). Rows the provider already
-labelled are skipped, so it is safe to re-run and safe to run alongside the
-ordinary sync. Companies whose closing month cannot be learned are reported
-and left on the calendar-year fallback rather than guessed at.
+call per ticker (~25,000 companies) rather than re-pulling twenty years of
+quarterly statements across three endpoints (~75,000). Rows the provider
+already labelled are skipped, so it is safe to re-run and safe to run
+alongside the ordinary sync. Companies whose closing month cannot be learned
+are reported and left on the calendar-year fallback rather than guessed at.
+
+**Run it in tranches**, because one call per company is real API budget.
+`--limit` sets the size, `--after` resumes past the last company done, and
+each run prints the cursor for the next:
+
+```
+1500 companies this run, 23507 still queued after it
+9 companies skipped, closing month unknown: AAC-UN, AACPU, ...
+labelled 141032 rows across 1491 companies
+next tranche: --after BLDP (23507 companies left)
+```
+
+The cursor is not a convenience. A company whose closing month can never be
+learned stays unlabelled, so without it that company would head every later
+tranche and burn a call on each one.
+
+`--dry-run` still makes the call per company, because the closing month is
+the thing it has to fetch to know what it would write. Bound it with
+`--limit` rather than dry-running the universe.
 
 Until the backfill reaches a company, `fiscal_year_of` falls back to the
 calendar year, so deploying this changes nothing on its own.

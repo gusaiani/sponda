@@ -1,11 +1,12 @@
 """Null balance-sheet debt that vanished without the liabilities to match.
 
 The ingestion guard in ``quotes.statement_quality`` stops new ones arriving.
-This repairs the rows already stored: when found, 9,716 quarters across
-6,307 companies, of which 458 were a company's most recent quarter and so
+This repairs the rows already stored: when found, 31,483 quarters across
+6,307 companies, of which 1,372 were a company's most recent quarter and so
 were driving its live debt/equity, debt/earnings and debt/FCF ratios. Among
 them Salesforce at $2.5bn against $71.2bn of liabilities, Honda and BMW at
-zero, and Orange at $7.5bn the quarter after $42.7bn.
+zero, and Orange at $7.5bn against $69bn of liabilities on every interim
+filing while its annuals reported $42bn correctly.
 
 An understated debt figure is the dangerous direction of wrong: it ranks a
 company as unlevered on exactly the screens someone uses to avoid leverage.
@@ -13,6 +14,13 @@ Nulling it drops those three indicators from the company's rating rather
 than scoring them on a fiction; the rating still forms from whatever
 remains, and the next successful sync restores the figure if the provider
 has since corrected the filing.
+
+Nothing here calls a provider: every figure it needs is already stored, so
+the repair costs no API budget however it is run. ``--latest-only`` takes
+just the quarter each company's live ratios and screener row are computed
+from, which is the visible damage. ``--limit`` takes a tranche of any size;
+a nulled quarter no longer looks like a collapse, so successive runs pick up
+where the last one stopped rather than redoing it.
 
 Ratios derived from these rows are cached per ticker, so the derived caches
 for every affected company are dropped. Their IndicatorSnapshot rows are
@@ -64,9 +72,19 @@ class Command(BaseCommand):
             "--ticker", default=None,
             help="Repair a single company rather than the whole universe.",
         )
+        parser.add_argument(
+            "--latest-only", action="store_true",
+            help=(
+                "Repair only each company's most recent quarter, the one its "
+                "live ratios and screener row are computed from."
+            ),
+        )
 
     def handle(self, *args, **options):
         suspect = self._find_collapsed_quarters(options["ticker"])
+
+        if options["latest_only"]:
+            suspect = [quarter for quarter in suspect if quarter.is_latest]
 
         limit = options["limit"]
         if limit:

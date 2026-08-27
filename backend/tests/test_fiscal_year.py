@@ -456,3 +456,84 @@ class TestFetchYearEndMonth:
 
         monkeypatch.setattr(fmp, "_get", lambda endpoint, params=None: [])
         assert backfill_fiscal_year.fetch_year_end_month("NEWCO") is None
+
+
+@pytest.mark.django_db
+class TestBackfillChunking:
+    """25,000 companies is one FMP call each, so it has to run in tranches.
+
+    ``--limit`` alone is not enough. A company whose closing month cannot be
+    learned stays unlabelled forever, so it sits at the front of the queue
+    and burns a call on every subsequent run. The cursor is what lets a
+    tranche move past it.
+    """
+
+    def _sheets(self, *tickers):
+        BalanceSheet.objects.bulk_create([
+            BalanceSheet(ticker=ticker, end_date=date(2026, 4, 30),
+                         total_debt=1, total_liabilities=2, stockholders_equity=3)
+            for ticker in tickers
+        ])
+
+    def test_limit_takes_the_first_tranche_in_ticker_order(self, monkeypatch):
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA", "BBB", "CCC")
+        monkeypatch.setattr(
+            backfill_fiscal_year, "fetch_year_end_month", lambda ticker: 1,
+        )
+        call_command("backfill_fiscal_year", "--limit", "2")
+
+        labelled = set(
+            BalanceSheet.objects
+            .filter(fiscal_year__isnull=False)
+            .values_list("ticker", flat=True)
+        )
+        assert labelled == {"AAA", "BBB"}
+
+    def test_after_resumes_past_a_company_that_can_never_be_labelled(self, monkeypatch):
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA", "BBB")
+        # AAA can never be learned; without a cursor it would head the queue
+        # on every run and cost a call each time.
+        monkeypatch.setattr(
+            backfill_fiscal_year, "fetch_year_end_month",
+            lambda ticker: None if ticker == "AAA" else 1,
+        )
+        call_command("backfill_fiscal_year", "--after", "AAA")
+
+        assert BalanceSheet.objects.get(ticker="BBB").fiscal_year == 2027
+        assert BalanceSheet.objects.get(ticker="AAA").fiscal_year is None
+
+    def test_reports_the_cursor_to_resume_from(self, monkeypatch):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA", "BBB", "CCC")
+        monkeypatch.setattr(
+            backfill_fiscal_year, "fetch_year_end_month", lambda ticker: 1,
+        )
+        output = StringIO()
+        call_command("backfill_fiscal_year", "--limit", "2", stdout=output)
+
+        assert "--after BBB" in output.getvalue()
+
+    def test_says_nothing_to_resume_from_when_the_queue_is_drained(self, monkeypatch):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from quotes.management.commands import backfill_fiscal_year
+
+        self._sheets("AAA")
+        monkeypatch.setattr(
+            backfill_fiscal_year, "fetch_year_end_month", lambda ticker: 1,
+        )
+        output = StringIO()
+        call_command("backfill_fiscal_year", "--limit", "5", stdout=output)
+
+        assert "--after" not in output.getvalue()
