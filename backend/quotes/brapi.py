@@ -174,6 +174,11 @@ def _income_statements(ticker: str, modules: str) -> IncomeStatements:
 def annual_income_by_year(statements: list[dict]) -> dict[int, AnnualIncome]:
     """Index audited annual totals by the year they close.
 
+    The closing month is kept alongside the totals, because it is what says
+    where the company's fiscal year begins. Sao Martinho closes on 31 March
+    and Camil on 28 February, and grouping either by calendar year would
+    split one fiscal year across two buckets.
+
     Shared with the repair command, so the reconciliation reads the provider
     the same way whether a quarter is arriving or being corrected.
     """
@@ -182,9 +187,11 @@ def annual_income_by_year(statements: list[dict]) -> dict[int, AnnualIncome]:
         end_date_string = (statement.get("endDate") or "")[:10]
         if not end_date_string:
             continue
-        totals[date.fromisoformat(end_date_string).year] = AnnualIncome(
+        closes_on = date.fromisoformat(end_date_string)
+        totals[closes_on.year] = AnnualIncome(
             revenue=_as_int(statement.get("totalRevenue")),
             net_income=_as_int(statement.get("netIncome")),
+            end_month=closes_on.month,
         )
     return totals
 

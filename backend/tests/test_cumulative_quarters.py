@@ -244,18 +244,23 @@ class TestRestateQuarterlyEarnings:
         assert by_date[date(2025, 9, 30)].eps == Decimal("25.40")
         assert by_date[date(2025, 12, 31)].eps is None
 
-    def test_leaves_everything_alone_with_no_annuals_at_all(self):
-        """A provider outage on the annual module must not restate anything."""
-        quarters = _quarters("KEPL3", {
-            date(2025, 3, 31): (357_230_020, 25_552_000, None),
-            date(2025, 6, 30): (-46_157_000, -11_156_000, None),
-            date(2025, 9, 30): (112_262_000, 37_174_000, None),
-            date(2025, 12, 31): (398_662_020, 64_752_000, None),
+    def test_leaves_plausible_figures_alone_with_no_annuals_at_all(self):
+        """A provider outage on the annual module must not restate anything.
+
+        Nothing here is impossible as filed, so there is no evidence to act
+        on and no guess is made. A year that *is* impossible as filed is a
+        different matter, covered by TestAStaleCleanVerdictIsNotTrusted.
+        """
+        quarters = _quarters("EMBR3", {
+            date(2025, 3, 31): (6_405_270_000, 470_895_000, None),
+            date(2025, 6, 30): (10_270_363_000, 397_477_000, None),
+            date(2025, 9, 30): (10_866_683_000, 688_122_000, None),
+            date(2025, 12, 31): (14_340_918_000, 435_543_000, None),
         })
         restated = restate_quarterly_earnings(quarters, {})
 
         assert [quarter.revenue for quarter in restated] == [
-            357_230_020, -46_157_000, 112_262_000, 398_662_020,
+            6_405_270_000, 10_270_363_000, 10_866_683_000, 14_340_918_000,
         ]
 
     def test_refuses_a_carried_verdict_that_would_invent_negative_revenue(self):
@@ -284,3 +289,168 @@ class TestRestateQuarterlyEarnings:
         quarters = _quarters("KEPL3", {date(2025, 3, 31): (1, 1, None)})
         assert restate_quarterly_earnings(quarters, {}) is not None
         assert all(isinstance(quarter, QuarterlyEarnings) for quarter in quarters)
+
+
+# Sao Martinho closes its books on 31 March, so its fiscal 2026 runs from the
+# June 2025 quarter to the March 2026 one. Camil closes on 28 February. Both
+# are real B3 filers on this path, and neither is a calendar-year company.
+SAO_MARTINHO_YEAR_END_MONTH = 3
+CAMIL_YEAR_END_MONTH = 2
+
+
+class TestOffCalendarFilers:
+    """Not every B3 company closes its books on 31 December.
+
+    Sugar and ethanol producers close after the harvest. Grouping their
+    quarters by calendar year splits one fiscal year across two buckets, so
+    no bucket ever holds the four quarters the annual covers and the
+    reconciliation can never decide anything.
+    """
+
+    def test_groups_a_march_year_end_into_one_fiscal_year(self):
+        quarters = _quarters("SMTO3", {
+            date(2025, 6, 30): (1_857_161_000, 100, None),
+            date(2025, 9, 30): (-118_517_000, 100, None),
+            date(2025, 12, 31): (-146_342_000, 100, None),
+            date(2026, 3, 31): (2_243_658_000, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2026: AnnualIncome(revenue=7_431_765_000, end_month=SAO_MARTINHO_YEAR_END_MONTH),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2025, 9, 30)].revenue == 1_738_644_000
+        assert by_date[date(2025, 12, 31)].revenue == 1_592_302_000
+        assert sum(q.revenue for q in restated) == 7_431_765_000
+
+    def test_exempts_the_quarter_that_closes_the_fiscal_year(self):
+        """March is this filer's fourth quarter, not its first."""
+        quarters = _quarters("SMTO3", {
+            date(2025, 6, 30): (1_857_161_000, 100, None),
+            date(2025, 9, 30): (-118_517_000, 100, None),
+            date(2025, 12, 31): (-146_342_000, 100, None),
+            date(2026, 3, 31): (2_243_658_000, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2026: AnnualIncome(revenue=7_431_765_000, end_month=SAO_MARTINHO_YEAR_END_MONTH),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2026, 3, 31)].revenue == 2_243_658_000
+
+    def test_handles_a_february_year_end(self):
+        quarters = _quarters("CAML3", {
+            date(2025, 5, 31): (2_687_327_000, 100, None),
+            date(2025, 8, 31): (292_342_020, 100, None),
+            date(2025, 11, 30): (-34_418_000, 100, None),
+            date(2026, 2, 28): (2_502_755_960, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2026: AnnualIncome(revenue=11_115_003_000, end_month=CAMIL_YEAR_END_MONTH),
+        })
+
+        assert sum(quarter.revenue for quarter in restated) == 11_115_003_000
+
+    def test_still_treats_a_december_filer_as_a_calendar_year(self):
+        quarters = _quarters("KEPL3", {
+            date(2025, 3, 31): (357_230_020, 25_552_000, None),
+            date(2025, 6, 30): (-46_157_000, -11_156_000, None),
+            date(2025, 9, 30): (112_262_000, 37_174_000, None),
+            date(2025, 12, 31): (398_662_020, 64_752_000, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2025: AnnualIncome(revenue=1_490_300_000, net_income=156_270_000, end_month=12),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2025, 6, 30)].revenue == 311_073_020
+
+
+class TestAStaleCleanVerdictIsNotTrusted:
+    """BRAPI's pipeline broke during 2025, so 2024 clears nothing about 2025.
+
+    Natura's 2024 reconciles as filed to the rupiah, and BRAPI publishes no
+    2025 annual, so the carried verdict says the company is healthy while its
+    June 2025 quarter reports minus R$2.5bn of revenue. No company earns
+    negative revenue. Where one reading of an undecided year is impossible
+    and the other is not, the possible one wins.
+    """
+
+    def test_repairs_a_negative_year_a_clean_predecessor_would_suppress(self):
+        quarters = _quarters("NTCO3", {
+            date(2024, 3, 31): (6_105_253_000, 100, None),
+            date(2024, 6, 30): (7_352_632_000, 100, None),
+            date(2024, 9, 30): (2_884_559_000, 100, None),
+            date(2024, 12, 31): (7_747_361_000, 100, None),
+            date(2025, 3, 31): (6_679_433_000, 100, None),
+            date(2025, 6, 30): (-2_528_602_000, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2024: AnnualIncome(revenue=24_089_805_000, end_month=12),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2024, 6, 30)].revenue == 7_352_632_000
+        assert by_date[date(2025, 6, 30)].revenue == 4_150_831_000
+
+    def test_leaves_a_negative_the_running_sum_cannot_resolve(self):
+        """If both readings are impossible, neither is evidence for the other."""
+        quarters = _quarters("XXXX3", {
+            date(2025, 3, 31): (100, 10, None),
+            date(2025, 6, 30): (-900, -50, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {})
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2025, 6, 30)].revenue == -900
+
+    def test_leaves_a_year_with_no_negative_alone(self):
+        """Absent a negative there is no evidence, and no guess is made."""
+        quarters = _quarters("EMBR3", {
+            date(2026, 3, 31): (7_584_756_000, 100, None),
+            date(2026, 6, 30): (11_335_557_000, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {})
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2026, 6, 30)].revenue == 11_335_557_000
+
+
+class TestAnAnnualThatSettlesNothing:
+    """An annual that cannot be compared has not cleared the year.
+
+    For a filer closing in March, BRAPI publishes no quarter for the closing
+    period at all, so the fiscal year holds three quarters and can never be
+    summed against a twelve-month total. Treating that silence as a clean
+    bill of health left Sao Martinho, Camil and Jalles Machado reporting
+    negative revenue with an annual filing sitting right beside them.
+    """
+
+    def test_falls_back_to_the_undecided_reading(self):
+        quarters = _quarters("SMTO3", {
+            date(2025, 6, 30): (1_857_161_000, 100, None),
+            date(2025, 9, 30): (-118_517_000, 100, None),
+            date(2025, 12, 31): (-146_342_000, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2026: AnnualIncome(revenue=7_431_765_000, end_month=3),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2025, 9, 30)].revenue == 1_738_644_000
+        assert by_date[date(2025, 12, 31)].revenue == 1_592_302_000
+
+    def test_does_not_update_the_carried_verdict(self):
+        """No verdict was reached, so the next year inherits nothing from it."""
+        quarters = _quarters("SMTO3", {
+            date(2025, 6, 30): (1_000, 100, None),
+            date(2025, 9, 30): (2_000, 100, None),
+            date(2025, 12, 31): (3_000, 100, None),
+            date(2026, 6, 30): (4_000, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2026: AnnualIncome(revenue=99_999_999, end_month=3),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2026, 6, 30)].revenue == 4_000
