@@ -35,6 +35,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
+from .fiscal_year import fiscal_year_from_year_end_month
+
 AS_REPORTED = "as-reported"
 RUNNING_SUM = "running-sum"
 UNDECIDED = "undecided"
@@ -47,6 +49,13 @@ RECONCILIATION_TOLERANCE = Decimal("0.005")
 
 QUARTERS_IN_A_YEAR = 4
 LAST_DIFFERENCED_QUARTER = 3
+MONTHS_IN_A_QUARTER = 3
+MONTHS_IN_A_YEAR = 12
+
+# Most B3 companies close on 31 December, so that is the assumption when the
+# provider offers no annual filing to read a closing month from. Sugar and
+# ethanol producers close after the harvest instead, in February or March.
+DEFAULT_YEAR_END_MONTH = 12
 
 # Fields restated together. EPS is net income over a share count, so it
 # carries the same defect and would otherwise contradict the net income
@@ -56,10 +65,15 @@ RESTATED_FIELDS = ("revenue", "net_income", "eps")
 
 @dataclass(frozen=True)
 class AnnualIncome:
-    """What the audited annual filing reports for one year."""
+    """What the audited annual filing reports for one year.
+
+    ``end_month`` is the month that filing closes in, which is what says
+    where a fiscal year begins and which quarter ends it.
+    """
 
     revenue: int | None = None
     net_income: int | None = None
+    end_month: int | None = None
 
     @property
     def is_empty(self) -> bool:
@@ -152,64 +166,123 @@ def restate_quarterly_earnings(quarters: list, annual_by_year: dict[int, AnnualI
 
     Years are walked oldest first so a verdict can be carried forward into the
     year still in progress, which has no annual of its own yet and is the year
-    a reader is most likely looking at. The verdict is a property of the
-    provider's pipeline rather than of the quarter, so the most recent
-    measurement is the best evidence available for the open year · but only
-    evidence, so a carried verdict is still sanity-checked before it is
-    applied. A year that has an annual and is not condemned by it is left
-    alone, and does not inherit anything.
+    a reader is most likely looking at. A year that has an annual and is not
+    condemned by it is left alone, and does not inherit anything.
 
     Mutates and returns the objects it was given, because ingestion passes
     them straight to ``bulk_create``.
     """
-    quarters_by_year = _grouped_by_year(quarters)
+    year_end_month = _year_end_month(annual_by_year)
+    quarters_by_year = _grouped_by_year(quarters, year_end_month)
     carried_verdict = AS_REPORTED
 
     for year in sorted(quarters_by_year):
         by_quarter = quarters_by_year[year]
         annual = annual_by_year.get(year)
 
+        verdict = UNDECIDED
         if annual is not None and not annual.is_empty:
             verdict = choose_restatement(
                 _field_values(by_quarter, "revenue"),
                 _field_values(by_quarter, "net_income"),
                 annual,
             )
-            if verdict == UNDECIDED:
-                continue
-            carried_verdict = verdict
-            if verdict == RUNNING_SUM:
-                _apply_running_sum(by_quarter)
-            continue
 
-        if carried_verdict == RUNNING_SUM and _running_sum_is_plausible(by_quarter):
+        if verdict == UNDECIDED:
+            # An annual that could not be compared has not cleared the year.
+            # For a filer closing in March, BRAPI publishes no quarter for
+            # the closing period at all, so the fiscal year holds three and
+            # can never be summed against a twelve-month total. Treating that
+            # silence as a clean bill of health left Sao Martinho and Camil
+            # reporting negative revenue with an annual sitting beside them.
+            # The carried verdict is deliberately not updated: no verdict was
+            # reached, so there is nothing for the next year to inherit.
+            verdict = _reading_for_an_undecided_year(by_quarter, carried_verdict)
+        else:
+            carried_verdict = verdict
+
+        if verdict == RUNNING_SUM:
             _apply_running_sum(by_quarter)
 
     return quarters
 
 
-def _grouped_by_year(quarters: list) -> dict[int, dict[int, object]]:
-    """Index quarters by calendar year and quarter number.
+def _year_end_month(annual_by_year: dict[int, AnnualIncome]) -> int:
+    """The month this company closes its books in, per its latest annual.
 
-    Calendar year rather than fiscal year deliberately: this path serves B3
-    only, where the CVM requires a 31 December year end, and the fourth
-    quarter's exemption is a fact about 31 December filings.
+    Read from the filing rather than assumed. Sao Martinho closes on 31
+    March and Camil on 28 February, and grouping either by calendar year
+    splits one fiscal year across two buckets, so no bucket ever holds the
+    four quarters the annual covers and nothing can ever be decided.
+    """
+    for year in sorted(annual_by_year, reverse=True):
+        month = annual_by_year[year].end_month
+        if month:
+            return month
+    return DEFAULT_YEAR_END_MONTH
 
-    A year holding two statements for the same quarter is dropped rather than
-    silently resolved, since the accumulation depends on each step being one
-    quarter wide.
+
+def _reading_for_an_undecided_year(by_quarter: dict, carried_verdict: str) -> str:
+    """Which reading to take for a year no annual filing settles.
+
+    Two things can point at the running sum here, and one thing can veto it.
+
+    The veto comes first: a restatement that drives revenue below zero is
+    refused outright, because that is what accumulating quarters which were
+    never differenced looks like.
+
+    Otherwise a carried verdict counts as evidence, since whether BRAPI
+    differences a company is a property of its pipeline rather than of the
+    quarter. So does a negative revenue in the figures as filed, and that one
+    outranks a carried verdict of the opposite sign: BRAPI's pipeline broke
+    during 2025, so a company whose last decided year is 2024 carries a
+    verdict that predates the defect. Natura's 2024 reconciles as filed to
+    the rupiah while its June 2025 quarter reports minus R$2.5bn of revenue.
+    No company earns negative revenue, so where one reading of the year is
+    impossible and the other is not, the possible one wins.
+    """
+    reported = _field_values(by_quarter, "revenue")
+    restated = running_sum_restatement(reported)
+    if restated is None or _has_negative(restated):
+        return AS_REPORTED
+    if carried_verdict == RUNNING_SUM or _has_negative(reported):
+        return RUNNING_SUM
+    return AS_REPORTED
+
+
+def _has_negative(values: dict) -> bool:
+    return any(value is not None and value < 0 for value in values.values())
+
+
+def _grouped_by_year(quarters: list, year_end_month: int) -> dict[int, dict[int, object]]:
+    """Index quarters by fiscal year and by position within that year.
+
+    Position, not calendar quarter: for a filer closing in March, the quarter
+    ending in June opens the year and the one ending in March closes it, and
+    it is the closing quarter that BRAPI derives from the audited annual and
+    therefore gets right.
+
+    A year holding two statements for the same position is dropped rather
+    than silently resolved, since the accumulation depends on each step being
+    one quarter wide.
     """
     grouped: dict[int, dict[int, object]] = {}
     duplicated: set[int] = set()
     for quarter in quarters:
-        year = quarter.end_date.year
-        number = (quarter.end_date.month - 1) // 3 + 1
-        if number in grouped.setdefault(year, {}):
+        year = fiscal_year_from_year_end_month(quarter.end_date, year_end_month)
+        position = _position_in_fiscal_year(quarter.end_date.month, year_end_month)
+        if position in grouped.setdefault(year, {}):
             duplicated.add(year)
-        grouped[year][number] = quarter
+        grouped[year][position] = quarter
     for year in duplicated:
         del grouped[year]
     return grouped
+
+
+def _position_in_fiscal_year(month: int, year_end_month: int) -> int:
+    """Which of the four quarters of its fiscal year a month closes."""
+    months_since_year_start = (month - year_end_month - 1) % MONTHS_IN_A_YEAR
+    return months_since_year_start // MONTHS_IN_A_QUARTER + 1
 
 
 def _field_values(by_quarter: dict[int, object], field: str) -> dict[int, object]:

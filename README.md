@@ -1933,6 +1933,35 @@ annual yet and is the year a reader is looking at. That is evidence rather
 than proof, so a carried verdict is rejected if it would drive revenue below
 zero, which is what a restatement of already-correct quarters looks like.
 
+Three refinements, each found by a company the first pass left broken:
+
+**Not every B3 filer closes on 31 December.** Sugar and ethanol producers
+close after the harvest: São Martinho and Jalles Machado on 31 March, Camil on
+28 February, BrasilAgro on 30 June. Grouping their quarters by calendar year
+splits one fiscal year across two buckets, so no bucket ever holds the four
+quarters the annual covers. The closing month is read from the annual filing
+itself and the quarters are grouped on it, which also decides *which* quarter
+is the exempt one: for a March filer, the quarter ending in June opens the
+year and the one ending in March closes it.
+
+**An annual that cannot be compared has not cleared the year.** For those same
+filers BRAPI publishes no quarter for the closing period at all, so the fiscal
+year holds three quarters and can never be summed against a twelve-month
+total. That silence was being treated as a clean bill of health.
+
+**A clean year does not vouch for the year after it.** BRAPI's pipeline broke
+*during* 2025, so a company whose last comparable year is 2024 carries a
+verdict that predates the defect. Natura's 2024 reconciles as filed to the
+rupiah while its June 2025 quarter reports minus R$2.5bn of revenue, and there
+is no 2025 annual to settle it. No company earns negative revenue, so where
+one reading of an unsettled year is impossible and the other is not, the
+possible one wins. The rule is symmetric: a restatement that *creates* a
+negative is refused for the same reason.
+
+None of that is a judgement about plausible magnitudes. Where neither reading
+is possible, or the quarters do not form a contiguous run, the figures are
+left exactly as filed.
+
 Cash flow statements were checked against the same annuals and are **clean**,
 so they are not touched.
 

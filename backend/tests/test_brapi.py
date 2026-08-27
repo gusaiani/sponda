@@ -753,15 +753,24 @@ class TestSyncEarningsRestatesDifferencedQuarters:
         assert stored.revenue == 10270363000
 
     @patch("quotes.brapi.fetch_income_statements")
-    def test_stores_as_filed_when_no_annual_came_back(self, mock_fetch, db):
-        """A degraded provider response must not trigger a guess."""
-        mock_fetch.return_value = IncomeStatements(
-            quarterly=MOCK_DOUBLE_DIFFERENCED_QUARTERS, annual=[],
-        )
-        sync_earnings("KEPL3")
+    def test_stores_plausible_figures_as_filed_when_no_annual_came_back(self, mock_fetch, db):
+        """A degraded provider response must not trigger a guess.
 
-        stored = QuarterlyEarnings.objects.get(ticker="KEPL3", end_date=date(2025, 6, 30))
-        assert stored.revenue == -46157000
+        Nothing here is impossible as filed, so there is nothing to act on.
+        A quarter reporting negative revenue is a different matter, and is
+        covered in tests/test_cumulative_quarters.py.
+        """
+        healthy = [
+            {"endDate": "2025-12-31", "totalRevenue": 14340918000, "netIncome": 435543000},
+            {"endDate": "2025-09-30", "totalRevenue": 10866683000, "netIncome": 688122000},
+            {"endDate": "2025-06-30", "totalRevenue": 10270363000, "netIncome": 397477000},
+            {"endDate": "2025-03-31", "totalRevenue": 6405270000, "netIncome": 470895000},
+        ]
+        mock_fetch.return_value = IncomeStatements(quarterly=healthy, annual=[])
+        sync_earnings("EMBR3")
+
+        stored = QuarterlyEarnings.objects.get(ticker="EMBR3", end_date=date(2025, 6, 30))
+        assert stored.revenue == 10270363000
 
     @patch("quotes.brapi._get")
     def test_asks_for_both_modules_in_one_request(self, mock_get):
