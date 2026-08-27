@@ -18,6 +18,7 @@ from .fx import (
     get_fx_rates_for_dates,
 )
 from .models import FxRate
+from .price_history import close_on_or_before, closes_by_date
 from .pe10 import get_annual_earnings
 from .pfcf10 import get_annual_fcf
 
@@ -66,6 +67,26 @@ def _latest_fx_rate(from_currency: str, to_currency: str) -> Decimal | None:
     return row.rate / base_row.rate
 
 
+def _fiscal_year_close_dates(*annual_series: list[dict]) -> dict[int, date_type]:
+    """When each reported fiscal year closed, across earnings and cash flows.
+
+    Each annual entry carries its periods oldest-first, so the last one is
+    the year's close. A year present in one series and not the other still
+    gets a date.
+    """
+    close_by_year: dict[int, date_type] = {}
+    for series in annual_series:
+        for year_data in series:
+            periods = year_data.get("quarterly_detail") or []
+            if not periods:
+                continue
+            close = date_type.fromisoformat(periods[-1]["end_date"])
+            known = close_by_year.get(year_data["year"])
+            if known is None or close > known:
+                close_by_year[year_data["year"]] = close
+    return close_by_year
+
+
 def compute_multiples_history(
     ticker: str,
     historical_prices: list[dict],
@@ -110,21 +131,13 @@ def compute_multiples_history(
 
     # Convert prices: unix timestamp → ISO date, keep adjustedClose
     prices = []
-    year_end_prices: dict[int, float] = {}
-
     for point in historical_prices:
         ts = point.get("date")
         adj_close = point.get("adjustedClose")
         if ts is None or adj_close is None:
             continue
-
-        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-        iso_date = dt.strftime("%Y-%m-%d")
+        iso_date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
         prices.append({"date": iso_date, "adjustedClose": round(adj_close, 2)})
-
-        # Track last price seen for each year (monthly data → last month = year-end)
-        year = dt.year
-        year_end_prices[year] = adj_close
 
     # Normalize to oldest-first; FMP returns newest-first while BRAPI returns
     # oldest-first, and the frontend plots whatever order it receives.
@@ -137,13 +150,34 @@ def compute_multiples_history(
     earnings_by_year = {d["year"]: float(d["net_income"]) for d in earnings_data}
     fcf_by_year = {d["year"]: float(d["fcf"]) for d in fcf_data}
 
+    # Each year is priced on the day that year closed. For a filer that does
+    # not close on 31 December, taking the December price puts the price
+    # three months late against the year's earnings, and labels a different
+    # period "2026" here than the Fundamentos table does.
+    #
+    # Years the price series covers but the filer never reported still get a
+    # point, priced at the calendar year end. They carry a null multiple, as
+    # they always have, so the chart keeps its gaps instead of shortening.
+    closes = closes_by_date(historical_prices)
+    year_close_dates = _fiscal_year_close_dates(earnings_data, fcf_data)
+    plotted_years = set(year_close_dates) | {close_date.year for close_date, _ in closes}
+
+    year_end_prices: dict[int, float] = {}
+    for year in plotted_years:
+        price = close_on_or_before(
+            closes, year_close_dates.get(year) or date_type(year, 12, 31),
+        )
+        if price is not None:
+            year_end_prices[year] = price
+
     # Both multiple loops below translate the same set of year ends, so the
     # rates are resolved once here instead of per year per loop. That repeated
     # single-date lookup was the N+1 Sentry reported on this endpoint.
     fx_by_year: dict[int, Decimal | None] = {}
     if needs_fx_translation:
         year_end_by_year = {
-            year: date_type(year, 12, 31) for year in year_end_prices
+            year: year_close_dates.get(year) or date_type(year, 12, 31)
+            for year in year_end_prices
         }
         rate_by_date = get_fx_rates_for_dates(
             year_end_by_year.values(), listing_currency, reported_currency,

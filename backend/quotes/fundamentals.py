@@ -1,7 +1,6 @@
 """Per-year fundamentals aggregation for the Fundamentos tab."""
 from collections import defaultdict
 from datetime import date as date_type
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from .fx import (
@@ -9,20 +8,26 @@ from .fx import (
     _resolve_reported_currency,
     get_fx_rates_for_dates,
 )
+from .fiscal_year import fiscal_year_of
 from .inflation import get_inflation_adjustment_factors
+from .price_history import close_on_or_before, closes_by_date
 from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings
 
 
 def _aggregate_balance_sheets(ticker: str) -> dict[int, dict]:
-    """Return the latest balance sheet per year, keyed by year.
+    """Return the closing balance sheet of each fiscal year, keyed by that year.
 
-    For each year, picks the quarter with the latest end_date.
+    For each year, picks the period with the latest end_date. Keying on the
+    fiscal year rather than the calendar one is what stops an off-calendar
+    filer's audited year-end being buried: Starbucks closed fiscal 2025 on
+    2025-09-28, and the quarter ending 2025-12-28 belongs to fiscal 2026
+    even though it shares a calendar year with the close.
     """
     sheets = BalanceSheet.objects.filter(ticker=ticker.upper()).order_by("end_date")
 
     by_year: dict[int, dict] = {}
     for sheet in sheets:
-        year = sheet.end_date.year
+        year = fiscal_year_of(sheet)
         entry = {
             "endDate": sheet.end_date.isoformat(),
             "totalDebt": sheet.total_debt,
@@ -39,15 +44,21 @@ def _aggregate_balance_sheets(ticker: str) -> dict[int, dict]:
 
 
 def _aggregate_earnings(ticker: str) -> dict[int, dict]:
-    """Sum quarterly earnings and revenue per year."""
+    """Sum quarterly earnings and revenue per fiscal year.
+
+    ``lastEndDate`` records when the year's most recent period closed. The
+    inflation factor and the year-end share price are both properties of
+    real time, not of the fiscal label, so they are resolved from it.
+    """
     quarters = QuarterlyEarnings.objects.filter(ticker=ticker.upper()).order_by("end_date")
 
     yearly: dict[int, dict] = defaultdict(
         lambda: {"netIncome": Decimal("0"), "revenue": Decimal("0"), "quarters": 0,
-                 "hasRevenue": False, "hasNetIncome": False}
+                 "hasRevenue": False, "hasNetIncome": False, "lastEndDate": None}
     )
     for quarter in quarters:
-        year = quarter.end_date.year
+        year = fiscal_year_of(quarter)
+        yearly[year]["lastEndDate"] = quarter.end_date
         if quarter.net_income is not None:
             yearly[year]["netIncome"] += quarter.net_income
             yearly[year]["hasNetIncome"] = True
@@ -80,10 +91,12 @@ def _aggregate_cash_flows(ticker: str) -> dict[int, dict]:
     yearly: dict[int, dict] = defaultdict(
         lambda: {"operatingCashFlow": Decimal("0"), "fcf": Decimal("0"),
                  "dividendsPaid": Decimal("0"), "quarters": 0,
-                 "hasOperatingCF": False, "hasFcf": False, "hasDividends": False}
+                 "hasOperatingCF": False, "hasFcf": False, "hasDividends": False,
+                 "lastEndDate": None}
     )
     for quarter in quarters:
-        year = quarter.end_date.year
+        year = fiscal_year_of(quarter)
+        yearly[year]["lastEndDate"] = quarter.end_date
         if quarter.operating_cash_flow is not None:
             yearly[year]["operatingCashFlow"] += Decimal(str(quarter.operating_cash_flow))
             yearly[year]["hasOperatingCF"] = True
@@ -105,6 +118,27 @@ def _aggregate_cash_flows(ticker: str) -> dict[int, dict]:
     return dict(yearly)
 
 
+def _close_date_by_year(*aggregates: dict[int, dict]) -> dict[int, date_type]:
+    """When each fiscal year closed, across every statement type.
+
+    A year can appear in one aggregate and not another — a balance sheet
+    filed without a matching cash flow, say — so the latest period end seen
+    for that year in any of them is the year's close.
+    """
+    close_by_year: dict[int, date_type] = {}
+    for aggregate in aggregates:
+        for year, entry in aggregate.items():
+            end_date = entry.get("lastEndDate")
+            if end_date is None and entry.get("endDate"):
+                end_date = date_type.fromisoformat(entry["endDate"])
+            if end_date is None:
+                continue
+            known = close_by_year.get(year)
+            if known is None or end_date > known:
+                close_by_year[year] = end_date
+    return close_by_year
+
+
 def _safe_float(value) -> float | None:
     """Convert Decimal/int to float, returning None for None."""
     if value is None:
@@ -117,23 +151,6 @@ def _safe_ratio(numerator, denominator) -> float | None:
     if numerator is None or denominator is None or denominator == 0:
         return None
     return round(float(numerator) / float(denominator), 2)
-
-
-def _extract_year_end_prices(historical_prices: list[dict]) -> dict[int, float]:
-    """Extract the last adjusted close per year from historical price data.
-
-    Iterates through all data points and keeps the last adjustedClose seen
-    for each calendar year — effectively the year-end (or most recent) price.
-    """
-    year_end_prices: dict[int, float] = {}
-    for point in historical_prices:
-        timestamp = point.get("date")
-        adjusted_close = point.get("adjustedClose")
-        if timestamp is None or adjusted_close is None:
-            continue
-        point_date = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-        year_end_prices[point_date.year] = adjusted_close
-    return year_end_prices
 
 
 def aggregate_proventos_by_year(
@@ -249,15 +266,27 @@ def compute_fundamentals(
     if not all_years:
         return []
 
-    # IPCA adjustment factors
-    ipca_factors = get_inflation_adjustment_factors(ticker, all_years)
+    # When each fiscal year closed, in calendar time. Both the inflation
+    # factor and the year-end share price are properties of real time, not
+    # of the fiscal label: a filer's 2027 can already be open in 2026, and
+    # asking the CPI series for 2027 would find nothing and adjust by 1.
+    close_date_by_year = _close_date_by_year(
+        balance_by_year, earnings_by_year, cash_flow_by_year,
+    )
+    ipca_factors_by_calendar_year = get_inflation_adjustment_factors(
+        ticker, sorted({close.year for close in close_date_by_year.values()}),
+    )
+    ipca_factors = {
+        year: ipca_factors_by_calendar_year.get(close.year, Decimal("1"))
+        for year, close in close_date_by_year.items()
+    }
 
     # Estimate shares outstanding for historical market cap approximation
     shares_outstanding = None
     if market_cap and current_price and current_price > 0:
         shares_outstanding = market_cap / current_price
 
-    year_end_prices = _extract_year_end_prices(historical_prices or [])
+    closes = closes_by_date(historical_prices)
 
     # FX translation context. Per-year market cap below is computed in the
     # listing currency (year-end price × shares); for foreign reporters we
@@ -283,7 +312,10 @@ def compute_fundamentals(
     # lookup answers the whole column.
     fx_by_year: dict[int, Decimal | None] = {}
     if needs_fx:
-        year_end_by_year = {year: date_type(year, 12, 31) for year in all_years}
+        year_end_by_year = {
+            year: close_date_by_year.get(year) or date_type(year, 12, 31)
+            for year in all_years
+        }
         rate_by_date = get_fx_rates_for_dates(
             year_end_by_year.values(), listing_currency, reported_currency,
         )
@@ -352,10 +384,16 @@ def compute_fundamentals(
         # reporting currency so it lines up with revenue/income/FCF below.
         if year == all_years[0]:
             year_market_cap_listing = market_cap
-        elif shares_outstanding and year in year_end_prices:
-            year_market_cap_listing = round(year_end_prices[year] * shares_outstanding, 2)
         else:
-            year_market_cap_listing = None
+            close_date = close_date_by_year.get(year)
+            year_end_price = (
+                close_on_or_before(closes, close_date) if close_date else None
+            )
+            year_market_cap_listing = (
+                round(year_end_price * shares_outstanding, 2)
+                if shares_outstanding and year_end_price is not None
+                else None
+            )
 
         if year_market_cap_listing is None:
             year_market_cap = None

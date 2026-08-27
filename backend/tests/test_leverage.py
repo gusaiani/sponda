@@ -163,3 +163,39 @@ class TestCalculateLeverage:
         result = calculate_leverage("EQZR3")
         assert result["debtToEquity"] is None  # equity is zero
         assert result["currentRatio"] == 1.5  # still computed
+
+
+@pytest.mark.django_db
+class TestDiscardedDebtLeavesTheRatiosBlank:
+    """The point of discarding a collapsed debt figure is what stops here.
+
+    Salesforce's Q2 FY2027 balance sheet arrived from FMP with $2.46bn of
+    debt against $71.2bn of liabilities, the quarter after it issued $25bn of
+    notes and drew a $6bn term loan. Left in place it produced a debt/equity
+    of 0.06 and ranked the company as unlevered. Blank is the honest answer.
+    """
+
+    def _crm_quarter(self, total_debt):
+        BalanceSheet.objects.create(
+            ticker="CRM",
+            end_date=date(2026, 7, 31),
+            total_debt=total_debt,
+            total_liabilities=71_242_000_000,
+            stockholders_equity=38_378_000_000,
+            current_assets=22_083_000_000,
+            current_liabilities=26_336_000_000,
+        )
+
+    def test_debt_to_equity_is_blank_rather_than_flattering(self):
+        self._crm_quarter(total_debt=None)
+        assert calculate_leverage("CRM")["debtToEquity"] is None
+
+    def test_the_ratios_that_do_not_need_debt_still_report(self):
+        self._crm_quarter(total_debt=None)
+        result = calculate_leverage("CRM")
+        assert result["liabilitiesToEquity"] == 1.86
+        assert result["currentRatio"] == 0.84
+
+    def test_the_figure_left_in_place_would_have_read_as_unlevered(self):
+        self._crm_quarter(total_debt=2_455_000_000)
+        assert calculate_leverage("CRM")["debtToEquity"] == 0.06

@@ -43,6 +43,27 @@ def statement_filed_at_field():
     )
 
 
+def statement_fiscal_year_field():
+    """The fiscal year this period belongs to, as the filer labels it.
+
+    A quarter's calendar year and its fiscal year part company for every
+    filer that does not close on 31 December, and about a quarter of the
+    companies covered do not. Salesforce's quarter ending 2026-07-31 is the
+    second of its fiscal 2027; Starbucks' quarter ending 2025-12-28 is the
+    first of its fiscal 2026. Grouping by the calendar year hides the
+    audited year-end behind a later quarter and labels a rolling four
+    quarters as an annual figure.
+
+    FMP reports it on all three statement endpoints. BRAPI and CVM do not,
+    and do not need to: Brazilian filers close on 31 December, so the two
+    coincide and ``fiscal_year_of`` falls back to the end date's year.
+    """
+    return models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        help_text="Fiscal year this period belongs to. Null when the provider does not report one.",
+    )
+
+
 def statement_source_field():
     return models.CharField(
         max_length=10, blank=True, default=SOURCE_UNKNOWN,
@@ -63,6 +84,7 @@ class QuarterlyEarnings(models.Model):
         max_digits=20, decimal_places=6, null=True, blank=True,
         help_text="basicEarningsPerCommonShare from BRAPI",
     )
+    fiscal_year = statement_fiscal_year_field()
     source = statement_source_field()
     filed_at = statement_filed_at_field()
     fetched_at = models.DateTimeField(auto_now=True)
@@ -102,6 +124,7 @@ class QuarterlyCashFlow(models.Model):
         null=True, blank=True,
         help_text="Dividendos pagos (dividendsPaid from BRAPI, negative value)",
     )
+    fiscal_year = statement_fiscal_year_field()
     source = statement_source_field()
     filed_at = statement_filed_at_field()
     fetched_at = models.DateTimeField(auto_now=True)
@@ -141,6 +164,7 @@ class BalanceSheet(models.Model):
         null=True, blank=True,
         help_text="Passivo circulante",
     )
+    fiscal_year = statement_fiscal_year_field()
     source = statement_source_field()
     filed_at = statement_filed_at_field()
     fetched_at = models.DateTimeField(auto_now=True)

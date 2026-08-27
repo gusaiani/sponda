@@ -5,7 +5,11 @@ from decimal import Decimal
 import requests
 from django.conf import settings
 
-from .statement_quality import normalize_net_income
+from .fiscal_year import parse_reported_fiscal_year
+from .statement_quality import (
+    discard_implausible_debt_collapses,
+    normalize_net_income,
+)
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
 from .models import (
     SOURCE_FMP,
@@ -272,6 +276,7 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         by_end_date[end_date] = QuarterlyEarnings(
             ticker=upper_ticker,
             end_date=end_date,
+            fiscal_year=parse_reported_fiscal_year(statement.get("fiscalYear")),
             eps=eps_value,
             net_income=net_income_value,
             revenue=revenue_value,
@@ -294,7 +299,7 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         list(by_end_date.values()),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
-        update_fields=["eps", "net_income", "revenue", "source", "fetched_at"],
+        update_fields=["fiscal_year", "eps", "net_income", "revenue", "source", "fetched_at"],
     )
 
 
@@ -330,6 +335,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         by_end_date[end_date] = QuarterlyCashFlow(
             ticker=upper_ticker,
             end_date=end_date,
+            fiscal_year=parse_reported_fiscal_year(statement.get("fiscalYear")),
             operating_cash_flow=operating_cash_flow,
             investment_cash_flow=investing_cash_flow,
             free_cash_flow=free_cash_flow,
@@ -345,6 +351,7 @@ def sync_cash_flows(ticker: str) -> list[QuarterlyCashFlow]:
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
         update_fields=[
+            "fiscal_year",
             "operating_cash_flow",
             "investment_cash_flow",
             "free_cash_flow",
@@ -391,6 +398,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         by_end_date[end_date] = BalanceSheet(
             ticker=upper_ticker,
             end_date=end_date,
+            fiscal_year=parse_reported_fiscal_year(statement.get("fiscalYear")),
             total_debt=total_debt,
             total_lease=None,
             total_liabilities=total_liabilities,
@@ -404,10 +412,11 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         return []
 
     return BalanceSheet.objects.bulk_create(
-        list(by_end_date.values()),
+        discard_implausible_debt_collapses(list(by_end_date.values())),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
         update_fields=[
+            "fiscal_year",
             "total_debt",
             "total_lease",
             "total_liabilities",
