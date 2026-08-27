@@ -426,6 +426,89 @@ class TestAggregateProventosByYear:
         assert result[2022] == pytest.approx(2_000_000_000, rel=1e-6)
 
 
+class TestProventosExcludeReturnsOfCapital:
+    """A capital return hands back what shareholders put in, and is not income.
+
+    Kepler Weber paid R$9.181115 a share on 2021-10-11 labelled REST CAP DIN,
+    a restituicao de capital em dinheiro. Counted as a dividend it made 2021
+    proventos R$968m against R$155m of net income, a payout of over 600%.
+    """
+
+    def test_excludes_a_cash_return_of_capital(self):
+        result = aggregate_proventos_by_year(
+            cash_dividends=[
+                {"paymentDate": "2021-10-11T03:00:00.000Z", "rate": 9.181115,
+                 "label": "REST CAP DIN"},
+                {"paymentDate": "2021-07-08T03:00:00.000Z", "rate": 0.708,
+                 "label": "JCP"},
+            ],
+            stock_dividends=[],
+            current_shares=89_860_065,
+        )
+        assert result[2021] == pytest.approx(0.708 * 89_860_065, rel=1e-9)
+
+    def test_keeps_every_label_the_provider_uses_for_a_distribution(self):
+        """DIVIDENDO, JCP and RENDIMENTO are all of them, measured across B3."""
+        result = aggregate_proventos_by_year(
+            cash_dividends=[
+                {"paymentDate": "2024-03-15T03:00:00.000Z", "rate": 1.0, "label": "DIVIDENDO"},
+                {"paymentDate": "2024-04-15T03:00:00.000Z", "rate": 1.0, "label": "JCP"},
+                {"paymentDate": "2024-05-15T03:00:00.000Z", "rate": 1.0, "label": "RENDIMENTO"},
+            ],
+            stock_dividends=[],
+            current_shares=1_000,
+        )
+        assert result[2024] == pytest.approx(3_000, rel=1e-9)
+
+    def test_reads_labels_case_and_padding_insensitively(self):
+        result = aggregate_proventos_by_year(
+            cash_dividends=[
+                {"paymentDate": "2024-03-15T03:00:00.000Z", "rate": 1.0, "label": " dividendo "},
+            ],
+            stock_dividends=[],
+            current_shares=1_000,
+        )
+        assert result[2024] == pytest.approx(1_000, rel=1e-9)
+
+    def test_keeps_a_qualified_variant_of_a_known_label(self):
+        """Matched on substring so 'JUROS SOBRE CAPITAL PROPRIO' still counts."""
+        result = aggregate_proventos_by_year(
+            cash_dividends=[
+                {"paymentDate": "2024-03-15T03:00:00.000Z", "rate": 1.0,
+                 "label": "JUROS SOBRE CAPITAL PROPRIO"},
+                {"paymentDate": "2024-04-15T03:00:00.000Z", "rate": 1.0,
+                 "label": "DIVIDENDO MENSAL"},
+            ],
+            stock_dividends=[],
+            current_shares=1_000,
+        )
+        assert result[2024] == pytest.approx(2_000, rel=1e-9)
+
+    def test_excludes_an_unrecognised_label(self):
+        """Excluding understates a yield; including invented Kepler's 600%.
+
+        The unrecognised label that prompted this rule was itself a capital
+        return, so the safe default is the one that would have caught it.
+        """
+        result = aggregate_proventos_by_year(
+            cash_dividends=[
+                {"paymentDate": "2024-03-15T03:00:00.000Z", "rate": 5.0,
+                 "label": "AMORTIZACAO"},
+            ],
+            stock_dividends=[],
+            current_shares=1_000,
+        )
+        assert result == {}
+
+    def test_excludes_an_entry_with_no_label_at_all(self):
+        result = aggregate_proventos_by_year(
+            cash_dividends=[{"paymentDate": "2024-03-15T03:00:00.000Z", "rate": 5.0}],
+            stock_dividends=[],
+            current_shares=1_000,
+        )
+        assert result == {}
+
+
 class TestComputeQuarterlyBalanceRatios:
     def test_returns_all_quarters_sorted_ascending(self, multi_year_balance_sheets):
         result = compute_quarterly_balance_ratios("WEGE3")

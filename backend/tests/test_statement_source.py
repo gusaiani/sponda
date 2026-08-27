@@ -57,9 +57,10 @@ def test_every_statement_model_records_a_source(model):
 def test_brapi_stamps_its_own_source_on_a_new_row():
     from quotes import brapi
 
-    with patch.object(brapi, "fetch_income_statements", return_value=[
-        {"endDate": "2026-06-30", "netIncome": 1_470_000_000, "totalRevenue": 1},
-    ]):
+    with patch.object(brapi, "fetch_income_statements", return_value=brapi.IncomeStatements(
+        quarterly=[{"endDate": "2026-06-30", "netIncome": 1_470_000_000, "totalRevenue": 1}],
+        annual=[],
+    )):
         brapi.sync_earnings(TICKER)
 
     assert QuarterlyEarnings.objects.get(ticker=TICKER).source == SOURCE_BRAPI
@@ -75,9 +76,10 @@ def test_brapi_corrects_the_provenance_of_a_row_it_overwrites():
     QuarterlyEarnings.objects.create(
         ticker=TICKER, end_date=QUARTER, net_income=1, source=SOURCE_CVM,
     )
-    with patch.object(brapi, "fetch_income_statements", return_value=[
-        {"endDate": "2026-06-30", "netIncome": 1_470_000_000, "totalRevenue": 1},
-    ]):
+    with patch.object(brapi, "fetch_income_statements", return_value=brapi.IncomeStatements(
+        quarterly=[{"endDate": "2026-06-30", "netIncome": 1_470_000_000, "totalRevenue": 1}],
+        annual=[],
+    )):
         brapi.sync_earnings(TICKER)
 
     row = QuarterlyEarnings.objects.get(ticker=TICKER)

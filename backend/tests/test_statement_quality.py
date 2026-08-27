@@ -254,17 +254,19 @@ class TestIngestionAppliesTheRule:
 
     def test_brapi_stores_none_for_a_zero_beside_revenue(self, monkeypatch):
         from quotes import brapi
-        monkeypatch.setattr(brapi, "fetch_income_statements", lambda ticker: [
-            {"endDate": "2019-12-31", "netIncome": 0, "totalRevenue": 27_894_387_000},
-        ])
+        monkeypatch.setattr(brapi, "fetch_income_statements", lambda ticker: brapi.IncomeStatements(
+            quarterly=[{"endDate": "2019-12-31", "netIncome": 0, "totalRevenue": 27_894_387_000}],
+            annual=[],
+        ))
         brapi.sync_earnings("BBAS3")
         assert QuarterlyEarnings.objects.get(ticker="BBAS3").net_income is None
 
     def test_brapi_keeps_a_real_figure(self, monkeypatch):
         from quotes import brapi
-        monkeypatch.setattr(brapi, "fetch_income_statements", lambda ticker: [
-            {"endDate": "2024-12-31", "netIncome": 5_140_255_000, "totalRevenue": 71_704_820_000},
-        ])
+        monkeypatch.setattr(brapi, "fetch_income_statements", lambda ticker: brapi.IncomeStatements(
+            quarterly=[{"endDate": "2024-12-31", "netIncome": 5_140_255_000, "totalRevenue": 71_704_820_000}],
+            annual=[],
+        ))
         brapi.sync_earnings("BBAS3")
         assert QuarterlyEarnings.objects.get(ticker="BBAS3").net_income == 5_140_255_000
 

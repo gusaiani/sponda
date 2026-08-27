@@ -1,5 +1,6 @@
 """BRAPI API client for fetching stock data and IPCA index."""
 import re
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
@@ -7,6 +8,7 @@ import requests
 from django.conf import settings
 
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
+from .cumulative_quarters import AnnualIncome, restate_quarterly_earnings
 from .models import (
     SOURCE_BRAPI,
     BalanceSheet,
@@ -117,42 +119,91 @@ def fetch_historical_prices(ticker: str) -> list[dict]:
     return results[0].get("historicalDataPrice", [])
 
 
-def fetch_income_statements(ticker: str) -> list[dict]:
-    """Fetch income statement history for a ticker.
+BOTH_INCOME_MODULES = "incomeStatementHistoryQuarterly,incomeStatementHistory"
+ANNUAL_INCOME_MODULE = "incomeStatementHistory"
 
-    Tries quarterly first; falls back to annual if the BRAPI plan
-    doesn't include the quarterly module.
+
+@dataclass(frozen=True)
+class IncomeStatements:
+    """A company's income statement history, quarterly and audited annual.
+
+    Both arrive from a single request. BRAPI accepts several modules per
+    call, so the annual totals that reconcile the quarters against the
+    company's own filing cost no extra provider budget at all.
     """
-    # Try quarterly first
+
+    quarterly: list[dict]
+    annual: list[dict]
+
+    @property
+    def periods(self) -> list[dict]:
+        """The statements to store as reporting periods.
+
+        Quarterly when the plan provides it, annual otherwise: some BRAPI
+        plans omit the quarterly module, and an annual series beats none.
+        """
+        return self.quarterly or self.annual
+
+
+def fetch_income_statements(ticker: str) -> IncomeStatements:
+    """Fetch quarterly and annual income statement history for a ticker.
+
+    Falls back to annual alone if the combined request is refused, which is
+    how a plan without the quarterly module behaves.
+    """
     try:
-        data = _get(
-            f"/quote/{ticker}",
-            params={"modules": "incomeStatementHistoryQuarterly"},
-        )
-        if not data.get("error"):
-            results = data.get("results", [])
-            if results:
-                statements = results[0].get("incomeStatementHistoryQuarterly", [])
-                if statements:
-                    return statements
+        combined = _income_statements(ticker, BOTH_INCOME_MODULES)
+        if combined.quarterly or combined.annual:
+            return combined
     except BRAPIError:
         pass
+    return _income_statements(ticker, ANNUAL_INCOME_MODULE)
 
-    # Fall back to annual
-    data = _get(
-        f"/quote/{ticker}",
-        params={"modules": "incomeStatementHistory"},
-    )
+
+def _income_statements(ticker: str, modules: str) -> IncomeStatements:
+    data = _get(f"/quote/{ticker}", params={"modules": modules})
     results = data.get("results", [])
     if not results:
         raise BRAPIError(f"No results for ticker {ticker}")
-    return results[0].get("incomeStatementHistory", [])
+    return IncomeStatements(
+        quarterly=results[0].get("incomeStatementHistoryQuarterly") or [],
+        annual=results[0].get("incomeStatementHistory") or [],
+    )
+
+
+def annual_income_by_year(statements: list[dict]) -> dict[int, AnnualIncome]:
+    """Index audited annual totals by the year they close.
+
+    Shared with the repair command, so the reconciliation reads the provider
+    the same way whether a quarter is arriving or being corrected.
+    """
+    totals: dict[int, AnnualIncome] = {}
+    for statement in statements:
+        end_date_string = (statement.get("endDate") or "")[:10]
+        if not end_date_string:
+            continue
+        totals[date.fromisoformat(end_date_string).year] = AnnualIncome(
+            revenue=_as_int(statement.get("totalRevenue")),
+            net_income=_as_int(statement.get("netIncome")),
+        )
+    return totals
+
+
+def _as_int(value) -> int | None:
+    return None if value is None else int(value)
 
 
 def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
     """Fetch and store earnings for a ticker from BRAPI.
 
     Works with both quarterly and annual income statements.
+
+    Two corrections are applied in order, and the order matters. First the
+    quarters are reconciled against the company's audited annual, because
+    BRAPI differences some filers' Q2 and Q3 against the quarter before them
+    (see ``quotes.cumulative_quarters``). Only then is the missing-profit
+    rule applied, so it judges the figure that will actually be stored rather
+    than an intermediate one.
     """
     statements = fetch_income_statements(ticker)
     upper_ticker = ticker.upper()
@@ -161,7 +212,7 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
     # and avoid Postgres ON CONFLICT rejecting the whole batch.
     by_end_date: dict[date, QuarterlyEarnings] = {}
 
-    for stmt in statements:
+    for stmt in statements.periods:
         end_date_str = stmt.get("endDate", "")[:10]
         if not end_date_str:
             continue
@@ -177,11 +228,6 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
         revenue_raw = stmt.get("totalRevenue")
         revenue_value = int(revenue_raw) if revenue_raw is not None else None
 
-        # A zero profit reported alongside real revenue is the provider's way
-        # of saying it does not have the figure. Left as 0 it would be averaged
-        # into P/E10 as a real result. See quotes.statement_quality.
-        net_income_value = normalize_net_income(net_income_value, revenue_value)
-
         by_end_date[end_date] = QuarterlyEarnings(
             ticker=upper_ticker,
             end_date=end_date,
@@ -194,8 +240,20 @@ def sync_earnings(ticker: str) -> list[QuarterlyEarnings]:
     if not by_end_date:
         return []
 
+    quarters = list(by_end_date.values())
+    if statements.quarterly:
+        quarters = restate_quarterly_earnings(
+            quarters, annual_income_by_year(statements.annual),
+        )
+
+    for quarter in quarters:
+        # A zero profit reported alongside real revenue is the provider's way
+        # of saying it does not have the figure. Left as 0 it would be
+        # averaged into P/E10 as a real result. See quotes.statement_quality.
+        quarter.net_income = normalize_net_income(quarter.net_income, quarter.revenue)
+
     return QuarterlyEarnings.objects.bulk_create(
-        list(by_end_date.values()),
+        quarters,
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
         update_fields=["eps", "net_income", "revenue", "source", "fetched_at"],
