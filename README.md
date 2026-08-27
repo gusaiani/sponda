@@ -1287,6 +1287,37 @@ Three-layer caching strategy eliminates redundant external API calls:
 
 **Layer 3 · Cache warming**: `python manage.py warm_cache` pre-populates all three endpoints for the top 50 most-queried tickers. Run every 4 hours via cron so popular tickers are always served from cache.
 
+### Keyspace and memory limits
+
+The cache and the Celery broker run on the same Redis server but never in the
+same database. The broker and its result backend keep db 0 (`REDIS_URL`); the
+cache sits on db 1 (`REDIS_CACHE_URL`, derived from `REDIS_URL` by swapping the
+database index, so a single env var still configures both).
+
+They were split because Django's `RedisCache.clear()` is implemented as
+`FLUSHDB`, which erases every key in the selected database. While both pointed
+at db 0, one `cache.clear()` deleted the queued Celery tasks and their stored
+results along with the cache. On separate databases that is no longer possible.
+
+Memory is bounded by the deploy, which runs:
+
+```
+redis-cli CONFIG SET maxmemory 512mb
+redis-cli CONFIG SET maxmemory-policy volatile-lru
+redis-cli CONFIG REWRITE
+```
+
+`maxmemory` is per-server, not per-database, so the policy governs both the
+cache and the broker. That is why it is `volatile-lru` and not `allkeys-lru`:
+`volatile-lru` evicts only keys that carry a TTL. Every `cache.set` in this
+codebase passes an explicit timeout, so cache entries are evictable, while the
+broker's queue and unacked lists have no TTL and are protected. The default,
+`noeviction`, would instead start refusing writes and eventually OOM the box.
+
+`CONFIG REWRITE` persists both settings into `/etc/redis/redis.conf` so a
+reboot keeps them. Changing `REDIS_CACHE_URL` is a cold-cache event and nothing
+more; the first requests after a deploy repopulate it.
+
 ### Invalidation on statement writes
 
 The bottom three entries above are computed from quarterly statements, so a 24 hour TTL used to mean a newly written quarter stayed invisible for a day. `quotes/derived_data.py` closes that: every path that writes statements calls it, and it recomputes the screener's `IndicatorSnapshot` and then drops the three cached payloads.
@@ -1844,6 +1875,108 @@ the thing it has to fetch to know what it would write. Bound it with
 
 Until the backfill reaches a company, `fiscal_year_of` falls back to the
 calendar year, so deploying this changes nothing on its own.
+
+### Quarters that were differenced twice
+
+A Brazilian ITR reports the income statement twice: once for the three months
+just ended, once for the year to date. Turning the second into discrete
+quarters means subtracting the previous filing. For some companies BRAPI
+applies that subtraction to the **first** column instead, so what it publishes
+as Q2 is really Q2 minus Q1, and Q3 is Q3 minus Q2.
+
+Q1 survives because there is nothing before it to subtract. Q4 survives
+because nobody files it: BRAPI derives it from the audited annual less the
+nine months, the one place its arithmetic uses a real year-to-date figure.
+Only the two quarters in between are wrong.
+
+The damage hides, because the annual then telescopes:
+
+```
+Q1 + (Q2-Q1) + (Q3-Q2) + Q4  =  Q3 + Q4
+```
+
+Kepler Weber's 2025 came out as **R$822m against R$1,490m filed** and reads as
+a company that lost half its revenue. In a part-year the identity collapses
+further: 2026 to date reads as Q2 alone, so Q1 appears to be *missing* when in
+fact it cancelled. Corpus-wide, 209 quarters went visibly negative (82 and 71
+in Q2/Q3 2025, 56 in Q2 2026, against 0 in every Q1). Negatives are the
+visible half only. Where revenue grew quarter on quarter the differenced
+figure stays positive and nothing flags it.
+
+It is **not universal**, which is why this cannot be a blanket transform. Of
+the eight largest B3 companies on this path, five are affected and three are
+exact:
+
+| | 2025 sum as filed vs audited annual | restated |
+| --- | ---: | ---: |
+| PETR4 | -48.7% revenue, **-56.2% net income** | +0.00% |
+| BBAS3 | -46.7% | -0.00% |
+| SANB4 | -48.9% | -0.00% |
+| RENT4 | -48.0% | +0.00% |
+| RDOR3 | -48.3% | -0.00% |
+| JBSS3 | +0.0% | +72.3% |
+| EMBR3 | +0.0% | +55.1% |
+| ELET3 | +0.0% | +75.2% |
+
+So nothing is guessed. The company's own audited annual decides, per year:
+BRAPI's pipeline broke during 2025, so the same company can be clean in 2024
+and differenced in 2025. Where the annual settles nothing, the figures are
+left exactly as filed.
+
+`quotes/cumulative_quarters.py` holds the rule and `brapi.sync_earnings`
+applies it at ingestion. The annual costs nothing: BRAPI returns the quarterly
+and annual modules from **one request**, so the reconciliation adds no
+provider calls at all.
+
+The verdict is carried forward into the year still in progress, which has no
+annual yet and is the year a reader is looking at. That is evidence rather
+than proof, so a carried verdict is rejected if it would drive revenue below
+zero, which is what a restatement of already-correct quarters looks like.
+
+Cash flow statements were checked against the same annuals and are **clean**,
+so they are not touched.
+
+For rows already stored:
+
+```bash
+./manage.py repair_differenced_quarters --dry-run          # report only
+./manage.py repair_differenced_quarters --limit 50         # a tranche
+./manage.py repair_differenced_quarters --after KEPL3      # resume past it
+```
+
+One BRAPI call per company, ~363 of them. Safe to run twice: a repaired year
+sums to the annual as it stands, so the second pass picks the figures already
+stored. That is not a nicety, since a second restatement would accumulate the
+already-accumulated quarters. Only BRAPI's own rows are restated, and a year
+holding a quarter from another source is refused rather than mixed.
+
+It follows the same provider discipline as `backfill_fiscal_year`:
+`ProviderUnavailable` is distinct from an empty answer, a refusal is waited
+out over `(5, 20, 65)` seconds, and a run that still cannot reach BRAPI stops
+with the cursor at the last company **reached**.
+
+### Proventos that are not dividends
+
+BRAPI's dividends endpoint lists every cash payment a company made, and not
+all of them distribute earnings. Kepler Weber paid R$9.181115 a share on
+2021-10-11 labelled `REST CAP DIN`, a *restituição de capital em dinheiro*,
+which hands back what shareholders paid in. Counted as a dividend it made
+2021 proventos **R$968m against R$155m of net income**, a payout over 600%.
+
+`fundamentals.is_earnings_distribution` counts a payment only when its label
+names a distribution. Measured across 18 B3 companies and 1,958 payments,
+BRAPI uses exactly three: `JCP` (967), `DIVIDENDO` (841) and `RENDIMENTO`
+(148, how funds label theirs). Matching is on substring, so `DIVIDENDO MENSAL`
+and `JUROS SOBRE CAPITAL PROPRIO` still count.
+
+Anything unrecognised is left out. Leaving a real distribution out understates
+a yield; letting a capital return in invents one, and the unrecognised label
+that prompted this rule was itself a capital return.
+
+Note that proventos are bucketed by **payment date**, not by the fiscal year
+they relate to, so a year's figure is cash paid out during that calendar year
+and includes the prior year's declared dividends. BRAPI's `relatedTo` field is
+empty on every payment observed, so there is nothing better to key on.
 
 ## Server-side rendering and hydration
 
@@ -2448,7 +2581,8 @@ The 34 warnings are mostly `@next/next/no-img-element` (18 raw `<img>` tags that
 | `SPONDA_ANON_LOOKUPS_PER_DAY` | Anonymous per-IP daily company-lookup cap (default `20`) |
 | `SPONDA_UNVERIFIED_LOOKUPS_PER_DAY` | Per-user daily cap for logged-in but email-unverified accounts (default `50`) |
 | `DATABASE_URL` | PostgreSQL connection string (production only) |
-| `REDIS_URL` | Redis for the cache layers and the Celery broker (default `redis://127.0.0.1:6379/0`) |
+| `REDIS_URL` | Redis for the Celery broker and result backend (default `redis://127.0.0.1:6379/0`) |
+| `REDIS_CACHE_URL` | Redis for the Django cache layers. Defaults to `REDIS_URL` with the database index swapped to 1, so the cache and the broker never share a keyspace |
 | `OPENAI_API_KEY` | OpenAI key for the LLM assistant (unset disables the feature) |
 | `RESEND_API_KEY` | Resend SMTP key for transactional email |
 | `ALLOWED_HOSTS` | Comma-separated allowed hosts |

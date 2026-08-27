@@ -153,6 +153,35 @@ def _safe_ratio(numerator, denominator) -> float | None:
     return round(float(numerator) / float(denominator), 2)
 
 
+# Every label BRAPI uses for a cash distribution, counted across 18 B3
+# companies and 1,958 payments on 2026-08-27: JCP (967), DIVIDENDO (841) and
+# RENDIMENTO (148), the last of which is how funds label theirs. The only
+# other label in that sample was REST CAP DIN, a restituicao de capital em
+# dinheiro, which hands back what shareholders paid in rather than
+# distributing what the company earned.
+#
+# Matched on substring so a qualified variant, "DIVIDENDO MENSAL" or "JUROS
+# SOBRE CAPITAL PROPRIO", is still recognised. Nothing else counts: an
+# unrecognised label is left out, because the unrecognised label that
+# prompted this rule was itself a capital return and including it made
+# Kepler Weber's 2021 proventos R$968m against R$155m of earnings. Leaving a
+# real distribution out understates a yield; letting a capital return in
+# invents one.
+EARNINGS_DISTRIBUTION_LABELS = (
+    "DIVIDENDO",
+    "JCP",
+    "JUROS SOBRE CAPITAL",
+    "JRS CAP PROPRIO",
+    "RENDIMENTO",
+)
+
+
+def is_earnings_distribution(label: str | None) -> bool:
+    """Whether a BRAPI cash payment distributes earnings rather than capital."""
+    normalized = (label or "").strip().upper()
+    return any(known in normalized for known in EARNINGS_DISTRIBUTION_LABELS)
+
+
 def aggregate_proventos_by_year(
     cash_dividends: list[dict],
     stock_dividends: list[dict],
@@ -164,6 +193,9 @@ def aggregate_proventos_by_year(
     shares outstanding at the time of payment. Splits and reverse splits
     are accounted for by adjusting the share count backwards from the
     current number of shares.
+
+    Payments that return capital rather than distribute earnings are left
+    out entirely. See ``is_earnings_distribution``.
 
     Args:
         cash_dividends: list of dicts with paymentDate, rate, label
@@ -195,6 +227,8 @@ def aggregate_proventos_by_year(
 
     totals: dict[int, float] = {}
     for dividend in cash_dividends:
+        if not is_earnings_distribution(dividend.get("label")):
+            continue
         payment_date = dividend.get("paymentDate", "")[:10]
         rate = dividend.get("rate")
         if not payment_date or rate is None:
