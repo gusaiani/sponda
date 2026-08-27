@@ -50,6 +50,7 @@ RECONCILIATION_TOLERANCE = Decimal("0.005")
 QUARTERS_IN_A_YEAR = 4
 LAST_DIFFERENCED_QUARTER = 3
 MONTHS_IN_A_QUARTER = 3
+_LEADING_POSITIONS = (1, 2, 3)
 MONTHS_IN_A_YEAR = 12
 
 # Most B3 companies close on 31 December, so that is the assumption when the
@@ -180,6 +181,12 @@ def restate_quarterly_earnings(quarters: list, annual_by_year: dict[int, AnnualI
         by_quarter = quarters_by_year[year]
         annual = annual_by_year.get(year)
 
+        if _closing_quarter_is_the_whole_year(by_quarter, annual):
+            carried_verdict = _restate_around_a_misfiled_annual(
+                by_quarter, annual, carried_verdict,
+            )
+            continue
+
         verdict = UNDECIDED
         if annual is not None and not annual.is_empty:
             verdict = choose_restatement(
@@ -205,6 +212,60 @@ def restate_quarterly_earnings(quarters: list, annual_by_year: dict[int, AnnualI
             _apply_running_sum(by_quarter)
 
     return quarters
+
+
+def _closing_quarter_is_the_whole_year(by_quarter: dict, annual) -> bool:
+    """Whether the closing quarter holds the annual filing rather than a quarter.
+
+    ``fetch_income_statements`` falls back to the annual module when the
+    quarterly one comes back empty, and those statements were written as
+    reporting periods. For a filer closing in March the annual lands on 31
+    March, exactly where its closing quarter belongs, so it masqueraded as
+    that quarter and survived every later sync.
+
+    The tell is arithmetic, not a threshold: a closing quarter equal to the
+    whole year, beside three other quarters that together are not zero,
+    cannot be a quarter. A company that genuinely earns everything in its
+    final quarter has three zeroes beside it, and is left alone.
+    """
+    if annual is None or not annual.revenue:
+        return False
+    if len(by_quarter) != QUARTERS_IN_A_YEAR:
+        return False
+
+    closing = by_quarter[QUARTERS_IN_A_YEAR].revenue
+    leading = [by_quarter[position].revenue for position in _LEADING_POSITIONS]
+    if closing is None or any(value is None for value in leading):
+        return False
+    if sum(leading) <= 0:
+        return False
+    return _ties_to(closing, annual.revenue)
+
+
+def _restate_around_a_misfiled_annual(by_quarter: dict, annual, carried_verdict: str) -> str:
+    """Fix the three real quarters, then derive the closing one from the year.
+
+    The annual cannot arbitrate here: it is the thing that got misfiled, and
+    three quarters can never be summed against a twelve-month total anyway.
+    So the leading quarters are settled the way any unsettled year is, and
+    the closing quarter becomes the year less those three, exactly as
+    ``cvm_fourth_quarter`` derives a Q4 nobody files.
+
+    Returns the carried verdict unchanged. Nothing here was decided by an
+    annual, so there is no verdict for the next year to inherit.
+    """
+    leading = {position: by_quarter[position] for position in _LEADING_POSITIONS}
+    if _reading_for_an_undecided_year(leading, carried_verdict) == RUNNING_SUM:
+        _apply_running_sum(leading)
+
+    closing = by_quarter[QUARTERS_IN_A_YEAR]
+    for field, year_total in (("revenue", annual.revenue), ("net_income", annual.net_income)):
+        reported = [getattr(leading[position], field) for position in _LEADING_POSITIONS]
+        if year_total is None or any(value is None for value in reported):
+            continue
+        setattr(closing, field, year_total - sum(reported))
+
+    return carried_verdict
 
 
 def _year_end_month(annual_by_year: dict[int, AnnualIncome]) -> int:
