@@ -7,6 +7,7 @@ from collections import defaultdict
 from decimal import Decimal
 
 from .fx import market_cap_in_reported_currency
+from .fiscal_year import fiscal_year_of
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyCashFlow
 from .reporting_frequency import QUARTERLY_PERIODS_PER_YEAR, infer_periods_per_year
@@ -41,12 +42,14 @@ def get_annual_fcf(ticker: str, max_years: int = 10) -> list[dict]:
         ticker=ticker.upper(),
     ).order_by("-end_date")[: max_years * 4]
 
-    yearly = defaultdict(lambda: {"fcf": Decimal("0"), "quarters": 0, "quarterly_detail": []})
+    yearly = defaultdict(lambda: {"fcf": Decimal("0"), "quarters": 0,
+                                  "quarterly_detail": [], "last_end_date": None})
     for q in quarters:
         fcf = _quarter_free_cash_flow(q)
         if fcf is None:
             continue
-        year = q.end_date.year
+        year = fiscal_year_of(q)
+        yearly[year]["last_end_date"] = q.end_date
         yearly[year]["fcf"] += fcf
         yearly[year]["quarters"] += 1
         yearly[year]["quarterly_detail"].append({
@@ -59,6 +62,8 @@ def get_annual_fcf(ticker: str, max_years: int = 10) -> list[dict]:
     return [
         {
             "year": year,
+            # See pe10.get_annual_earnings — the CPI series is calendar time.
+            "inflation_year": data["last_end_date"].year,
             "fcf": data["fcf"],
             "quarters": data["quarters"],
             "quarterly_detail": sorted(data["quarterly_detail"], key=lambda x: x["end_date"]),
@@ -105,7 +110,10 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
         }
     target_periods = effective_years * periods_per_year
 
-    years = [d["year"] for d in annual_data]
+    # Keyed on when each fiscal year closed, not on its label: the CPI
+    # series is calendar time and a filer's 2027 can already be open in
+    # 2026. See pe10.get_annual_earnings.
+    years = [d["inflation_year"] for d in annual_data]
     ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     adjusted_values: list[Decimal] = []
@@ -117,7 +125,7 @@ def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> d
             break
         remaining = target_periods - collected
         year = year_data["year"]
-        factor = ipca_factors.get(year, Decimal("1"))
+        factor = ipca_factors.get(year_data["inflation_year"], Decimal("1"))
 
         if year_data["quarters"] <= remaining:
             adjusted = year_data["fcf"] * factor

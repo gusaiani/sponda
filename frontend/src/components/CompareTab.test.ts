@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getColumns, type CompareRowData } from "./CompareTab";
+import { getColumns, resolveReorder, type CompareRowData } from "./CompareTab";
 import type { QuoteResult } from "../hooks/usePE10";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
 import { pt } from "../i18n/locales/pt";
@@ -239,5 +239,46 @@ describe("getColumns", () => {
       if (column.key === "marketCap") continue; // sourced from quote
       expect(column.value(rowData)).toBeNull();
     }
+  });
+});
+
+describe("resolveReorder", () => {
+  const LIST = ["DEXP4", "PETR4", "VALE3"];
+
+  it("keeps a saved list in local state when its rows are reordered", () => {
+    // A list belongs to no company, so moving a row to the top must not
+    // navigate anywhere. This is the whole point of detaching the two.
+    const result = resolveReorder({
+      ordered: ["PETR4", "DEXP4", "VALE3"],
+      pinnedTicker: null,
+    });
+    expect(result).toEqual({ kind: "state", tickers: ["PETR4", "DEXP4", "VALE3"] });
+  });
+
+  it("keeps a company page in local state while its own row stays on top", () => {
+    const result = resolveReorder({
+      ordered: ["DEXP4", "VALE3", "PETR4"],
+      pinnedTicker: "DEXP4",
+    });
+    expect(result).toEqual({ kind: "state", tickers: ["DEXP4", "VALE3", "PETR4"] });
+  });
+
+  it("hands a company page over to the new top company", () => {
+    // On a company page the top row IS the page, so promoting another
+    // company means going to that company's page.
+    const result = resolveReorder({
+      ordered: ["PETR4", "DEXP4", "VALE3"],
+      pinnedTicker: "DEXP4",
+    });
+    expect(result).toEqual({
+      kind: "navigate",
+      owner: "PETR4",
+      others: ["DEXP4", "VALE3"],
+    });
+  });
+
+  it("never navigates away from a list even when the anchor company moves", () => {
+    const result = resolveReorder({ ordered: LIST.slice().reverse(), pinnedTicker: null });
+    expect(result.kind).toBe("state");
   });
 });

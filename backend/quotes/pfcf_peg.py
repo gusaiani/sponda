@@ -38,11 +38,14 @@ def calculate_pfcf_peg(ticker: str, pfcf10: float | None, max_years: int = 10) -
     if len(full_years_only) < 2:
         return {**empty, "pfcfPegError": "Dados insuficientes para calcular crescimento"}
 
-    years = [d["year"] for d in full_years_only]
+    # Keyed on when each fiscal year closed, not on its label: the CPI
+    # series is calendar time and a filer's 2027 can already be open in
+    # 2026. See pe10.get_annual_earnings.
+    years = [d["inflation_year"] for d in full_years_only]
     ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     yearly_values = [
-        (d["year"], float(d["fcf"] * ipca_factors.get(d["year"], Decimal("1"))))
+        (d["year"], float(d["fcf"] * ipca_factors.get(d["inflation_year"], Decimal("1"))))
         for d in full_years_only
     ]
 

@@ -11,7 +11,7 @@ import { useTranslation, type TranslationKey } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import { CompanySearchInput } from "./CompanySearchInput";
 import { formatNumber, logoUrl } from "../utils/format";
-import { buildOwnerSwapUrl } from "../utils/tabs";
+import { buildOwnerSwapUrl, buildTabPath } from "../utils/tabs";
 import type { QuoteResult } from "../hooks/usePE10";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
 import "../styles/compare.css";
@@ -151,18 +151,49 @@ function DragIcon() {
 
 /* ── Component ── */
 
+/**
+ * How a reorder resolves, which depends on whether the table belongs to a
+ * company or to a saved list.
+ *
+ * On a company page the top row *is* the page, so promoting another company
+ * means navigating to that company. A saved list belongs to no company: its
+ * rows are peers, the anchor ticker in the URL is only an address, and
+ * reordering is plain state. Keeping the two apart here is what stops a list
+ * from behaving like a property of whichever member happens to be first.
+ */
+export type ReorderOutcome =
+  | { kind: "state"; tickers: string[] }
+  | { kind: "navigate"; owner: string; others: string[] };
+
+export function resolveReorder({
+  ordered,
+  pinnedTicker,
+}: {
+  ordered: string[];
+  pinnedTicker: string | null;
+}): ReorderOutcome {
+  const newTop = ordered[0];
+  if (pinnedTicker === null || newTop === pinnedTicker) {
+    return { kind: "state", tickers: ordered };
+  }
+  return { kind: "navigate", owner: newTop, others: ordered.slice(1) };
+}
+
 interface Props {
-  currentTicker: string;
+  /** Every company in the table, in display order. */
+  tickers: string[];
   years: number;
-  extraTickers: string[];
-  onExtraTickersChange: (tickers: string[]) => void;
+  onTickersChange: (tickers: string[]) => void;
+  /** The company whose page this is, pinned to the top row and not
+   *  removable. Null when the table is a saved list, which has no owner. */
+  pinnedTicker: string | null;
   savedListId?: number | null;
 }
 
-export function CompareTab({ currentTicker, years, extraTickers, onExtraTickersChange, savedListId }: Props) {
+export function CompareTab({ tickers, years, onTickersChange, pinnedTicker, savedListId }: Props) {
   const { t, pluralize, locale } = useTranslation();
   const router = useRouter();
-  const allTickers = [currentTicker, ...extraTickers];
+  const allTickers = tickers;
   const entries = useCompareData(allTickers, years);
   const columns = getColumns(years, t, locale);
   const dragIndexRef = useRef<number | null>(null);
@@ -249,12 +280,12 @@ export function CompareTab({ currentTicker, years, extraTickers, onExtraTickersC
   function handleAdd(ticker: string) {
     const upper = ticker.toUpperCase();
     if (!allTickers.includes(upper)) {
-      onExtraTickersChange([...extraTickers, upper]);
+      onTickersChange([...allTickers, upper]);
     }
   }
 
   function handleRemove(ticker: string) {
-    onExtraTickersChange(extraTickers.filter((t) => t !== ticker));
+    onTickersChange(allTickers.filter((candidate) => candidate !== ticker));
   }
 
   function handleReorder(fromIndex: number, toIndex: number) {
@@ -263,20 +294,18 @@ export function CompareTab({ currentTicker, years, extraTickers, onExtraTickersC
     const [moved] = reordered.splice(fromIndex, 1);
     reordered.splice(toIndex, 0, moved);
 
-    const newTop = reordered[0];
-    if (newTop !== currentTicker) {
-      const newExtras = reordered.slice(1);
-      const targetUrl = buildOwnerSwapUrl(
+    const outcome = resolveReorder({ ordered: reordered, pinnedTicker });
+    if (outcome.kind === "navigate") {
+      router.push(buildOwnerSwapUrl(
         locale,
-        newTop,
-        newExtras,
+        outcome.owner,
+        outcome.others,
         new URLSearchParams(window.location.search),
-      );
-      router.push(targetUrl);
+      ));
       return;
     }
 
-    onExtraTickersChange(reordered.filter((t) => t !== currentTicker));
+    onTickersChange(outcome.tickers);
     setSort(null); // clear sort after manual reorder
   }
 
@@ -323,7 +352,7 @@ export function CompareTab({ currentTicker, years, extraTickers, onExtraTickersC
                 key={entry.ticker}
                 entry={entry}
                 index={i}
-                isCurrentTicker={entry.ticker === currentTicker}
+                isPinned={pinnedTicker !== null && entry.ticker === pinnedTicker}
                 onRemove={handleRemove}
                 columns={columns}
                 dragIndexRef={dragIndexRef}
@@ -483,9 +512,10 @@ export function CompareTab({ currentTicker, years, extraTickers, onExtraTickersC
                     onSuccess: (saved) => {
                       setShowSaveForm(false);
                       setSaveName("");
-                      // Navigate to the newly saved list
-                      const firstTicker = allTickers[0];
-                      window.location.href = `/${firstTicker}/comparar?listId=${saved.id}`;
+                      // Navigate to the newly saved list. The path has to
+                      // be built for the active locale: a hardcoded
+                      // Portuguese slug 404s for every other language.
+                      window.location.href = `${buildTabPath(locale, allTickers[0], "compare")}?listId=${saved.id}`;
                     },
                   },
                 );
@@ -548,7 +578,7 @@ export function CompareTab({ currentTicker, years, extraTickers, onExtraTickersC
 export function CompareRow({
   entry,
   index,
-  isCurrentTicker,
+  isPinned,
   onRemove,
   columns,
   dragIndexRef,
@@ -561,7 +591,7 @@ export function CompareRow({
 }: {
   entry: CompareEntry;
   index: number;
-  isCurrentTicker: boolean;
+  isPinned: boolean;
   onRemove: (ticker: string) => void;
   columns: ColumnDef[];
   dragIndexRef: React.MutableRefObject<number | null>;
@@ -688,7 +718,7 @@ export function CompareRow({
           </span>
         </td>
         <td className="compare-remove-col">
-          {!isCurrentTicker && (
+          {!isPinned && (
             <button className="compare-remove-btn" onClick={() => onRemove(ticker)} aria-label={`${t("common.remove")} ${ticker}`}>
               ×
             </button>
@@ -728,7 +758,7 @@ export function CompareRow({
         );
       })}
       <td className="compare-remove-col">
-        {!isCurrentTicker && (
+        {!isPinned && (
           <button className="compare-remove-btn" onClick={() => onRemove(ticker)} aria-label={`${t("common.remove")} ${ticker}`}>
             ×
           </button>

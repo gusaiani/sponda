@@ -15,7 +15,10 @@ from .models import (
     QuarterlyEarnings,
     Ticker,
 )
-from .statement_quality import normalize_net_income
+from .statement_quality import (
+    discard_implausible_debt_collapses,
+    normalize_net_income,
+)
 from .ticker_symbols import BRAZILIAN_SYMBOL_REGEX
 
 # (connect, read) — fail fast on connection issues, give the read a
@@ -436,7 +439,7 @@ def sync_balance_sheets(ticker: str) -> list[BalanceSheet]:
         return []
 
     sheets = BalanceSheet.objects.bulk_create(
-        list(by_end_date.values()),
+        discard_implausible_debt_collapses(list(by_end_date.values())),
         update_conflicts=True,
         unique_fields=["ticker", "end_date"],
         update_fields=[

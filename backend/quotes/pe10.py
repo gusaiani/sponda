@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Optional
 
 from .fx import market_cap_in_reported_currency
+from .fiscal_year import fiscal_year_of
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyEarnings
 from .reporting_frequency import QUARTERLY_PERIODS_PER_YEAR, infer_periods_per_year
@@ -42,11 +43,13 @@ def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
         ticker=ticker.upper(),
     ).order_by("-end_date")[: max_years * 4]
 
-    yearly = defaultdict(lambda: {"net_income": Decimal("0"), "quarters": 0, "quarterly_detail": []})
+    yearly = defaultdict(lambda: {"net_income": Decimal("0"), "quarters": 0,
+                                  "quarterly_detail": [], "last_end_date": None})
     for q in quarters:
         if q.net_income is None:
             continue
-        year = q.end_date.year
+        year = fiscal_year_of(q)
+        yearly[year]["last_end_date"] = q.end_date
         yearly[year]["net_income"] += q.net_income
         yearly[year]["quarters"] += 1
         yearly[year]["quarterly_detail"].append({
@@ -57,6 +60,11 @@ def get_annual_earnings(ticker: str, max_years: int = 10) -> list[dict]:
     return [
         {
             "year": year,
+            # When the fiscal year closed in calendar time. The CPI series
+            # is calendar time and the fiscal label is not: a filer's 2027
+            # can already be open in 2026, and looking that up would find
+            # nothing and quietly adjust by 1.
+            "inflation_year": data["last_end_date"].year,
             "net_income": data["net_income"],
             "quarters": data["quarters"],
             "quarterly_detail": sorted(data["quarterly_detail"], key=lambda x: x["end_date"]),
@@ -94,12 +102,12 @@ def calculate_pe_windows(
 
     periods_per_year = infer_periods_per_year(annual_data)
     inflation_factors = get_inflation_adjustment_factors(
-        ticker, [year_data["year"] for year_data in annual_data],
+        ticker, [year_data["inflation_year"] for year_data in annual_data],
     )
 
     adjusted_period_incomes: list[Decimal] = []
     for year_data in annual_data:  # newest year first
-        factor = inflation_factors.get(year_data["year"], Decimal("1"))
+        factor = inflation_factors.get(year_data["inflation_year"], Decimal("1"))
         for period in reversed(year_data["quarterly_detail"]):  # newest first
             adjusted_period_incomes.append(Decimal(str(period["net_income"])) * factor)
 
@@ -196,7 +204,10 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
         }
     target_periods = effective_years * periods_per_year
 
-    years = [d["year"] for d in annual_data]
+    # Keyed on when each fiscal year closed, not on its label: the CPI
+    # series is calendar time and a filer's 2027 can already be open in
+    # 2026. See pe10.get_annual_earnings.
+    years = [d["inflation_year"] for d in annual_data]
     ipca_factors = get_inflation_adjustment_factors(ticker, years)
 
     adjusted_values: list[Decimal] = []
@@ -208,7 +219,7 @@ def calculate_pe10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dic
             break
         remaining = target_periods - collected
         year = year_data["year"]
-        factor = ipca_factors.get(year, Decimal("1"))
+        factor = ipca_factors.get(year_data["inflation_year"], Decimal("1"))
 
         if year_data["quarters"] <= remaining:
             adjusted = year_data["net_income"] * factor

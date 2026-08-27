@@ -1,0 +1,28 @@
+@reference "tailwindcss";
+
+/* Saved-list header — the list's own identity, in place of a company's */
+
+.list-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.list-header-name {
+  font-family: 'Inter', sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.list-header-meta {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--color-muted);
+  margin: 0;
+}

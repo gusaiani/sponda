@@ -28,9 +28,9 @@
 
 .list-card-name {
   font-family: 'Inter', sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: #0f172a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -66,8 +66,8 @@
 
 .list-card-th {
   font-family: 'Inter', sans-serif;
-  font-size: 9px;
-  font-weight: 400;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--color-muted);
   text-align: right;
   padding: 0 4px 4px;
@@ -80,9 +80,9 @@
 
 .list-card-td {
   font-family: 'Source Code Pro', monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
-  color: #334155;
+  color: #1e293b;
   text-align: right;
   padding: 2px 4px;
   white-space: nowrap;
@@ -90,7 +90,7 @@
 
 .list-card-ticker {
   font-family: 'Source Code Pro', monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--color-accent);
   text-align: left;

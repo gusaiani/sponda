@@ -75,11 +75,16 @@ import { useTranslation } from "../../../i18n";
 import { YearsSlider } from "../../../components/YearsSlider";
 import { InflationToggle, type InflationMode } from "../../../components/InflationToggle";
 import { TabPills } from "../../../components/TabPills";
+import { ListHeader } from "../../../components/ListHeader";
 import { SpondsTab } from "../../../components/social/SpondsTab";
 
 const STALE_TIME = 30 * 60 * 1000;
 
 const DEFAULT_YEARS = 10;
+// The widest window the backend computes (PE_WINDOW_MAX_YEARS). A saved list
+// spans it in full: the company in the URL is only the address the table is
+// served from, so its own history must not cap the list's slider.
+const LIST_MAX_YEARS = 15;
 
 import { resolveTab, buildTabPath, type TabKey } from "../../../utils/tabs";
 
@@ -113,6 +118,11 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   })();
   const [compareTickers, setCompareTickers] = useState<string[]>(initialWithTickers);
   const [activeListId, setActiveListId] = useState<number | null>(null);
+  // A saved list's own membership, in its own order. Held apart from
+  // `compareTickers` because a list is not "this company plus others": the
+  // company in the URL is just the address the table is served from, and
+  // removing it from the list must not break the page.
+  const [listTickers, setListTickers] = useState<string[]>([]);
   const seededForTicker = useRef<string | null>(
     initialWithTickers.length > 0 ? upperTicker : null,
   );
@@ -155,6 +165,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   const { data: peers = [] } = usePeers(upperTicker);
   const { data: fundamentalsData } = useFundamentals(upperTicker, true);
   const { lists } = useSavedLists();
+  // The saved list this page is showing, or null when it is showing a
+  // company. Every section below asks this one question rather than each
+  // re-deriving it from the URL.
+  const activeList = activeListId === null
+    ? null
+    : lists.find((list) => list.id === activeListId) ?? null;
 
   // Check for listId in URL search params (when opening a saved list)
   useEffect(() => {
@@ -166,13 +182,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     const savedList = lists.find((list) => list.id === listId);
     if (!savedList) return;
 
-    const otherTickers = savedList.tickers.filter(
-      (ticker) => ticker !== upperTicker
-    );
+    // The list's full membership, in the order it was saved. The company in
+    // the URL is one member among equals, not the head of the table.
     // Same shape, seeded from a saved list named in the URL: the lists query
     // resolves after the first render and the ref keeps this to once.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCompareTickers(otherTickers);
+    setListTickers(savedList.tickers);
     setYears(savedList.years);
     setActiveListId(listId);
     seededForTicker.current = upperTicker;
@@ -208,7 +223,8 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
     true,
   );
 
-  const maxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
+  const companyMaxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
+  const maxYears = activeList ? LIST_MAX_YEARS : companyMaxYears;
   const effectiveYears = Math.min(years, maxYears);
 
   const derivedData = useMemo(
@@ -281,8 +297,25 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   return (
     <div>
 
+      {/* List header — a saved list stands on its own, with no company
+          identity, rating, or currency attached to it. */}
+      {activeList && (
+        <>
+          <ListHeader
+            name={activeList.name}
+            tickerCount={listTickers.length}
+            years={effectiveYears}
+          />
+          {maxYears > 1 && (
+            <div className="years-slider-inline">
+              <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
+            </div>
+          )}
+        </>
+      )}
+
       {/* Company header */}
-      {company && (
+      {company && !activeList && (
         <div className="company-header">
           <div className="company-header-left">
             {company.logo && (
@@ -308,10 +341,10 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
         </div>
       )}
 
-      {company && <RevisitBanner ticker={upperTicker} />}
+      {company && !activeList && <RevisitBanner ticker={upperTicker} />}
 
       {/* Tab bar: tabs left, years slider floats fixed on the right (desktop) */}
-      {company && (
+      {company && !activeList && (
         <>
           <div className="tab-bar" ref={tabBarRef}>
             <TabPills
@@ -349,7 +382,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Fixed slider (desktop) */}
-      {company && (activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && sliderFixedTop !== null && (
+      {company && !activeList && (activeTab === "metrics" || activeTab === "compare" || activeTab === "fundamentals") && maxYears > 1 && sliderFixedTop !== null && (
         <div className="years-slider-fixed" style={{ top: sliderFixedTop }}>
           <YearsSlider years={effectiveYears} maxYears={maxYears} onYearsChange={setYears} />
           {activeTab === "fundamentals" && (
@@ -363,7 +396,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Metrics tab */}
-      {activeTab === "metrics" && (
+      {activeTab === "metrics" && !activeList && (
         <>
           {!derivedData && !error && <CompanyMetricsCardLoading />}
           {derivedData && (
@@ -393,7 +426,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Charts tab */}
-      {activeTab === "charts" && (
+      {activeTab === "charts" && !activeList && (
         <>
           {!historyData && !historyError && <MultiplesChartLoading />}
           {historyData && <MultiplesChart data={historyData} />}
@@ -406,7 +439,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Fundamentals tab */}
-      {activeTab === "fundamentals" && (
+      {activeTab === "fundamentals" && !activeList && (
         <FundamentalsTab
           ticker={upperTicker}
           years={effectiveYears}
@@ -416,26 +449,32 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
       )}
 
       {/* Compare tab */}
-      {activeTab === "compare" && (
+      {(activeTab === "compare" || activeList) && (
         <CompareTab
-          currentTicker={upperTicker}
+          tickers={activeList ? listTickers : [upperTicker, ...compareTickers]}
           years={effectiveYears}
-          extraTickers={compareTickers}
-          onExtraTickersChange={setCompareTickers}
+          onTickersChange={(next) => {
+            if (activeList) {
+              setListTickers(next);
+              return;
+            }
+            setCompareTickers(next.filter((ticker) => ticker !== upperTicker));
+          }}
+          pinnedTicker={activeList ? null : upperTicker}
           savedListId={activeListId}
         />
       )}
 
       {/* Sponds tab */}
-      {activeTab === "sponds" && (
+      {activeTab === "sponds" && !activeList && (
         <SpondsTab ticker={upperTicker} />
       )}
 
       {/* AI Analysis */}
-      {company && <CompanyAnalysis ticker={upperTicker} />}
+      {company && !activeList && <CompanyAnalysis ticker={upperTicker} />}
 
       {/* Sector peers */}
-      {peers.length > 0 && (
+      {peers.length > 0 && !activeList && (
         <div className="pe10-card">
           <nav className="card-section" aria-label={t("sector.same_sector")}>
             <div className="card-section-heading">{t("sector.same_sector")}</div>
@@ -455,10 +494,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
         </div>
       )}
 
-      <ShareButtons
-        ticker={upperTicker}
-        companyName={fullData?.name}
-      />
+      {!activeList && (
+        <ShareButtons
+          ticker={upperTicker}
+          companyName={fullData?.name}
+        />
+      )}
 
       {lookupLimit?.kind === "auth-modal" && !limitModalDismissed && (
         <AuthModal

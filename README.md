@@ -25,6 +25,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Comparison chart (expanded indicator view)](#comparison-chart-expanded-indicator-view)
 - [Ticker search](#ticker-search)
 - [Peer comparison](#peer-comparison)
+- [Saved lists](#saved-lists)
 - [Learning Mode](#learning-mode)
 - [Indicator Alerts](#indicator-alerts)
 - [Favorites](#favorites)
@@ -554,6 +555,28 @@ The Compare tab on each company page lists up to 10 peer tickers ranked by how c
 Subsector inference is pattern-based: a per-sector list of regexes in `SUBSECTOR_RULES` (Finance, Non-Energy Minerals, Process Industries, Retail Trade, Transportation, Utilities, etc.) matches against the company name. Unmatched companies fall back to a default subsector label per sector. No schema change — the subsector is derived at query time.
 
 **API:** `GET /api/tickers/<symbol>/peers/`
+
+## Saved lists
+
+A saved list is a named set of companies and a window, opened at
+`/{locale}/{TICKER}/{compare}?listId={id}`. The ticker in that path is an
+**address, not an owner**: the comparison table lives on the company route, so
+a list is served from one of its members, but the list is not about that
+company.
+
+Everything that made it look otherwise is gated on the list being active:
+
+| On a company page | On a saved list |
+| --- | --- |
+| The company header: logo, ticker, currency, rating | `ListHeader` · the list's name, its size, its window |
+| The top row is the company, pinned and not removable | Every row is a peer; any row can be removed, the anchor included |
+| Dragging another company to the top navigates to *that company's* page | Reordering is plain state and navigates nowhere |
+| Metrics / Fundamentals / Charts / Sponds tabs, the revisit banner, the AI analysis, sector peers, share buttons | None of them · a list is its table |
+| The window is capped at the company's own `maxYearsAvailable` | The full range (`LIST_MAX_YEARS`), so a short-history anchor cannot cap the list |
+
+`CompareTab` takes the whole ordered set (`tickers`) plus a `pinnedTicker`
+that is `null` for a list, and `resolveReorder` is the one place that decides
+between "keep it in state" and "hand the page over to the new top company".
 
 ## Learning Mode
 
@@ -1642,6 +1665,118 @@ For rows already stored:
 It drops the derived caches for every company it touches. `IndicatorSnapshot`
 rows are recomputed by the usual refresh jobs; run
 `refresh_snapshot_fundamentals` if you want it sooner.
+
+### Debt that vanishes without the liabilities to match
+
+FMP publishes a quarterly balance sheet within hours of the filing, and on
+that first pass it sometimes mis-tags the debt lines while getting the totals
+right. Salesforce's Q2 FY2027, filed 2026-08-26, is the clean example: $39.3bn
+of senior notes landed in `otherNonCurrentLiabilities`, so `totalDebt` came
+back as **$2.46bn against $71.2bn of total liabilities**, the quarter after
+$41.9bn against $72.4bn. The company had just issued $25bn of notes and drawn
+a $6bn term loan to fund a $27.4bn buyback. Stored as-is it produced a
+debt/equity of 0.06, a debt/EARN10 of 0.74 and a debt/FCF10 of 0.32, ranking
+CRM as unlevered at the exact moment it levered up.
+
+This is the dangerous direction of wrong. An overstated debt makes a company
+look worse than it is; an understated one hides leverage from precisely the
+screens someone uses to avoid it.
+
+The tell is the accounting identity. Debt can fall by any amount for real
+reasons, but the cash that retired it has to show up somewhere, so total
+liabilities fall with it. `quotes/statement_quality.py::is_implausible_debt_collapse`
+distrusts a quarter only when three things hold together:
+
+| Condition | Threshold | Why |
+| --- | --- | --- |
+| The debt nearly vanished | at most **25%** of the prior quarter's debt survives | partial paydowns and refinancings are routine; near-total disappearance in one quarter is not |
+| The amount was material | the drop is at least **25%** of prior total liabilities | a company can clear a small facility without moving its totals |
+| Liabilities did not absorb it | they shed less than **50%** of the drop | a genuine repayment takes total liabilities down with it |
+
+`discard_implausible_debt_collapses` applies that walk to a whole history in
+date order, and never lets a quarter it has already rejected become the
+baseline for the next one. Both `brapi.sync_balance_sheets` and
+`fmp.sync_balance_sheets` run it before writing, so the next successful sync
+restores the figure once the provider corrects the filing.
+
+Corpus-wide when found: **9,716 quarters across 6,307 companies**, of which
+**458 were a company's most recent quarter** and so were driving its live
+ratios, with **409** of those already carrying a debt/equity in the screener
+snapshot. Honda and BMW were reporting zero debt against trillions of yen and
+billions of euros of liabilities; Orange showed $7.5bn the quarter after
+$42.7bn.
+
+For rows already stored:
+
+```bash
+./manage.py repair_collapsed_debt --dry-run     # report only
+./manage.py repair_collapsed_debt --ticker CRM  # one company
+./manage.py repair_collapsed_debt               # null them, invalidate caches
+```
+
+Nulling drops debt/equity, debt/EARN10 and debt/FCF10 from the company's
+rating rather than scoring them on a fiction. The rating still forms from the
+remaining indicators as long as at least four survive
+(`MIN_INDICATORS_FOR_GRADE`), so a repaired company keeps a grade, just an
+honest one.
+
+### Fiscal years, which are not calendar years
+
+Roughly a quarter of the companies covered close their books somewhere other
+than 31 December. Salesforce closes on 31 January, Starbucks in late
+September, Microsoft in June. Grouping their quarters by the calendar year
+the quarter happens to end in gets two things wrong at once:
+
+- **The audited year-end never appears.** Salesforce's 31 January 2026 close
+  lands in calendar 2026 and is then overwritten by its April and July
+  quarters. Starbucks' 2025 row showed the 28 December 2025 balance sheet
+  (the first quarter of fiscal 2026, $33.5bn of debt) instead of the audited
+  28 September 2025 close ($26.6bn): a 26% overstatement on a row labelled
+  with a year it does not describe.
+- **The "annual" income is a rolling four quarters** offset from the year the
+  company reported, so it never equals the figure in the filing.
+
+FMP reports `fiscalYear` on all three statement endpoints and we now store it
+(`QuarterlyEarnings.fiscal_year`, `QuarterlyCashFlow.fiscal_year`,
+`BalanceSheet.fiscal_year`). `quotes/fiscal_year.py::fiscal_year_of` is the
+single answer to "which year is this period in", and everything that groups
+statements by year goes through it: the Fundamentos table, `get_annual_earnings`
+and `get_annual_fcf` behind every P/E and P/FCF window, PEG, and the multiples
+chart. BRAPI and CVM report no fiscal year and need none, because Brazilian
+filers close on 31 December; the fallback to the end date's calendar year is
+correct for them.
+
+Three things had to move with it, each of which would have been a silent
+regression on its own:
+
+| What | Why |
+| --- | --- |
+| The frontend's year join | `FundamentalsTab` joins its rows to `pe10CalculationDetails` by year. Had one side moved and not the other, every trailing ratio on an off-calendar filer would have gone blank. |
+| The inflation key | The CPI series is calendar time; a fiscal label is not. A filer's 2027 is already open in 2026, so looking the factor up under 2027 finds nothing and quietly adjusts by 1. Each annual entry carries an `inflation_year` (the calendar year it closed in) and every lookup uses that. |
+| The year-end price | A year is valued on the day it closed. Pricing Salesforce's fiscal 2026 at the previous 31 December carries a month of price movement into that year's multiples. `quotes/price_history.py` indexes closes by date so both the table and the chart can ask for the close on or before a given day. |
+
+`calculate_pe_windows` itself was never affected: it sums trailing periods,
+so the year label only ever picked its CPI factor. It had to stay that way.
+
+For rows stored before the field existed:
+
+```bash
+./manage.py backfill_fiscal_year --dry-run       # report only
+./manage.py backfill_fiscal_year --ticker CRM    # one company
+./manage.py backfill_fiscal_year --limit 500     # a cautious first pass
+./manage.py backfill_fiscal_year                 # the whole universe
+```
+
+It asks each company's **annual** statement which month it closes in, once,
+and derives the label for every row that company already has. That is one FMP
+call per ticker (~25,000) rather than re-pulling twenty years of quarterly
+statements across three endpoints (~75,000). Rows the provider already
+labelled are skipped, so it is safe to re-run and safe to run alongside the
+ordinary sync. Companies whose closing month cannot be learned are reported
+and left on the calendar-year fallback rather than guessed at.
+
+Until the backfill reaches a company, `fiscal_year_of` falls back to the
+calendar year, so deploying this changes nothing on its own.
 
 ## Server-side rendering and hydration
 
