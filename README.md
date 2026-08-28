@@ -1050,6 +1050,16 @@ Four signals, cheapest for a client to find first:
 | `Dataset.distribution` in JSON-LD | `lib/metadata.ts` | Anything already reading our structured data. `distribution` is schema.org's own vocabulary for "the machine-readable version lives here", so this needs no convention of ours |
 | `/llms.txt` and `/{locale}/for-ai` | Generated routes | A human wiring Sponda into a program, and whatever they point at it |
 
+And one signal in the other direction. Every `.md` response carries
+`Link: <https://sponda.capital/{locale}/{page}>; rel="canonical"`, naming the
+HTML page it is a twin of. The alternate links above make the markdown URLs
+discoverable to search crawlers too, and `text/markdown` is indexable, so
+without a canonical Google would hold two documents per company and choose
+one; the markdown is the likelier choice because it carries the numbers the
+HTML does not. A header rather than anything in the body, since markdown has
+no head and the document should stay clean for the models reading it. 404s
+send no canonical.
+
 `/{locale}/for-ai` and its markdown twin both render from
 `frontend/src/lib/ai-access-copy.ts`. A page whose subject is machine-readable
 access would be a poor advertisement for itself if its two versions disagreed.
