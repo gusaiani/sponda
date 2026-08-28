@@ -10,7 +10,10 @@
 
 .left-nav {
   position: fixed;
-  top: 60px;
+  /* Published by the layout shell from the header's rendered height: one
+   * row on desktop, two on phones (the search box wraps). 60px is only
+   * the pre-measurement fallback. */
+  top: var(--app-header-height, 60px);
   left: 0;
   bottom: 0;
   width: 240px;
@@ -101,6 +104,30 @@
   color: #6b7280;
 }
 
+/* Solid green "new" badge, the same one the header MCP pill wears. */
+.left-nav-badge-new {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  line-height: 1.4;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+/* Rows that only exist because the header has no room for them on
+ * phones. Above the header's 640px breakpoint the header carries the
+ * control, so the row would be a duplicate. */
+@media (min-width: 640px) {
+  .left-nav-item--mobile-only {
+    display: none;
+  }
+}
+
 .left-nav-section {
   border-top: 1px solid #f0f0f0;
   padding: 12px;
@@ -129,7 +156,7 @@
   .left-nav-backdrop {
     display: block;
     position: fixed;
-    inset: 60px 0 0 0;
+    inset: var(--app-header-height, 60px) 0 0 0;
     background: rgba(0, 0, 0, 0.4);
     z-index: 25;
   }

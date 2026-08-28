@@ -122,7 +122,7 @@ describe("CompanyMetricsCard expanded chart", () => {
     const expandButton = container.querySelector("#pe10 .expand-btn");
     expect(expandButton).not.toBeNull();
     fireEvent.click(expandButton!);
-    expect(screen.getByText("PE5 — TestCo")).toBeTruthy();
+    expect(screen.getByText("PE5 · TestCo")).toBeTruthy();
 
     rerender(
       <CompanyMetricsCard
@@ -134,6 +134,6 @@ describe("CompanyMetricsCard expanded chart", () => {
       />,
     );
 
-    expect(screen.getByText("PE13 — TestCo")).toBeTruthy();
+    expect(screen.getByText("PE13 · TestCo")).toBeTruthy();
   });
 });

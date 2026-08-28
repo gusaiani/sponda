@@ -207,19 +207,32 @@
   padding-bottom: 16px;
 }
 
+/* Phones: one card per row. Two columns left ~150px per card, which the
+ * longer labels ("Gross debt / earnings avg 10y" plus the info button
+ * and rating chip) overflowed past the card edge, and past the viewport
+ * on the right-hand column, which is what made the page scroll sideways.
+ * The labels also wrap here as a second line of defence. */
 @media (max-width: 639px) {
   .metrics-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pe10-label {
+    white-space: normal;
   }
 }
 
 .metric-value-container {
   @apply text-center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .metric-block {
   @apply flex flex-col items-center relative;
   justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   background: #f5f7fb;
   border: none;
   border-radius: 8px;
@@ -567,18 +580,78 @@
   padding: 24px;
 }
 
+/* The panel is boxed by the overlay's content area, never by the
+ * viewport units alone: 96vw plus the overlay padding is wider than a
+ * phone screen, and 90vh on iOS is measured with the toolbars hidden. */
 .chart-fullscreen-content {
   @apply relative flex flex-col;
   width: 96vw;
   height: 90vh;
-  max-width: 1400px;
+  max-width: min(1400px, 100%);
+  max-height: 100%;
+  min-width: 0;
   background: #ffffff;
   border: 1px solid var(--color-border);
   border-radius: 8px;
+  overflow: hidden;
+}
+
+@media (max-width: 639px) {
+  .chart-fullscreen-overlay {
+    padding: 12px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .chart-fullscreen-content {
+    width: 100%;
+    height: 100%;
+  }
+
+  .chart-fullscreen-header {
+    padding: 14px 16px;
+    align-items: center;
+  }
+
+  .chart-fullscreen-title {
+    font-size: 16px;
+  }
+
+  .chart-fullscreen-controls {
+    gap: 10px;
+    padding: 10px 16px;
+  }
+
+  .chart-fullscreen-controls .years-slider {
+    width: 100%;
+  }
+
+  .chart-fullscreen-add {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .chart-fullscreen-add .compare-add-input {
+    max-width: none;
+  }
+
+  .chart-fullscreen-legend {
+    gap: 10px;
+    padding: 8px 16px;
+  }
+
+  .chart-fx-note {
+    padding: 0 16px 8px;
+  }
+
+  .chart-fullscreen-body {
+    padding: 8px 8px 12px 0;
+  }
 }
 
 .chart-fullscreen-header {
   @apply flex items-baseline justify-between;
+  gap: 12px;
   padding: 20px 24px;
   border-bottom: 1px solid var(--color-border);
 }

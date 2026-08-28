@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -64,6 +65,33 @@ function stripLocale(pathname: string): string {
   return match ? match[2] || "/" : pathname;
 }
 
+const HEADER_HEIGHT_CSS_VARIABLE = "--app-header-height";
+
+/**
+ * Publishes the header's rendered height on <html> as `--app-header-height`,
+ * for the fixed left nav (and its backdrop) to start right below it. The
+ * header wraps to two rows on phones, where the search box takes its own
+ * row, so no single hard-coded offset fits every viewport.
+ */
+function usePublishedHeaderHeight() {
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header || typeof ResizeObserver === "undefined") return;
+    const root = document.documentElement;
+    const publish = () => {
+      root.style.setProperty(
+        HEADER_HEIGHT_CSS_VARIABLE,
+        `${Math.round(header.getBoundingClientRect().height)}px`,
+      );
+    };
+    const observer = new ResizeObserver(publish);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+  return headerRef;
+}
+
 function HamburgerToggle() {
   const { t } = useTranslation();
   const { open, toggle } = useLeftNav();
@@ -101,6 +129,7 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const { isSuperuser } = useAuth();
   const mcpAnnouncement = useMcpAnnouncement();
+  const headerRef = usePublishedHeaderHeight();
   const bare = stripLocale(pathname);
   const isOnAuthPage = AUTH_SUFFIXES.some((suffix) => bare.startsWith(suffix));
   const companyTicker = companyTickerFromPath(bare);
@@ -124,12 +153,12 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
     <AssistantWindowProvider>
     <div className="app-container">
       {isOnAuthPage ? (
-        <header className="app-header app-header-auth">
+        <header className="app-header app-header-auth" ref={headerRef}>
           {brand}
           <AuthHeader />
         </header>
       ) : (
-        <header className="app-header">
+        <header className="app-header" ref={headerRef}>
           <HamburgerToggle />
           {brand}
           <SearchBar onSearch={handleSearch} isLoading={false} />
@@ -143,7 +172,7 @@ function LayoutShellInner({ children }: { children: React.ReactNode }) {
       {!isOnAuthPage && mcpAnnouncement.isOpen && (
         <McpAnnouncementModal onClose={mcpAnnouncement.close} />
       )}
-      {!isOnAuthPage && <LeftNav />}
+      {!isOnAuthPage && <LeftNav onOpenMcpAnnouncement={mcpAnnouncement.open} />}
       {/* Auth pages render neither sidebar, so the gutters .app-body
         * reserves for them would push the centered card off-centre. */}
       <div className={isOnAuthPage ? "app-body app-body-full-width" : "app-body"}>
