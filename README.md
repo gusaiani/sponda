@@ -2490,7 +2490,7 @@ The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retrie
 
 ## Deployment
 
-Pushes to `main` trigger a GitHub Actions workflow that runs all test suites, builds the Next.js bundle in CI, then SSHs to `poe.ma`: pulls the latest code, installs backend deps into the venv (`uv pip install`), runs `npm ci` against the prebuilt bundle, migrates, installs the systemd units and timers, reloads nginx, and restarts `sponda`, `sponda-celery`, and `sponda-frontend`. There is no Docker anywhere · every environment runs the code directly in a Python virtualenv (prod under gunicorn + systemd, local dev via `make dev`).
+Pushes to `main` trigger a GitHub Actions workflow that runs all test suites, builds the Next.js bundle in CI, then SSHs to `poe.ma`: pulls the latest code, installs backend deps into the venv (`uv pip install`), runs `npm ci` against the prebuilt bundle, migrates, installs the systemd units and timers, reloads nginx, and restarts `sponda`, `sponda-celery`, and `sponda-frontend`. The deploy job runs under a `concurrency` group, so two merges close together deploy one after the other rather than racing `npm ci` on the box (which is how both deploys on 2026-08-28 died with `ENOTEMPTY` on `node_modules`); nothing is cancelled, the later commit simply waits. There is no Docker anywhere · every environment runs the code directly in a Python virtualenv (prod under gunicorn + systemd, local dev via `make dev`).
 
 ### Manual Deploy
 

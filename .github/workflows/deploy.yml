@@ -297,6 +297,14 @@ jobs:
     needs: [build-frontend]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # One deploy on the box at a time. Two PRs merged three seconds apart on
+    # 2026-08-28 ran `npm ci` in /opt/sponda/frontend concurrently and both
+    # died (ENOTEMPTY on node_modules) with the site left on whichever files
+    # won each race. Queue rather than cancel: every merged commit still
+    # deploys, in order, and the last one wins.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     steps:
       # Download into the job workspace, not /tmp. appleboy/scp-action
       # runs in a Docker container that only mounts $GITHUB_WORKSPACE;
