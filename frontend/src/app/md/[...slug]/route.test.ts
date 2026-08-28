@@ -75,6 +75,33 @@ describe("GET /md/[...slug]", () => {
     expect(cacheControl).toContain("stale-while-revalidate=");
   });
 
+  it("names the HTML page as canonical, so search engines index that one", async () => {
+    const link = (await get(["en", "PETR4"])).headers.get("link") ?? "";
+    expect(link).toBe('<https://sponda.capital/en/PETR4>; rel="canonical"');
+  });
+
+  it("points a tab page's canonical at the tab's HTML URL", async () => {
+    const link = (await get(["pt", "PETR4", "graficos"])).headers.get("link") ?? "";
+    expect(link).toBe('<https://sponda.capital/pt/PETR4/graficos>; rel="canonical"');
+  });
+
+  it("upper-cases the ticker in the canonical even when the request did not", async () => {
+    const link = (await get(["en", "petr4"])).headers.get("link") ?? "";
+    expect(link).toContain("https://sponda.capital/en/PETR4>");
+  });
+
+  it("gives the home and screener pages a canonical too", async () => {
+    expect((await get(["en"])).headers.get("link")).toBe('<https://sponda.capital/en>; rel="canonical"');
+    expect((await get(["de", "screener"])).headers.get("link")).toBe(
+      '<https://sponda.capital/de/screener>; rel="canonical"',
+    );
+  });
+
+  it("sends no canonical on a 404", async () => {
+    stubApi({ "/indicators/": () => jsonResponse({}, 404) });
+    expect((await get(["en", "NOPE99"])).headers.get("link")).toBeNull();
+  });
+
   it("accepts a lowercase ticker without redirecting", async () => {
     const response = await get(["en", "petr4"]);
     expect(response.status).toBe(200);
@@ -177,6 +204,12 @@ describe("GET /md/[locale]/for-ai", () => {
     for (const section of AI_ACCESS_SECTIONS) {
       expect(body, section.heading).toContain(`## ${section.heading}`);
     }
+  });
+
+  it("names the HTML page as canonical", async () => {
+    expect((await get(["en", "for-ai"])).headers.get("link")).toBe(
+      '<https://sponda.capital/en/for-ai>; rel="canonical"',
+    );
   });
 
   it("serves it in every locale", async () => {

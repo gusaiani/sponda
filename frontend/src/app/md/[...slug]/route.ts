@@ -22,7 +22,7 @@ import {
   renderScreenerMarkdown,
 } from "../../../lib/site-markdown";
 import { isSupportedLocale, type SupportedLocale } from "../../../lib/i18n-config";
-import { MARKDOWN_LOCALE_ROUTES } from "../../../lib/site-routes";
+import { MARKDOWN_LOCALE_ROUTES, SITE_BASE_URL } from "../../../lib/site-routes";
 import { resolveTab, tabSlugForLocale, type TabKey } from "../../../utils/tabs";
 
 export const runtime = "nodejs";
@@ -55,11 +55,27 @@ function markdownCacheControl(maxAge: number): string {
   ].join(", ");
 }
 
-function markdown(body: string, maxAge: number): Response {
+/**
+ * `Link: <html page>; rel="canonical"`.
+ *
+ * The markdown is a twin, not a page of its own. Every HTML page advertises
+ * it through `<link rel="alternate" type="text/markdown">`, so a search
+ * crawler will find these URLs, and text/markdown is indexable. Without a
+ * canonical, Google would hold two documents per company and pick one, and
+ * the markdown is the likelier pick because it carries the numbers the HTML
+ * does not. A header rather than anything in the body: markdown has no head,
+ * and this keeps the document itself clean for the models that read it.
+ */
+function canonicalLink(pagePath: string): string {
+  return `<${SITE_BASE_URL}${pagePath}>; rel="canonical"`;
+}
+
+function markdown(body: string, maxAge: number, canonicalPagePath: string): Response {
   return new Response(body, {
     headers: {
       "Content-Type": MARKDOWN_CONTENT_TYPE,
       "Cache-Control": markdownCacheControl(maxAge),
+      Link: canonicalLink(canonicalPagePath),
     },
   });
 }
@@ -99,17 +115,18 @@ export async function GET(
   if (!isSupportedLocale(locale)) return notFound();
 
   if (second === undefined) {
-    return markdown(renderHomeMarkdown(locale), ONE_HOUR_IN_SECONDS);
+    return markdown(renderHomeMarkdown(locale), ONE_HOUR_IN_SECONDS, `/${locale}`);
   }
 
   if (MARKDOWN_LOCALE_ROUTES.has(second)) {
     if (third !== undefined) return notFound();
     if (second === "for-ai") {
-      return markdown(renderAiAccessMarkdown(locale), ONE_HOUR_IN_SECONDS);
+      return markdown(renderAiAccessMarkdown(locale), ONE_HOUR_IN_SECONDS, `/${locale}/${second}`);
     }
     return markdown(
       renderScreenerMarkdown(locale, await fetchIndicatorCatalogue()),
       ONE_HOUR_IN_SECONDS,
+      `/${locale}/${second}`,
     );
   }
 
@@ -124,8 +141,10 @@ export async function GET(
   const data = await fetchCompanyMarkdownData(ticker, tab);
   if (!data.snapshot) return notFound();
 
+  const companyPagePath = third === undefined ? `/${locale}/${ticker}` : `/${locale}/${ticker}/${third}`;
   return markdown(
     renderCompanyMarkdown(buildCompanyMarkdownModel({ ticker, locale, tab, data })),
     FIFTEEN_MINUTES_IN_SECONDS,
+    companyPagePath,
   );
 }
