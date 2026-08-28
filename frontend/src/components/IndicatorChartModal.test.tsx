@@ -67,7 +67,7 @@ describe("IndicatorChartModal", () => {
   it("renders the fullscreen overlay with the indicator and company in the title", () => {
     render(<IndicatorChartModal {...defaultProps} onClose={vi.fn()} />);
     expect(document.querySelector(".chart-fullscreen-overlay")).not.toBeNull();
-    expect(screen.getByText("Current Price — ACME")).toBeTruthy();
+    expect(screen.getByText("Current Price · ACME")).toBeTruthy();
   });
 
   it("renders the term slider and an add-company input", () => {

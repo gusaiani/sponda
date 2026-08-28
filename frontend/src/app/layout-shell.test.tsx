@@ -69,7 +69,11 @@ vi.mock("../components/social/SocialSidebar", () => ({
 }));
 
 vi.mock("../components/LeftNav", () => ({
-  LeftNav: () => <div data-testid="left-nav" />,
+  LeftNav: ({ onOpenMcpAnnouncement }: { onOpenMcpAnnouncement: () => void }) => (
+    <div data-testid="left-nav">
+      <button type="button" data-testid="left-nav-mcp" onClick={onOpenMcpAnnouncement} />
+    </div>
+  ),
 }));
 
 vi.mock("../components/LeftNavContext", () => ({
@@ -244,6 +248,50 @@ describe("LayoutShell", () => {
     expect(mcpButton.textContent).toContain("MCP");
 
     fireEvent.click(mcpButton);
+
+    expect(document.querySelector(".mcp-announcement-overlay")).not.toBeNull();
+  });
+
+  it("publishes the measured header height so the left nav can start below it", () => {
+    // On phones the header wraps to two rows (search box on its own row),
+    // so a hard-coded nav offset would leave the first rows hidden under it.
+    const HEADER_HEIGHT = 110;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: () => void) {}
+        observe(target: Element) {
+          vi.spyOn(target, "getBoundingClientRect").mockReturnValue({
+            height: HEADER_HEIGHT,
+          } as DOMRect);
+          this.callback();
+        }
+        disconnect() {}
+      },
+    );
+
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
+
+    expect(
+      document.documentElement.style.getPropertyValue("--app-header-height"),
+    ).toBe(`${HEADER_HEIGHT}px`);
+  });
+
+  it("reopens the MCP announcement from the left nav entry", () => {
+    window.localStorage.setItem(MCP_ANNOUNCEMENT_DISMISSED_STORAGE_KEY, "true");
+
+    render(
+      <LayoutShell>
+        <div>Company content</div>
+      </LayoutShell>,
+    );
+    expect(document.querySelector(".mcp-announcement-overlay")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("left-nav-mcp"));
 
     expect(document.querySelector(".mcp-announcement-overlay")).not.toBeNull();
   });

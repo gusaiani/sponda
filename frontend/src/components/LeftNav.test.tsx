@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { LeftNav } from "./LeftNav";
 
 afterEach(cleanup);
 
 const mockIsAuthenticated = vi.fn(() => false);
 const mockIsSuperuser = vi.fn(() => false);
+const mockSetOpen = vi.fn();
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: React.ComponentProps<"a">) => (
@@ -49,17 +50,45 @@ vi.mock("./FeedbackButton", () => ({
 }));
 
 vi.mock("./LeftNavContext", () => ({
-  useLeftNav: () => ({ open: true, setOpen: vi.fn() }),
+  useLeftNav: () => ({ open: true, setOpen: mockSetOpen }),
 }));
 
 vi.mock("../styles/left-nav.css", () => ({}));
+
+function renderLeftNav(onOpenMcpAnnouncement = vi.fn()) {
+  return render(<LeftNav onOpenMcpAnnouncement={onOpenMcpAnnouncement} />);
+}
+
+describe("LeftNav MCP entry", () => {
+  // The header MCP pill is hidden below 640px so the header fits one row;
+  // the rail carries the entry point on those viewports instead.
+  it("renders an MCP item flagged as mobile-only", () => {
+    renderLeftNav();
+
+    const item = screen.getByRole("button", { name: /MCP/ });
+    expect(item.classList.contains("left-nav-item--mobile-only")).toBe(true);
+    expect(item.querySelector(".left-nav-badge-new")!.textContent).toBe("mcp.eyebrow");
+  });
+
+  it("opens the announcement and closes the overlay rail when tapped on a phone", () => {
+    const onOpenMcpAnnouncement = vi.fn();
+    mockSetOpen.mockClear();
+    window.innerWidth = 390;
+    renderLeftNav(onOpenMcpAnnouncement);
+
+    fireEvent.click(screen.getByRole("button", { name: /MCP/ }));
+
+    expect(onOpenMcpAnnouncement).toHaveBeenCalledTimes(1);
+    expect(mockSetOpen).toHaveBeenCalledWith(false);
+  });
+});
 
 describe("LeftNav superuser links", () => {
   it("shows the MCP calls audit-log link to superusers", () => {
     mockIsAuthenticated.mockReturnValue(true);
     mockIsSuperuser.mockReturnValue(true);
 
-    render(<LeftNav />);
+    renderLeftNav();
 
     const link = screen.getByRole("link", { name: /MCP calls/ });
     expect(link.getAttribute("href")).toBe("/admin/assistant/mcpcall/");
@@ -69,7 +98,7 @@ describe("LeftNav superuser links", () => {
     mockIsAuthenticated.mockReturnValue(true);
     mockIsSuperuser.mockReturnValue(true);
 
-    render(<LeftNav />);
+    renderLeftNav();
 
     expect(screen.getByRole("link", { name: "Admin" })).toBeTruthy();
   });
@@ -78,7 +107,7 @@ describe("LeftNav superuser links", () => {
     mockIsAuthenticated.mockReturnValue(true);
     mockIsSuperuser.mockReturnValue(false);
 
-    render(<LeftNav />);
+    renderLeftNav();
 
     expect(screen.queryByRole("link", { name: /MCP calls/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
@@ -88,7 +117,7 @@ describe("LeftNav superuser links", () => {
     mockIsAuthenticated.mockReturnValue(false);
     mockIsSuperuser.mockReturnValue(false);
 
-    render(<LeftNav />);
+    renderLeftNav();
 
     expect(screen.queryByRole("link", { name: /MCP calls/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();

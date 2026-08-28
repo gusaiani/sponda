@@ -45,6 +45,24 @@
   padding: 0 20px;
 }
 
+/* Phones: match the tightened Screener pill (38px tall) and drop the
+ * handle so a signed-in header still fits one row. The avatar alone
+ * identifies the account; the handle is in the menu it opens. */
+@media (max-width: 639px) {
+  .account-button {
+    min-height: 38px;
+    padding: 0 6px;
+  }
+
+  .account-button--login {
+    padding: 0 14px;
+  }
+
+  .account-button-handle {
+    display: none;
+  }
+}
+
 .account-button-placeholder {
   width: 80px;
   height: 32px;

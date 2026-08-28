@@ -192,7 +192,10 @@ automatically on page load for every visitor, logged in or not, until dismissed 
 the dismissal is stored in `localStorage` under `sponda-mcp-announcement-dismissed`
 (`useMcpAnnouncement`), so it never auto-opens again on that browser. An outlined
 "MCP" pill in the header, next to the Screener link, reopens it on demand
-(`McpHeaderButton`). All copy is translated in the seven locales.
+(`McpHeaderButton`). Below 640px the pill is hidden so the header stays on one
+row, and the left nav carries an "MCP · New" row instead (`LeftNav`, class
+`left-nav-item--mobile-only`, hidden again from 640px up). All copy is translated
+in the seven locales.
 
 **Linking to it: `?mcp=1`.** Any URL carrying the parameter opens the modal even
 for a visitor who dismissed it before (`MCP_ANNOUNCEMENT_QUERY_PARAM`). The
@@ -1454,6 +1457,40 @@ Backend custom spans (`sentry_sdk.start_span(op="db.calc", description=...)`) no
 - **30-minute staleTime** on React Query hooks; SSR revalidation at 1 hour
 - **Lazy-loaded images** on all company logos; footer logo served via Next.js `<Image>` with WebP optimization
 - **useMemo** on frequently recomputed derived state (excludeSet, sectorPeerLinks)
+
+### Phone layout
+
+The phone breakpoint is 639px and down (the header's own breakpoint). Rules that
+hold there, each pinned by `src/styles/mobile-layout.test.ts`, which reads the
+stylesheets since jsdom lays nothing out:
+
+- **The page never scrolls sideways.** `.app-container` has `overflow-x: clip`
+  (not `hidden`, so it never becomes a scroll container and sticky descendants
+  keep working; fixed rails are unaffected because their containing block is the
+  viewport). This is the backstop; the causes are fixed too.
+- **Header on one row**: hamburger, brand, Screener pill, account control. The
+  search box drops to its own row, the MCP pill is hidden (the left nav carries
+  it), the Screener and account pills tighten to 38px, and the signed-in account
+  button shows only the avatar. The layout shell measures the header with a
+  `ResizeObserver` and publishes `--app-header-height` on `<html>`, so the fixed
+  left nav and its backdrop start under the two-row header instead of a
+  hard-coded 60px (which hid the first nav rows on phones).
+- **Indicator cards one per row** (`.metrics-row`), and `.pe10-label` may wrap.
+  Two columns left ~150px per card and the longer labels overflowed past the
+  right-hand card into the viewport, which is what widened the page.
+- **Modals fit the visible viewport.** The MCP announcement is bounded by
+  `100dvh` (100vh on iOS Safari is measured with the toolbars hidden) and keeps a
+  16px gutter widened by the safe-area insets; its install tabs stay on one line
+  and scroll sideways instead of wrapping. The expanded indicator chart fills its
+  overlay's content box (`width/height: 100%` on phones, `max-width: min(1400px,
+  100%)` and `max-height: 100%` everywhere) with its controls stacked.
+
+Local testing: run the frontend, open a company page in the browser's device
+toolbar at 390px (and once at 360px), and check that there is no horizontal
+scrollbar, that the header is one row, that every indicator label stays inside
+its card, that the hamburger menu shows an "MCP" row that opens the announcement
+with a margin on every side, and that expanding an indicator chart fits the
+window with the controls stacked.
 
 ### International SEO
 

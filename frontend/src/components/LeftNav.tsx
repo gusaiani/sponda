@@ -22,13 +22,20 @@ const LANGUAGE_OPTIONS: { locale: Locale; flag: string; label: string }[] = [
   { locale: "it", flag: "🇮🇹", label: "Italiano" },
 ];
 
+interface LeftNavProps {
+  /** Opens the MCP announcement modal; the rail's phone-only MCP row uses it. */
+  onOpenMcpAnnouncement: () => void;
+}
+
 /**
  * YouTube-style fixed left rail. When `open` is true the nav is 240px and
  * shows labels; when false it is hidden (0px). Hamburger in the top header
  * toggles via the LeftNav context. All secondary header items have moved
- * here: Learning Mode toggle, Alerts, Visits, Blog, Share, Feedback.
+ * here: Learning Mode toggle, Alerts, Visits, Blog, Share, Feedback. On
+ * phones the header MCP pill is hidden too, so the rail carries an MCP row
+ * (hidden again from 640px up, where the header pill is back).
  */
-export function LeftNav() {
+export function LeftNav({ onOpenMcpAnnouncement }: LeftNavProps) {
   const { t, locale } = useTranslation();
   const { open, setOpen } = useLeftNav();
   const { isAuthenticated, isSuperuser } = useAuth();
@@ -59,6 +66,22 @@ export function LeftNav() {
               <span className="left-nav-icon"><HomeIcon /></span>
               <span className="left-nav-label">{t("nav.home")}</span>
             </Link>
+          </li>
+
+          <li>
+            <button
+              type="button"
+              className={`${navItemClass(false)} left-nav-item--mobile-only`}
+              title={t("mcp.header_button_title")}
+              onClick={() => {
+                close();
+                onOpenMcpAnnouncement();
+              }}
+            >
+              <span className="left-nav-icon"><PlugIcon /></span>
+              <span className="left-nav-label">MCP</span>
+              <span className="left-nav-badge-new">{t("mcp.eyebrow")}</span>
+            </button>
           </li>
 
           {isAuthenticated && (
@@ -437,6 +460,18 @@ function TerminalIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20" aria-hidden>
       <polyline points="4 17 10 11 4 5" />
       <line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
+  );
+}
+
+/** Two-prong plug: "connect your assistant to Sponda". */
+function PlugIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20" aria-hidden>
+      <path d="M12 22v-5" />
+      <path d="M9 8V2" />
+      <path d="M15 8V2" />
+      <path d="M18 8v5a6 6 0 0 1-12 0V8z" />
     </svg>
   );
 }

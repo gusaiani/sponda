@@ -431,7 +431,7 @@ export function IndicatorChartModal({
       <div className="chart-fullscreen-content" onClick={(event) => event.stopPropagation()}>
         <div className="chart-fullscreen-header">
           <div className="chart-fullscreen-titles">
-            <h2 className="chart-fullscreen-title">{indicatorLabel} — {primary.name}</h2>
+            <h2 className="chart-fullscreen-title">{indicatorLabel} · {primary.name}</h2>
           </div>
           <button
             className="chart-fullscreen-close"

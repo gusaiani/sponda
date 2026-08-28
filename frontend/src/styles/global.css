@@ -25,6 +25,12 @@
   @apply min-h-screen text-[--color-ink];
   background: #ffffff;
   font-family: 'Inter', system-ui, sans-serif;
+  /* Nothing inside may widen the page: anything that still overflows is
+   * clipped here instead of turning into a sideways scroll. `clip` (not
+   * `hidden`) so the container never becomes a scroll container, which
+   * would break sticky descendants. Fixed rails are unaffected: their
+   * containing block is the viewport. */
+  overflow-x: clip;
 }
 
 .app-header {
@@ -140,6 +146,17 @@
   background: #15803d;
   border-color: #15803d;
   color: #ffffff;
+}
+
+/* Phones: hamburger, brand, Screener and the account control share one
+ * row (the search box drops to its own row below, the MCP pill moves
+ * into the left nav). The pills tighten so the row fits a 360px screen. */
+@media (max-width: 639px) {
+  .app-header-filter-link {
+    font-size: 14px;
+    line-height: 22px;
+    padding: 7px 14px;
+  }
 }
 
 

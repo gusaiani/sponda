@@ -27,6 +27,15 @@
   color: #ffffff;
 }
 
+/* Phones: the header must stay on one row (hamburger, brand, Screener,
+ * account). The MCP entry point moves into the left nav on these
+ * viewports (see .left-nav-item--mobile-only). */
+@media (max-width: 639px) {
+  .app-header-mcp-link {
+    display: none;
+  }
+}
+
 .app-header-mcp-new-badge {
   font-size: 10px;
   font-weight: 700;
@@ -48,7 +57,12 @@
   align-items: center;
   justify-content: center;
   z-index: 200;
-  padding: 16px;
+  /* A 16px gutter on every side, widened by the notch / home-indicator
+   * safe areas, so the panel never touches the screen edge. */
+  padding-top: max(16px, env(safe-area-inset-top));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  padding-left: max(16px, env(safe-area-inset-left));
 }
 
 .mcp-announcement-panel {
@@ -57,10 +71,27 @@
   border-radius: 12px;
   max-width: 620px;
   width: 100%;
+  min-width: 0;
+  /* 100vh on iOS Safari is the height with the toolbars hidden, so a
+   * panel bounded by it runs under the address bar; dvh tracks the
+   * visible viewport. The vh line is the fallback for older browsers. */
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: 0 24px 64px rgba(15, 29, 66, 0.35);
   padding: 32px;
+}
+
+@media (max-width: 639px) {
+  .mcp-announcement-panel {
+    padding: 24px 20px;
+    border-radius: 10px;
+  }
+
+  .mcp-announcement-title {
+    font-size: 22px;
+  }
 }
 
 .mcp-announcement-close {
@@ -119,11 +150,21 @@
   margin-bottom: 10px;
 }
 
+/* One line of tabs that scrolls sideways when the panel is narrower than
+ * the four labels, instead of wrapping "Claude Code" onto two lines. */
 .mcp-announcement-tabs {
   display: flex;
+  flex-wrap: nowrap;
   gap: 4px;
   border-bottom: 1px solid var(--color-border);
   margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mcp-announcement-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .mcp-announcement-tab {
@@ -136,6 +177,15 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 639px) {
+  .mcp-announcement-tab {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
 }
 
 .mcp-announcement-tab-active {
@@ -174,6 +224,8 @@
   color: #e2e8f0;
   white-space: pre-wrap;
   word-break: break-all;
+  overflow-wrap: anywhere;
+  min-width: 0;
   margin: 0;
 }
 
