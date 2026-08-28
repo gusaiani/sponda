@@ -19,6 +19,7 @@
 5b. **Páginas em markdown** · Toda página pública também é servida como markdown puro na mesma URL com `.md` no fim (`/en/PETR4.md`). O HTML das páginas de empresa não contém nenhum número; o markdown contém. Cada página anuncia a sua gêmea via `<link rel="alternate" type="text/markdown">`. Depende de uma Cache Rule no Cloudflare para `*.md`; ver a seção *Markdown pages* no README.
 
 6. **Não bloquear AI crawlers** — O `robots.txt` permite tudo exceto `/api/` e rotas auth. Não bloqueia `GPTBot`, `ClaudeBot`, `PerplexityBot`.
+   O `robots.txt` não decide sozinho: o Cloudflare bloqueia por categoria de bot antes do request chegar ao origin (`bot_management` da zona). Em 2026-08-28 `ai_search` voltou para `disabled` depois de barrar o Googlebot por quatro meses; `ai_training` continua em `block`, então `GPTBot` e `ClaudeBot` recebem 403 apesar do `robots.txt`. `python manage.py verify_crawler_access` roda diariamente e falha quando o Googlebot verificado só consegue buscar `/robots.txt`.
 
 ## Backlinks e visibilidade
 

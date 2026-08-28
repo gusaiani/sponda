@@ -1,0 +1,12 @@
+[Unit]
+Description=Check daily that Googlebot's page requests reach the origin
+
+[Timer]
+# Just after logrotate (daily, around 00:00) has moved yesterday into .1, so
+# the 24-hour window reads one full rotated day plus the morning so far.
+OnCalendar=*-*-* 08:30
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

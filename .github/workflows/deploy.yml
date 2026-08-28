@@ -445,6 +445,8 @@ jobs:
             cp /opt/sponda/systemd/sponda-sync-country.timer /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-prune-mcp-calls.service /etc/systemd/system/
             cp /opt/sponda/systemd/sponda-prune-mcp-calls.timer /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-verify-crawler-access.service /etc/systemd/system/
+            cp /opt/sponda/systemd/sponda-verify-crawler-access.timer /etc/systemd/system/
             systemctl daemon-reload
             systemctl enable --now sponda-refresh.timer
             systemctl enable --now sponda-revisit-reminders.timer
@@ -460,6 +462,7 @@ jobs:
             systemctl enable --now sponda-sync-cvm-enet.timer
             systemctl enable --now sponda-sync-country.timer
             systemctl enable --now sponda-prune-mcp-calls.timer
+            systemctl enable --now sponda-verify-crawler-access.timer
 
             # Update Nginx config and reload
             cp /opt/sponda/nginx/gzip.conf /etc/nginx/conf.d/gzip.conf

@@ -1,0 +1,19 @@
+[Unit]
+Description=Sponda check that Googlebot's page requests reach the origin
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+# Reads the last day of /var/log/nginx/sponda.capital-access.log and fails
+# when verified Googlebot fetched robots.txt but no page. That is what a
+# Cloudflare block looks like from the origin, and it is otherwise invisible:
+# Search Console is the only other place that reports it. root, because the
+# log is 0640 www-data:adm.
+ExecStart=/opt/sponda/venv/bin/python manage.py verify_crawler_access
