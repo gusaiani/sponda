@@ -92,7 +92,9 @@ vi.mock("../../../hooks/useTickerDetail", () => ({
   useTickerDetail: () => ({ data: undefined }),
 }));
 vi.mock("../../../hooks/usePeers", () => ({
-  usePeers: () => ({ data: [] }),
+  usePeers: (_symbol: string, initialPeers?: Array<{ symbol: string; name: string }>) => ({
+    data: initialPeers ?? [],
+  }),
 }));
 vi.mock("../../../hooks/useFundamentals", () => ({
   useFundamentals: () => ({ data: undefined }),
@@ -110,6 +112,7 @@ vi.mock("../../../hooks/useMultiplesHistory", () => ({
 }));
 
 import { TickerPageClient } from "./ticker-client";
+import type { QuoteResult } from "../../../hooks/usePE10";
 
 /**
  * `isRestoring` is what the browser reports on its first render and the
@@ -157,5 +160,61 @@ describe("ticker page hydration safety", () => {
     expect(html).toContain("pe10-loading");
     expect(html).not.toContain("tab-bar");
     expect(html).not.toContain("revisit-banner");
+  });
+});
+
+/** The smallest quote the page will render a company header for. */
+const PAMPA_QUOTE = {
+  ticker: "PAM",
+  name: "Pampa Energía",
+  logo: "",
+  currentPrice: 10,
+  marketCap: 1_000_000,
+  maxYearsAvailable: 10,
+  pe10: null, avgAdjustedNetIncome: null, pe10YearsOfData: 0, pe10Label: "PE10", pe10Error: null,
+  pe10CalculationDetails: [], pe10AnnualData: false,
+  pfcf10: null, avgAdjustedFCF: null, pfcf10Error: null,
+  pfcf10CalculationDetails: [], pfcf10AnnualData: false,
+  debtToEquity: null, debtExLeaseToEquity: null, liabilitiesToEquity: null, currentRatio: null,
+  leverageError: null, leverageDate: null,
+  totalDebt: null, totalLease: null, totalLiabilities: null, stockholdersEquity: null,
+  debtToAvgEarnings: null, debtToAvgFCF: null,
+  peg: null, earningsCAGR: null, pegError: null,
+  earningsCAGRMethod: null, earningsCAGRExcludedYears: [],
+  pfcfPeg: null, fcfCAGR: null, pfcfPegError: null,
+  fcfCAGRMethod: null, fcfCAGRExcludedYears: [],
+  roe: null, priceToBook: null,
+} as unknown as QuoteResult;
+
+function renderCompanyPage(initialPeers?: Array<{ symbol: string; name: string }>): string {
+  mockPathname.current = "/en/PAM";
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return renderToString(
+    <QueryClientProvider client={queryClient}>
+      <IsRestoringProvider value={SERVER_PASS}>
+        <TickerPageClient initialData={PAMPA_QUOTE} initialPeers={initialPeers} />
+      </IsRestoringProvider>
+    </QueryClientProvider>,
+  );
+}
+
+describe("server-rendered company page", () => {
+  it("renders the company name as the page's only h1", () => {
+    const html = renderCompanyPage();
+
+    expect(html.match(/<h1/g)).toHaveLength(1);
+    expect(html).toMatch(/<h1 class="company-header-name">Pampa Energía/);
+  });
+
+  it("links to the sector peers the server passed in, so crawlers see them without JavaScript", () => {
+    const html = renderCompanyPage([
+      { symbol: "YPF", name: "YPF" },
+      { symbol: "EDN", name: "Edenor" },
+    ]);
+
+    expect(html).toContain('href="/en/YPF"');
+    expect(html).toContain('href="/en/EDN"');
   });
 });

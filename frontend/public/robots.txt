@@ -2,6 +2,9 @@ User-agent: *
 Allow: /
 
 Disallow: /api/
+# Company logos are embedded on every indexable page; a crawler that
+# cannot fetch them reports each page as carrying a blocked resource.
+Allow: /api/logos/
 Disallow: /admin/
 Disallow: /google/callback
 
