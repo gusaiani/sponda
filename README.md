@@ -1072,10 +1072,14 @@ the in-page signals above are the cheap half:
 - Submit the site in Bing Webmaster Tools. The one-click import from Google
   Search Console handles verification and pulls the sitemap across. See
   "IndexNow" above for the faster channel once that is done.
-- `PerplexityBot` was answering `403` through Cloudflare on 2026-08-26 while
-  GPTBot, ClaudeBot, Claude-User and Googlebot all got `200`. Same IP, same
-  request, only the User-Agent differed. `docs/seo-checklist.md` claims none
-  are blocked. Check the bot settings.
+- Crawler blocking is decided at Cloudflare, not in `robots.txt`, and a curl
+  from a laptop cannot see it: Cloudflare judges the verified-bot status of
+  the caller, so a spoofed Googlebot gets `200` while the real one got `403`
+  for four months in 2026. `verify_crawler_access` (see "Crawler access
+  check" under Cloudflare cache purge) watches for that from the origin
+  logs. `ai_search` is now `disabled`; `ai_training` is still `block`, which
+  is what stands between GPTBot and ClaudeBot and the site whatever
+  `robots.txt` says.
 
 ### IndexNow
 
@@ -1369,6 +1373,22 @@ The deploy's existing health check polls `http://127.0.0.1:3100/` and rolls `.ne
 The canary list is deliberately tiny: one rendered card per URL shape and one static file, i.e. one per *kind* of asset whose route could change hands, not one per asset. It is a tripwire, not coverage. The card canaries use fixed tickers, which is safe because the route renders a card for unknown symbols too, so a delisting cannot make the check flaky.
 
 Run it by hand any time: `cd /opt/sponda/backend && python manage.py verify_edge_cache`.
+
+#### Crawler access check
+
+The edge can also be wrong in a way no canary fetched from this box can see: it can answer *Googlebot* with a 403 while answering everyone else with a 200. Cloudflare decides that per request from the verified-bot status of the caller, so a curl from here with a Googlebot user agent proves nothing about what Google gets.
+
+That happened between April and August 2026. Search Console showed the sitemap as "HTTP error 403", last read 2026-04-23, and the page indexing report stalled. The origin logs told the story once nginx started resolving `CF-Connecting-IP`: verified Googlebot (IPs in Google's published ranges) fetched `/robots.txt` 10 to 27 times a day and not one page or sitemap, for the whole log window. Every "Googlebot" line that did reach a page carried the user agent from an unrelated DigitalOcean address. Cloudflare exempts `robots.txt` from all of its bot blocking, which is why that one file kept arriving and why the pattern is the block's signature. The cause was the zone's bot management: the granular AI-bot controls set on 2026-08-13 (`ai_search: block`) were catching Google's crawler. `ai_search` was set back to `disabled` on 2026-08-28; `ai_training` stays `block` and Bot Fight Mode stays on.
+
+`python manage.py verify_crawler_access` turns that signature into an alarm:
+
+1. Read the last 24h of `/var/log/nginx/sponda.capital-access.log` and its `.1` rotation.
+2. Keep requests whose client IP is inside Google's published crawler ranges (`developers.google.com/search/apis/ipranges/googlebot.json`, with `66.249.64.0/19` and `2001:4860:4801::/48` as the fallback if Google is unreachable). User agents are ignored on purpose; anyone can send one.
+3. Split them into `robots.txt` fetches and everything else. Page fetches present: OK. Only `robots.txt`, at least three times: fail with the diagnosis. Nothing from Google at all: fail too, because that means either Google stopped or `nginx/cloudflare-real-ip.conf` stopped resolving real addresses.
+
+`systemd/sponda-verify-crawler-access.timer` runs it daily at 08:30 UTC, after logrotate. It is a `MonitoredCommand`, so a failure reaches Sentry as well as `systemctl status`. Options: `--log`, `--hours`, `--min-robots-fetches`. To check the incident recipe by hand, copy the two log files locally and run the command with `--log` pointing at the copy.
+
+The fix itself is a Cloudflare change, not a deploy. The bot settings live at `PUT /zones/<zone>/bot_management` and need a token with *Zone → Bot Management → Edit*; the purge token in `/opt/sponda/.env` cannot read or write them. After changing a setting, confirm from the origin, not from curl: wait for a `66.249.*` line against a page path in `sponda.capital-access.log`, then resubmit the sitemap in Search Console.
 
 **Why this matters beyond convenience.** Cloudflare rewrites `max-age` to 14400 (4h) on cacheable responses. Any URL fetched *before* a deploy keeps serving its pre-deploy body for four hours afterwards, wrong content-type included, and CF ignores client `Cache-Control: no-cache`. That is exactly how a `/og/` path ended up serving HTML with a `200` to crawlers after the card route shipped. When a deploy changes what a URL returns, purge that URL or verify against the origin directly (`ssh root@poe.ma "curl http://127.0.0.1:3100<path>"`), because the edge will lie to you for hours.
 
