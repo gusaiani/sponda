@@ -1958,6 +1958,19 @@ one reading of an unsettled year is impossible and the other is not, the
 possible one wins. The rule is symmetric: a restatement that *creates* a
 negative is refused for the same reason.
 
+**An annual filing can end up in a quarter row.** `fetch_income_statements`
+falls back to the annual module when the quarterly one comes back empty, and
+those statements were written as reporting periods. For a filer closing in
+March the annual lands on 31 March, exactly where its closing quarter belongs,
+so it masqueraded as that quarter and survived every later sync. São
+Martinho's fiscal 2026 summed to **R$12.6bn against R$7.4bn filed**, overstated
+by 70%. The tell is arithmetic rather than a threshold: a closing quarter
+equal to the whole year, beside three others that together are not zero,
+cannot be a quarter. It is derived from the year less those three, the same
+way `cvm_fourth_quarter` derives a Q4 nobody files. A company that genuinely
+earns everything in its final quarter has three zeroes beside it and is left
+alone.
+
 None of that is a judgement about plausible magnitudes. Where neither reading
 is possible, or the quarters do not form a contiguous run, the figures are
 left exactly as filed.

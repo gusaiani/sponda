@@ -454,3 +454,101 @@ class TestAnAnnualThatSettlesNothing:
         by_date = {quarter.end_date: quarter for quarter in restated}
 
         assert by_date[date(2026, 6, 30)].revenue == 4_000
+
+
+class TestAnAnnualFiledAsTheClosingQuarter:
+    """An earlier sync stored annual statements in quarter rows.
+
+    ``fetch_income_statements`` falls back to the annual module when the
+    quarterly one comes back empty, and those statements were written as
+    reporting periods. For a filer closing in March the annual lands on
+    31 March, which is exactly where its closing quarter belongs, so it
+    masqueraded as that quarter and survived every later sync. Sao Martinho's
+    fiscal 2026 summed to R$12.6bn against R$7.4bn filed, overstated by 70%.
+
+    A closing quarter equal to the whole year, beside three other quarters
+    that are not zero, is arithmetically impossible. It is derived from the
+    year less the three, the same way ``cvm_fourth_quarter`` derives it.
+    """
+
+    def test_derives_the_closing_quarter_from_the_year(self):
+        quarters = _quarters("SMTO3", {
+            date(2025, 6, 30): (1_857_161_000, 62_829_000, None),
+            date(2025, 9, 30): (-118_517_000, 113_587_000, None),
+            date(2025, 12, 31): (-146_342_000, 247_664_990, None),
+            date(2026, 3, 31): (7_431_765_000, 836_177_000, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2026: AnnualIncome(
+                revenue=7_431_765_000, net_income=836_177_000, end_month=3,
+            ),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2025, 9, 30)].revenue == 1_738_644_000
+        assert by_date[date(2025, 12, 31)].revenue == 1_592_302_000
+        assert by_date[date(2026, 3, 31)].revenue == 2_243_658_000
+        assert sum(quarter.revenue for quarter in restated) == 7_431_765_000
+
+    def test_leaves_a_company_that_really_earns_it_all_in_one_quarter(self):
+        """Deriving is self-consistent when the other quarters are zero."""
+        quarters = _quarters("XXXX3", {
+            date(2025, 3, 31): (0, 0, None),
+            date(2025, 6, 30): (0, 0, None),
+            date(2025, 9, 30): (0, 0, None),
+            date(2025, 12, 31): (5_000, 500, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2025: AnnualIncome(revenue=5_000, net_income=500, end_month=12),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2025, 12, 31)].revenue == 5_000
+
+    def test_does_not_fire_on_a_year_that_reconciles(self):
+        quarters = _quarters("EMBR3", {
+            date(2025, 3, 31): (6_405_270_000, 470_895_000, None),
+            date(2025, 6, 30): (10_270_363_000, 397_477_000, None),
+            date(2025, 9, 30): (10_866_683_000, 688_122_000, None),
+            date(2025, 12, 31): (14_340_918_000, 435_543_000, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {
+            2025: AnnualIncome(
+                revenue=41_883_234_000, net_income=1_992_037_000, end_month=12,
+            ),
+        })
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2025, 12, 31)].revenue == 14_340_918_000
+
+    def test_leaves_the_quarter_alone_without_an_annual_to_derive_from(self):
+        quarters = _quarters("SMTO3", {
+            date(2025, 6, 30): (1_857_161_000, 100, None),
+            date(2025, 9, 30): (-118_517_000, 100, None),
+            date(2025, 12, 31): (-146_342_000, 100, None),
+            date(2026, 3, 31): (7_431_765_000, 100, None),
+        })
+        restated = restate_quarterly_earnings(quarters, {})
+        by_date = {quarter.end_date: quarter for quarter in restated}
+
+        assert by_date[date(2026, 3, 31)].revenue == 7_431_765_000
+
+    def test_deriving_twice_changes_nothing(self):
+        """The derived year ties as it stands, so the second pass is a no-op."""
+        stored = {
+            date(2025, 6, 30): (1_857_161_000, 62_829_000, None),
+            date(2025, 9, 30): (-118_517_000, 113_587_000, None),
+            date(2025, 12, 31): (-146_342_000, 247_664_990, None),
+            date(2026, 3, 31): (7_431_765_000, 836_177_000, None),
+        }
+        annuals = {2026: AnnualIncome(
+            revenue=7_431_765_000, net_income=836_177_000, end_month=3,
+        )}
+        quarters = _quarters("SMTO3", stored)
+        restate_quarterly_earnings(quarters, annuals)
+        once = {quarter.end_date: quarter.revenue for quarter in quarters}
+        restate_quarterly_earnings(quarters, annuals)
+        twice = {quarter.end_date: quarter.revenue for quarter in quarters}
+
+        assert once == twice
+        assert twice[date(2026, 3, 31)] == 2_243_658_000
