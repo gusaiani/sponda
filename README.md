@@ -1077,9 +1077,10 @@ the in-page signals above are the cheap half:
   the caller, so a spoofed Googlebot gets `200` while the real one got `403`
   for four months in 2026. `verify_crawler_access` (see "Crawler access
   check" under Cloudflare cache purge) watches for that from the origin
-  logs. `ai_search` is now `disabled`; `ai_training` is still `block`, which
-  is what stands between GPTBot and ClaudeBot and the site whatever
-  `robots.txt` says.
+  logs. `ai_training` and `ai_search` are both `disabled` now: Cloudflare's
+  AI-training category includes Googlebot, so either toggle blocks Google
+  Search. Blocking GPTBot or ClaudeBot alone needs a custom WAF rule on
+  their user agents.
 
 ### IndexNow
 
@@ -1378,7 +1379,7 @@ Run it by hand any time: `cd /opt/sponda/backend && python manage.py verify_edge
 
 The edge can also be wrong in a way no canary fetched from this box can see: it can answer *Googlebot* with a 403 while answering everyone else with a 200. Cloudflare decides that per request from the verified-bot status of the caller, so a curl from here with a Googlebot user agent proves nothing about what Google gets.
 
-That happened between April and August 2026. Search Console showed the sitemap as "HTTP error 403", last read 2026-04-23, and the page indexing report stalled. The origin logs told the story once nginx started resolving `CF-Connecting-IP`: verified Googlebot (IPs in Google's published ranges) fetched `/robots.txt` 10 to 27 times a day and not one page or sitemap, for the whole log window. Every "Googlebot" line that did reach a page carried the user agent from an unrelated DigitalOcean address. Cloudflare exempts `robots.txt` from all of its bot blocking, which is why that one file kept arriving and why the pattern is the block's signature. The cause was the zone's bot management: the granular AI-bot controls set on 2026-08-13 (`ai_search: block`) were catching Google's crawler. `ai_search` was set back to `disabled` on 2026-08-28; `ai_training` stays `block` and Bot Fight Mode stays on.
+That happened between April and August 2026. Search Console showed the sitemap as "HTTP error 403", last read 2026-04-23, and the page indexing report stalled. The origin logs told the story once nginx started resolving `CF-Connecting-IP`: verified Googlebot (IPs in Google's published ranges) fetched `/robots.txt` 10 to 27 times a day and not one page or sitemap, for the whole log window. Every "Googlebot" line that did reach a page carried the user agent from an unrelated DigitalOcean address. Cloudflare exempts `robots.txt` from all of its bot blocking, which is why that one file kept arriving and why the pattern is the block's signature. The cause was the zone's bot management: the granular AI-bot controls set on 2026-08-13 (`ai_training: block`, `ai_search: block`) were catching Google's crawler. Security Events named the rule: 99 of 100 Googlebot blocks came from Cloudflare's managed "Block AI training crawlers", the rest from "Block AI Search bots", `/sitemap.xml` included. Cloudflare files Googlebot under AI training because Google trains Gemini with the same crawler and offers no separate user agent for it. Both settings were set to `disabled` on 2026-08-28; Bot Fight Mode stays on. Consequence: GPTBot, ClaudeBot and the rest are allowed too. Blocking those without Googlebot needs a custom WAF rule on their user agents, not the AI-category toggles.
 
 `python manage.py verify_crawler_access` turns that signature into an alarm:
 
