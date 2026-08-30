@@ -6,12 +6,15 @@
  * - `Content-Length`. X's crawler sizes an image with a HEAD request before
  *   deciding whether to download it, and messaging apps enforce size caps
  *   the same way. A chunked response answers neither.
- * - No validators (`ETag`, `Last-Modified`, `Accept-Ranges`). X's crawler
- *   kept re-validating the static homepage JPEG with HEAD requests, roughly
- *   twenty a day, without ever downloading it again, while rendering every
- *   card imageless. With nothing to revalidate against, a crawler that wants
- *   the image has to GET it, which is the one thing it did reliably for the
- *   per-company cards.
+ * - No validators (`ETag`, `Last-Modified`, `Accept-Ranges`). A crawler
+ *   that holds a bad copy of an image and can revalidate it cheaply never
+ *   has to download it again; with nothing to revalidate against, the only
+ *   way to have the image is to GET it.
+ *
+ * Neither was the root cause of X's imageless cards (that was a robots.txt
+ * rule, see `public/robots.txt`, and Next's RSC `Vary` header, stripped in
+ * `nginx/sponda.capital.conf`), but both remove a way for the next failure
+ * to become permanent.
  */
 
 const ONE_HOUR_IN_SECONDS = 3600;

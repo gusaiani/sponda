@@ -19,11 +19,10 @@ const OG_IMAGE_ALT_TEXT = "Sponda · fundamental indicators for value investors"
  * The Portuguese card carries the Portuguese tagline; every other locale
  * falls back to the English card. Both are served by
  * `src/app/og/site/[card]/route.ts` rather than straight out of
- * `public/images/`: the static files were only ever HEAD-checked by X's
- * crawler, never downloaded again, and every card built from them came
- * out imageless. The route hands out the same artwork at a URL X has not
- * seen, with a `Content-Length` and without the validators X was
- * re-checking against. See `src/lib/og-response.ts`.
+ * `public/images/`, at a URL no social network had seen before, with a
+ * `Content-Length` and no validators. See `src/lib/og-response.ts`, and
+ * the OG images section of the README for the months-long X saga behind
+ * this (a robots.txt wildcard and an RSC `Vary` header, in the end).
  */
 export function getOgImageUrl(locale: string): string {
   return siteOgImageUrlForLocale(locale);
