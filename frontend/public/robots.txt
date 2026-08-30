@@ -29,10 +29,12 @@ Disallow: /*/shared
 # Social: anonymous browsing works, but we keep crawlers out until
 # moderation tooling matures. Profile and Spond permalink pages
 # additionally emit <meta name="robots" content="noindex,follow">.
-Disallow: /user
-Disallow: /spond
-Disallow: /*/user
-Disallow: /*/spond
+# The trailing slash matters: a bare "/*/spond" also matches
+# /images/sponda-og-en-v2.jpg, and X's crawler obeyed it for months.
+Disallow: /user/
+Disallow: /spond/
+Disallow: /*/user/
+Disallow: /*/spond/
 Disallow: /api/social/
 
 Sitemap: https://sponda.capital/sitemap.xml
