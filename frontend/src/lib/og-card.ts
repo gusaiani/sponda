@@ -28,6 +28,31 @@ const IMAGE_EXTENSION = ".png";
 const TICKER_PATTERN = new RegExp(`^[A-Z0-9.-]{1,${MAX_TICKER_LENGTH}}$`);
 
 /**
+ * The two artworks behind the site card, the image for pages with no single
+ * company to render (homepage, screener). Only the tagline differs, so every
+ * locale other than Portuguese shares the English file.
+ */
+export const SITE_OG_ARTWORKS = ["pt", "en"] as const;
+export type SiteOgArtwork = (typeof SITE_OG_ARTWORKS)[number];
+const SITE_OG_IMAGE_EXTENSION = ".jpg";
+const SITE_OG_IMAGE_PATH = "/og/site";
+
+export function siteOgArtworkForLocale(locale: string): SiteOgArtwork {
+  return locale === "pt" ? "pt" : "en";
+}
+
+/** Public path of the site card in one language, e.g. `/og/site/en.jpg`. */
+export function siteOgImageUrlForLocale(locale: string): string {
+  return `${SITE_OG_IMAGE_PATH}/${siteOgArtworkForLocale(locale)}${SITE_OG_IMAGE_EXTENSION}`;
+}
+
+/** Recover the artwork from the route's filename segment, or null if it is not `<pt|en>.jpg`. */
+export function siteOgArtworkFromParam(param: string): SiteOgArtwork | null {
+  const match = SITE_OG_ARTWORKS.find((artwork) => param === `${artwork}${SITE_OG_IMAGE_EXTENSION}`);
+  return match ?? null;
+}
+
+/**
  * Locale the card's own words are drawn in.
  *
  * The card is rendered by satori using the Geist Regular face bundled with

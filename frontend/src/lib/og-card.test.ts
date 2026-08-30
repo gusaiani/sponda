@@ -8,6 +8,9 @@ import {
   tickerFromOgImageParam,
   buildOgCardModel,
   fetchOgCardData,
+  siteOgArtworkForLocale,
+  siteOgImageUrlForLocale,
+  siteOgArtworkFromParam,
 } from "./og-card";
 
 const VULCABRAS_QUOTE = {
@@ -275,5 +278,29 @@ describe("fetchOgCardData", () => {
     const data = await fetchOgCardData("VULC3");
 
     expect(data).toEqual({ name: null, sector: null, quote: null });
+  });
+});
+
+describe("site card (pages with no company to render)", () => {
+  it("serves Portuguese artwork to pt and English artwork to everyone else", () => {
+    expect(siteOgArtworkForLocale("pt")).toBe("pt");
+    expect(siteOgArtworkForLocale("en")).toBe("en");
+    expect(siteOgArtworkForLocale("es")).toBe("en");
+    expect(siteOgArtworkForLocale("zh")).toBe("en");
+  });
+
+  it("lives under /og/site/, a URL no social network has seen before", () => {
+    expect(siteOgImageUrlForLocale("pt")).toBe("/og/site/pt.jpg");
+    expect(siteOgImageUrlForLocale("en")).toBe("/og/site/en.jpg");
+    expect(siteOgImageUrlForLocale("fr")).toBe("/og/site/en.jpg");
+  });
+
+  it("recovers the artwork from the route param and rejects anything else", () => {
+    expect(siteOgArtworkFromParam("pt.jpg")).toBe("pt");
+    expect(siteOgArtworkFromParam("en.jpg")).toBe("en");
+    expect(siteOgArtworkFromParam("es.jpg")).toBeNull();
+    expect(siteOgArtworkFromParam("en.png")).toBeNull();
+    expect(siteOgArtworkFromParam("en")).toBeNull();
+    expect(siteOgArtworkFromParam("../en.jpg")).toBeNull();
   });
 });

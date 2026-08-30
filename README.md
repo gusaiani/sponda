@@ -1514,7 +1514,7 @@ Some locales are served but excluded from search indexing. `NOINDEX_LOCALES` in 
 
 #### OG images
 
-There are two kinds: a rendered card per company, and a static JPEG for everything else.
+There are two kinds: a rendered card per company, and a site card for everything else. Both are served by route handlers under `/og/` in the same HTTP shape, built by `buildOgImageResponse()` in `frontend/src/lib/og-response.ts`: `Content-Type`, an explicit `Content-Length`, `public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800`, and **no validators** (`ETag`, `Last-Modified`, `Accept-Ranges`). The reason is below under "What X's crawler actually does".
 
 ##### Per-company cards · `/og/<locale>/<TICKER>.png`
 
@@ -1529,24 +1529,40 @@ GET /og/en/AAPL.png    → the same card in English
 - **Indicator labels come from the API, not from us.** The quote endpoint returns `pe10Label` / `pfcf10Label`, which say `PE15` or `PE20` when that much history exists. The card prints whatever window was actually used.
 - **Formatting is locale-aware** via the existing `formatNumber`, so `/og/pt/` shows `22,8` and `/og/en/` shows `22.8`.
 - **`zh` renders its wording in English.** The card is drawn by satori with the Geist Regular face bundled inside `next/og`, which covers Latin only; Chinese would come out as tofu boxes. `ogCardTextLocale()` owns that fallback. Adding real CJK means shipping a CJK font file and passing it to `ImageResponse` via `fonts`.
-- **Only `<TICKER>.png` is served.** `tickerFromOgImageParam` requires the extension and validates the symbol, so one card has exactly one URL — which matters because social networks key their image caches by URL. Anything else 404s.
-- **Caching.** `public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800`. Cold render is ~500 ms, warm ~20 ms.
-- **Routing.** `src/middleware.ts` lets `/og/` through untouched. It used to proxy `/og/` to Django, which has no routes there — its catch-all answered with the legacy SPA shell, i.e. HTML with a `200` to a crawler asking for an image.
+- **Only `<TICKER>.png` is served.** `tickerFromOgImageParam` requires the extension and validates the symbol, so one card has exactly one URL, which matters because social networks key their image caches by URL. Anything else 404s.
+- **Buffered, not streamed.** `ImageResponse` streams; the route reads it into memory and re-wraps it so the response can carry a `Content-Length`. Cold render is ~500 ms, warm ~20 ms.
+- **Routing.** `src/middleware.ts` lets `/og/` through untouched. It used to proxy `/og/` to Django, which has no routes there; its catch-all answered with the legacy SPA shell, i.e. HTML with a `200` to a crawler asking for an image.
 
-##### Static fallback · `frontend/public/images/`
+##### Site card · `/og/site/<pt|en>.jpg`
 
-- `sponda-og-v2.jpg` · Portuguese tagline, used for `/pt/*` URLs
-- `sponda-og-en-v2.jpg` · English tagline, used for every other locale
+Used by pages with no single company to render (homepage, screener). `getOgImageUrl(locale)` in `frontend/src/lib/metadata.ts` picks `/og/site/pt.jpg` for Portuguese and `/og/site/en.jpg` for every other locale; `buildOgImageDescriptor(locale)` wraps it with width, height, MIME type and alt text.
 
-Used by pages with no single company to render (homepage, screener). `getOgImageUrl(locale)` selects the image and `buildOgImageDescriptor(locale)` wraps it with width, height, MIME type and alt text; `buildTickerOgImageDescriptor(locale, ticker, name)` is the per-company equivalent. All live in `frontend/src/lib/metadata.ts`.
+`frontend/src/app/og/site/[card]/route.ts` reads the artwork from `frontend/public/images/` (`sponda-og-v2.jpg` for pt, `sponda-og-en-v2.jpg` for en), stamps a JPEG `COM` segment via `withJpegComment()` (`frontend/src/lib/jpeg-comment.ts`) so the served bytes differ from every copy already published, and returns them through `buildOgImageResponse()`. Only those two filenames are accepted; `/og/site/es.jpg` or `/og/site/en.png` 404.
 
-**Why the `-v2` suffix.** X (Twitter) rendered every sponda.capital card with the correct title and description but no image, while Twitterbot fetched the unsuffixed image roughly 100 times a day — about seven times more often than it crawled the pages themselves. A crawler that ingested the image successfully would not re-fetch it that hard, so the entry in X's image cache was stuck in a failed state. Everything on our side verified clean (HTTP 200 in ~210 ms, `image/jpeg`, baseline JPEG, 1200×630, ~57 KB, absolute HTTPS URL, allowed by `robots.txt`), and X exposes no way to purge its cache, so the only lever is a new URL. The `-v2` files are byte-distinct copies of the originals (a JPEG `COM` comment segment inserted after `APP0`; pixels untouched) so the new URL cannot be content-deduplicated back onto the stuck entry. The unsuffixed files stay in `public/images/` so previews already cached by other networks keep resolving.
+The files in `public/images/` stay where they are so previews already cached by other networks keep resolving, but nothing links to them any more.
 
-Per-company cards make that failure mode survivable rather than fatal: with one image URL per company, a single stuck cache entry can no longer take every preview on the domain down with it.
+##### What X's crawler actually does
 
-X caches a card per page URL for about seven days, so an already-shared link keeps its old imageless card. To verify a fix, share a URL X has not seen before (append a throwaway query string, e.g. `?v=2`).
+The history, because it explains every decision above and will save the next person a day.
 
-**Testing a card locally.** `npm run build && DJANGO_API_URL=https://sponda.capital npx next start -p 3199`, then open `http://localhost:3199/og/pt/VULC3.png`. Pointing `DJANGO_API_URL` at production is the quickest way to render against real numbers.
+X (Twitter) rendered every sponda.capital card with the correct title and description and no image, for months, across two rounds of fixes. Everything verifiable from the outside was clean: tags in the server-rendered HTML, HTTP 200 in ~210 ms, `image/jpeg`, baseline 1200×630, ~57 KB, absolute HTTPS URL, allowed by `robots.txt`, no Cloudflare rule touching images, no security action on any request from X's IP ranges (`199.16.156.0/22`, `192.133.76.0/22`). Bluesky, Discord, Facebook and WhatsApp all fetched and ingested the same image.
+
+The first round (`-v2`) gave the static JPEG a new URL on the theory that X's image cache held a stuck entry. The cards stayed imageless.
+
+What Cloudflare's request analytics (GraphQL `httpRequestsAdaptiveGroups`, filtered on `userAgent_like: "%Twitterbot%"`, one day per query on the free plan) finally showed:
+
+- For the static JPEG under `/images/`, X's IPs sent **only HEAD requests**: roughly twenty a day, each answered `200 image/jpeg` with ~750 bytes of headers, and **never a GET**. The first and last time X downloaded the body was the day the URL went live.
+- For the per-company PNGs under `/og/`, X's IPs sent **GET requests** with full bodies (35 to 42 KB each).
+
+The difference between the two responses was validators. Next serves `public/` files with a weak `ETag`, `Last-Modified` and `Accept-Ranges`; the route handler served none. Whatever X does with a HEAD that matches what it already holds, the outcome was that it kept the copy it had and that copy never rendered. In origin logs this shows up as Cloudflare revalidating the file on X's behalf (`GET ... 304 0 "Twitterbot/1.0"`), which is easy to misread as X fetching it.
+
+Hence the shape every OG image is served in now: a URL X has never seen, a `Content-Length` so a HEAD-first crawler can size it, and nothing to revalidate against, so the only way to have the image is to GET it, which is the one thing X did reliably.
+
+Cloudflare's edge is invisible in the origin logs for cached images; `cf-cache-status` and the GraphQL analytics are the only way to see what a crawler was actually answered. `curl -A Twitterbot/1.0` proves nothing about what X's real IPs receive. Both lessons cost time here, and the same spoofed-user-agent trap cost four months of Googlebot indexing; see "Cloudflare cache purge" above for that story.
+
+X caches a card per page URL for about seven days, so an already-shared link keeps its old imageless card. To verify a fix, share a URL X has not seen before (append a throwaway query string, e.g. `?v=3`), or paste the link into the composer and check the preview, which fetches fresh.
+
+**Testing a card locally.** `npm run build && DJANGO_API_URL=https://sponda.capital npx next start -p 3199`, then open `http://localhost:3199/og/pt/VULC3.png` and `http://localhost:3199/og/site/en.jpg`. Pointing `DJANGO_API_URL` at production is the quickest way to render against real numbers. `curl -I` either URL and confirm `content-length` is present and `etag` is not.
 
 #### Sitemaps
 
