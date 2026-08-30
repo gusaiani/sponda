@@ -8,6 +8,7 @@ import {
   tickerFromOgImageParam,
   type OgCardModel,
 } from "../../../../lib/og-card";
+import { buildOgImageResponse } from "../../../../lib/og-response";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export const runtime = "nodejs";
  * Rendering one image per company means each page advertises a distinct
  * image URL. Social networks key their image caches by URL, so a company
  * whose card fails to ingest can no longer take the whole domain's previews
- * down with it — which is exactly what happened when every page shared a
+ * down with it. That is exactly what happened when every page shared a
  * single static JPEG.
  */
 
@@ -31,18 +32,7 @@ const COLOR_SURFACE = "#ffffff";
 /** Only Geist Regular ships with `next/og`, so hierarchy comes from size and colour. */
 const CARD_PADDING = 64;
 
-const ONE_HOUR_IN_SECONDS = 3600;
-const ONE_DAY_IN_SECONDS = 86400;
-const ONE_WEEK_IN_SECONDS = 604800;
-
-function cardCacheControl(): string {
-  return [
-    "public",
-    `max-age=${ONE_HOUR_IN_SECONDS}`,
-    `s-maxage=${ONE_DAY_IN_SECONDS}`,
-    `stale-while-revalidate=${ONE_WEEK_IN_SECONDS}`,
-  ].join(", ");
-}
+const PNG_MIME_TYPE = "image/png";
 
 function CompanyCard({ model }: { model: OgCardModel }) {
   return (
@@ -120,9 +110,11 @@ export async function GET(
   const { name, sector, quote } = await fetchOgCardData(ticker);
   const model = buildOgCardModel({ ticker, locale, name, sector, quote });
 
-  return new ImageResponse(<CompanyCard model={model} />, {
+  // `ImageResponse` streams; buffering it is what lets the response carry a
+  // `Content-Length`, which a HEAD-first crawler needs before it will GET.
+  const rendered = new ImageResponse(<CompanyCard model={model} />, {
     width: OG_CARD_WIDTH,
     height: OG_CARD_HEIGHT,
-    headers: { "Cache-Control": cardCacheControl() },
   });
+  return buildOgImageResponse(new Uint8Array(await rendered.arrayBuffer()), PNG_MIME_TYPE);
 }

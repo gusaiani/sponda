@@ -2,20 +2,25 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getOgImageUrl, generateTickerMetadata } from "./metadata";
 
 describe("getOgImageUrl", () => {
-  it("returns the Portuguese OG image for pt", () => {
-    expect(getOgImageUrl("pt")).toBe("/images/sponda-og-v2.jpg");
+  it("returns the Portuguese site card for pt", () => {
+    expect(getOgImageUrl("pt")).toBe("/og/site/pt.jpg");
   });
 
-  it("returns the English OG image for en", () => {
-    expect(getOgImageUrl("en")).toBe("/images/sponda-og-en-v2.jpg");
+  it("returns the English site card for en", () => {
+    expect(getOgImageUrl("en")).toBe("/og/site/en.jpg");
   });
 
-  it("returns the English OG image for all other supported locales", () => {
-    expect(getOgImageUrl("es")).toBe("/images/sponda-og-en-v2.jpg");
-    expect(getOgImageUrl("zh")).toBe("/images/sponda-og-en-v2.jpg");
-    expect(getOgImageUrl("fr")).toBe("/images/sponda-og-en-v2.jpg");
-    expect(getOgImageUrl("de")).toBe("/images/sponda-og-en-v2.jpg");
-    expect(getOgImageUrl("it")).toBe("/images/sponda-og-en-v2.jpg");
+  it("returns the English site card for all other supported locales", () => {
+    expect(getOgImageUrl("es")).toBe("/og/site/en.jpg");
+    expect(getOgImageUrl("zh")).toBe("/og/site/en.jpg");
+    expect(getOgImageUrl("fr")).toBe("/og/site/en.jpg");
+    expect(getOgImageUrl("de")).toBe("/og/site/en.jpg");
+    expect(getOgImageUrl("it")).toBe("/og/site/en.jpg");
+  });
+
+  it("never points at the static /images/ files, whose URLs X has already given up on", () => {
+    expect(getOgImageUrl("pt")).not.toContain("/images/");
+    expect(getOgImageUrl("en")).not.toContain("/images/");
   });
 });
 
@@ -70,8 +75,8 @@ describe("generateTickerMetadata Open Graph image", () => {
 });
 
 describe("homepage Open Graph image", () => {
-  it("still uses the static locale JPEG, which has no company to render", () => {
-    expect(getOgImageUrl("pt")).toBe("/images/sponda-og-v2.jpg");
+  it("uses the site card route, since there is no company to render", () => {
+    expect(getOgImageUrl("pt")).toBe("/og/site/pt.jpg");
   });
 });
 

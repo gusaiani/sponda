@@ -3,7 +3,7 @@ import { SUPPORTED_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type Suppo
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 import { djangoApiBaseUrl } from "./django-api";
 import { markdownUrlFor } from "./markdown-routes";
-import { ogImageUrlForTicker } from "./og-card";
+import { ogImageUrlForTicker, siteOgImageUrlForLocale } from "./og-card";
 
 const BASE_URL = "https://sponda.capital";
 
@@ -14,25 +14,19 @@ const TICKER_OG_IMAGE_MIME_TYPE = "image/png";
 const OG_IMAGE_ALT_TEXT = "Sponda · fundamental indicators for value investors";
 
 /**
- * Path to the OG image for a given locale.
+ * Path to the OG image for pages with no single company to render.
  *
- * The Portuguese image uses the Portuguese tagline; every other locale
- * falls back to the English image. Only two JPEGs are maintained today
- * because most crawlers only cache one OG image per URL and localizing
- * the tagline further isn't worth the asset churn yet.
- *
- * The `-v2` suffix is a deliberate cache bust. X's card pipeline kept
- * re-fetching the unsuffixed URLs (~100x/day, 7x more often than it crawled
- * the pages themselves) while rendering every card without an image, which
- * is the signature of an image-cache entry stuck in a failed state. Since
- * there is no way to purge X's cache, a new URL is the only lever. The
- * unsuffixed files stay in place so previews already cached by other
- * networks keep resolving.
+ * The Portuguese card carries the Portuguese tagline; every other locale
+ * falls back to the English card. Both are served by
+ * `src/app/og/site/[card]/route.ts` rather than straight out of
+ * `public/images/`: the static files were only ever HEAD-checked by X's
+ * crawler, never downloaded again, and every card built from them came
+ * out imageless. The route hands out the same artwork at a URL X has not
+ * seen, with a `Content-Length` and without the validators X was
+ * re-checking against. See `src/lib/og-response.ts`.
  */
 export function getOgImageUrl(locale: string): string {
-  return locale === "pt"
-    ? "/images/sponda-og-v2.jpg"
-    : "/images/sponda-og-en-v2.jpg";
+  return siteOgImageUrlForLocale(locale);
 }
 
 /** The `openGraph.images` entry for pages with no single company to render. */
