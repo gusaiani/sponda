@@ -64,7 +64,7 @@ import {
 import { AuthModal } from "../../../components/AuthModal";
 import { setEmailVerificationPromptVisible } from "../../../utils/emailVerificationPrompt";
 import { useTickerDetail } from "../../../hooks/useTickerDetail";
-import { usePeers } from "../../../hooks/usePeers";
+import { usePeers, type Peer } from "../../../hooks/usePeers";
 import { useMultiplesHistory, fetchMultiplesHistory } from "../../../hooks/useMultiplesHistory";
 import { deriveForYears } from "../../../hooks/deriveForYears";
 import { useSetAssistantWindow } from "../../../components/assistant/AssistantWindowContext";
@@ -90,9 +90,11 @@ import { resolveTab, buildTabPath, type TabKey } from "../../../utils/tabs";
 
 interface TickerPageClientProps {
   initialData?: QuoteResult | null;
+  /** Same-sector peers the server already fetched; see fetchPeersServer. */
+  initialPeers?: Peer[];
 }
 
-export function TickerPageClient({ initialData }: TickerPageClientProps) {
+export function TickerPageClient({ initialData, initialPeers }: TickerPageClientProps) {
   const { t, locale } = useTranslation();
   const { enabled: learningModeEnabled } = useLearningMode();
   const { ticker: rawTicker } = useParams<{ ticker: string }>();
@@ -162,7 +164,7 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
   }, [lookupLimit?.kind]);
 
   const { data: currentTicker } = useTickerDetail(upperTicker);
-  const { data: peers = [] } = usePeers(upperTicker);
+  const { data: peers = [] } = usePeers(upperTicker, initialPeers);
   const { data: fundamentalsData } = useFundamentals(upperTicker, true);
   const { lists } = useSavedLists();
   // The saved list this page is showing, or null when it is showing a
@@ -327,12 +329,12 @@ export function TickerPageClient({ initialData }: TickerPageClientProps) {
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
             )}
-            <h2 className="company-header-name">{company.name} <span className="company-header-ticker">· {upperTicker} · {t("header.currency")}: {
+            <h1 className="company-header-name">{company.name} <span className="company-header-ticker">· {upperTicker} · {t("header.currency")}: {
               company.reportedCurrency && company.listingCurrency &&
               company.reportedCurrency !== company.listingCurrency
                 ? `${company.listingCurrency} (${t("header.reportsIn")} ${company.reportedCurrency})`
                 : currencyCode(upperTicker, company.reportedCurrency)
-            }{learningModeEnabled && derivedData?.ratings?.overall != null ? " · " : ""}</span><CompanyGradeCard ratings={derivedData?.ratings ?? null} years={effectiveYears} /></h2>
+            }{learningModeEnabled && derivedData?.ratings?.overall != null ? " · " : ""}</span><CompanyGradeCard ratings={derivedData?.ratings ?? null} years={effectiveYears} /></h1>
           </div>
           <div className="company-header-actions">
             <VisitedButton ticker={upperTicker} />

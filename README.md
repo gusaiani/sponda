@@ -1503,6 +1503,22 @@ Locale-prefixed URLs serve region-specific metadata to search engines across all
 - Every page includes `<link rel="alternate" hreflang>` cross-links between the **indexable** locales plus `x-default` (English)
 - Tab URL paths are localized per locale (see `CANONICAL_TO_LOCALE_SLUG` in `frontend/src/middleware.ts`)
 
+#### On-page SEO
+
+What a crawler sees on each page, and the rules behind it. Most of this came out of a Semrush site audit on 2026-08-28 that flagged every company page for the same handful of things.
+
+- **One `<h1>` per page.** The company name in the company header (`frontend/src/app/[locale]/[ticker]/ticker-client.tsx`) and the article title in the hidden SEO article on the home page (`frontend/src/app/[locale]/SeoArticle.tsx`). The visible home-page header is a favorites prompt, not a headline, so it stays an `<h2>`. The screener already had its own.
+- **Each tab has its own title and description.** `generateTickerMetadata(ticker, locale, tabSlug)` in `frontend/src/lib/metadata.ts` names the tab in the title (`Banco do Brasil (BBAS3) · Charts · Sponda`) and describes what the tab shows (`TAB_DESCRIPTIONS`, per locale). Before, the four company pages shared one title and one description, which across 18,000 companies is a site-wide duplicate-content signal.
+- **Titles fit a search result.** `MAX_TITLE_LENGTH` is 60 characters. `buildTitle` drops the generic suffix first, then the company name, so `Cia Saneamento Basico EST São Paulo (SBSP3) · Fundamental Indicators · Sponda` (77 characters, cut mid-word by Google) becomes `Cia Saneamento Basico EST São Paulo (SBSP3) · Sponda`. The ticker and the site name always survive.
+- **The screener has its own metadata.** `frontend/src/app/[locale]/screener/layout.tsx` calls `generateScreenerMetadata(locale)`. The page is a client component, so it used to inherit the locale layout's metadata wholesale, including `canonical: /<locale>`. A page whose canonical points elsewhere is a page a search engine will not index, and its sitemap hreflang entries contradicted the page itself.
+- **Structured data validates.** The site-level JSON-LD is a `WebSite` plus an `Organization` (`frontend/src/lib/structured-data.ts`). It used to be a `WebApplication`, which Google's rich-result rules (inherited from `SoftwareApplication`) reject without an `aggregateRating` or a `review`; every page on the domain failed validation on that one block. Company pages add a `Dataset` and a `BreadcrumbList` from `metadata.ts`.
+- **Hreflang never advertises a noindex locale.** Company pages build their alternates from `INDEXABLE_LOCALES`, the same list the layout and the sitemap use; `zh` used to leak in from `SUPPORTED_LOCALES`.
+- **Sector peers are server-rendered.** `fetchPeersServer` (`frontend/src/app/[locale]/[ticker]/fetch-peers-server.ts`) fetches `/api/tickers/<t>/peers/` alongside the quote and seeds `usePeers` with it. Those links are the only path from one company page to another, and they used to arrive from the browser, so a crawler without JavaScript saw every company page as a dead end reachable only from the home page. An empty server list is not used as a seed: the helper answers `[]` on any failure, and pinning that for the hour the query stays fresh would hide the peers.
+- **`robots.txt` re-opens `/api/logos/`.** `Disallow: /api/` also covered the logo on every company page, so every page reported a blocked resource. `frontend/public/robots.txt`, tested by `frontend/src/lib/robots.test.ts`.
+- **HSTS** is set by nginx (`nginx/sponda.capital.conf`, both HTTPS server blocks, `max-age=31536000`, no `includeSubDomains`). Cloudflare forwards origin headers, so the zone-level toggle is not needed.
+
+**Cloudflare email obfuscation must stay off.** With Scrape Shield's "Email Address Obfuscation" on, Cloudflare rewrites the share buttons' `mailto:` link on every page into `/cdn-cgi/l/email-protection#<hex>` and injects a decoding script. Browsers cope; crawlers see one broken internal link per page and a 4xx at `/cdn-cgi/l/email-protection`. The page has no email address to protect. The setting is under the zone's Scrape Shield tab and is not editable by the local API token, which only has Zone Settings read.
+
 #### Noindex locales
 
 Some locales are served but excluded from search indexing. `NOINDEX_LOCALES` in `frontend/src/lib/i18n-config.ts` is the single source of truth; `zh` is currently in it (its traffic was overwhelmingly automated scraping, not a real audience — see the June 2026 scraper incident). The helpers built on it:

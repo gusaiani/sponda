@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { TickerPageClient } from "../ticker-client";
 import { fetchQuoteServer } from "../fetch-quote-server";
+import { fetchPeersServer } from "../fetch-peers-server";
 import { generateTickerMetadata } from "../../../../lib/metadata";
 import { resolveTab, tabSlugForLocale } from "../../../../utils/tabs";
 import type { SupportedLocale } from "../../../../lib/i18n-config";
@@ -40,11 +41,14 @@ export default async function TabPage({ params }: TabPageProps) {
   }
 
   const upperTicker = ticker.toUpperCase();
-  const result = await fetchQuoteServer(upperTicker);
+  const [result, peers] = await Promise.all([
+    fetchQuoteServer(upperTicker),
+    fetchPeersServer(upperTicker),
+  ]);
 
   if (result.error === "not-found") {
     notFound();
   }
 
-  return <TickerPageClient initialData={result.data} />;
+  return <TickerPageClient initialData={result.data} initialPeers={peers} />;
 }

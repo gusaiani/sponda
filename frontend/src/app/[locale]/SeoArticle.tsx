@@ -40,7 +40,7 @@ export function SeoArticle({ locale }: { locale: string }) {
   const article = ARTICLES[locale] || ARTICLES.en;
   return (
     <article className="homepage-explainer" style={SEO_STYLE}>
-      <h2 className="homepage-explainer-title">{article.title}</h2>
+      <h1 className="homepage-explainer-title">{article.title}</h1>
       <p>Sponda {INTRO[locale] || INTRO.en}</p>
       {article.sections.map((section) => (
         <div key={section.heading}>

@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
-import { SUPPORTED_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type SupportedLocale } from "./i18n-config";
+import { INDEXABLE_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type SupportedLocale } from "./i18n-config";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 import { djangoApiBaseUrl } from "./django-api";
 import { markdownUrlFor } from "./markdown-routes";
 import { ogImageUrlForTicker, siteOgImageUrlForLocale } from "./og-card";
 
 const BASE_URL = "https://sponda.capital";
+
+/**
+ * Longest <title> that survives a Google result intact. Google truncates by
+ * pixel width, which works out to roughly this many characters; anything
+ * longer is cut mid-word, usually through the company name.
+ */
+export const MAX_TITLE_LENGTH = 60;
 
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
@@ -88,15 +95,75 @@ const SLUG_TO_TAB: Record<string, TabKey> = {
   grafici: "charts", fondamentali: "fundamentals",
 };
 
-/** Localized tab display names for breadcrumbs. */
+/** Localized tab display names for titles and breadcrumbs. */
 const TAB_DISPLAY: Record<string, Record<string, string>> = {
-  pt: { graficos: "Gráficos", fundamentos: "Fundamentos", comparar: "Comparar" },
-  en: { charts: "Charts", fundamentals: "Fundamentals", compare: "Compare" },
-  es: { graficos: "Gráficos", fundamentos: "Fundamentos", comparar: "Comparar" },
-  zh: { charts: "图表", fundamentals: "基本面", compare: "对比" },
-  fr: { graphiques: "Graphiques", fondamentaux: "Fondamentaux", comparer: "Comparer" },
-  de: { diagramme: "Diagramme", fundamentaldaten: "Fundamentaldaten", vergleich: "Vergleich" },
-  it: { grafici: "Grafici", fondamentali: "Fondamentali", confronta: "Confronta" },
+  pt: { graficos: "Gráficos", fundamentos: "Fundamentos", comparar: "Comparar", sponds: "Sponds" },
+  en: { charts: "Charts", fundamentals: "Fundamentals", compare: "Compare", sponds: "Sponds" },
+  es: { graficos: "Gráficos", fundamentos: "Fundamentos", comparar: "Comparar", sponds: "Sponds" },
+  zh: { charts: "图表", fundamentals: "基本面", compare: "对比", sponds: "Sponds" },
+  fr: { graphiques: "Graphiques", fondamentaux: "Fondamentaux", comparer: "Comparer", sponds: "Sponds" },
+  de: { diagramme: "Diagramme", fundamentaldaten: "Fundamentaldaten", vergleich: "Vergleich", sponds: "Sponds" },
+  it: { grafici: "Grafici", fondamentali: "Fondamentali", confronta: "Confronta", sponds: "Sponds" },
+};
+
+/**
+ * What each tab shows, per locale. The company root describes the
+ * indicators; a tab that repeats that description is a duplicate to a
+ * search engine, and four identical pages per company across 18,000
+ * companies is a site-wide duplicate-content signal.
+ */
+type TabDescriptionBuilder = (name: string, ticker: string) => string;
+
+const TAB_DESCRIPTIONS: Record<SupportedLocale, Record<TabKey, TabDescriptionBuilder>> = {
+  pt: {
+    metrics: (name, ticker) => `Indicadores fundamentalistas de ${name} (${ticker}): P/L ajustado pela inflação (PE10), P/FCL10, PEG, CAGR e alavancagem. Dados atualizados.`,
+    charts: (name, ticker) => `Gráficos de ${name} (${ticker}): PE10, P/FCL10 e histórico de preço, ajustados pela inflação.`,
+    fundamentals: (name, ticker) => `Fundamentos de ${name} (${ticker}): receita, lucro, fluxo de caixa livre, dívida e patrimônio por ano, ajustados pela inflação.`,
+    compare: (name, ticker) => `Compare ${name} (${ticker}) com pares do setor em PE10, P/FCL10, PEG, alavancagem e liquidez.`,
+    sponds: (name, ticker) => `Sponds sobre ${name} (${ticker}): o que investidores em valor estão dizendo.`,
+  },
+  en: {
+    metrics: (name, ticker) => `Fundamental indicators for ${name} (${ticker}): inflation-adjusted P/E (PE10), P/FCF10, PEG, CAGR and leverage. Updated data.`,
+    charts: (name, ticker) => `Charts for ${name} (${ticker}): PE10, P/FCF10 and price history, inflation-adjusted.`,
+    fundamentals: (name, ticker) => `Fundamentals of ${name} (${ticker}): revenue, earnings, free cash flow, debt and equity by year, inflation-adjusted.`,
+    compare: (name, ticker) => `Compare ${name} (${ticker}) with sector peers on PE10, P/FCF10, PEG, leverage and liquidity.`,
+    sponds: (name, ticker) => `Sponds about ${name} (${ticker}): what value investors are saying.`,
+  },
+  es: {
+    metrics: (name, ticker) => `Indicadores fundamentales de ${name} (${ticker}): P/E ajustado por inflación (PE10), P/FCF10, PEG, CAGR y apalancamiento. Datos actualizados.`,
+    charts: (name, ticker) => `Gráficos de ${name} (${ticker}): PE10, P/FCF10 e historial de precio, ajustados por inflación.`,
+    fundamentals: (name, ticker) => `Fundamentos de ${name} (${ticker}): ingresos, beneficios, flujo de caja libre, deuda y patrimonio por año, ajustados por inflación.`,
+    compare: (name, ticker) => `Compara ${name} (${ticker}) con sus pares del sector en PE10, P/FCF10, PEG, apalancamiento y liquidez.`,
+    sponds: (name, ticker) => `Sponds sobre ${name} (${ticker}): lo que dicen los inversores en valor.`,
+  },
+  zh: {
+    metrics: (name, ticker) => `${name} (${ticker}) 基本面指标：通胀调整市盈率 (PE10)、P/FCF10、PEG、CAGR 及杠杆率。数据持续更新。`,
+    charts: (name, ticker) => `${name} (${ticker}) 图表：PE10、P/FCF10 及通胀调整后的价格历史。`,
+    fundamentals: (name, ticker) => `${name} (${ticker}) 基本面：逐年营收、利润、自由现金流、债务与股东权益，经通胀调整。`,
+    compare: (name, ticker) => `将 ${name} (${ticker}) 与同行业公司在 PE10、P/FCF10、PEG、杠杆率和流动性上进行对比。`,
+    sponds: (name, ticker) => `关于 ${name} (${ticker}) 的 Sponds：价值投资者的看法。`,
+  },
+  fr: {
+    metrics: (name, ticker) => `Indicateurs fondamentaux de ${name} (${ticker}) : P/E ajusté de l'inflation (PE10), P/FCF10, PEG, CAGR et endettement. Données actualisées.`,
+    charts: (name, ticker) => `Graphiques de ${name} (${ticker}) : PE10, P/FCF10 et historique du cours, ajustés de l'inflation.`,
+    fundamentals: (name, ticker) => `Fondamentaux de ${name} (${ticker}) : chiffre d'affaires, bénéfices, flux de trésorerie disponible, dette et capitaux propres par année, ajustés de l'inflation.`,
+    compare: (name, ticker) => `Comparez ${name} (${ticker}) à ses pairs sectoriels sur le PE10, le P/FCF10, le PEG, l'endettement et la liquidité.`,
+    sponds: (name, ticker) => `Sponds sur ${name} (${ticker}) : ce qu'en disent les investisseurs value.`,
+  },
+  de: {
+    metrics: (name, ticker) => `Fundamentalkennzahlen für ${name} (${ticker}): inflationsbereinigtes KGV (PE10), P/FCF10, PEG, CAGR und Verschuldung. Aktuelle Daten.`,
+    charts: (name, ticker) => `Diagramme zu ${name} (${ticker}): PE10, P/FCF10 und Kursverlauf, inflationsbereinigt.`,
+    fundamentals: (name, ticker) => `Fundamentaldaten zu ${name} (${ticker}): Umsatz, Gewinn, freier Cashflow, Schulden und Eigenkapital je Jahr, inflationsbereinigt.`,
+    compare: (name, ticker) => `Vergleichen Sie ${name} (${ticker}) mit Branchenkollegen nach PE10, P/FCF10, PEG, Verschuldung und Liquidität.`,
+    sponds: (name, ticker) => `Sponds zu ${name} (${ticker}): was Value-Investoren sagen.`,
+  },
+  it: {
+    metrics: (name, ticker) => `Indicatori fondamentali di ${name} (${ticker}): P/E corretto per l'inflazione (PE10), P/FCF10, PEG, CAGR e leva finanziaria. Dati aggiornati.`,
+    charts: (name, ticker) => `Grafici di ${name} (${ticker}): PE10, P/FCF10 e storico dei prezzi, corretti per l'inflazione.`,
+    fundamentals: (name, ticker) => `Fondamentali di ${name} (${ticker}): ricavi, utili, flusso di cassa libero, debito e patrimonio netto per anno, corretti per l'inflazione.`,
+    compare: (name, ticker) => `Confronta ${name} (${ticker}) con i concorrenti del settore su PE10, P/FCF10, PEG, leva finanziaria e liquidità.`,
+    sponds: (name, ticker) => `Sponds su ${name} (${ticker}): cosa dicono gli investitori di valore.`,
+  },
 };
 
 /** Locale-specific title suffix. */
@@ -110,26 +177,40 @@ const TITLE_SUFFIX: Record<string, string> = {
   it: "Indicatori Fondamentali",
 };
 
-/** Locale-specific description templates. */
-function buildDescription(locale: SupportedLocale, ticker: string, companyName: string): string {
+/** Locale- and tab-specific description. */
+function buildDescription(locale: SupportedLocale, ticker: string, companyName: string, tab: TabKey): string {
   const name = companyName || ticker;
-  switch (locale) {
-    case "pt":
-      return `Indicadores fundamentalistas de ${name} (${ticker}): P/L ajustado pela inflação (PE10), P/FCL10, PEG, CAGR e alavancagem. Dados atualizados.`;
-    case "en":
-      return `Fundamental indicators for ${name} (${ticker}): inflation-adjusted P/E (PE10), P/FCF10, PEG, CAGR and leverage. Updated data.`;
-    case "es":
-      return `Indicadores fundamentales de ${name} (${ticker}): P/E ajustado por inflación (PE10), P/FCF10, PEG, CAGR y apalancamiento. Datos actualizados.`;
-    case "zh":
-      return `${name} (${ticker}) 基本面指标：通胀调整市盈率 (PE10)、P/FCF10、PEG、CAGR 及杠杆率。数据持续更新。`;
-    case "fr":
-      return `Indicateurs fondamentaux de ${name} (${ticker}) : P/E ajusté de l'inflation (PE10), P/FCF10, PEG, CAGR et endettement. Données actualisées.`;
-    case "de":
-      return `Fundamentalkennzahlen für ${name} (${ticker}): inflationsbereinigtes KGV (PE10), P/FCF10, PEG, CAGR und Verschuldung. Aktuelle Daten.`;
-    case "it":
-      return `Indicatori fondamentali di ${name} (${ticker}): P/E corretto per l'inflazione (PE10), P/FCF10, PEG, CAGR e leva finanziaria. Dati aggiornati.`;
-  }
+  return TAB_DESCRIPTIONS[locale][tab](name, ticker);
 }
+
+/**
+ * The first candidate that fits the SERP, most informative first. Every
+ * candidate keeps the ticker and the site name; what gets dropped is the
+ * generic suffix, then the company name, in that order.
+ */
+function fitTitle(candidates: string[]): string {
+  return candidates.find((candidate) => candidate.length <= MAX_TITLE_LENGTH) ?? candidates[candidates.length - 1];
+}
+
+function buildTitle(ticker: string, companyName: string, suffix: string, tabDisplayName?: string): string {
+  const subject = companyName ? `${companyName} (${ticker})` : ticker;
+  if (tabDisplayName) {
+    return fitTitle([
+      `${subject} · ${tabDisplayName} · Sponda`,
+      `${ticker} · ${tabDisplayName} · Sponda`,
+    ]);
+  }
+  return fitTitle([
+    `${subject} · ${suffix} · Sponda`,
+    `${subject} · Sponda`,
+    `${ticker} · ${suffix} · Sponda`,
+  ]);
+}
+
+/** Joins the localized "Fundamental Indicators" with the company in the Dataset name. */
+const DATASET_NAME_SEPARATOR: Record<SupportedLocale, string> = {
+  pt: " · ", en: " · ", es: " · ", zh: "：", fr: " de ", de: " für ", it: " · ",
+};
 
 /** Locale-specific keywords. */
 const KEYWORDS: Record<string, string[]> = {
@@ -156,9 +237,10 @@ export async function generateTickerMetadata(
   const markdownTab = tabSlug ? (SLUG_TO_TAB[tabSlug] ?? "metrics") : "metrics";
   const url = `${BASE_URL}/${localePath}`;
 
-  // Build alternates for all supported locales
+  // Build alternates for the indexable locales only: a noindex locale must
+  // not be advertised as a crawlable alternate.
   const alternateLanguages: Record<string, string> = {};
-  for (const altLocale of SUPPORTED_LOCALES) {
+  for (const altLocale of INDEXABLE_LOCALES) {
     let altTabSlug: string | undefined;
     if (tabSlug) {
       const tabKey = SLUG_TO_TAB[tabSlug];
@@ -167,26 +249,24 @@ export async function generateTickerMetadata(
     const altPath = altTabSlug
       ? `${BASE_URL}/${altLocale}/${ticker}/${altTabSlug}`
       : `${BASE_URL}/${altLocale}/${ticker}`;
-    const langKey = LOCALE_TO_HTML_LANG[altLocale].replace("-", "_") === "pt_BR" ? "pt-BR" : altLocale;
+    const langKey = altLocale === "pt" ? "pt-BR" : altLocale;
     alternateLanguages[langKey] = altPath;
   }
   alternateLanguages["x-default"] = alternateLanguages["en"];
 
-  // Locale-specific title and description
+  // Title and breadcrumb tab name
+  const tabDisplayName = tabSlug
+    ? (TAB_DISPLAY[locale]?.[tabSlug] || tabSlug)
+    : undefined;
+
+  // Locale- and tab-specific title and description
   const suffix = TITLE_SUFFIX[locale];
-  const title = companyName
-    ? `${companyName} (${ticker}) · ${suffix} · Sponda`
-    : `${ticker} · ${suffix} · Sponda`;
-  const description = buildDescription(locale, ticker, companyName);
+  const title = buildTitle(ticker, companyName, suffix, tabDisplayName);
+  const description = buildDescription(locale, ticker, companyName, markdownTab);
 
   const ogLocale = LOCALE_TO_OG_LOCALE[locale];
   const htmlLang = LOCALE_TO_HTML_LANG[locale];
   const tickerOgImage = buildTickerOgImageDescriptor(locale, ticker, companyName);
-
-  // Breadcrumb tab name
-  const tabDisplayName = tabSlug
-    ? (TAB_DISPLAY[locale]?.[tabSlug] || tabSlug)
-    : undefined;
 
   const metadata: Metadata = {
     title,
@@ -221,7 +301,7 @@ export async function generateTickerMetadata(
         {
           "@context": "https://schema.org",
           "@type": "Dataset",
-          name: `${suffix} ${locale === "zh" ? "：" : locale === "de" ? " für " : locale === "fr" ? " de " : " · "}${companyName || ticker} (${ticker})`,
+          name: `${suffix}${DATASET_NAME_SEPARATOR[locale]}${companyName || ticker} (${ticker})`,
           description,
           url,
           keywords: [ticker, companyName || ticker, ...(KEYWORDS[locale] || KEYWORDS.en)],
@@ -265,4 +345,83 @@ export async function generateTickerMetadata(
   };
 
   return metadata;
+}
+
+/** Title and description of the screener, per locale. */
+const SCREENER_META: Record<SupportedLocale, { title: string; description: string }> = {
+  pt: {
+    title: "Filtro de Ações · Sponda",
+    description: "Filtre empresas listadas no mundo todo por P/L ajustado pela inflação (PE10), P/FCL10, PEG, alavancagem e liquidez. Por setor e país.",
+  },
+  en: {
+    title: "Stock Screener · Sponda",
+    description: "Screen listed companies worldwide by inflation-adjusted P/E (PE10), P/FCF10, PEG, leverage and liquidity ratios. Filter by sector and country.",
+  },
+  es: {
+    title: "Filtro de Acciones · Sponda",
+    description: "Filtra empresas cotizadas de todo el mundo por P/E ajustado por inflación (PE10), P/FCF10, PEG, apalancamiento y liquidez. Por sector y país.",
+  },
+  zh: {
+    title: "股票筛选器 · Sponda",
+    description: "按通胀调整市盈率 (PE10)、P/FCF10、PEG、杠杆率和流动性筛选全球上市公司，可按行业和国家过滤。",
+  },
+  fr: {
+    title: "Filtre d'actions · Sponda",
+    description: "Filtrez les sociétés cotées du monde entier par P/E ajusté de l'inflation (PE10), P/FCF10, PEG, endettement et liquidité. Par secteur et pays.",
+  },
+  de: {
+    title: "Aktien-Screener · Sponda",
+    description: "Filtern Sie börsennotierte Unternehmen weltweit nach inflationsbereinigtem KGV (PE10), P/FCF10, PEG, Verschuldung und Liquidität. Nach Branche und Land.",
+  },
+  it: {
+    title: "Screener Azioni · Sponda",
+    description: "Filtra le società quotate di tutto il mondo per P/E corretto per l'inflazione (PE10), P/FCF10, PEG, leva finanziaria e liquidità. Per settore e paese.",
+  },
+};
+
+/**
+ * Metadata for `/<locale>/screener`.
+ *
+ * The screener is a client component, so without this it inherited the
+ * locale layout's metadata wholesale: the home page's title, description
+ * and, worst of all, `canonical: /<locale>`. A page whose canonical points
+ * elsewhere is one a search engine will not index, and its sitemap hreflang
+ * entries contradict the page itself.
+ */
+export function generateScreenerMetadata(locale: SupportedLocale): Metadata {
+  const { title, description } = SCREENER_META[locale];
+  const url = `${BASE_URL}/${locale}/screener`;
+
+  const alternateLanguages: Record<string, string> = {};
+  for (const altLocale of INDEXABLE_LOCALES) {
+    const langKey = altLocale === "pt" ? "pt-BR" : altLocale;
+    alternateLanguages[langKey] = `${BASE_URL}/${altLocale}/screener`;
+  }
+  alternateLanguages["x-default"] = `${BASE_URL}/en/screener`;
+
+  const ogImage = buildOgImageDescriptor(locale);
+
+  return {
+    title,
+    description,
+    alternates: {
+      canonical: url,
+      languages: alternateLanguages,
+    },
+    openGraph: {
+      type: "website",
+      siteName: "Sponda",
+      title,
+      description,
+      url,
+      images: [ogImage],
+      locale: LOCALE_TO_OG_LOCALE[locale],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage.url],
+    },
+  };
 }

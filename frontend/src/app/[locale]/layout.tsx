@@ -3,8 +3,9 @@ import Script from "next/script";
 import { notFound } from "next/navigation";
 import { Providers } from "../providers";
 import { LayoutShell } from "../layout-shell";
-import { INDEXABLE_LOCALES, isSupportedLocale, robotsForLocale, LOCALE_TO_HTML_LANG, LOCALE_TO_OG_LOCALE } from "../../lib/i18n-config";
+import { INDEXABLE_LOCALES, isSupportedLocale, robotsForLocale, LOCALE_TO_OG_LOCALE } from "../../lib/i18n-config";
 import { getOgImageUrl, buildOgImageDescriptor } from "../../lib/metadata";
+import { buildSiteStructuredData } from "../../lib/structured-data";
 import type { Locale } from "../../i18n/types";
 
 const BASE_URL = "https://sponda.capital";
@@ -113,34 +114,18 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
     notFound();
   }
 
-  const htmlLang = LOCALE_TO_HTML_LANG[locale];
-
   return (
     <Providers locale={locale as Locale}>
       <LayoutShell>
         {children}
       </LayoutShell>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            name: "Sponda",
-            url: BASE_URL,
-            description: META[locale].description,
-            applicationCategory: "FinanceApplication",
-            operatingSystem: "Web",
-            offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-            creator: {
-              "@type": "Organization",
-              name: "Poema Parceria de Investimentos",
-              url: "https://poe.ma",
-            },
-            inLanguage: htmlLang,
-          }),
-        }}
-      />
+      {buildSiteStructuredData(locale).map((schema) => (
+        <script
+          key={schema["@type"]}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        />
+      ))}
       <Script
         id="posthog"
         strategy="afterInteractive"
