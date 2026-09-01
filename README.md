@@ -615,6 +615,7 @@ Signed-in users can save thresholds on any screened indicator per ticker. When a
 
 - A small bell button sits next to each indicator label on the company page (`AlertButton` in `frontend/src/components/AlertButton.tsx`). Click it to pick a comparison (`≤` or `≥`) and a threshold value.
 - Existing alerts for that (ticker, indicator) pair are listed inline so the popover is the single source of truth — no separate "manage alerts" page. Delete an alert with the `×` button.
+- **Market cap thresholds are entered in millions.** The input label reads "Valor (R$ milhões)" / "Threshold ($ millions)" with the ticker's currency, and `3000` is stored as `3000000000`. `frontend/src/utils/alertThreshold.ts` owns the scaling (`thresholdUnit`, `toStoredThreshold`, `fromStoredThreshold`) and the display formatter (`formatAlertThreshold`), which the popover, the `/alertas` page and the notification bell all share: market caps render as `R$ 3.000M`, prices with two decimals, ratios without trailing zeros. The already-triggered check compares the scaled value, not the typed one. Every other indicator is entered in its raw unit; add a row to `THRESHOLD_UNIT_BY_INDICATOR` to scale another one.
 - The `/notificacoes` page has a **Triggered alerts** section above the revisit reminders; each row links back to the company and can be dismissed (which deletes the alert).
 
 ### Data model

@@ -4,6 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useAlerts } from "../hooks/useAlerts";
 import { useTranslation } from "../i18n";
+import { currencySymbol } from "../utils/format";
+import {
+  formatAlertThreshold,
+  isThresholdInMillions,
+  thresholdUnit,
+  toStoredThreshold,
+} from "../utils/alertThreshold";
 import { AuthModal } from "./AuthModal";
 import "../styles/alert-button.css";
 
@@ -33,7 +40,7 @@ interface AlertButtonProps {
  * (ticker, indicator, comparison) unique constraint.
  */
 export function AlertButton({ ticker, indicator, indicatorLabel, currentValue }: AlertButtonProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { alerts, createAlert, deleteAlert } = useAlerts(ticker);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -46,14 +53,21 @@ export function AlertButton({ ticker, indicator, indicatorLabel, currentValue }:
   const alertsForIndicator = alerts.filter((alert) => alert.indicator === indicator);
   const hasAlerts = alertsForIndicator.length > 0;
 
-  const parsedThreshold = threshold.trim() === "" ? NaN : Number(threshold);
-  const thresholdIsValid = Number.isFinite(parsedThreshold);
+  // The input is in the indicator's entry unit (millions for market cap);
+  // scale it to the raw unit before comparing with the current value.
+  const enteredThreshold = threshold.trim() === "" ? NaN : Number(threshold);
+  const rawThreshold = enteredThreshold * thresholdUnit(indicator);
+  const thresholdIsValid = Number.isFinite(rawThreshold);
   const alreadyTriggered =
     thresholdIsValid &&
     currentValue !== null &&
     currentValue !== undefined &&
     Number.isFinite(currentValue) &&
-    (comparison === "lte" ? currentValue <= parsedThreshold : currentValue >= parsedThreshold);
+    (comparison === "lte" ? currentValue <= rawThreshold : currentValue >= rawThreshold);
+
+  const thresholdLabel = isThresholdInMillions(indicator)
+    ? t("alerts.threshold_millions", { currency: currencySymbol(ticker) })
+    : t("alerts.threshold");
 
   // Close on click-outside / Escape.
   useEffect(() => {
@@ -94,7 +108,7 @@ export function AlertButton({ ticker, indicator, indicatorLabel, currentValue }:
         ticker,
         indicator,
         comparison,
-        threshold: threshold.trim(),
+        threshold: toStoredThreshold(indicator, threshold),
       });
       setThreshold("");
     } catch {
@@ -151,7 +165,7 @@ export function AlertButton({ ticker, indicator, indicatorLabel, currentValue }:
           </div>
 
           <div className="alert-popover-row">
-            <label className="alert-popover-label">{t("alerts.threshold")}</label>
+            <label className="alert-popover-label">{thresholdLabel}</label>
             <input
               type="number"
               step="any"
@@ -186,7 +200,7 @@ export function AlertButton({ ticker, indicator, indicatorLabel, currentValue }:
                     {alert.comparison === "lte"
                       ? t("alerts.comparison_lte")
                       : t("alerts.comparison_gte")}{" "}
-                    {alert.threshold}
+                    {formatAlertThreshold(alert.indicator, alert.threshold, alert.ticker, locale)}
                     {alert.triggered_at && (
                       <span className="alert-popover-item-triggered"> · {t("alerts.active")}</span>
                     )}

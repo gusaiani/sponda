@@ -8,6 +8,7 @@ import {
   currencyCode,
   currencySymbolForCode,
   localToday,
+  formatNumberUpTo,
 } from "./format";
 
 describe("currencyCode", () => {
@@ -267,5 +268,18 @@ describe("localToday", () => {
     vi.setSystemTime(new Date(2026, 0, 5, 12, 0, 0));
     expect(localToday()).toBe("2026-01-05");
     vi.useRealTimers();
+  });
+});
+
+describe("formatNumberUpTo", () => {
+  it("trims trailing zeros while allowing up to the given decimals", () => {
+    expect(formatNumberUpTo(3000, 2, "pt")).toBe("3.000");
+    expect(formatNumberUpTo(1.25, 2, "pt")).toBe("1,25");
+    expect(formatNumberUpTo(1.5, 2, "en")).toBe("1.5");
+    expect(formatNumberUpTo(12, 2, "en")).toBe("12");
+  });
+
+  it("rounds beyond the allowed decimals", () => {
+    expect(formatNumberUpTo(1.256, 2, "en")).toBe("1.26");
   });
 });

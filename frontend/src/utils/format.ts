@@ -87,6 +87,18 @@ export function formatNumber(n: number, digits: number, locale: string): string 
     .replace("-", "–");
 }
 
+/** Format a number with up to `maxDigits` decimals, trimming trailing zeros
+ * (12 → "12", 1.5 → "1,5" in Portuguese). Use it where a fixed decimal count
+ * would pad values that are naturally whole. */
+export function formatNumberUpTo(n: number, maxDigits: number, locale: string): string {
+  return n
+    .toLocaleString(bcp47(locale), {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: maxDigits,
+    })
+    .replace("-", "–");
+}
+
 export function formatLargeNumber(
   value: number,
   ticker: string = "",

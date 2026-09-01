@@ -104,6 +104,18 @@ describe("AlertsPage", () => {
     expect(rows[1].textContent).toContain("90");
   });
 
+  it("formats market cap thresholds in millions of the ticker's currency", () => {
+    alertsState.alerts = [
+      makeAlert({ id: 1, ticker: "PETR4", indicator: "market_cap", threshold: "3000000000.000000" }),
+    ];
+
+    render(<AlertsPage />);
+
+    const row = document.querySelector(".alerts-page-item") as HTMLElement;
+    expect(row.textContent).toContain("Market Cap ≤ R$ 3.000M");
+    expect(row.textContent).not.toContain("3000000000");
+  });
+
   it("marks triggered alerts with a badge", () => {
     alertsState.alerts = [
       makeAlert({ id: 1, triggered_at: "2026-02-01T10:00:00Z" }),

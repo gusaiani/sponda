@@ -548,6 +548,7 @@ export interface TranslationDictionary {
   "alerts.comparison_lte": string;
   "alerts.comparison_gte": string;
   "alerts.threshold": string;
+  "alerts.threshold_millions": string;
   "alerts.active": string;
   "alerts.paused": string;
   "alerts.save": string;

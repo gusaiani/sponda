@@ -5,6 +5,7 @@ import { useAuth } from "../../../hooks/useAuth";
 import { useAlerts } from "../../../hooks/useAlerts";
 import { useTranslation } from "../../../i18n";
 import { logoUrl } from "../../../utils/format";
+import { formatAlertThreshold } from "../../../utils/alertThreshold";
 import "../../../styles/alerts-page.css";
 
 /**
@@ -86,7 +87,8 @@ export default function AlertsPage() {
                   />
                   <span className="alerts-page-item-ticker">{alert.ticker}</span>
                   <span className="alerts-page-item-condition">
-                    {indicatorLabel} {operator} {alert.threshold}
+                    {indicatorLabel} {operator}{" "}
+                    {formatAlertThreshold(alert.indicator, alert.threshold, alert.ticker, locale)}
                   </span>
                   {isTriggered && (
                     <span className="alerts-page-item-badge">

@@ -15,6 +15,7 @@ import { UserAvatar } from "./social/UserAvatar";
 import { useTranslation } from "../i18n";
 import type { TranslationKey } from "../i18n/types";
 import { localToday } from "../utils/format";
+import { formatAlertThreshold } from "../utils/alertThreshold";
 import "../styles/notification-bell.css";
 
 const ALERT_INDICATOR_LABELS: Record<string, string> = {
@@ -32,19 +33,21 @@ const ALERT_INDICATOR_LABELS: Record<string, string> = {
   market_cap: "Market Cap",
 };
 
-const CURRENCY_INDICATORS = new Set(["current_price", "market_cap"]);
 const RATIO_INDICATORS = new Set([
   "pe10", "pfcf10", "peg", "pfcf_peg",
   "debt_to_equity", "debt_ex_lease_to_equity", "liabilities_to_equity",
   "current_ratio", "debt_to_avg_earnings", "debt_to_avg_fcf",
 ]);
 
-function formatAlertValue(indicator: string, value: string): string {
-  const number = parseFloat(value);
-  if (isNaN(number)) return value;
-  if (CURRENCY_INDICATORS.has(indicator)) return `R$ ${number.toFixed(2)}`;
-  if (RATIO_INDICATORS.has(indicator)) return `${number.toFixed(2)}×`;
-  return number.toFixed(2);
+/** Ratios keep their "×" suffix; currency thresholds (price, market cap in
+ * millions) share the formatter used by the alert popover and alerts page. */
+function formatAlertValue(indicator: string, value: string, ticker: string, locale: string): string {
+  if (RATIO_INDICATORS.has(indicator)) {
+    const number = parseFloat(value);
+    if (isNaN(number)) return value;
+    return `${number.toFixed(2)}×`;
+  }
+  return formatAlertThreshold(indicator, value, ticker, locale);
 }
 
 const SOCIAL_LIMIT = 8;
@@ -168,7 +171,12 @@ export function NotificationBell() {
                         {t("notifications.triggered_alert_text", {
                           indicator: indicatorLabel,
                           operator,
-                          threshold: formatAlertValue(notification.indicator, notification.threshold),
+                          threshold: formatAlertValue(
+                            notification.indicator,
+                            notification.threshold,
+                            notification.ticker,
+                            locale,
+                          ),
                         })}
                       </span>
                     </Link>
