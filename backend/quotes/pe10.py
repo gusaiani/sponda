@@ -18,6 +18,7 @@ from .fiscal_year import fiscal_year_of
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyEarnings
 from .reporting_frequency import QUARTERLY_PERIODS_PER_YEAR, infer_periods_per_year
+from .trailing_windows import strict_window_averages
 
 # Every P/E window the screener offers: PE1 through PE15.
 PE_WINDOW_MAX_YEARS = 15
@@ -83,11 +84,16 @@ def calculate_pe_windows(
     Strict: ``pe_by_years[Y]`` is ``None`` unless the company has the full
     ``Y`` years of earnings history (honouring its filing frequency), so a
     PE15 is never quietly a PE8. ``years_available`` reports the widest
-    honest window; ``avg_adjusted_net_income`` keeps the historical loose
-    "up to 10 years" average that the debt-coverage ratios divide by.
+    honest window. ``average_net_income_by_years`` is the strict average
+    behind each window, reported even when the P/E itself is ``None``
+    (no market cap, or a loss-making window) so the debt-coverage windows
+    can divide by exactly ``Y`` years of earnings.
+    ``avg_adjusted_net_income`` keeps the historical loose "up to 10 years"
+    average that the unwindowed debt-coverage ratios divide by.
 
     Returns dict with:
         pe_by_years: {1: float|None, ..., max_years: float|None}
+        average_net_income_by_years: {1: Decimal|None, ..., max_years: Decimal|None}
         years_available: int
         avg_adjusted_net_income: float or None
     """
@@ -96,6 +102,7 @@ def calculate_pe_windows(
     if not annual_data:
         return {
             "pe_by_years": empty_windows,
+            "average_net_income_by_years": dict(empty_windows),
             "years_available": 0,
             "avg_adjusted_net_income": None,
         }
@@ -111,19 +118,16 @@ def calculate_pe_windows(
         for period in reversed(year_data["quarterly_detail"]):  # newest first
             adjusted_period_incomes.append(Decimal(str(period["net_income"])) * factor)
 
-    years_available = min(max_years, len(adjusted_period_incomes) // periods_per_year)
-
-    cumulative_income = Decimal("0")
-    cumulative_by_period_count = [Decimal("0")]
-    for adjusted_income in adjusted_period_incomes:
-        cumulative_income += adjusted_income
-        cumulative_by_period_count.append(cumulative_income)
-
-    def average_over(years: int) -> Decimal:
-        return cumulative_by_period_count[years * periods_per_year] / Decimal(years)
+    windows = strict_window_averages(
+        adjusted_period_incomes, periods_per_year=periods_per_year, max_years=max_years,
+    )
+    years_available = windows["years_available"]
+    average_net_income_by_years = windows["average_by_years"]
 
     loose_years = min(LOOSE_AVERAGE_MAX_YEARS, years_available)
-    average_net_income = float(average_over(loose_years)) if loose_years else None
+    average_net_income = (
+        float(average_net_income_by_years[loose_years]) if loose_years else None
+    )
 
     market_cap_reported = (
         market_cap_in_reported_currency(market_cap, ticker)
@@ -133,23 +137,21 @@ def calculate_pe_windows(
     if market_cap_reported is None or years_available == 0:
         return {
             "pe_by_years": empty_windows,
+            "average_net_income_by_years": average_net_income_by_years,
             "years_available": years_available,
             "avg_adjusted_net_income": average_net_income,
         }
 
     pe_by_years: dict[int, Optional[float]] = {}
-    for years in range(1, max_years + 1):
-        if years > years_available:
-            pe_by_years[years] = None
-            continue
-        window_average = average_over(years)
-        if window_average <= 0:
+    for years, window_average in average_net_income_by_years.items():
+        if window_average is None or window_average <= 0:
             pe_by_years[years] = None
             continue
         pe_by_years[years] = round(float(market_cap_reported / window_average), 2)
 
     return {
         "pe_by_years": pe_by_years,
+        "average_net_income_by_years": average_net_income_by_years,
         "years_available": years_available,
         "avg_adjusted_net_income": average_net_income,
     }

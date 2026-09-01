@@ -11,7 +11,13 @@ from typing import Mapping, Optional, Sequence
 
 from django.db.models import F
 
-from .models import IndicatorSnapshot, Ticker
+from .models import (
+    DEBT_COVERAGE_FIELDS,
+    DEBT_COVERAGE_WINDOW_YEARS,
+    IndicatorSnapshot,
+    Ticker,
+    debt_coverage_window_field,
+)
 from .ratings import rate_company
 
 # Numeric indicator fields the screener can filter by. Explicit allow-list so
@@ -41,6 +47,10 @@ SCREENER_DEFAULT_LIMIT = 50
 SCREENER_MAX_LIMIT = 500
 
 
+DEBT_WINDOW_MIN_YEARS = min(DEBT_COVERAGE_WINDOW_YEARS)
+DEBT_WINDOW_MAX_YEARS = max(DEBT_COVERAGE_WINDOW_YEARS)
+
+
 class ScreenerError(Exception):
     """Raised for invalid screener query input (e.g. an unknown sort field).
 
@@ -48,6 +58,40 @@ class ScreenerError(Exception):
     into a 400 response; in-process callers (e.g. an LLM tool) can catch it
     directly.
     """
+
+
+def validate_debt_window_years(debt_window_years) -> Optional[int]:
+    """Return ``debt_window_years`` as an int in the supported range, or
+    ``None`` when omitted. Raises :class:`ScreenerError` otherwise.
+
+    Strict on type: ``"5"``, ``5.0`` and ``True`` are all rejected, so a
+    caller that meant to pass a year count and passed something else hears
+    about it instead of screening on a window it did not ask for.
+    """
+    if debt_window_years is None:
+        return None
+    if (
+        isinstance(debt_window_years, bool)
+        or not isinstance(debt_window_years, int)
+        or debt_window_years not in DEBT_COVERAGE_WINDOW_YEARS
+    ):
+        raise ScreenerError(
+            f"Invalid debt_window_years: {debt_window_years!r}. Expected an "
+            f"integer from {DEBT_WINDOW_MIN_YEARS} to {DEBT_WINDOW_MAX_YEARS}, "
+            "or omit it for the loose up-to-10-year average."
+        )
+    return debt_window_years
+
+
+def _storage_field(field: str, debt_window_years: Optional[int]) -> str:
+    """Snapshot column backing ``field`` for this screen.
+
+    Only the debt-coverage pair is windowed: with ``debt_window_years`` set
+    they read from the strict N-year column, everything else is unchanged.
+    """
+    if debt_window_years is not None and field in DEBT_COVERAGE_FIELDS:
+        return debt_coverage_window_field(field, debt_window_years)
+    return field
 
 
 def run_screener(
@@ -58,6 +102,7 @@ def run_screener(
     sort: str = SCREENER_DEFAULT_SORT,
     limit: int = SCREENER_DEFAULT_LIMIT,
     offset: int = 0,
+    debt_window_years: Optional[int] = None,
 ) -> tuple[int, list[dict]]:
     """Filter, sort, paginate, and rate IndicatorSnapshot rows.
 
@@ -75,12 +120,21 @@ def run_screener(
             :data:`SCREENER_SORTABLE_FIELDS`.
         limit: max rows to return; clamped to ``[1, SCREENER_MAX_LIMIT]``.
         offset: rows to skip before returning; clamped to ``>= 0``.
+        debt_window_years: when set (1..15), ``debt_to_avg_earnings`` and
+            ``debt_to_avg_fcf`` are read from the strict N-year window
+            columns wherever the screen touches them: bounds, sort, and the
+            values each row reports under those two keys. A company without
+            N years of history has ``NULL`` there, so a bound excludes it
+            and a sort puts it last. ``None`` keeps the loose
+            up-to-10-year pair. Raises :class:`ScreenerError` when out of
+            range.
 
     Returns:
         ``(total_count, results)`` where ``total_count`` is the number of
         matching rows before pagination and ``results`` is the paginated,
         rated list of row dicts.
     """
+    debt_window_years = validate_debt_window_years(debt_window_years)
     queryset = IndicatorSnapshot.objects.all()
 
     # Sector + country filters (categorical, multi-select). Implemented as
@@ -102,12 +156,13 @@ def run_screener(
     for field, field_bounds in (bounds or {}).items():
         if field not in SCREENER_FILTERABLE_FIELDS:
             continue
+        storage_field = _storage_field(field, debt_window_years)
         min_value = field_bounds.get("min")
         if min_value is not None:
-            queryset = queryset.filter(**{f"{field}__gte": min_value})
+            queryset = queryset.filter(**{f"{storage_field}__gte": min_value})
         max_value = field_bounds.get("max")
         if max_value is not None:
-            queryset = queryset.filter(**{f"{field}__lte": max_value})
+            queryset = queryset.filter(**{f"{storage_field}__lte": max_value})
 
     total_count = queryset.count()
 
@@ -117,10 +172,11 @@ def run_screener(
     if sort_field not in SCREENER_SORTABLE_FIELDS:
         raise ScreenerError(f"Invalid sort field: {sort_param!r}")
     # Nulls-last on DESC so rows with missing data don't dominate the top.
+    sort_storage_field = _storage_field(sort_field, debt_window_years)
     queryset = queryset.order_by(
-        F(sort_field).desc(nulls_last=True)
+        F(sort_storage_field).desc(nulls_last=True)
         if sort_param.startswith("-")
-        else F(sort_field).asc(nulls_last=True),
+        else F(sort_storage_field).asc(nulls_last=True),
         "ticker",
     )
 
@@ -144,7 +200,8 @@ def run_screener(
         metadata = ticker_metadata.get(snapshot.ticker, {})
         sector = metadata.get("sector") or ""
         indicator_values = {
-            field: getattr(snapshot, field) for field in SCREENER_FILTERABLE_FIELDS
+            field: getattr(snapshot, _storage_field(field, debt_window_years))
+            for field in SCREENER_FILTERABLE_FIELDS
         }
         rated = rate_company(indicator_values, sector=sector or None)
         results.append({

@@ -330,3 +330,16 @@ class TestIndicatorCatalogueView:
 
     def test_is_publicly_cacheable(self, client, snapshot_universe):
         assert "public" in client.get(self._url())["Cache-Control"]
+
+
+@pytest.mark.django_db
+class TestCompanySnapshotDebtCoverageWindows:
+    def test_carries_every_debt_coverage_window(self, snapshot_universe):
+        IndicatorSnapshot.objects.filter(ticker="PETR4").update(
+            debt_to_avg_earnings_5=Decimal("9.0"),
+        )
+        result = company_snapshot("PETR4")
+        for field in IndicatorSnapshot.DEBT_COVERAGE_WINDOW_FIELDS:
+            assert field in result, f"{field} missing from company_snapshot"
+        assert result["debt_to_avg_earnings_5"] == 9.0
+        assert result["debt_to_avg_fcf_5"] is None

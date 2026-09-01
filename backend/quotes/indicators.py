@@ -7,10 +7,12 @@ data never raises — each individual indicator falls back to ``None``.
 from decimal import Decimal
 from typing import Optional
 
+from .debt_coverage import debt_coverage_ratio, debt_coverage_windows
 from .leverage import calculate_leverage
+from .models import DEBT_COVERAGE_WINDOW_YEARS
 from .pe10 import PE_WINDOW_YEARS, calculate_pe_windows
 from .peg import calculate_peg
-from .pfcf10 import calculate_pfcf10
+from .pfcf10 import calculate_fcf_windows, calculate_pfcf10
 from .pfcf_peg import calculate_pfcf_peg
 
 
@@ -50,8 +52,9 @@ def compute_company_indicators(
         ``pfcf10``, ``peg``, ``pfcf_peg``, ``debt_to_equity``,
         ``debt_ex_lease_to_equity``, ``liabilities_to_equity``,
         ``current_ratio``, ``debt_to_avg_earnings``, ``debt_to_avg_fcf``,
-        ``market_cap``, ``current_price``. Any indicator that cannot be
-        computed from available data is ``None``.
+        the strict debt-coverage windows ``debt_to_avg_earnings_1``..``_15``
+        and ``debt_to_avg_fcf_1``..``_15``, ``market_cap``, ``current_price``.
+        Any indicator that cannot be computed from available data is ``None``.
     """
     ticker = ticker.upper()
 
@@ -84,18 +87,23 @@ def compute_company_indicators(
         else {"pfcfPeg": None}
     )
 
-    # Debt coverage uses gross debt against long-run average earnings / FCF.
+    # Debt coverage uses gross debt against average earnings / FCF: the loose
+    # "up to 10 years" pair, plus one strict window per year count.
     total_debt = leverage_result.get("totalDebt")
-    avg_earnings = pe_windows_result.get("avg_adjusted_net_income")
-    avg_fcf = pfcf10_result.get("avg_adjusted_fcf")
-
-    debt_to_avg_earnings = None
-    if total_debt is not None and avg_earnings and avg_earnings > 0:
-        debt_to_avg_earnings = Decimal(str(total_debt)) / Decimal(str(avg_earnings))
-
-    debt_to_avg_fcf = None
-    if total_debt is not None and avg_fcf and avg_fcf > 0:
-        debt_to_avg_fcf = Decimal(str(total_debt)) / Decimal(str(avg_fcf))
+    debt_to_avg_earnings = debt_coverage_ratio(
+        total_debt, pe_windows_result.get("avg_adjusted_net_income"),
+    )
+    debt_to_avg_fcf = debt_coverage_ratio(
+        total_debt, pfcf10_result.get("avg_adjusted_fcf"),
+    )
+    fcf_windows_result = calculate_fcf_windows(
+        ticker, max_years=max(DEBT_COVERAGE_WINDOW_YEARS),
+    )
+    debt_coverage_window_fields = debt_coverage_windows(
+        total_debt,
+        pe_windows_result["average_net_income_by_years"],
+        fcf_windows_result["average_fcf_by_years"],
+    )
 
     pe_window_fields = {
         f"pe{years}": _to_decimal(pe_by_years.get(years)) for years in PE_WINDOW_YEARS
@@ -113,8 +121,9 @@ def compute_company_indicators(
         ),
         "liabilities_to_equity": _to_decimal(leverage_result.get("liabilitiesToEquity")),
         "current_ratio": _to_decimal(leverage_result.get("currentRatio")),
-        "debt_to_avg_earnings": _to_decimal(debt_to_avg_earnings),
-        "debt_to_avg_fcf": _to_decimal(debt_to_avg_fcf),
+        "debt_to_avg_earnings": debt_to_avg_earnings,
+        "debt_to_avg_fcf": debt_to_avg_fcf,
+        **debt_coverage_window_fields,
         "market_cap": market_cap,
         "current_price": current_price,
     }

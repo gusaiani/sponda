@@ -231,7 +231,7 @@ class TestScreenerCountryFilter:
 
     def test_unknown_country_yields_no_rows(self, api_client, snapshot_universe):
         response = api_client.get("/api/screener/?country=XX")
-        assert response.json() == {"count": 0, "results": []}
+        assert response.json() == {"count": 0, "debt_window_years": None, "results": []}
 
     def test_country_combines_with_sector(self, api_client, snapshot_universe):
         # Two BR tickers with different sectors; filter narrows to one.
@@ -402,3 +402,64 @@ class TestScreenerSectorsAPI:
         Ticker.objects.create(symbol="C", name="C", sector="Health")
         response = api_client.get("/api/screener/sectors/")
         assert sorted(response.json()["sectors"]) == ["Health", "Tech"]
+
+
+@pytest.fixture
+def debt_window_universe(db):
+    Ticker.objects.create(
+        symbol="LONG3", name="Long", display_name="Long", sector="Oil",
+        type="stock", market_cap=100, country="BR",
+    )
+    IndicatorSnapshot.objects.create(
+        ticker="LONG3", market_cap=100,
+        debt_to_avg_earnings=Decimal("4.0"), debt_to_avg_earnings_5=Decimal("9.0"),
+    )
+    Ticker.objects.create(
+        symbol="YOUNG3", name="Young", display_name="Young", sector="Retail",
+        type="stock", market_cap=50, country="BR",
+    )
+    IndicatorSnapshot.objects.create(
+        ticker="YOUNG3", market_cap=50, debt_to_avg_earnings=Decimal("1.0"),
+    )
+
+
+@pytest.mark.django_db
+class TestScreenerDebtWindowParam:
+    def test_window_param_filters_on_the_strict_window(
+        self, api_client, debt_window_universe,
+    ):
+        response = api_client.get(
+            "/api/screener/?debt_to_avg_earnings_max=5&debt_window_years=5",
+        )
+        assert response.status_code == 200
+        assert response.json()["count"] == 0
+
+    def test_omitted_window_filters_on_the_loose_value(
+        self, api_client, debt_window_universe,
+    ):
+        response = api_client.get("/api/screener/?debt_to_avg_earnings_max=5")
+        assert response.json()["count"] == 2
+
+    def test_rows_and_response_carry_the_window(self, api_client, debt_window_universe):
+        response = api_client.get("/api/screener/?debt_window_years=5&sort=ticker")
+        payload = response.json()
+        assert payload["debt_window_years"] == 5
+        by_ticker = {row["ticker"]: row for row in payload["results"]}
+        assert Decimal(by_ticker["LONG3"]["debt_to_avg_earnings"]) == Decimal("9.0")
+        assert by_ticker["YOUNG3"]["debt_to_avg_earnings"] is None
+
+    def test_response_reports_null_window_when_omitted(
+        self, api_client, debt_window_universe,
+    ):
+        assert api_client.get("/api/screener/").json()["debt_window_years"] is None
+
+    @pytest.mark.parametrize("raw", ["0", "16", "abc", "2.5"])
+    def test_invalid_window_returns_400(self, api_client, debt_window_universe, raw):
+        response = api_client.get(f"/api/screener/?debt_window_years={raw}")
+        assert response.status_code == 400
+        assert "debt_window_years" in response.json()["error"]
+
+    def test_blank_window_is_ignored(self, api_client, debt_window_universe):
+        response = api_client.get("/api/screener/?debt_window_years=")
+        assert response.status_code == 200
+        assert response.json()["debt_window_years"] is None

@@ -4,7 +4,9 @@ from decimal import Decimal
 
 
 from quotes.models import QuarterlyCashFlow
-from quotes.pfcf10 import calculate_pfcf10, get_annual_fcf
+import pytest
+
+from quotes.pfcf10 import calculate_fcf_windows, calculate_pfcf10, get_annual_fcf
 
 
 class TestGetAnnualFCF:
@@ -189,3 +191,93 @@ class TestPFCF10TrailingQuarters:
         assert details[3]["year"] == 2023 and details[3]["quarters"] == 3
         kept_dates = [q["end_date"] for q in details[3]["quarterlyDetail"]]
         assert kept_dates == ["2023-06-30", "2023-09-30", "2023-12-31"]
+
+
+def create_flat_quarterly_cash_flows(ticker, first_year, last_year, quarterly_fcf):
+    """Four identical quarters per year with an explicit free cash flow."""
+    for year in range(first_year, last_year + 1):
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyCashFlow.objects.create(
+                ticker=ticker,
+                end_date=date(year, month, day),
+                operating_cash_flow=quarterly_fcf,
+                investment_cash_flow=0,
+                free_cash_flow=quarterly_fcf,
+            )
+
+
+class TestCalculateFCFWindows:
+    """calculate_fcf_windows: the strict average free cash flow over exactly
+    1..N years, the FCF twin of calculate_pe_windows' averages."""
+
+    def test_full_history_fills_every_window(self, db):
+        create_flat_quarterly_cash_flows("WIND3", 2011, 2025, 1_000_000_000)
+        result = calculate_fcf_windows("WIND3", max_years=15)
+        assert result["years_available"] == 15
+        assert set(result["average_fcf_by_years"]) == set(range(1, 16))
+        for years in range(1, 16):
+            assert result["average_fcf_by_years"][years] == Decimal("4_000_000_000")
+
+    def test_windows_beyond_available_history_are_none(self, db):
+        create_flat_quarterly_cash_flows("THIN3", 2018, 2025, 1_000_000_000)
+        result = calculate_fcf_windows("THIN3", max_years=15)
+        assert result["years_available"] == 8
+        assert result["average_fcf_by_years"][8] == Decimal("4_000_000_000")
+        for years in range(9, 16):
+            assert result["average_fcf_by_years"][years] is None
+
+    def test_each_window_averages_only_its_own_years(self, db):
+        create_flat_quarterly_cash_flows("GROW3", 2011, 2024, 1_000_000_000)
+        create_flat_quarterly_cash_flows("GROW3", 2025, 2025, 2_000_000_000)
+        result = calculate_fcf_windows("GROW3", max_years=15)
+        assert result["average_fcf_by_years"][1] == Decimal("8_000_000_000")
+        assert result["average_fcf_by_years"][10] == Decimal("4_400_000_000")
+
+    def test_partial_current_year_backfills_from_older_quarters(self, db):
+        create_flat_quarterly_cash_flows("PART3", 2011, 2025, 1_000_000_000)
+        for month, day in [(3, 31), (6, 30)]:
+            QuarterlyCashFlow.objects.create(
+                ticker="PART3", end_date=date(2026, month, day),
+                operating_cash_flow=1_000_000_000, investment_cash_flow=0,
+                free_cash_flow=1_000_000_000,
+            )
+        result = calculate_fcf_windows("PART3", max_years=15)
+        assert result["years_available"] == 15
+        assert result["average_fcf_by_years"][1] == Decimal("4_000_000_000")
+
+    def test_semi_annual_reporter_counts_two_periods_per_year(self, db):
+        for year in range(2020, 2026):
+            for month, day in [(6, 30), (12, 31)]:
+                QuarterlyCashFlow.objects.create(
+                    ticker="RIO", end_date=date(year, month, day),
+                    operating_cash_flow=3_000_000_000, investment_cash_flow=0,
+                    free_cash_flow=3_000_000_000,
+                )
+        result = calculate_fcf_windows("RIO", max_years=15)
+        assert result["years_available"] == 6
+        assert result["average_fcf_by_years"][6] == Decimal("6_000_000_000")
+        assert result["average_fcf_by_years"][7] is None
+
+    def test_falls_back_to_ocf_plus_investing_without_provider_fcf(self, db):
+        for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyCashFlow.objects.create(
+                ticker="FALL3", end_date=date(2025, month, day),
+                operating_cash_flow=3_000_000_000,
+                investment_cash_flow=-1_000_000_000,
+            )
+        result = calculate_fcf_windows("FALL3", max_years=15)
+        assert result["average_fcf_by_years"][1] == Decimal("8_000_000_000")
+
+    def test_ten_year_window_matches_calculate_pfcf10(
+        self, sample_cash_flows, sample_ipca,
+    ):
+        windows = calculate_fcf_windows("PETR4", max_years=15)
+        legacy = calculate_pfcf10("PETR4", Decimal("585_000_000_000"), max_years=10)
+        assert float(windows["average_fcf_by_years"][10]) == pytest.approx(
+            legacy["avg_adjusted_fcf"],
+        )
+
+    def test_no_cash_flow_data(self, db):
+        result = calculate_fcf_windows("NONE3", max_years=15)
+        assert result["years_available"] == 0
+        assert result["average_fcf_by_years"] == {years: None for years in range(1, 16)}

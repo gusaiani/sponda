@@ -544,3 +544,127 @@ class TestScreenSectorResolution:
         result = execute_screen_companies({"countries": ["br"]})
         assert "error" not in result
         assert [row["ticker"] for row in result["rows_for_model"]] == ["EVSEC1"]
+
+
+# --- Debt-coverage window -------------------------------------------------
+
+def _schema_by_name(name):
+    return next(
+        schema for schema in OPENAI_TOOL_SCHEMAS
+        if schema["function"]["name"] == name
+    )
+
+
+@pytest.mark.django_db
+class TestDebtWindowSchema:
+    @pytest.mark.parametrize("tool_name", ["screen_companies", "get_company"])
+    def test_tools_accept_an_optional_integer_window(self, tool_name):
+        properties = _schema_by_name(tool_name)["function"]["parameters"]["properties"]
+        window = properties["debt_window_years"]
+        assert window["type"] == "integer"
+        assert window["minimum"] == 1
+        assert window["maximum"] == 15
+        assert "debt_to_avg_earnings" in window["description"]
+        assert "debt_to_avg_fcf" in window["description"]
+        required = _schema_by_name(tool_name)["function"]["parameters"].get("required", [])
+        assert "debt_window_years" not in required
+
+    def test_catalogue_explains_the_loose_default_and_the_window(self):
+        by_key = {
+            entry["key"]: entry
+            for entry in execute_list_available_indicators()["indicators"]
+        }
+        for key in ("debt_to_avg_earnings", "debt_to_avg_fcf"):
+            note = by_key[key]["note"]
+            assert "up to 10 years" in note
+            assert "debt_window_years" in note
+
+
+@pytest.fixture
+def debt_window_universe(snapshot_universe):
+    IndicatorSnapshot.objects.filter(ticker="PETR4").update(
+        debt_to_avg_earnings_5=Decimal("9.0"), debt_to_avg_fcf_5=Decimal("8.0"),
+    )
+    IndicatorSnapshot.objects.filter(ticker="WEGE3").update(
+        debt_to_avg_earnings_5=Decimal("0.5"), debt_to_avg_fcf_5=Decimal("0.7"),
+    )
+    # MICRO3 keeps every strict window empty: too young for a 5-year one.
+
+
+@pytest.mark.django_db
+class TestExecuteScreenCompaniesDebtWindow:
+    def test_window_drives_bounds_and_row_values(self, debt_window_universe):
+        result = execute_screen_companies({
+            "filters": {"debt_to_avg_earnings": {"max": 1}},
+            "debt_window_years": 5,
+        })
+        assert result["count"] == 1
+        row = result["rows_for_model"][0]
+        assert row["ticker"] == "WEGE3"
+        assert row["debt_to_avg_earnings"] == 0.5
+        assert row["debt_to_avg_fcf"] == 0.7
+        assert result["debt_window_years"] == 5
+
+    def test_omitted_window_reports_null_and_keeps_loose_values(
+        self, debt_window_universe,
+    ):
+        result = execute_screen_companies({
+            "filters": {"debt_to_avg_earnings": {"max": 1}},
+        })
+        assert result["debt_window_years"] is None
+        assert result["count"] == 1
+        assert result["rows_for_model"][0]["ticker"] == "WEGE3"
+        assert result["rows_for_model"][0]["debt_to_avg_earnings"] == 1.0
+
+    def test_companies_without_the_window_drop_out_of_bounds(
+        self, debt_window_universe,
+    ):
+        result = execute_screen_companies({
+            "filters": {"debt_to_avg_fcf": {"min": 0}},
+            "debt_window_years": 5,
+        })
+        assert {row["ticker"] for row in result["rows_for_model"]} == {"PETR4", "WEGE3"}
+
+    def test_integer_valued_string_is_accepted(self, debt_window_universe):
+        result = execute_screen_companies({"debt_window_years": "5", "sort": "ticker"})
+        assert result["debt_window_years"] == 5
+
+    @pytest.mark.parametrize("window", [0, 16, "five", 2.5, True])
+    def test_invalid_window_returns_corrective_error(self, debt_window_universe, window):
+        result = execute_screen_companies({"debt_window_years": window})
+        assert "error" in result
+        assert "debt_window_years" in result["error"]
+        assert "15" in result["error"]
+
+    def test_json_dumpable(self, debt_window_universe):
+        json.dumps(execute_screen_companies({"debt_window_years": 5}))
+
+
+@pytest.mark.django_db
+class TestExecuteGetCompanyDebtWindow:
+    def test_window_swaps_the_debt_coverage_values(self, debt_window_universe):
+        result = execute_get_company("PETR4", debt_window_years=5)
+        assert result["debt_to_avg_earnings"] == 9.0
+        assert result["debt_to_avg_fcf"] == 8.0
+        assert result["debt_window_years"] == 5
+        # Nothing else moves.
+        assert result["pe10"] == 6.5
+
+    def test_missing_window_reports_null_values(self, debt_window_universe):
+        result = execute_get_company("MICRO3", debt_window_years=5)
+        assert result["debt_to_avg_earnings"] is None
+        assert result["debt_to_avg_fcf"] is None
+
+    def test_omitted_window_keeps_loose_values(self, debt_window_universe):
+        result = execute_get_company("PETR4")
+        assert result["debt_to_avg_earnings"] == 3.0
+        assert result["debt_window_years"] is None
+
+    def test_invalid_window_returns_corrective_error(self, debt_window_universe):
+        result = execute_get_company("PETR4", debt_window_years=40)
+        assert "error" in result
+        assert "debt_window_years" in result["error"]
+
+    def test_dispatcher_passes_the_window_through(self, debt_window_universe):
+        result = execute_tool("get_company", {"symbol": "PETR4", "debt_window_years": 5})
+        assert result["debt_to_avg_earnings"] == 9.0

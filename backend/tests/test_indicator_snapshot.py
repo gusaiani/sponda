@@ -55,3 +55,37 @@ class TestIndicatorSnapshotModel:
     def test_str_includes_ticker_and_timestamp(self):
         snapshot = IndicatorSnapshot.objects.create(ticker="PETR4", pe10=Decimal("4.5"))
         assert "PETR4" in str(snapshot)
+
+
+@pytest.mark.django_db
+class TestDebtCoverageWindowFields:
+    """Strict debt-coverage windows live next to the loose pair, one column
+    per (ratio, years), mirroring the pe1..pe15 family."""
+
+    def test_lists_thirty_window_fields(self):
+        assert len(IndicatorSnapshot.DEBT_COVERAGE_WINDOW_FIELDS) == 30
+        assert "debt_to_avg_earnings_1" in IndicatorSnapshot.DEBT_COVERAGE_WINDOW_FIELDS
+        assert "debt_to_avg_fcf_15" in IndicatorSnapshot.DEBT_COVERAGE_WINDOW_FIELDS
+
+    def test_every_window_field_is_a_nullable_column(self):
+        snapshot = IndicatorSnapshot.objects.create(ticker="NULL3")
+        for field in IndicatorSnapshot.DEBT_COVERAGE_WINDOW_FIELDS:
+            assert getattr(snapshot, field) is None
+
+    def test_window_field_name_is_derived_from_the_loose_field(self):
+        assert IndicatorSnapshot.debt_coverage_window_field(
+            "debt_to_avg_earnings", 5,
+        ) == "debt_to_avg_earnings_5"
+        assert IndicatorSnapshot.debt_coverage_window_field(
+            "debt_to_avg_fcf", 12,
+        ) == "debt_to_avg_fcf_12"
+
+    def test_stores_and_reads_a_window_value(self):
+        IndicatorSnapshot.objects.create(
+            ticker="WIND3", debt_to_avg_earnings_5=Decimal("2.5"),
+        )
+        assert IndicatorSnapshot.objects.get(ticker="WIND3").debt_to_avg_earnings_5 == Decimal("2.5")
+
+    def test_indicator_fields_include_the_windows(self):
+        for field in IndicatorSnapshot.DEBT_COVERAGE_WINDOW_FIELDS:
+            assert field in IndicatorSnapshot.INDICATOR_FIELDS

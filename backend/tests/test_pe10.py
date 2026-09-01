@@ -457,3 +457,47 @@ class TestCalculatePEWindows:
         assert result["years_available"] == 3
         assert result["pe_by_years"][10] is None
         assert result["avg_adjusted_net_income"] == 4_000_000_000.0
+
+
+class TestCalculatePEWindowsAverages:
+    """calculate_pe_windows also reports the strict average behind each
+    window, so debt coverage can divide by exactly N years of earnings."""
+
+    def test_reports_the_strict_average_per_window(self, db):
+        # 2025 earns 8B; 2011–2024 earn 4B/year.
+        create_flat_quarterly_earnings("GROW3", 2011, 2024, 1_000_000_000)
+        create_flat_quarterly_earnings("GROW3", 2025, 2025, 2_000_000_000)
+        result = calculate_pe_windows("GROW3", Decimal("40_000_000_000"))
+        averages = result["average_net_income_by_years"]
+        assert set(averages) == set(PE_WINDOW_YEARS)
+        assert averages[1] == Decimal("8_000_000_000")
+        assert averages[10] == Decimal("4_400_000_000")
+
+    def test_averages_beyond_history_are_none(self, db):
+        create_flat_quarterly_earnings("THIN3", 2018, 2025, 1_000_000_000)
+        result = calculate_pe_windows("THIN3", Decimal("40_000_000_000"))
+        averages = result["average_net_income_by_years"]
+        assert averages[8] == Decimal("4_000_000_000")
+        for years in range(9, 16):
+            assert averages[years] is None
+
+    def test_averages_do_not_need_a_market_cap(self, db):
+        create_flat_quarterly_earnings("NOCAP3", 2020, 2025, 1_000_000_000)
+        result = calculate_pe_windows("NOCAP3", None)
+        assert result["pe_by_years"][3] is None
+        assert result["average_net_income_by_years"][3] == Decimal("4_000_000_000")
+
+    def test_negative_averages_are_reported_not_hidden(self, db):
+        # The P/E is None for a loss-making window, but the average itself
+        # is a fact worth carrying so callers decide what to do with it.
+        create_flat_quarterly_earnings("LOSS3", 2011, 2024, 1_000_000_000)
+        create_flat_quarterly_earnings("LOSS3", 2025, 2025, -2_000_000_000)
+        result = calculate_pe_windows("LOSS3", Decimal("40_000_000_000"))
+        assert result["pe_by_years"][1] is None
+        assert result["average_net_income_by_years"][1] == Decimal("-8_000_000_000")
+
+    def test_no_history_reports_empty_averages(self, db):
+        result = calculate_pe_windows("NONE3", Decimal("40_000_000_000"))
+        assert result["average_net_income_by_years"] == {
+            years: None for years in PE_WINDOW_YEARS
+        }
