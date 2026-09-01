@@ -50,7 +50,17 @@ def _identity(ticker: Ticker) -> dict:
 
 
 def _indicators(snapshot: IndicatorSnapshot) -> dict:
-    return {field: getattr(snapshot, field) for field in SCREENER_FILTERABLE_FIELDS}
+    """Every screener indicator plus the strict debt-coverage windows.
+
+    The windows ride along so a caller can answer "debt over exactly five
+    years of earnings" from the same two indexed reads, without a second
+    accessor. ``assistant.tools.GET_COMPANY_FIELDS`` pins what the LLM tool
+    exposes, so widening this payload does not reshape that surface.
+    """
+    return {
+        field: getattr(snapshot, field)
+        for field in (*SCREENER_FILTERABLE_FIELDS, *IndicatorSnapshot.DEBT_COVERAGE_WINDOW_FIELDS)
+    }
 
 
 def _payload(ticker: Ticker, snapshot: IndicatorSnapshot) -> dict:

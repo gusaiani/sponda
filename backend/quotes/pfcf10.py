@@ -11,6 +11,7 @@ from .fiscal_year import fiscal_year_of
 from .inflation import get_inflation_adjustment_factors
 from .models import QuarterlyCashFlow
 from .reporting_frequency import QUARTERLY_PERIODS_PER_YEAR, infer_periods_per_year
+from .trailing_windows import strict_window_averages
 
 
 def _quarter_free_cash_flow(quarter: QuarterlyCashFlow) -> Decimal | None:
@@ -70,6 +71,44 @@ def get_annual_fcf(ticker: str, max_years: int = 10) -> list[dict]:
         }
         for year, data in sorted(yearly.items(), reverse=True)
     ]
+
+
+def calculate_fcf_windows(ticker: str, max_years: int) -> dict:
+    """Strict average inflation-adjusted free cash flow over exactly 1..max_years years.
+
+    The FCF twin of ``pe10.calculate_pe_windows``: ``average_fcf_by_years[Y]``
+    is ``None`` unless the company has filed the full ``Y`` years (honouring
+    its filing frequency), and ``years_available`` is the widest window it
+    can fill. Negative averages are reported, not hidden; callers decide
+    what a loss-making window means for their ratio.
+
+    Returns dict with:
+        average_fcf_by_years: {1: Decimal|None, ..., max_years: Decimal|None}
+        years_available: int
+    """
+    empty_windows = {years: None for years in range(1, max_years + 1)}
+    annual_data = get_annual_fcf(ticker, max_years=max_years)
+    if not annual_data:
+        return {"average_fcf_by_years": empty_windows, "years_available": 0}
+
+    periods_per_year = infer_periods_per_year(annual_data)
+    inflation_factors = get_inflation_adjustment_factors(
+        ticker, [year_data["inflation_year"] for year_data in annual_data],
+    )
+
+    adjusted_period_flows: list[Decimal] = []
+    for year_data in annual_data:  # newest year first
+        factor = inflation_factors.get(year_data["inflation_year"], Decimal("1"))
+        for period in reversed(year_data["quarterly_detail"]):  # newest first
+            adjusted_period_flows.append(Decimal(str(period["fcf"])) * factor)
+
+    windows = strict_window_averages(
+        adjusted_period_flows, periods_per_year=periods_per_year, max_years=max_years,
+    )
+    return {
+        "average_fcf_by_years": windows["average_by_years"],
+        "years_available": windows["years_available"],
+    }
 
 
 def calculate_pfcf10(ticker: str, market_cap: Decimal, max_years: int = 10) -> dict:

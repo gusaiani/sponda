@@ -14,14 +14,21 @@ from typing import Any, Optional
 
 from quotes.company_snapshot import company_snapshot
 from quotes.json_utils import json_safe
-from quotes.models import Ticker
-from quotes.pe10 import PE_WINDOW_MAX_YEARS, PE_WINDOW_YEARS
+from quotes.models import (
+    DEBT_COVERAGE_FIELDS,
+    Ticker,
+    debt_coverage_window_field,
+)
+from quotes.pe10 import LOOSE_AVERAGE_MAX_YEARS, PE_WINDOW_MAX_YEARS, PE_WINDOW_YEARS
 from quotes.screener import (
+    DEBT_WINDOW_MAX_YEARS,
+    DEBT_WINDOW_MIN_YEARS,
     SCREENER_DEFAULT_SORT,
     SCREENER_FILTERABLE_FIELDS,
     SCREENER_SORTABLE_FIELDS,
     ScreenerError,
     run_screener,
+    validate_debt_window_years,
 )
 from quotes.views import _QuoteError, _compute_quote_payload
 
@@ -85,6 +92,15 @@ PE_YEARS_AVAILABLE_CATALOGUE_ENTRY: dict[str, str] = {
         "demand a full decade of history."
     ),
 }
+
+# Shared by both debt-coverage catalogue entries and the tool parameter, so
+# the model reads the same contract wherever it looks.
+DEBT_WINDOW_NOTE = (
+    f"By default the average spans up to {LOOSE_AVERAGE_MAX_YEARS} years of "
+    "history (a company with 6 years is averaged over 6). Pass "
+    "debt_window_years to demand exactly N years: the value is then empty "
+    "for companies without N full years, like the strict P/E windows."
+)
 
 INDICATOR_CATALOGUE: tuple[dict[str, str], ...] = (
     *(_pe_window_catalogue_entry(years) for years in PE_WINDOW_YEARS),
@@ -178,7 +194,8 @@ INDICATOR_CATALOGUE: tuple[dict[str, str], ...] = (
         "direction": "lower_is_better",
         "note": (
             "Years of average earnings needed to fully repay total debt. "
-            "Lower means debt is easier to pay down."
+            "Lower means debt is easier to pay down. "
+            + DEBT_WINDOW_NOTE
         ),
     },
     {
@@ -190,7 +207,8 @@ INDICATOR_CATALOGUE: tuple[dict[str, str], ...] = (
         "direction": "lower_is_better",
         "note": (
             "Years of average free cash flow needed to repay total debt. "
-            "Lower means debt is easier to pay down from cash generation."
+            "Lower means debt is easier to pay down from cash generation. "
+            + DEBT_WINDOW_NOTE
         ),
     },
 )
@@ -242,6 +260,21 @@ _SORT_ENUM = [
     *SCREENER_SORTABLE_FIELDS,
     *(f"-{field}" for field in SCREENER_SORTABLE_FIELDS),
 ]
+
+_DEBT_WINDOW_YEARS_SCHEMA = {
+    "type": "integer",
+    "minimum": DEBT_WINDOW_MIN_YEARS,
+    "maximum": DEBT_WINDOW_MAX_YEARS,
+    "description": (
+        "Years of history behind debt_to_avg_earnings and debt_to_avg_fcf. "
+        f"An integer from {DEBT_WINDOW_MIN_YEARS} to {DEBT_WINDOW_MAX_YEARS}: "
+        "both ratios then divide total debt by the average over exactly "
+        "that many years, and are empty for companies lacking that much "
+        "history (a bound excludes them; a sort puts them last). Omit for "
+        f"the loose average over up to {LOOSE_AVERAGE_MAX_YEARS} years. "
+        "Other indicators are unaffected."
+    ),
+}
 
 OPENAI_TOOL_SCHEMAS: list[dict] = [
     {
@@ -335,6 +368,7 @@ OPENAI_TOOL_SCHEMAS: list[dict] = [
                             "names."
                         ),
                     },
+                    "debt_window_years": _DEBT_WINDOW_YEARS_SCHEMA,
                 },
                 "additionalProperties": False,
             },
@@ -359,6 +393,7 @@ OPENAI_TOOL_SCHEMAS: list[dict] = [
                             "Ticker symbol, case-insensitive (e.g. 'PETR4', 'aapl')."
                         ),
                     },
+                    "debt_window_years": _DEBT_WINDOW_YEARS_SCHEMA,
                 },
                 "required": ["symbol"],
                 "additionalProperties": False,
@@ -476,6 +511,26 @@ def _resolve_filter_bounds(
                 )
         bounds[field] = converted
     return bounds, None
+
+
+def _resolve_debt_window_years(raw_window: Any) -> tuple[Optional[int], Optional[str]]:
+    """Coerce the model's debt_window_years argument to an int in range.
+
+    Returns (window, error). A missing argument is the loose default
+    (``None``); an integer-valued string ("5") is accepted since models
+    sometimes stringify numbers; anything else is a corrective error
+    naming the valid range, never a silent fallback to the loose average
+    (the caller would believe it screened on a window it did not).
+    """
+    if raw_window is None:
+        return None, None
+    candidate = raw_window
+    if isinstance(candidate, str) and candidate.strip().lstrip("-").isdigit():
+        candidate = int(candidate.strip())
+    try:
+        return validate_debt_window_years(candidate), None
+    except ScreenerError as error:
+        return None, str(error)
 
 
 def _clamp_screen_limit(raw_limit: Any) -> int:
@@ -606,6 +661,11 @@ def execute_screen_companies(arguments: dict) -> dict:
     if filter_error:
         return {"error": filter_error}
     limit = _clamp_screen_limit(arguments.get("limit"))
+    debt_window_years, window_error = _resolve_debt_window_years(
+        arguments.get("debt_window_years"),
+    )
+    if window_error:
+        return {"error": window_error}
 
     sectors, sector_error = _resolve_sectors(arguments.get("sectors") or [])
     if sector_error:
@@ -625,6 +685,7 @@ def execute_screen_companies(arguments: dict) -> dict:
             countries=countries,
             sort=sort,
             limit=limit,
+            debt_window_years=debt_window_years,
         )
     except ScreenerError as error:
         return {"error": str(error)}
@@ -638,6 +699,7 @@ def execute_screen_companies(arguments: dict) -> dict:
 
     return {
         "count": total_count,
+        "debt_window_years": debt_window_years,
         "rows_for_model": [
             _trim_row_for_model(row, extra_row_fields) for row in rows
         ],
@@ -659,12 +721,17 @@ GET_COMPANY_FIELDS = (
 )
 
 
-def execute_get_company(symbol: str) -> dict:
+def execute_get_company(symbol: str, debt_window_years: Any = None) -> dict:
     """Ticker metadata + IndicatorSnapshot values for one stock symbol.
 
     Case-insensitive; only ``type="stock"`` rows match (funds/ETFs are out
     of scope for this tool). Unknown symbol or missing snapshot both come
     back as an ``{"error": ...}`` dict rather than raising.
+
+    ``debt_window_years`` (1..15) swaps ``debt_to_avg_earnings`` and
+    ``debt_to_avg_fcf`` for their strict N-year windows; the response
+    always says which window it applied under ``debt_window_years``
+    (``None`` for the loose pair).
 
     Delegates the read to ``quotes.company_snapshot``, which is the same
     DB-only accessor the markdown company pages render from, so the two
@@ -673,6 +740,9 @@ def execute_get_company(symbol: str) -> dict:
     normalized_symbol = (symbol or "").strip().upper()
     if not normalized_symbol:
         return {"error": "No symbol provided."}
+    debt_window_years, window_error = _resolve_debt_window_years(debt_window_years)
+    if window_error:
+        return {"error": window_error}
 
     payload = company_snapshot(normalized_symbol)
     if payload is None:
@@ -685,7 +755,14 @@ def execute_get_company(symbol: str) -> dict:
             return {"error": f"Unknown symbol: {symbol!r}"}
         return {"error": f"No indicator data available for {normalized_symbol}."}
 
-    return {field: payload[field] for field in GET_COMPANY_FIELDS}
+    result = {field: payload[field] for field in GET_COMPANY_FIELDS}
+    if debt_window_years is not None:
+        for field in DEBT_COVERAGE_FIELDS:
+            result[field] = payload[
+                debt_coverage_window_field(field, debt_window_years)
+            ]
+    result["debt_window_years"] = debt_window_years
+    return result
 
 
 def execute_get_fundamentals(symbol: str) -> dict:
@@ -725,7 +802,10 @@ def execute_tool(name: str, arguments: Optional[dict]) -> dict:
     if name == "screen_companies":
         return execute_screen_companies(arguments)
     if name == "get_company":
-        return execute_get_company(arguments.get("symbol", ""))
+        return execute_get_company(
+            arguments.get("symbol", ""),
+            debt_window_years=arguments.get("debt_window_years"),
+        )
     if name == "get_fundamentals":
         return execute_get_fundamentals(arguments.get("symbol", ""))
     return {"error": f"Unknown tool: {name}"}

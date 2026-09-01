@@ -419,3 +419,49 @@ class TestMCPRateLimit:
             fresh = tool_call(client, "list_available_indicators")
         assert blocked.status_code == 429
         assert fresh.status_code == 200
+
+
+@pytest.mark.django_db
+class TestDebtWindow:
+    """debt_window_years reaches the screener and get_company through MCP."""
+
+    def test_screen_companies_honours_the_window(self, client, snapshot_universe):
+        from quotes.models import IndicatorSnapshot
+
+        IndicatorSnapshot.objects.filter(ticker="PETR4").update(
+            debt_to_avg_earnings_5=Decimal("9.0"),
+        )
+        structured = structured_content_of(tool_call(
+            client,
+            "screen_companies",
+            {"filters": {"debt_to_avg_earnings": {"max": 5}}, "debt_window_years": 5},
+        ))
+        assert structured["count"] == 0
+        assert structured["debt_window_years"] == 5
+
+    def test_get_company_honours_the_window(self, client, snapshot_universe):
+        from quotes.models import IndicatorSnapshot
+
+        IndicatorSnapshot.objects.filter(ticker="WEGE3").update(
+            debt_to_avg_fcf_3=Decimal("0.2"),
+        )
+        structured = structured_content_of(tool_call(
+            client, "get_company", {"symbol": "wege3", "debt_window_years": 3},
+        ))
+        assert structured["debt_to_avg_fcf"] == 0.2
+        assert structured["debt_to_avg_earnings"] is None
+        assert structured["debt_window_years"] == 3
+
+    def test_invalid_window_is_a_tool_error_not_a_protocol_error(
+        self, client, snapshot_universe,
+    ):
+        response = tool_call(client, "screen_companies", {"debt_window_years": 99})
+        result = result_of(response)
+        assert result["isError"] is True
+        assert "debt_window_years" in result["content"][0]["text"]
+
+    def test_tools_list_advertises_the_window(self, client):
+        result = result_of(rpc_call(client, "tools/list"))
+        by_name = {tool["name"]: tool for tool in result["tools"]}
+        for name in ("screen_companies", "get_company"):
+            assert "debt_window_years" in by_name[name]["inputSchema"]["properties"]

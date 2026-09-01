@@ -262,6 +262,18 @@
   min-width: 0;
 }
 
+.screener-debt-window-select {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: var(--color-ink);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .screener-filter-actions {
   display: flex;
   justify-content: flex-end;

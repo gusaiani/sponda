@@ -95,3 +95,22 @@ describe("buildScreenerQuery", () => {
     expect(params.get("sector")).toBeNull();
   });
 });
+
+describe("buildScreenerQuery debt window", () => {
+  it("emits debt_window_years when a strict window is set", () => {
+    const query = buildScreenerQuery(makeFilters({ debtWindowYears: 5 }));
+    const params = new URLSearchParams(query);
+    expect(params.get("debt_window_years")).toBe("5");
+  });
+
+  it("omits debt_window_years for the loose default", () => {
+    expect(
+      new URLSearchParams(buildScreenerQuery(makeFilters())).get("debt_window_years"),
+    ).toBeNull();
+    expect(
+      new URLSearchParams(
+        buildScreenerQuery(makeFilters({ debtWindowYears: null })),
+      ).get("debt_window_years"),
+    ).toBeNull();
+  });
+});

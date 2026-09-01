@@ -334,6 +334,25 @@ class CompanyAnalysis(models.Model):
         return f"{self.ticker} — {self.data_quarter}"
 
 
+# Debt coverage: total debt over average earnings / free cash flow. The loose
+# pair averages up to 10 years of history; the windowed columns average
+# exactly N years and are NULL when the company lacks N years, like pe1..pe15.
+DEBT_COVERAGE_FIELDS = ("debt_to_avg_earnings", "debt_to_avg_fcf")
+DEBT_COVERAGE_WINDOW_YEARS = tuple(range(1, 16))
+
+
+def debt_coverage_window_field(field: str, years: int) -> str:
+    """Column that stores ``field`` averaged over exactly ``years`` years."""
+    return f"{field}_{years}"
+
+
+DEBT_COVERAGE_WINDOW_FIELDS = tuple(
+    debt_coverage_window_field(field, years)
+    for field in DEBT_COVERAGE_FIELDS
+    for years in DEBT_COVERAGE_WINDOW_YEARS
+)
+
+
 class IndicatorSnapshot(models.Model):
     """Pre-computed screener indicators per ticker.
 
@@ -349,6 +368,14 @@ class IndicatorSnapshot(models.Model):
     # of earnings history. pe_years_available records the widest honest window.
     PE_WINDOW_FIELDS = tuple(f"pe{years}" for years in range(1, 16))
 
+    # Strict debt-coverage windows: debt_to_avg_earnings_Y / debt_to_avg_fcf_Y
+    # are NULL unless the company has the full Y years of history. The
+    # unsuffixed pair keeps the loose "up to 10 years" average.
+    DEBT_COVERAGE_FIELDS = DEBT_COVERAGE_FIELDS
+    DEBT_COVERAGE_WINDOW_YEARS = DEBT_COVERAGE_WINDOW_YEARS
+    DEBT_COVERAGE_WINDOW_FIELDS = DEBT_COVERAGE_WINDOW_FIELDS
+    debt_coverage_window_field = staticmethod(debt_coverage_window_field)
+
     INDICATOR_FIELDS = (
         *PE_WINDOW_FIELDS,
         "pe_years_available",
@@ -361,6 +388,7 @@ class IndicatorSnapshot(models.Model):
         "current_ratio",
         "debt_to_avg_earnings",
         "debt_to_avg_fcf",
+        *DEBT_COVERAGE_WINDOW_FIELDS,
         "market_cap",
         "current_price",
     )
@@ -400,6 +428,97 @@ class IndicatorSnapshot(models.Model):
         max_digits=12, decimal_places=4, null=True, blank=True,
     )
     debt_to_avg_fcf = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    # Debt coverage over exactly N years (NULL without N years of history)
+    debt_to_avg_earnings_1 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_2 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_3 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_4 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_5 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_6 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_7 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_8 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_9 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_10 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_11 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_12 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_13 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_14 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_earnings_15 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_1 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_2 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_3 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_4 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_5 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_6 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_7 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_8 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_9 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_10 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_11 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_12 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_13 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_14 = models.DecimalField(
+        max_digits=12, decimal_places=4, null=True, blank=True,
+    )
+    debt_to_avg_fcf_15 = models.DecimalField(
         max_digits=12, decimal_places=4, null=True, blank=True,
     )
     # Market

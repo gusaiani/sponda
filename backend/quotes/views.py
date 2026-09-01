@@ -1735,11 +1735,16 @@ class ScreenerView(APIView):
         with ``-`` for descending. Defaults to ``ticker`` ascending.
       * ``limit`` — max rows returned (default 50, hard-capped at 500).
       * ``offset`` — rows to skip before returning (for pagination).
+      * ``debt_window_years`` — integer 1..15. Reads ``debt_to_avg_earnings``
+        and ``debt_to_avg_fcf`` from the strict N-year window (bounds, sort
+        and row values alike); omitted or blank keeps the loose
+        up-to-10-year pair.
 
     Response shape::
 
         {
             "count": <total matching rows>,
+            "debt_window_years": <the window applied, or null>,
             "results": [
                 {"ticker": ..., "name": ..., "sector": ..., "logo": ...,
                  "market_cap": ..., "current_price": ...,
@@ -1789,6 +1794,18 @@ class ScreenerView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Parse the debt-coverage window ------------------------------------
+        raw_debt_window_years = request.query_params.get("debt_window_years")
+        debt_window_years = None
+        if raw_debt_window_years not in (None, ""):
+            try:
+                debt_window_years = int(raw_debt_window_years)
+            except ValueError:
+                return Response(
+                    {"error": "debt_window_years must be an integer from 1 to 15"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         try:
             total_count, results = run_screener(
                 bounds=bounds,
@@ -1797,11 +1814,16 @@ class ScreenerView(APIView):
                 sort=sort_param,
                 limit=limit,
                 offset=offset,
+                debt_window_years=debt_window_years,
             )
         except ScreenerError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"count": total_count, "results": results})
+        return Response({
+            "count": total_count,
+            "debt_window_years": debt_window_years,
+            "results": results,
+        })
 
 
 class ScreenerSectorsView(APIView):

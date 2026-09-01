@@ -79,7 +79,7 @@ All are numeric `min` / `max` bounds (either side optional):
 - `pfcf10` · valuation multiple (10-year rolling free cash flow)
 - `peg`, `pfcf_peg` · growth-adjusted valuation
 - `debt_to_equity`, `debt_ex_lease_to_equity`, `liabilities_to_equity`, `current_ratio` · leverage / liquidity
-- `debt_to_avg_earnings`, `debt_to_avg_fcf` · debt vs. cash generation
+- `debt_to_avg_earnings`, `debt_to_avg_fcf` · debt vs. cash generation: total debt over average inflation-adjusted net income / free cash flow. By default the average is loose, spanning up to 10 years of history (a company with six years is averaged over six). Add `debt_window_years=N` (1 to 15) to make both ratios strict: they then divide by the average over exactly N years and are empty for companies without N full years, the same contract as `peY`. The window applies to bounds, sort and the values in each row; no other indicator moves.
 - `market_cap` · absolute currency amount
 
 ### How it works
@@ -89,10 +89,20 @@ All are numeric `min` / `max` bounds (either side optional):
    - **Rolling price refresh** (`refresh_snapshot_prices`, every 15 min while B3 or NYSE is open · see [Scheduled Tasks](#scheduled-tasks)). For every ticker with a market cap, fetches the current quote (one API call) and recomputes only the price-dependent indicators — PE10, PFCF10, PEG, P/FCF PEG — against existing DB fundamentals. Leverage and debt-coverage fields are left alone.
    - **Weekly fundamentals refresh** (`refresh_snapshot_fundamentals`, Sunday 06:00 UTC). Resyncs quarterly earnings / cash flows / balance sheets (three API calls per ticker) and then recomputes the full indicator set via `compute_company_indicators` — the same service the company page uses, so the screener and the company page can never disagree.
    - **Bootstrap.** `sync_market_caps` routes Brazilian tickers through BRAPI and US tickers through FMP to backfill `Ticker.market_cap` for rows that are missing it. Run once after adding new tickers; both refresh jobs skip tickers without a market cap.
-2. **Query.** `GET /api/screener/` takes `<field>_min` / `<field>_max` params, a `sort` (prefix `-` for descending; nulls always last), `limit` (max 500), and `offset`. Returns `{ count, results[] }`.
+2. **Query.** `GET /api/screener/` takes `<field>_min` / `<field>_max` params, a `sort` (prefix `-` for descending; nulls always last), `limit` (max 500), `offset`, and an optional `debt_window_years` (1 to 15; anything else is a 400). Returns `{ count, debt_window_years, results[] }`, where `debt_window_years` echoes the window applied or `null` for the loose default.
 3. **Frontend.** The `useScreener` hook (`frontend/src/hooks/useScreener.ts`) wraps the endpoint in React Query with `staleTime: 60s`. The page is `frontend/src/app/[locale]/screener/page.tsx` — sticky filter sidebar + results table with click-to-sort column headers and cursor-based "load more" pagination.
 
 **Example:** `GET /api/screener/?pe10_max=10&debt_to_equity_max=1&sort=-market_cap&limit=50` returns the 50 largest Brazilian companies with PE10 ≤ 10 and D/E ≤ 1.
+
+**Example:** `GET /api/screener/?debt_to_avg_fcf_max=3&debt_window_years=5&sort=debt_to_avg_fcf` returns companies that could repay their total debt from under three years of their last five years' average free cash flow, and leaves out every company with fewer than five years of cash-flow history.
+
+### Debt-coverage windows
+
+`IndicatorSnapshot` stores the loose pair (`debt_to_avg_earnings`, `debt_to_avg_fcf`) next to thirty strict columns, `debt_to_avg_earnings_1` … `_15` and `debt_to_avg_fcf_1` … `_15`, all written by `compute_company_indicators` on every snapshot refresh. The strict averages come from `pe10.calculate_pe_windows` (earnings) and `pfcf10.calculate_fcf_windows` (free cash flow), which share `quotes/trailing_windows.py`: a window of N years is exactly N × filings-per-year trailing periods, so a semi-annual reporter needs 10 filings for a five-year window and a partial current year backfills from older periods. `quotes/debt_coverage.py` turns each average into a ratio: `None` for a missing, zero or negative average, and `None` when the ratio would not fit the column (debt against near-zero earnings), so one absurd window never fails the whole row write.
+
+`run_screener(debt_window_years=N)` resolves the two public keys to the `_N` columns for bounds, sort and row values (`_storage_field`), so callers keep using `debt_to_avg_earnings` and `debt_to_avg_fcf` whatever the window. On the web screener the "more filters" popover carries a "Debt coverage window" select (`frontend/src/utils/debtWindowLabel.ts` holds the options and labels): picking N years applies at once, like the sector and country selects, and the two debt columns relabel to "(Ny)", or "(≤10y)" for the loose default, so the table always says what the denominator is. "Clear filters" resets it. Saved filter presets do not store the window yet.
+
+**Local testing:** after `python manage.py migrate`, run `python manage.py refresh_indicator_snapshots --ticker PETR4` so the new columns are filled, then compare `GET /api/screener/?debt_window_years=1` with `debt_window_years=10` for that row. A freshly deployed box has the thirty columns as NULL until the next snapshot refresh, so a windowed screen matches nothing until then.
 
 ### Slider scales
 
@@ -168,6 +178,8 @@ Then ask things like:
 > US companies with at least 15 years of history trading below 10× their 15-year average earnings
 
 The P/E window family is strict: `peY` only exists when the company has the full Y years of earnings history, and `pe_years_available` says the widest window each company can fill — so the agent can explain *why* a PE15 screen excludes a young company instead of quietly averaging fewer years.
+
+Debt coverage is windowed by a parameter instead of a key per window. `debt_to_avg_earnings` and `debt_to_avg_fcf` average up to 10 years by default; `screen_companies` and `get_company` both accept `debt_window_years` (1 to 15), which makes the two ratios strict over exactly that many years and empty for companies without that history. The response echoes the window it applied (`debt_window_years`, `null` for the loose default), and an out-of-range value comes back as a corrective tool error naming the valid range. So "debt payable from five years of average earnings" is `{"filters": {"debt_to_avg_earnings": {"max": 5}}, "debt_window_years": 5}`, and the catalogue entry for each ratio says as much.
 
 Four tools, designed to be called in this order:
 
@@ -250,6 +262,10 @@ curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
 # run a screen: P/E10 <= 10, cheapest first
 curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"screen_companies","arguments":{"filters":{"pe10":{"max":10}},"sort":"pe10"}}}'
+
+# debt repayable from under 3 years of the last 5 years' average FCF
+curl -s localhost:8000/api/mcp/ -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"screen_companies","arguments":{"filters":{"debt_to_avg_fcf":{"max":3}},"debt_window_years":5,"sort":"debt_to_avg_fcf"}}}'
 ```
 
 Or drive it interactively with the MCP inspector

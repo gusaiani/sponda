@@ -5,7 +5,13 @@ from decimal import Decimal
 import pytest
 
 from quotes.indicators import compute_company_indicators
-from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
+from quotes.models import (
+    BalanceSheet,
+    IndicatorSnapshot,
+    IPCAIndex,
+    QuarterlyCashFlow,
+    QuarterlyEarnings,
+)
 
 
 @pytest.fixture
@@ -205,3 +211,112 @@ class TestComputePEWindows:
         result = compute_company_indicators("PETR4", market_cap=None)
         assert result["pe_years_available"] == 10
         assert result["pe5"] is None
+
+
+@pytest.mark.django_db
+class TestComputeDebtCoverageWindows:
+    """The snapshot dict carries strict debt-coverage windows next to the
+    loose ``debt_to_avg_earnings`` / ``debt_to_avg_fcf`` pair: total debt over
+    the average of exactly N years, None when the company lacks N years."""
+
+    def test_returns_every_debt_coverage_window_field(
+        self, earnings_petr4, cashflow_petr4, balance_petr4,
+    ):
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        for years in range(1, 16):
+            assert f"debt_to_avg_earnings_{years}" in result
+            assert f"debt_to_avg_fcf_{years}" in result
+
+    def test_windows_within_history_share_the_flat_ratio(
+        self, earnings_petr4, cashflow_petr4, balance_petr4,
+    ):
+        # Flat 10B/year earnings and 8B/year FCF, 300B of debt.
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        for years in (1, 5, 10):
+            assert result[f"debt_to_avg_earnings_{years}"] == Decimal("30")
+            assert result[f"debt_to_avg_fcf_{years}"] == Decimal("37.5")
+
+    def test_windows_beyond_history_are_strictly_none(
+        self, earnings_petr4, cashflow_petr4, balance_petr4,
+    ):
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        for years in range(11, 16):
+            assert result[f"debt_to_avg_earnings_{years}"] is None
+            assert result[f"debt_to_avg_fcf_{years}"] is None
+
+    def test_thin_history_keeps_short_windows_and_the_loose_ratio(self, ipca_stub):
+        for year in [2023, 2024, 2025]:
+            for quarter_end in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="FEW3", end_date=date(year, *quarter_end),
+                    net_income=2_500_000_000,
+                )
+        BalanceSheet.objects.create(
+            ticker="FEW3", end_date=date(2025, 9, 30),
+            total_debt=300_000_000_000, stockholders_equity=200_000_000_000,
+        )
+        result = compute_company_indicators("FEW3", market_cap=400_000_000_000)
+        assert result["debt_to_avg_earnings"] == Decimal("30")
+        assert result["debt_to_avg_earnings_3"] == Decimal("30")
+        assert result["debt_to_avg_earnings_5"] is None
+        assert result["debt_to_avg_earnings_10"] is None
+
+    def test_windows_do_not_need_a_market_cap(
+        self, earnings_petr4, cashflow_petr4, balance_petr4,
+    ):
+        result = compute_company_indicators("PETR4", market_cap=None)
+        assert result["debt_to_avg_earnings_5"] == Decimal("30")
+        assert result["debt_to_avg_fcf_5"] == Decimal("37.5")
+
+    def test_loss_making_window_is_none_without_hiding_longer_windows(self, ipca_stub):
+        # 2025 loses 10B; 2016–2024 earn 10B/year. The 1-year window has a
+        # negative average; the 10-year window is still positive.
+        for year in range(2016, 2025):
+            for quarter_end in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="LOSS3", end_date=date(year, *quarter_end),
+                    net_income=2_500_000_000,
+                )
+        for quarter_end in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker="LOSS3", end_date=date(2025, *quarter_end),
+                net_income=-2_500_000_000,
+            )
+        BalanceSheet.objects.create(
+            ticker="LOSS3", end_date=date(2025, 9, 30),
+            total_debt=300_000_000_000, stockholders_equity=200_000_000_000,
+        )
+        result = compute_company_indicators("LOSS3", market_cap=400_000_000_000)
+        assert result["debt_to_avg_earnings_1"] is None
+        # (9 × 10B − 10B) / 10 = 8B/year → 300B / 8B = 37.5
+        assert result["debt_to_avg_earnings_10"] == Decimal("37.5")
+
+    def test_ratio_too_large_for_the_snapshot_column_is_none(self, ipca_stub):
+        # Earnings of 1 unit a quarter against 300B of debt: the ratio has
+        # more digits than the snapshot column holds, so it is reported as
+        # None instead of crashing the whole snapshot write.
+        for quarter_end in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+            QuarterlyEarnings.objects.create(
+                ticker="TINY3", end_date=date(2025, *quarter_end), net_income=1,
+            )
+        BalanceSheet.objects.create(
+            ticker="TINY3", end_date=date(2025, 9, 30),
+            total_debt=300_000_000_000, stockholders_equity=200_000_000_000,
+        )
+        result = compute_company_indicators("TINY3", market_cap=400_000_000_000)
+        assert result["debt_to_avg_earnings_1"] is None
+        assert result["debt_to_avg_earnings"] is None
+
+    def test_no_balance_sheet_means_no_windows(self, earnings_petr4, cashflow_petr4):
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        assert result["debt_to_avg_earnings_5"] is None
+        assert result["debt_to_avg_fcf_5"] is None
+
+    def test_snapshot_row_accepts_every_window_field(
+        self, earnings_petr4, cashflow_petr4, balance_petr4,
+    ):
+        result = compute_company_indicators("PETR4", market_cap=400_000_000_000)
+        snapshot = IndicatorSnapshot.objects.create(ticker="PETR4", **result)
+        snapshot.refresh_from_db()
+        assert snapshot.debt_to_avg_earnings_5 == Decimal("30")
+        assert snapshot.debt_to_avg_fcf_15 is None
