@@ -42,6 +42,9 @@ export interface ScreenerRow {
 
 export interface ScreenerResponse {
   count: number;
+  /** The debt-coverage window the backend applied, null for the loose
+   * up-to-10-year default. */
+  debt_window_years: number | null;
   results: ScreenerRow[];
 }
 
@@ -73,6 +76,11 @@ export interface ScreenerFilters {
   sort: string;
   limit: number;
   offset: number;
+  /** Years behind debt_to_avg_earnings / debt_to_avg_fcf (1..15). Both
+   * ratios then average exactly that many years and are empty for
+   * companies without that history. Null or undefined keeps the loose
+   * up-to-10-year average. */
+  debtWindowYears?: number | null;
 }
 
 /**
@@ -95,6 +103,9 @@ export function buildScreenerQuery(filters: ScreenerFilters): string {
   }
   if (filters.countries && filters.countries.length > 0) {
     params.set("country", filters.countries.join(","));
+  }
+  if (filters.debtWindowYears !== undefined && filters.debtWindowYears !== null) {
+    params.set("debt_window_years", String(filters.debtWindowYears));
   }
   params.set("sort", filters.sort);
   params.set("limit", String(filters.limit));

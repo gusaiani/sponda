@@ -523,6 +523,9 @@ export interface TranslationDictionary {
   "screener.min": string;
   "screener.max": string;
   "screener.clear_filters": string;
+  "screener.debt_window": string;
+  "screener.debt_window_loose": string;
+  "screener.debt_window_years": string;
   "screener.no_results": string;
   "screener.loading": string;
   "screener.results_count": string;

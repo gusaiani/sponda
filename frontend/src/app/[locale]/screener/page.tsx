@@ -35,6 +35,12 @@ import {
   SaveFilterPresetModal,
 } from "../../../components/ScreenerFilterPresets";
 import { boundFromSliderChange } from "../../../utils/screenerBounds";
+import {
+  DEBT_WINDOW_OPTIONS,
+  debtCoverageLabel,
+  isDebtCoverageIndicator,
+  parseDebtWindowYears,
+} from "../../../utils/debtWindowLabel";
 import { useSavedScreenerFilters } from "../../../hooks/useSavedScreenerFilters";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { useAuth } from "../../../hooks/useAuth";
@@ -62,9 +68,9 @@ const PAGE_SIZE = 20;
 
 /** Screener indicators the user can set min/max bounds on. Market cap is
  * intentionally absent: users rank by it (default sort) and read it from
- * the table, but shouldn't screen by it as a numeric bound. 5y variants
- * of PE/PFCF and debt-ratio filters aren't in the backend yet — add them
- * here once the fields exist. */
+ * the table, but shouldn't screen by it as a numeric bound. The debt
+ * ratios are windowed by the "debt coverage window" select rather than
+ * by extra keys; 5y variants of PE/PFCF aren't in the UI yet. */
 type FilterIndicator = Exclude<ScreenerIndicator, "market_cap">;
 
 /** Display order for the filter UI (inline strip + popover), ordered so
@@ -94,7 +100,9 @@ const EXTRA_INDICATORS: readonly FilterIndicator[] = FILTER_ORDER.slice(5);
 
 /** Human-readable labels for each indicator, shown in the filter panel
  * and as table column headers. Kept here (rather than in a shared util)
- * because the screener is currently the only consumer. */
+ * because the screener is currently the only consumer. The two debt
+ * ratios get their horizon appended at render time (see indicatorLabel),
+ * since it follows the applied debt-coverage window. */
 const INDICATOR_LABELS: Record<ScreenerIndicator, string> = {
   pe10: "PE10",
   pfcf10: "PFCF10",
@@ -104,10 +112,21 @@ const INDICATOR_LABELS: Record<ScreenerIndicator, string> = {
   debt_ex_lease_to_equity: "Debt (ex-lease) / Eq.",
   liabilities_to_equity: "Liab / Equity",
   current_ratio: "Current Ratio",
-  debt_to_avg_earnings: "Debt / Avg Earnings (10y)",
-  debt_to_avg_fcf: "Debt / Avg FCF (10y)",
+  debt_to_avg_earnings: "Debt / Avg Earnings",
+  debt_to_avg_fcf: "Debt / Avg FCF",
   market_cap: "Market Cap",
 };
+
+function indicatorLabel(
+  indicator: ScreenerIndicator,
+  debtWindowYears: number | null | undefined,
+): string {
+  const baseLabel = INDICATOR_LABELS[indicator];
+  if (isDebtCoverageIndicator(indicator)) {
+    return debtCoverageLabel(baseLabel, debtWindowYears);
+  }
+  return baseLabel;
+}
 
 /** Slider track bounds for each indicator. All start at 0 — the value
  * investor screener isn't meant to surface companies with negative
@@ -250,6 +269,7 @@ export default function ScreenerPage() {
     sort: "-market_cap",
     limit: PAGE_SIZE,
     offset: 0,
+    debtWindowYears: null,
   });
   const { data: availableSectors = [] } = useScreenerSectors();
   const { data: availableCountries = [] } = useScreenerCountries();
@@ -337,6 +357,7 @@ export default function ScreenerPage() {
 
   const { data, isLoading, isFetching } = useScreener(appliedFilters);
   const rows = data?.results ?? [];
+  const debtWindowYears = appliedFilters.debtWindowYears ?? null;
   const totalCount = data?.count ?? 0;
   const hasMore = rows.length < totalCount;
 
@@ -413,6 +434,20 @@ export default function ScreenerPage() {
       bounds: {},
       sectors: [],
       countries: [],
+      debtWindowYears: null,
+      limit: PAGE_SIZE,
+      offset: 0,
+    }));
+  }
+
+  /** The window is applied on change, like the sector and country selects:
+   * one deliberate pick is one request. Bounds already drafted on the two
+   * debt ratios stay put and simply re-run against the new horizon. */
+  function handleDebtWindowChange(event: React.ChangeEvent<HTMLSelectElement>) {
+    const nextWindow = parseDebtWindowYears(event.target.value);
+    setAppliedFilters((previous) => ({
+      ...previous,
+      debtWindowYears: nextWindow,
       limit: PAGE_SIZE,
       offset: 0,
     }));
@@ -600,7 +635,7 @@ export default function ScreenerPage() {
                 data-inline-indicator={indicator}
               >
                 <label className="screener-inline-label">
-                  {INDICATOR_LABELS[indicator]}
+                  {indicatorLabel(indicator, debtWindowYears)}
                 </label>
                 <DualRangeSlider
                   trackMin={sliderBounds.trackMin}
@@ -645,13 +680,34 @@ export default function ScreenerPage() {
             aria-label={t("screener.more_filters")}
           >
             <div className="screener-popover-filters">
+              <div className="screener-inline-filter">
+                <label
+                  className="screener-inline-label"
+                  htmlFor="screener-debt-window"
+                >
+                  {t("screener.debt_window")}
+                </label>
+                <select
+                  id="screener-debt-window"
+                  className="screener-debt-window-select"
+                  value={debtWindowYears === null ? "" : String(debtWindowYears)}
+                  onChange={handleDebtWindowChange}
+                >
+                  <option value="">{t("screener.debt_window_loose")}</option>
+                  {DEBT_WINDOW_OPTIONS.map((years) => (
+                    <option key={years} value={String(years)}>
+                      {t("screener.debt_window_years", { years })}
+                    </option>
+                  ))}
+                </select>
+              </div>
               {popoverIndicators.map((indicator) => {
                 const bound = draftBounds[indicator] ?? {};
                 const sliderBounds = INDICATOR_BOUNDS[indicator];
                 return (
                   <div key={indicator} className="screener-inline-filter">
                     <label className="screener-inline-label">
-                      {INDICATOR_LABELS[indicator]}
+                      {indicatorLabel(indicator, debtWindowYears)}
                     </label>
                     <DualRangeSlider
                       trackMin={sliderBounds.trackMin}
@@ -703,7 +759,7 @@ export default function ScreenerPage() {
                     className="compare-sortable-th"
                     onClick={() => toggleSort(indicator)}
                   >
-                    {INDICATOR_LABELS[indicator]} {sortIndicator(indicator)}
+                    {indicatorLabel(indicator, debtWindowYears)} {sortIndicator(indicator)}
                   </th>
                 ))}
               </tr>
