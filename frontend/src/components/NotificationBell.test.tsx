@@ -1,16 +1,22 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NotificationBell } from "./NotificationBell";
 import type { SocialNotification } from "../hooks/useSocialNotifications";
+import type { AlertNotificationEntry } from "../hooks/useAlertNotifications";
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  mockAlertData.current = { count: 0, notifications: [] };
 });
 
 const mockSocialData = vi.hoisted(() => ({
   current: { unread_count: 0, notifications: [] as SocialNotification[] },
+}));
+
+const mockAlertData = vi.hoisted(() => ({
+  current: { count: 0, notifications: [] as AlertNotificationEntry[] },
 }));
 
 vi.mock("next/link", () => ({
@@ -25,8 +31,8 @@ vi.mock("../hooks/useAuth", () => ({
 
 vi.mock("../hooks/useAlertNotifications", () => ({
   useAlertNotifications: () => ({
-    count: 0,
-    notifications: [],
+    count: mockAlertData.current.count,
+    notifications: mockAlertData.current.notifications,
     dismissNotification: { mutate: vi.fn(), isPending: false },
     dismissAllNotifications: { mutate: vi.fn(), isPending: false },
   }),
@@ -56,7 +62,8 @@ vi.mock("./social/UserAvatar", () => ({
 
 vi.mock("../i18n", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, params?: Record<string, string | number>) =>
+      params ? `${key}:${JSON.stringify(params)}` : key,
     locale: "pt",
   }),
 }));
@@ -72,6 +79,32 @@ function makeFollowRequest(readAt: string | null): SocialNotification {
     created_at: "2026-07-19T10:00:00Z",
   };
 }
+
+function makeAlertNotification(overrides: Partial<AlertNotificationEntry> = {}): AlertNotificationEntry {
+  return {
+    id: 1,
+    ticker: "PETR4",
+    indicator: "market_cap",
+    comparison: "lte",
+    threshold: "3000000000.000000",
+    indicator_value: "2900000000.000000",
+    dismissed_at: null,
+    created_at: "2026-07-19T10:00:00Z",
+    ...overrides,
+  };
+}
+
+describe("NotificationBell triggered alert rows", () => {
+  it("formats a market cap threshold in millions of the ticker's currency", () => {
+    mockAlertData.current = { count: 1, notifications: [makeAlertNotification()] };
+    render(<NotificationBell />);
+    fireEvent.click(screen.getByRole("button", { name: "notifications.title" }));
+
+    const row = document.querySelector(".notification-bell-status") as HTMLElement;
+    expect(row.textContent).toContain("R$ 3.000M");
+    expect(row.textContent).not.toContain("3000000000");
+  });
+});
 
 describe("NotificationBell visibility", () => {
   it("renders nothing when there are no notifications at all", () => {

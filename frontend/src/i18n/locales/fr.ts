@@ -549,6 +549,7 @@ export const fr: TranslationDictionary = {
   "alerts.comparison_lte": "At or below",
   "alerts.comparison_gte": "At or above",
   "alerts.threshold": "Threshold",
+  "alerts.threshold_millions": "Threshold ({currency} millions)",
   "alerts.active": "Active",
   "alerts.paused": "Paused",
   "alerts.save": "Save alert",
