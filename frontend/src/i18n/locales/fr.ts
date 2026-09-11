@@ -31,6 +31,7 @@ export const fr: TranslationDictionary = {
   "header.currency": "Devise",
   "header.reportsIn": "publie en",
   "fundamentals.fxWarning": "Les multiples historiques de ce graphique utilisent le taux de change actuel. Nous n'avons pas encore d'historique de taux de change année par année pour tous les points affichés ; les années anciennes sont donc une approximation.",
+  "fundamentals.shareCountWarning": "Les points les plus anciens de ce graphique valorisent l'année avec le nombre d'actions actuel. Nous n'avons pas d'historique de capitalisation boursière publiée pour cette valeur, donc les rachats et les émissions d'actions depuis lors ne sont pas pris en compte.",
 
   /* ── Footer ── */
   "footer.tool_by": "Un outil de",

@@ -18,7 +18,7 @@ from .fx import (
     get_fx_rates_for_dates,
 )
 from .models import FxRate
-from .price_history import close_on_or_before, closes_by_date
+from .price_history import closes_by_date, market_caps_by_date, value_on_or_before
 from .pe10 import get_annual_earnings
 from .pfcf10 import get_annual_fcf
 
@@ -92,15 +92,20 @@ def compute_multiples_history(
     historical_prices: list[dict],
     market_cap: float,
     current_price: float,
+    historical_market_caps: list[dict] | None = None,
 ) -> dict:
     """Build price history + year-end rolling P/L10 and P/FCL10 multiples.
 
-    Shares outstanding is approximated as market_cap / current_price.
-    This is a common approximation — share count changes over time are
-    not accounted for, but the resulting multiples are directionally correct.
+    Each year is valued at the market cap reported on the day that year
+    closed, read from ``historical_market_caps``. Two cases fall outside that
+    series: years older than it reaches, and B3 tickers, for which no source
+    publishes it. Those years fall back to today's share count, approximated
+    as market_cap / current_price, and ``share_count_approximated`` says so.
+    That fallback understates every past year of a company that has bought
+    back stock, which is why the reported cap is preferred wherever it exists.
 
     For each year Y, the multiple is:
-        P/L10  = (year_end_price x shares, in reporting currency) / avg(net_income from Y-9..Y)
+        P/L10  = (year_end market cap, in reporting currency) / avg(net_income from Y-9..Y)
         P/FCL10 = same with FCF
 
     Returns:
@@ -110,16 +115,19 @@ def compute_multiples_history(
             "pl": [{"year": 2015, "value": 8.5}, ...],
             "pfcl": [{"year": 2015, "value": 10.2}, ...]
           },
-          "currency_warning": bool   # True if any historical year fell back to current FX
+          "currency_warning": bool,          # True if any year fell back to current FX
+          "share_count_approximated": bool   # True if any year fell back to today's share count
         }
     """
     if not current_price or current_price <= 0:
         return {
             "prices": [], "multiples": {"pl": [], "pfcl": []},
-            "currency_warning": False,
+            "currency_warning": False, "share_count_approximated": False,
         }
 
     shares_outstanding = market_cap / current_price
+    reported_caps = market_caps_by_date(historical_market_caps or [])
+    share_count_approximated = False
 
     listing_currency = _resolve_listing_currency(ticker)
     reported_currency = _resolve_reported_currency(ticker)
@@ -164,7 +172,7 @@ def compute_multiples_history(
 
     year_end_prices: dict[int, float] = {}
     for year in plotted_years:
-        price = close_on_or_before(
+        price = value_on_or_before(
             closes, year_close_dates.get(year) or date_type(year, 12, 31),
         )
         if price is not None:
@@ -188,10 +196,18 @@ def compute_multiples_history(
         }
 
     def _market_cap_in_reported(year: int, year_end_price: float) -> float | None:
-        """Translate a year-end market cap from listing into reported currency.
-        Sets `currency_warning` when we fall back to the latest FX rate."""
-        nonlocal currency_warning
-        listing_cap = year_end_price * shares_outstanding
+        """The year-end market cap, translated from listing into reported currency.
+
+        Sets `share_count_approximated` when the reported cap series does not
+        reach the year and today's share count has to stand in for it, and
+        `currency_warning` when we fall back to the latest FX rate.
+        """
+        nonlocal currency_warning, share_count_approximated
+        year_end = year_close_dates.get(year) or date_type(year, 12, 31)
+        listing_cap = value_on_or_before(reported_caps, year_end)
+        if listing_cap is None:
+            listing_cap = year_end_price * shares_outstanding
+            share_count_approximated = True
         if not needs_fx_translation:
             return listing_cap
         fx = fx_by_year.get(year)
@@ -231,4 +247,5 @@ def compute_multiples_history(
             "pfcl": pfcl_multiples,
         },
         "currency_warning": currency_warning,
+        "share_count_approximated": share_count_approximated,
     }

@@ -31,6 +31,7 @@ export interface TranslationDictionary {
   "header.currency": string;
   "header.reportsIn": string;
   "fundamentals.fxWarning": string;
+  "fundamentals.shareCountWarning": string;
 
   /* ── Footer ── */
   "footer.tool_by": string;

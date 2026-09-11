@@ -151,6 +151,29 @@ def fetch_historical_prices(ticker: str) -> list[dict]:
     return data
 
 
+def fetch_historical_market_caps(ticker: str) -> list[dict]:
+    """Fetch the market cap FMP observed on each trading day for a US ticker.
+
+    This is what lets the multiples chart value a past year without applying
+    today's share count to it. Taking the reported cap also sidesteps splits:
+    the price series this endpoint's sibling returns is split-adjusted, so
+    pairing it with an as-reported share count would need a split history.
+
+    Requests from 2000-01-01 with the row cap raised, since the default
+    truncates well inside the 80-quarter statement window. An empty list is
+    how FMP answers for a symbol it does not cover, and is raised rather than
+    returned so the circuit breaker and `ProviderError` mapping behave as
+    they do for every other fetch.
+    """
+    data = _get(
+        "/stable/historical-market-capitalization",
+        params={"symbol": ticker, "from": "2000-01-01", "limit": 100000},
+    )
+    if not isinstance(data, list) or not data:
+        raise FMPError(f"No historical market cap data for ticker {ticker}")
+    return data
+
+
 def fetch_historical_fx(currency: str) -> list[dict]:
     """Fetch daily USD↔<currency> close rates from 2010-01-01 onward.
 

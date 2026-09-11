@@ -2,6 +2,7 @@
 import calendar
 from datetime import datetime, timezone
 
+import pytest
 
 from quotes.multiples_history import _rolling_avg, compute_multiples_history
 
@@ -62,14 +63,14 @@ class TestComputeMultiplesHistory:
         result = compute_multiples_history("FAKE3", [], 1000.0, 0)
         assert result == {
             "prices": [], "multiples": {"pl": [], "pfcl": []},
-            "currency_warning": False,
+            "currency_warning": False, "share_count_approximated": False,
         }
 
     def test_returns_empty_when_price_negative(self, db):
         result = compute_multiples_history("FAKE3", [], 1000.0, -10.0)
         assert result == {
             "prices": [], "multiples": {"pl": [], "pfcl": []},
-            "currency_warning": False,
+            "currency_warning": False, "share_count_approximated": False,
         }
 
     def test_converts_unix_timestamps_to_iso_dates(self, db):
@@ -258,3 +259,190 @@ class TestMultiplesHistoryCrossCurrency:
         prices = _make_monthly_prices({y: 30.0 for y in range(2020, 2026)})
         result = compute_multiples_history("PETR4", prices, 585_000_000_000.0, 45.0)
         assert result.get("currency_warning") is False
+
+
+def _make_monthly_market_caps(year_caps: dict[int, float]) -> list[dict]:
+    """A market cap series in the shape providers normalize FMP's into.
+
+    One point per month, mirroring `_make_monthly_prices`, so a year end
+    always has a cap to read at or before it.
+    """
+    points = []
+    for year in sorted(year_caps):
+        market_cap = year_caps[year]
+        for month in range(1, 13):
+            last_day = calendar.monthrange(year, month)[1]
+            moment = datetime(year, month, last_day, tzinfo=timezone.utc)
+            points.append({"date": int(moment.timestamp()), "marketCap": market_cap})
+    return points
+
+
+class TestMultiplesHistoryUsesReportedMarketCap:
+    """Applying today's share count to every past year understates the market
+    cap of any company that has bought back stock, so the chart makes the past
+    look cheaper than it was. When a reported historical market cap series is
+    available, every plotted year must be valued from it instead."""
+
+    def test_uses_real_market_cap_when_the_series_covers_the_year(self, sample_earnings):
+        years = range(2016, 2026)
+        prices = _make_monthly_prices({year: 30.0 for year in years})
+        market_cap = 585_000_000_000.0
+        current_price = 45.0
+        approximated_shares = market_cap / current_price
+
+        approximated = compute_multiples_history(
+            "PETR4", prices, market_cap, current_price,
+        )
+        # Exactly twice the cap the share-count approximation would infer,
+        # so every multiple built from the real series must double.
+        real_caps = _make_monthly_market_caps(
+            {year: 2 * 30.0 * approximated_shares for year in years},
+        )
+        reported = compute_multiples_history(
+            "PETR4", prices, market_cap, current_price,
+            historical_market_caps=real_caps,
+        )
+
+        approximated_by_year = {
+            point["year"]: point["value"] for point in approximated["multiples"]["pl"]
+        }
+        compared = 0
+        for point in reported["multiples"]["pl"]:
+            if point["value"] is None:
+                continue
+            assert point["value"] == pytest.approx(
+                2 * approximated_by_year[point["year"]], rel=1e-3,
+            )
+            compared += 1
+        assert compared > 0
+
+    def test_falls_back_to_todays_share_count_before_the_series_starts(self, sample_earnings):
+        years = range(2016, 2026)
+        prices = _make_monthly_prices({year: 30.0 for year in years})
+        market_cap = 585_000_000_000.0
+        current_price = 45.0
+
+        approximated = compute_multiples_history(
+            "PETR4", prices, market_cap, current_price,
+        )
+        # The cap series only reaches back to 2024; older years keep the old math.
+        late_caps = _make_monthly_market_caps({2024: 9.9e11, 2025: 9.9e11})
+        reported = compute_multiples_history(
+            "PETR4", prices, market_cap, current_price,
+            historical_market_caps=late_caps,
+        )
+
+        approximated_by_year = {
+            point["year"]: point["value"] for point in approximated["multiples"]["pl"]
+        }
+        compared = 0
+        for point in reported["multiples"]["pl"]:
+            if point["year"] >= 2024 or point["value"] is None:
+                continue
+            assert point["value"] == approximated_by_year[point["year"]]
+            compared += 1
+        assert compared > 0
+        assert reported["share_count_approximated"] is True
+
+    def test_share_count_approximated_is_false_when_every_year_had_a_real_cap(self, sample_earnings):
+        years = range(2016, 2026)
+        prices = _make_monthly_prices({year: 30.0 for year in years})
+        caps = _make_monthly_market_caps({year: 4.0e11 for year in years})
+
+        result = compute_multiples_history(
+            "PETR4", prices, 585_000_000_000.0, 45.0, historical_market_caps=caps,
+        )
+
+        assert result["share_count_approximated"] is False
+
+    def test_share_count_approximated_is_true_when_no_series_is_given(self, sample_earnings):
+        prices = _make_monthly_prices({year: 30.0 for year in range(2016, 2026)})
+
+        result = compute_multiples_history("PETR4", prices, 585_000_000_000.0, 45.0)
+
+        assert result["share_count_approximated"] is True
+
+    def test_a_year_is_priced_and_capped_on_the_day_it_closed(self, db):
+        """Salesforce's fiscal 2025 closed on 31 January 2025. Reading its cap
+        at the following 31 December would carry eleven months of market
+        movement into that year, the same misalignment the price lookup fixed."""
+        from datetime import date as date_type
+        from quotes.models import QuarterlyEarnings
+
+        QuarterlyEarnings.objects.bulk_create([
+            QuarterlyEarnings(
+                ticker="CRM", end_date=end_date, fiscal_year=2025,
+                net_income=1_000_000_000,
+            )
+            for end_date in [
+                date_type(2024, 4, 30), date_type(2024, 7, 31),
+                date_type(2024, 10, 31), date_type(2025, 1, 31),
+            ]
+        ])
+
+        prices = _make_monthly_prices({2024: 250.0, 2025: 250.0})
+        cap_at_fiscal_close = 2.0e11
+        caps = [
+            {"date": int(datetime(2025, 1, 31, tzinfo=timezone.utc).timestamp()),
+             "marketCap": cap_at_fiscal_close},
+            {"date": int(datetime(2025, 12, 31, tzinfo=timezone.utc).timestamp()),
+             "marketCap": 10 * cap_at_fiscal_close},
+        ]
+
+        result = compute_multiples_history(
+            "CRM", prices, 3.0e11, 250.0, historical_market_caps=caps,
+        )
+
+        pl_2025 = next(p for p in result["multiples"]["pl"] if p["year"] == 2025)
+        # Four quarters of 1B against a 200B cap, before inflation adjustment.
+        assert pl_2025["value"] == pytest.approx(50.0, rel=0.5)
+        assert pl_2025["value"] < 100.0
+
+    def test_fx_translation_applies_to_a_real_market_cap(self, db):
+        from datetime import date as date_type
+        from decimal import Decimal
+        from quotes.models import FxRate, QuarterlyEarnings, Ticker
+
+        Ticker.objects.create(symbol="NVO", name="Novo Nordisk", reported_currency="DKK")
+        for year in (2023, 2024, 2025):
+            FxRate.objects.create(
+                base_currency="USD", quote_currency="DKK",
+                date=date_type(year, 12, 31), rate=Decimal("7.00"),
+            )
+            # Small enough earnings that the multiple lands in the tens, so
+            # the two-decimal rounding on the result cannot swallow the
+            # doubling this test is measuring.
+            for month, day in [(3, 31), (6, 30), (9, 30), (12, 31)]:
+                QuarterlyEarnings.objects.create(
+                    ticker="NVO", end_date=date_type(year, month, day),
+                    net_income=250_000_000,
+                )
+
+        prices = _make_monthly_prices({2023: 100.0, 2024: 110.0, 2025: 120.0})
+        market_cap = 1_950_000_000.0
+        current_price = 120.0
+        approximated_shares = market_cap / current_price
+        caps = _make_monthly_market_caps({
+            2023: 2 * 100.0 * approximated_shares,
+            2024: 2 * 110.0 * approximated_shares,
+            2025: 2 * 120.0 * approximated_shares,
+        })
+
+        approximated = compute_multiples_history(
+            "NVO", prices, market_cap, current_price,
+        )
+        reported = compute_multiples_history(
+            "NVO", prices, market_cap, current_price, historical_market_caps=caps,
+        )
+
+        approximated_2025 = next(
+            p for p in approximated["multiples"]["pl"] if p["year"] == 2025
+        )
+        reported_2025 = next(
+            p for p in reported["multiples"]["pl"] if p["year"] == 2025
+        )
+        assert reported_2025["value"] == pytest.approx(
+            2 * approximated_2025["value"], rel=1e-3,
+        )
+        assert reported["currency_warning"] is False
+        assert reported["share_count_approximated"] is False

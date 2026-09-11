@@ -878,6 +878,56 @@ MOCK_HISTORICAL_PRICES = [
 ]
 
 
+class TestMultiplesHistoryMarketCapSeries:
+    """The reported market cap series replaces the share-count approximation
+    for US listings. It is an enrichment, not a dependency: the prices have
+    already been fetched by the time it is asked for, and the approximation
+    is a working fallback, so a failure there must not cost the chart."""
+
+    @patch("quotes.views.fetch_historical_market_caps")
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_a_market_cap_failure_does_not_break_the_chart(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        mock_caps, api_client, sample_earnings, mock_brapi_quote,
+    ):
+        from quotes.providers import ProviderError
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.return_value = MOCK_HISTORICAL_PRICES
+        mock_caps.side_effect = ProviderError("Service unavailable")
+
+        response = api_client.get("/api/quote/PETR4/multiples-history/")
+
+        assert response.status_code == 200
+        assert response.json()["share_count_approximated"] is True
+
+    @patch("quotes.views.fetch_historical_market_caps")
+    @patch("quotes.views.fetch_historical_prices")
+    @patch("quotes.views.fetch_quote")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_a_reported_series_clears_the_approximation_flag(
+        self, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_quote, mock_hist,
+        mock_caps, api_client, sample_earnings, mock_brapi_quote,
+    ):
+        mock_quote.return_value = mock_brapi_quote
+        mock_hist.return_value = MOCK_HISTORICAL_PRICES
+        mock_caps.return_value = [
+            {"date": point["date"], "marketCap": 585000000000}
+            for point in MOCK_HISTORICAL_PRICES
+        ]
+
+        response = api_client.get("/api/quote/PETR4/multiples-history/")
+
+        assert response.status_code == 200
+        mock_caps.assert_called_once_with("PETR4")
+        assert response.json()["share_count_approximated"] is False
+
+
 class TestMultiplesHistoryEndpoint:
     @patch("quotes.views.fetch_historical_prices")
     @patch("quotes.views.fetch_quote")

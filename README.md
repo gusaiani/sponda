@@ -524,6 +524,14 @@ Note `refresh_indicator_snapshots` skips tickers whose `Ticker.market_cap` is nu
 
 **Multiples-history chart:** when historical FX is unavailable for any year on the chart, falls back to the latest FX rate uniformly and surfaces `currency_warning=true` in the API; the frontend renders a banner explaining the approximation.
 
+**Historical market cap on the multiples chart:** each year on the P/L10 and P/FCL10 chart is valued at the market cap FMP reported on the day that fiscal year closed, fetched from `/stable/historical-market-capitalization` (`quotes/fmp.py:fetch_historical_market_caps`, routed through `providers.fetch_historical_market_caps`, cached for an hour). Where that series does not reach, the year falls back to the old approximation, today's share count applied backwards, and the API answers `share_count_approximated=true` so the frontend can say so.
+
+Why it matters: the fallback understates the past of any company that has bought back stock, because a smaller share count today, applied to a past year's price, produces a smaller cap than that year really had. Measured against the reported series, AAPL and ORCL at 2010-12-31 came out 43% low, HD 39% low, IBM 23% low. The chart made the past look cheaper than it was, which made today look expensive by comparison.
+
+Why not the SEC: `dei:EntityCommonStockSharesOutstanding` is as-reported, not split-adjusted (Apple's series jumps 6.95x in 2014 and 3.98x in 2020), while FMP's price series is split-adjusted and serves no unadjusted variant. Pairing the two would need a full split history, which the SEC publishes only as narrative text in 8-Ks. FMP's endpoint returns the finished cap with no share-count or split arithmetic anywhere.
+
+No B3 source exists: the endpoint answers empty for `PETR4` and errors for `PETR4.SA`, so `providers.fetch_historical_market_caps` returns `None` for Brazilian tickers without a call, and their years keep the approximation with the flag set. A provider failure on this call does not fail the request either; the prices are already in hand and the approximation is a working fallback.
+
 Full design rationale, scope, and the bug it fixes: `docs/cross-currency-fix-plan.md`.
 
 ## Comparison chart (expanded indicator view)

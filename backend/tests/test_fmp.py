@@ -15,6 +15,7 @@ from quotes.fmp import (
     fetch_cash_flow_statements,
     fetch_dividends,
     fetch_etf_symbols,
+    fetch_historical_market_caps,
     fetch_historical_prices,
     fetch_income_statements,
     fetch_quote,
@@ -246,6 +247,44 @@ class TestFetchHistoricalPrices:
         mock_get.return_value = []
         with pytest.raises(FMPError, match="No historical"):
             fetch_historical_prices("FAKE")
+
+
+MOCK_HISTORICAL_MARKET_CAPS = [
+    {"symbol": "AAPL", "date": "2009-12-31", "marketCap": 191347420320},
+    {"symbol": "AAPL", "date": "2009-12-30", "marketCap": 192109760640},
+]
+
+
+class TestFetchHistoricalMarketCaps:
+    """FMP publishes the market cap it observed on each trading day, which is
+    the finished answer the multiples chart needs. Deriving it from a share
+    count instead would require a split history FMP's adjusted price series
+    has already been through."""
+
+    @patch("quotes.fmp._get")
+    def test_returns_the_reported_series(self, mock_get):
+        mock_get.return_value = MOCK_HISTORICAL_MARKET_CAPS
+        result = fetch_historical_market_caps("AAPL")
+        assert len(result) == 2
+        assert result[0]["marketCap"] == 191347420320
+
+    @patch("quotes.fmp._get")
+    def test_requests_full_history_from_2000(self, mock_get):
+        mock_get.return_value = MOCK_HISTORICAL_MARKET_CAPS
+        fetch_historical_market_caps("AAPL")
+        mock_get.assert_called_once_with(
+            "/stable/historical-market-capitalization",
+            params={"symbol": "AAPL", "from": "2000-01-01", "limit": 100000},
+        )
+
+    @patch("quotes.fmp._get")
+    def test_raises_on_empty_results(self, mock_get):
+        """An empty list is how FMP answers for a symbol it does not cover.
+        Raising keeps the circuit breaker and ProviderError mapping identical
+        to every other fetch, instead of caching an empty series for an hour."""
+        mock_get.return_value = []
+        with pytest.raises(FMPError, match="No historical market cap"):
+            fetch_historical_market_caps("FAKE")
 
 
 class TestFetchDividends:

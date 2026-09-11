@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { MultiplesHistoryResult } from "../hooks/useMultiplesHistory";
-import { useTranslation } from "../i18n";
+import { useTranslation, type TranslationKey } from "../i18n";
 import { formatNumber } from "../utils/format";
 import "../styles/chart.css";
 
@@ -32,6 +32,20 @@ export function formatPriceDate(dateString: string, dateLocale: string = "pt"): 
   const months = dateLocale === "pt" ? MONTH_NAMES_PT : MONTH_NAMES_EN;
   const [year, month] = dateString.split("-");
   return `${months[parseInt(month, 10) - 1]}/${year.slice(2)}`;
+}
+
+/** Which approximation notices the chart owes the reader, in display order.
+ *
+ * Both flags are independent: a cross-currency listing can fall back on FX,
+ * a listing with no reported market cap history falls back on today's share
+ * count, and a B3 ADR can do both. */
+export function chartNoticeKeys(
+  data: Pick<MultiplesHistoryResult, "currency_warning" | "share_count_approximated">,
+): TranslationKey[] {
+  const keys: TranslationKey[] = [];
+  if (data.currency_warning) keys.push("fundamentals.fxWarning");
+  if (data.share_count_approximated) keys.push("fundamentals.shareCountWarning");
+  return keys;
 }
 
 /** Calculate a tick interval that shows roughly 8 ticks on the X axis. */
@@ -158,11 +172,11 @@ export function MultiplesChart({ data }: Props) {
 
   return (
     <div className="chart-container">
-      {data.currency_warning && (
-        <div className="chart-fx-warning" role="note">
-          {t("fundamentals.fxWarning")}
+      {chartNoticeKeys(data).map((noticeKey) => (
+        <div key={noticeKey} className="chart-fx-warning" role="note">
+          {t(noticeKey)}
         </div>
-      )}
+      ))}
       {/* Price panel */}
       <div className="chart-panel">
         <div className="chart-panel-title">

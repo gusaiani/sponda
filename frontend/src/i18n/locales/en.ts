@@ -31,6 +31,7 @@ export const en: TranslationDictionary = {
   "header.currency": "Currency",
   "header.reportsIn": "reports in",
   "fundamentals.fxWarning": "Historical multiples on this chart use today's exchange rate. We do not yet have year-by-year FX history for every year shown, so older points are an approximation.",
+  "fundamentals.shareCountWarning": "Older points on this chart value the year with today's share count. We do not have a reported market cap history for this listing, so buybacks and share issues since then are not reflected.",
 
   /* ── Footer ── */
   "footer.tool_by": "A tool by",

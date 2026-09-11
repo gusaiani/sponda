@@ -8,6 +8,7 @@ from quotes.providers import (
     is_brazilian_ticker,
     fetch_quote,
     fetch_dividends,
+    fetch_historical_market_caps,
     fetch_historical_prices,
     sync_earnings,
     sync_cash_flows,
@@ -205,3 +206,44 @@ class TestProviderLayerCaching:
         result = fetch_quote("VALE3")
         assert result["symbol"] == "VALE3"
         assert mock_brapi.fetch_quote.call_count == 2
+
+
+class TestFetchHistoricalMarketCapsRouting:
+    """The reported historical market cap is what lets the multiples chart
+    value a past year without applying today's share count to it. FMP serves
+    it for US listings; no B3 source exists, so Brazilian tickers get None
+    rather than a fabricated series."""
+
+    @patch("quotes.providers.fmp")
+    def test_routes_us_ticker_to_fmp_and_normalizes(self, mock_fmp):
+        mock_fmp.fetch_historical_market_caps.return_value = [
+            {"symbol": "AAPL", "date": "2009-12-31", "marketCap": 191_347_420_320},
+        ]
+        result = fetch_historical_market_caps("AAPL")
+        mock_fmp.fetch_historical_market_caps.assert_called_once_with("AAPL")
+        assert len(result) == 1
+        assert result[0]["marketCap"] == 191_347_420_320
+        assert isinstance(result[0]["date"], int)  # unix timestamp
+
+    @patch("quotes.providers.fmp")
+    def test_brazilian_tickers_get_no_market_cap_series(self, mock_fmp):
+        assert fetch_historical_market_caps("PETR4") is None
+        mock_fmp.fetch_historical_market_caps.assert_not_called()
+
+    @patch("quotes.providers.fmp")
+    def test_wraps_provider_failures_as_provider_error(self, mock_fmp):
+        from quotes import fmp as real_fmp
+        mock_fmp.FMPError = real_fmp.FMPError
+        mock_fmp.fetch_historical_market_caps.side_effect = real_fmp.FMPError("boom")
+        with pytest.raises(ProviderError):
+            fetch_historical_market_caps("AAPL")
+
+    @patch("quotes.providers.fmp")
+    def test_caches_result(self, mock_fmp):
+        mock_fmp.fetch_historical_market_caps.return_value = [
+            {"date": "2025-01-02", "marketCap": 1_000},
+        ]
+        first = fetch_historical_market_caps("MSFT")
+        second = fetch_historical_market_caps("MSFT")
+        assert first == second
+        mock_fmp.fetch_historical_market_caps.assert_called_once()

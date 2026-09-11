@@ -31,6 +31,7 @@ export const pt: TranslationDictionary = {
   "header.currency": "Moeda",
   "header.reportsIn": "relatórios em",
   "fundamentals.fxWarning": "Os múltiplos históricos neste gráfico usam o câmbio atual. Ainda não temos histórico de câmbio ano a ano para todos os pontos exibidos, portanto os anos mais antigos são uma aproximação.",
+  "fundamentals.shareCountWarning": "Os pontos mais antigos deste gráfico avaliam o ano com a quantidade de ações de hoje. Não temos histórico de valor de mercado reportado para este papel, portanto recompras e emissões desde então não estão refletidas.",
 
   /* ── Footer ── */
   "footer.tool_by": "Uma ferramenta da",
