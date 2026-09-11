@@ -74,12 +74,12 @@ def test_cache_keys_match_the_keys_the_views_actually_use():
     """Pinning the literals: drift here silently breaks invalidation."""
     assert fundamentals_cache_key(TICKER) == "fundamentals:GGBR3"
     assert pe10_cache_key(TICKER) == "pe10:GGBR3"
-    assert multiples_history_cache_key(TICKER) == "multiples_history:GGBR3"
+    assert multiples_history_cache_key(TICKER) == "multiples_history:v2:GGBR3"
 
 
 def test_cache_keys_are_uppercased():
     assert statement_derived_cache_keys("ggbr3") == [
-        "fundamentals:GGBR3", "pe10:GGBR3", "multiples_history:GGBR3",
+        "fundamentals:GGBR3", "pe10:GGBR3", "multiples_history:v2:GGBR3",
     ]
 
 

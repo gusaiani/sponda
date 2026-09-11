@@ -35,7 +35,7 @@ from .company_snapshot import (
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .lookup_enforcement import LookupQuotaEnforcedView
-from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_market_caps, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .tasks import refresh_provider_data
 from .indicators import compute_company_indicators
 from .screener import ScreenerError, run_screener
@@ -1288,11 +1288,20 @@ class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        # An enrichment, not a dependency: the prices are already in hand and
+        # today's share count is a working fallback, so a failure here costs
+        # accuracy on the older years, not the chart.
+        try:
+            historical_market_caps = fetch_historical_market_caps(ticker)
+        except ProviderError:
+            historical_market_caps = None
+
         result = compute_multiples_history(
             ticker=ticker,
             historical_prices=historical,
             market_cap=float(market_cap),
             current_price=current_price,
+            historical_market_caps=historical_market_caps,
         )
 
         cache.set(cache_key, result, MULTIPLES_HISTORY_CACHE_TTL)

@@ -31,6 +31,7 @@ export const it: TranslationDictionary = {
   "header.currency": "Valuta",
   "header.reportsIn": "rendiconta in",
   "fundamentals.fxWarning": "I multipli storici in questo grafico usano il tasso di cambio attuale. Non disponiamo ancora dello storico dei tassi anno per anno per tutti i punti mostrati; gli anni più vecchi sono quindi un'approssimazione.",
+  "fundamentals.shareCountWarning": "I punti più vecchi di questo grafico valutano l'anno con il numero di azioni attuale. Non abbiamo lo storico della capitalizzazione di mercato riportata per questo titolo, quindi i riacquisti e le emissioni successive non sono riflessi.",
 
   /* ── Footer ── */
   "footer.tool_by": "Uno strumento di",

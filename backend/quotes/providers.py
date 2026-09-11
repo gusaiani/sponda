@@ -66,6 +66,26 @@ def _normalize_fmp_historical_prices(fmp_prices: list[dict]) -> list[dict]:
     return normalized
 
 
+def _normalize_fmp_market_caps(fmp_market_caps: list[dict]) -> list[dict]:
+    """Normalize FMP historical market caps to the dated shape prices use.
+
+    Wanted: {"date": <unix_timestamp>, "marketCap": float}
+    FMP:    {"symbol": "AAPL", "date": "2009-12-31", "marketCap": 191347420320}
+    """
+    normalized = []
+    for point in fmp_market_caps:
+        date_string = point.get("date")
+        market_cap = point.get("marketCap")
+        if date_string is None or market_cap is None:
+            continue
+        unix_timestamp = int(datetime.strptime(date_string, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
+        normalized.append({
+            "date": unix_timestamp,
+            "marketCap": market_cap,
+        })
+    return normalized
+
+
 def _normalize_fmp_dividends(fmp_dividends: list[dict]) -> dict:
     """Normalize FMP dividends to BRAPI format.
 
@@ -177,6 +197,32 @@ def fetch_historical_prices(ticker: str):
         except fmp.FMPError as error:
             raise ProviderError(str(error)) from error
 
+    cache.set(cache_key, result, PROVIDER_HISTORICAL_CACHE_TTL)
+    return result
+
+
+def fetch_historical_market_caps(ticker: str) -> list[dict] | None:
+    """The market cap reported on each trading day, or None when unavailable.
+
+    No B3 source publishes this: FMP's endpoint answers empty for PETR4 and
+    errors for PETR4.SA. Brazilian tickers therefore get None, and the
+    multiples chart keeps approximating their share count and says so, rather
+    than being handed a series that does not exist.
+    """
+    if is_brazilian_ticker(ticker):
+        return None
+
+    cache_key = f"provider:historical_market_cap:{ticker.upper()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        raw = fmp.fetch_historical_market_caps(ticker)
+    except fmp.FMPError as error:
+        raise ProviderError(str(error)) from error
+
+    result = _normalize_fmp_market_caps(raw)
     cache.set(cache_key, result, PROVIDER_HISTORICAL_CACHE_TTL)
     return result
 

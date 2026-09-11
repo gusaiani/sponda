@@ -20,6 +20,12 @@ interface MultiplesHistoryResult {
    * the chart, so the helper fell back to the latest FX rate uniformly. The
    * UI should warn the user that older points are an approximation. */
   currency_warning?: boolean;
+  /** Set when at least one year on the chart had no reported market cap and
+   * was valued with today's share count instead. Buybacks and share issues
+   * since that year are therefore not reflected in its multiple. Currently
+   * true for B3 tickers, for which no source publishes the series, and for
+   * years older than the series reaches. */
+  share_count_approximated?: boolean;
 }
 
 export async function fetchMultiplesHistory(

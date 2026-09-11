@@ -10,7 +10,7 @@ from .fx import (
 )
 from .fiscal_year import fiscal_year_of
 from .inflation import get_inflation_adjustment_factors
-from .price_history import close_on_or_before, closes_by_date
+from .price_history import closes_by_date, value_on_or_before
 from .models import BalanceSheet, FxRate, QuarterlyCashFlow, QuarterlyEarnings
 
 
@@ -421,7 +421,7 @@ def compute_fundamentals(
         else:
             close_date = close_date_by_year.get(year)
             year_end_price = (
-                close_on_or_before(closes, close_date) if close_date else None
+                value_on_or_before(closes, close_date) if close_date else None
             )
             year_market_cap_listing = (
                 round(year_end_price * shares_outstanding, 2)

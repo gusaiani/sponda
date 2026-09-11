@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatPriceDate, calculateTickInterval } from "./MultiplesChart";
+import { formatPriceDate, calculateTickInterval, chartNoticeKeys } from "./MultiplesChart";
 
 describe("formatPriceDate", () => {
   it('converts "2024-01-31" to "jan/24"', () => {
@@ -35,5 +35,32 @@ describe("calculateTickInterval", () => {
     expect(calculateTickInterval(80)).toBe(10);
     expect(calculateTickInterval(100)).toBe(12);
     expect(calculateTickInterval(120)).toBe(15);
+  });
+});
+
+describe("chartNoticeKeys", () => {
+  it("returns no notice when neither approximation was used", () => {
+    expect(
+      chartNoticeKeys({ currency_warning: false, share_count_approximated: false }),
+    ).toEqual([]);
+  });
+
+  it("warns when the share count had to stand in for a reported market cap", () => {
+    expect(
+      chartNoticeKeys({ currency_warning: false, share_count_approximated: true }),
+    ).toEqual(["fundamentals.shareCountWarning"]);
+  });
+
+  it("warns about FX and the share count independently", () => {
+    expect(
+      chartNoticeKeys({ currency_warning: true, share_count_approximated: false }),
+    ).toEqual(["fundamentals.fxWarning"]);
+    expect(
+      chartNoticeKeys({ currency_warning: true, share_count_approximated: true }),
+    ).toEqual(["fundamentals.fxWarning", "fundamentals.shareCountWarning"]);
+  });
+
+  it("treats a response without the flags as carrying no warning", () => {
+    expect(chartNoticeKeys({})).toEqual([]);
   });
 });
