@@ -1,0 +1,16 @@
+[Unit]
+Description=Prune Sponda stored daily closes for companies nobody reads
+After=network-online.target postgresql.service
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/sponda/backend
+EnvironmentFile=/opt/sponda/.env
+Environment=DJANGO_SETTINGS_MODULE=config.settings.production
+ExecStart=/opt/sponda/venv/bin/python manage.py prune_daily_prices
+Restart=on-failure
+RestartSec=120
