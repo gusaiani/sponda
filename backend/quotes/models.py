@@ -303,6 +303,16 @@ class Ticker(models.Model):
             "back through."
         ),
     )
+    statements_last_attempted_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text=(
+            "When the weekly refresh last asked the provider for this "
+            "company's statements, whatever came back. 1,848 companies in "
+            "the universe have no statements at all, and asking again every "
+            "week costs 0.74 GB to re-confirm absence; see "
+            "quotes.statement_refresh."
+        ),
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:

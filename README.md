@@ -2621,10 +2621,24 @@ on OHLC, VWAP and change columns.
 **Statements only for companies that reported.** `quotes.statement_refresh`
 decides who is worth refetching: whoever appears on FMP's earnings
 calendar since the last run, whoever has no statements at all, and
-whoever has gone six months without a new quarter (retried monthly, for
-the thinly traded issuers the calendar misses). Brazilian tickers are
+whoever has gone six months without a new quarter. Brazilian tickers are
 always included · their statements come from BRAPI and CVM, which is a
 different quota.
+
+The last two groups are large · 1,848 companies in the universe have no
+statements at all, because FMP has none to give · so they wait out a
+retry window of about a month, jittered per company from a hash of the
+symbol so that everything resynced on one Sunday does not come due
+together on a later one. Nothing is written when a provider has nothing,
+so the attempt itself is stamped on
+`Ticker.statements_last_attempted_at`; without it, "never asked" and
+"asked, and there is nothing there" look identical and cost 0.74 GB a
+week to tell apart.
+
+Measured against the live universe on 13 September 2026: 18,158
+companies, 963 on the calendar, 3,116 selected for a refetch. 1.2 GB a
+run rather than 7.1 GB, falling further once the first run stamps the
+companies that have nothing.
 
 **A staleness window that tracks the reporting calendar.** Quarterly
 statements used to go stale after 24 hours, so a company viewed on two

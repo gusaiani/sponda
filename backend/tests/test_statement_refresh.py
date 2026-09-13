@@ -11,10 +11,12 @@ from datetime import date, timedelta
 import pytest
 from django.utils import timezone
 
-from quotes.models import QuarterlyEarnings
+from quotes.models import QuarterlyEarnings, Ticker
 from quotes.statement_refresh import (
     LONG_OVERDUE_DAYS,
+    MAX_RETRY_JITTER_DAYS,
     RETRY_OVERDUE_AFTER_DAYS,
+    retry_window_days,
     symbols_needing_statement_refresh,
 )
 
@@ -116,7 +118,73 @@ class TestSelectionIsOneQuery:
         for index in range(20):
             store_earnings(f"SYM{index}", date.today() - timedelta(days=30))
 
-        with django_assert_num_queries(1):
+        # One aggregate over the statements, one over the tickers.
+        with django_assert_num_queries(2):
             symbols_needing_statement_refresh(
                 [f"SYM{index}" for index in range(20)], recent_reporters=set()
             )
+
+
+class TestRetryBackoff:
+    """A company FMP has no statements for is not a company that needs
+    asking again every week. 1,848 of the 18,158 in the universe have no
+    statements at all, which is 0.74 GB a week spent confirming absence.
+    The attempt itself is recorded, so the retry can be spaced out.
+    """
+
+    def test_a_cold_company_attempted_recently_waits(self):
+        Ticker.objects.create(
+            symbol="EMPTY",
+            name="No statements anywhere",
+            statements_last_attempted_at=timezone.now() - timedelta(days=1),
+        )
+
+        needing = symbols_needing_statement_refresh(["EMPTY"], recent_reporters=set())
+
+        assert needing == set()
+
+    def test_a_cold_company_never_attempted_is_refreshed(self):
+        Ticker.objects.create(symbol="EMPTY", name="No statements anywhere")
+
+        needing = symbols_needing_statement_refresh(["EMPTY"], recent_reporters=set())
+
+        assert needing == {"EMPTY"}
+
+    def test_a_cold_company_past_the_backoff_is_retried(self):
+        Ticker.objects.create(
+            symbol="EMPTY",
+            name="No statements anywhere",
+            statements_last_attempted_at=timezone.now()
+            - timedelta(days=RETRY_OVERDUE_AFTER_DAYS + MAX_RETRY_JITTER_DAYS + 1),
+        )
+
+        needing = symbols_needing_statement_refresh(["EMPTY"], recent_reporters=set())
+
+        assert needing == {"EMPTY"}
+
+    def test_a_company_that_reported_is_refreshed_whatever_the_backoff_says(self):
+        Ticker.objects.create(
+            symbol="EMPTY",
+            name="No statements anywhere",
+            statements_last_attempted_at=timezone.now(),
+        )
+
+        needing = symbols_needing_statement_refresh(
+            ["EMPTY"], recent_reporters={"EMPTY"}
+        )
+
+        assert needing == {"EMPTY"}
+
+    def test_the_retry_is_spread_out_rather_than_landing_as_one_herd(self):
+        """Without jitter, everything resynced on one Sunday comes due again
+        on the same later Sunday, turning a saving into a monthly spike."""
+        windows = {
+            retry_window_days(f"SYM{index}") for index in range(200)
+        }
+
+        assert len(windows) > 1
+        assert min(windows) >= RETRY_OVERDUE_AFTER_DAYS
+        assert max(windows) <= RETRY_OVERDUE_AFTER_DAYS + MAX_RETRY_JITTER_DAYS
+
+    def test_the_window_for_one_company_does_not_move_between_runs(self):
+        assert retry_window_days("AAPL") == retry_window_days("AAPL")
