@@ -144,13 +144,15 @@ class TestFetchHistoricalPricesRouting:
         fetch_historical_prices("WEGE3")
         mock_brapi.fetch_historical_prices.assert_called_once_with("WEGE3")
 
-    @patch("quotes.providers.fmp")
-    def test_routes_us_ticker_to_fmp_and_normalizes(self, mock_fmp):
-        mock_fmp.fetch_historical_prices.return_value = [
-            {"date": "2025-01-02", "close": 178.5},
+    @patch("quotes.providers.price_store")
+    def test_routes_us_ticker_to_the_stored_series(self, mock_price_store):
+        """US history is served from Postgres and topped up there, so the
+        provider layer asks the store rather than the FMP client."""
+        mock_price_store.get_daily_closes.return_value = [
+            {"date": 1735776000, "adjustedClose": 178.5},
         ]
         result = fetch_historical_prices("META")
-        mock_fmp.fetch_historical_prices.assert_called_once_with("META")
+        mock_price_store.get_daily_closes.assert_called_once_with("META")
         assert len(result) == 1
         assert result[0]["adjustedClose"] == 178.5
         assert isinstance(result[0]["date"], int)  # unix timestamp

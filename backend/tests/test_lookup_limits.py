@@ -11,12 +11,29 @@ frontend opens the auth modal (anon) or email-verification prompt
 """
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from django.contrib.auth import get_user_model
-from django.test import Client
+from django.contrib.auth.models import AnonymousUser
+from django.test import Client, RequestFactory
 from django.utils import timezone
 
+from quotes.client_ip import client_ip_hash
+from quotes.lookup_quota import would_exceed_limit
 from quotes.models import LookupLog
+
+
+def _request_for(user):
+    request = RequestFactory().get("/api/quote/PETR4/")
+    request.user = user
+    return request
+
+
+def _anonymous_request():
+    request = RequestFactory().get("/api/quote/PETR4/")
+    request.user = AnonymousUser()
+    return request
 
 User = get_user_model()
 
@@ -411,3 +428,70 @@ class TestQuotaViewEndpoint:
         body = api_client.get("/api/auth/quota/", HTTP_CF_CONNECTING_IP=ip).json()
         assert body["used"] == 1
         assert body["remaining"] == 19
+
+
+class TestEnumerationVelocityCap:
+    """A verified account has no daily cap, which is how one scraper walked
+    6,653 companies in a single day and spent most of a month's provider
+    quota. Unlimited stays unlimited over a day; what it cannot be is
+    instant, so the number of *new* companies an hour is capped for every
+    tier. No one reading company pages comes close.
+    """
+
+    def test_a_verified_user_past_the_hourly_burst_is_blocked(
+        self, db, verified_user, settings
+    ):
+        settings.SPONDA_LOOKUPS_PER_HOUR = 3
+        request = _request_for(verified_user)
+        for index in range(3):
+            LookupLog.objects.create(user=verified_user, ticker=f"SYM{index}")
+
+        assert would_exceed_limit(request, "NEWONE") is True
+
+    def test_a_ticker_already_seen_is_still_free(self, db, verified_user, settings):
+        settings.SPONDA_LOOKUPS_PER_HOUR = 3
+        request = _request_for(verified_user)
+        for index in range(3):
+            LookupLog.objects.create(user=verified_user, ticker=f"SYM{index}")
+
+        assert would_exceed_limit(request, "SYM1") is False
+
+    def test_lookups_from_an_earlier_hour_do_not_count(
+        self, db, verified_user, settings
+    ):
+        settings.SPONDA_LOOKUPS_PER_HOUR = 3
+        request = _request_for(verified_user)
+        for index in range(3):
+            entry = LookupLog.objects.create(user=verified_user, ticker=f"SYM{index}")
+            LookupLog.objects.filter(pk=entry.pk).update(
+                timestamp=timezone.now() - timedelta(hours=2)
+            )
+
+        assert would_exceed_limit(request, "NEWONE") is False
+
+    def test_a_normal_session_is_untouched(self, db, verified_user, settings):
+        settings.SPONDA_LOOKUPS_PER_HOUR = 120
+        request = _request_for(verified_user)
+        for index in range(30):
+            LookupLog.objects.create(user=verified_user, ticker=f"SYM{index}")
+
+        assert would_exceed_limit(request, "NEWONE") is False
+
+    def test_zero_disables_the_burst_cap(self, db, verified_user, settings):
+        settings.SPONDA_LOOKUPS_PER_HOUR = 0
+        request = _request_for(verified_user)
+        for index in range(50):
+            LookupLog.objects.create(user=verified_user, ticker=f"SYM{index}")
+
+        assert would_exceed_limit(request, "NEWONE") is False
+
+    def test_the_daily_cap_still_applies_to_anonymous_clients(self, db, settings):
+        settings.SPONDA_LOOKUPS_PER_HOUR = 500
+        settings.SPONDA_ANON_LOOKUPS_PER_DAY = 2
+        request = _anonymous_request()
+        for index in range(2):
+            LookupLog.objects.create(
+                ticker=f"SYM{index}", ip_hash=client_ip_hash(request)
+            )
+
+        assert would_exceed_limit(request, "NEWONE") is True

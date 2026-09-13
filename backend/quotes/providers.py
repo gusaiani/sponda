@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from django.core.cache import cache
 
-from quotes import brapi, fmp
+from quotes import brapi, fmp, price_store
 
 PROVIDER_QUOTE_CACHE_TTL = 15 * 60  # 15 minutes
 PROVIDER_HISTORICAL_CACHE_TTL = 60 * 60  # 1 hour
@@ -44,26 +44,6 @@ def _normalize_fmp_quote(raw_quote: dict) -> dict:
     raw_quote["longName"] = raw_quote.get("name", "")
     raw_quote["shortName"] = raw_quote.get("symbol", "")
     return raw_quote
-
-
-def _normalize_fmp_historical_prices(fmp_prices: list[dict]) -> list[dict]:
-    """Normalize FMP historical prices to BRAPI format.
-
-    BRAPI: {"date": <unix_timestamp>, "adjustedClose": float}
-    FMP:   {"date": "2025-01-02", "close": float}
-    """
-    normalized = []
-    for point in fmp_prices:
-        date_string = point.get("date")
-        close = point.get("close")
-        if date_string is None or close is None:
-            continue
-        unix_timestamp = int(datetime.strptime(date_string, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
-        normalized.append({
-            "date": unix_timestamp,
-            "adjustedClose": close,
-        })
-    return normalized
 
 
 def _normalize_fmp_market_caps(fmp_market_caps: list[dict]) -> list[dict]:
@@ -191,9 +171,11 @@ def fetch_historical_prices(ticker: str):
         except brapi.BRAPIError as error:
             raise ProviderError(str(error)) from error
     else:
+        # US history is stored in Postgres and topped up there, so the
+        # twenty-five year series is fetched from FMP once per ticker
+        # rather than once per cache miss.
         try:
-            raw = fmp.fetch_historical_prices(ticker)
-            result = _normalize_fmp_historical_prices(raw)
+            result = price_store.get_daily_closes(ticker)
         except fmp.FMPError as error:
             raise ProviderError(str(error)) from error
 

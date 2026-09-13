@@ -97,8 +97,12 @@ def test_weekly_fundamentals_refresh_clears_the_statement_caches(warm_statement_
     with patch("quotes.management.commands.refresh_snapshot_fundamentals.sync_earnings"), \
          patch("quotes.management.commands.refresh_snapshot_fundamentals.sync_cash_flows"), \
          patch("quotes.management.commands.refresh_snapshot_fundamentals.sync_balance_sheets"), \
-         patch("quotes.management.commands.refresh_snapshot_fundamentals.fetch_quote") as quote:
-        quote.return_value = {"marketCap": 400_000_000, "regularMarketPrice": 20.0}
+         patch("quotes.management.commands.refresh_snapshot_fundamentals.fetch_recent_reporters") as reporters, \
+         patch("quotes.management.commands.refresh_snapshot_fundamentals.fetch_quotes_batch") as quotes:
+        reporters.return_value = set()
+        quotes.return_value = {
+            TICKER: {"marketCap": 400_000_000, "regularMarketPrice": 20.0}
+        }
         call_command("refresh_snapshot_fundamentals", "--ticker", TICKER)
 
     assert_caches_cleared(warm_statement_caches)
