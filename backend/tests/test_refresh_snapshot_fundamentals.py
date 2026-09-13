@@ -294,3 +294,55 @@ class TestStatementRefreshIsSelective:
 
         mock_batch.assert_called_once()
         assert sorted(mock_batch.call_args.args[0]) == ["AAPL", "MSFT"]
+
+
+@pytest.mark.django_db
+class TestAttemptsAreRecorded:
+    """Nothing is written when a provider has no statements for a company,
+    so without a stamp the weekly job cannot tell "never asked" from
+    "asked, and there is nothing there"."""
+
+    @patch(f"{COMMAND_MODULE}.fetch_recent_reporters")
+    @patch(f"{COMMAND_MODULE}.sync_balance_sheets")
+    @patch(f"{COMMAND_MODULE}.sync_cash_flows")
+    @patch(f"{COMMAND_MODULE}.sync_earnings")
+    @patch(f"{COMMAND_MODULE}.fetch_quotes_batch")
+    def test_a_refetched_company_gets_an_attempt_stamp(
+        self, mock_batch, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_reporters,
+        us_universe,
+    ):
+        mock_reporters.return_value = {"AAPL"}
+        mock_batch.return_value = {
+            "AAPL": batch_quote(100_000_000_000, 10.0),
+            "MSFT": batch_quote(100_000_000_000, 10.0),
+        }
+
+        call_command("refresh_snapshot_fundamentals", stdout=StringIO(), stderr=StringIO())
+
+        assert Ticker.objects.get(symbol="AAPL").statements_last_attempted_at is not None
+        assert Ticker.objects.get(symbol="MSFT").statements_last_attempted_at is None
+
+    @patch(f"{COMMAND_MODULE}.fetch_recent_reporters")
+    @patch(f"{COMMAND_MODULE}.sync_balance_sheets")
+    @patch(f"{COMMAND_MODULE}.sync_cash_flows")
+    @patch(f"{COMMAND_MODULE}.sync_earnings")
+    @patch(f"{COMMAND_MODULE}.fetch_quotes_batch")
+    def test_a_company_the_provider_has_nothing_for_is_still_stamped(
+        self, mock_batch, mock_sync_e, mock_sync_cf, mock_sync_bs, mock_reporters,
+        db, ipca_zero,
+    ):
+        from quotes.providers import ProviderError
+
+        Ticker.objects.create(
+            symbol="EMPTY", name="Nothing anywhere", type="stock",
+            market_cap=1_000_000,
+        )
+        mock_reporters.return_value = set()
+        mock_sync_e.side_effect = ProviderError("No results for ticker EMPTY")
+        mock_sync_cf.side_effect = ProviderError("No results for ticker EMPTY")
+        mock_sync_bs.side_effect = ProviderError("No results for ticker EMPTY")
+        mock_batch.return_value = {"EMPTY": batch_quote(1_000_000, 1.0)}
+
+        call_command("refresh_snapshot_fundamentals", stdout=StringIO(), stderr=StringIO())
+
+        assert Ticker.objects.get(symbol="EMPTY").statements_last_attempted_at is not None

@@ -172,9 +172,23 @@ class Command(MonitoredCommand):
             return {}
 
     def _resync_statements(self, symbol: str) -> None:
-        """Each sync is independent · one failing must not skip the other two."""
-        for sync in (sync_earnings, sync_cash_flows, sync_balance_sheets):
+        """Each sync is independent · one failing must not skip the other two.
+
+        The attempt is stamped whatever comes back. A provider with nothing
+        for this company writes no rows, so without the stamp the next run
+        cannot tell "never asked" from "asked, and there is nothing there",
+        and 1,848 such companies would be asked again every week.
+        """
+        syncs = (
+            ("sync_earnings", sync_earnings),
+            ("sync_cash_flows", sync_cash_flows),
+            ("sync_balance_sheets", sync_balance_sheets),
+        )
+        for sync_name, sync in syncs:
             try:
                 sync(symbol)
             except ProviderError as error:
-                logger.warning("%s failed for %s: %s", sync.__name__, symbol, error)
+                logger.warning("%s failed for %s: %s", sync_name, symbol, error)
+        Ticker.objects.filter(symbol=symbol).update(
+            statements_last_attempted_at=timezone.now()
+        )
