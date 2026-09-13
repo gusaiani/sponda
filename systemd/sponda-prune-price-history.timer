@@ -1,5 +1,5 @@
 [Unit]
-Description=Prune Sponda stored daily closes weekly, Sundays at 04:45 UTC
+Description=Prune Sponda stored price history weekly, Sundays at 04:45 UTC
 
 [Timer]
 OnCalendar=Sun *-*-* 04:45:00

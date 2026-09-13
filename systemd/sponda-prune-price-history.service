@@ -1,5 +1,5 @@
 [Unit]
-Description=Prune Sponda stored daily closes for companies nobody reads
+Description=Prune Sponda stored price and market cap history for companies nobody reads
 After=network-online.target postgresql.service
 Wants=network-online.target
 StartLimitIntervalSec=600
@@ -11,6 +11,6 @@ User=root
 WorkingDirectory=/opt/sponda/backend
 EnvironmentFile=/opt/sponda/.env
 Environment=DJANGO_SETTINGS_MODULE=config.settings.production
-ExecStart=/opt/sponda/venv/bin/python manage.py prune_daily_prices
+ExecStart=/opt/sponda/venv/bin/python manage.py prune_price_history
 Restart=on-failure
 RestartSec=120

@@ -203,26 +203,34 @@ def fetch_recent_reporters(start_date: date, end_date: date) -> set[str]:
     }
 
 
-def fetch_historical_market_caps(ticker: str) -> list[dict]:
-    """Fetch the market cap FMP observed on each trading day for a US ticker.
+def fetch_historical_market_caps(
+    ticker: str, start_date: date | None = None
+) -> list[dict]:
+    """The market cap FMP observed on each trading day, from `start_date`.
 
     This is what lets the multiples chart value a past year without applying
     today's share count to it. Taking the reported cap also sidesteps splits:
     the price series this endpoint's sibling returns is split-adjusted, so
     pairing it with an as-reported share count would need a split history.
 
-    Requests from 2000-01-01 with the row cap raised, since the default
-    truncates well inside the 80-quarter statement window. An empty list is
-    how FMP answers for a symbol it does not cover, and is raised rather than
-    returned so the circuit breaker and `ProviderError` mapping behave as
-    they do for every other fetch.
+    Defaults to 2000-01-01 with the row cap raised, since the default
+    truncates well inside the 80-quarter statement window. Callers topping
+    up a stored series pass the day they already have.
+
+    An empty list is returned rather than raised. It is both how FMP answers
+    for a symbol it does not cover and how it answers a top-up over a
+    weekend, and only the caller knows which of those it is looking at.
     """
     data = _get(
         "/stable/historical-market-capitalization",
-        params={"symbol": ticker, "from": "2000-01-01", "limit": 100000},
+        params={
+            "symbol": ticker,
+            "from": (start_date or DEFAULT_HISTORY_START).isoformat(),
+            "limit": 100000,
+        },
     )
-    if not isinstance(data, list) or not data:
-        raise FMPError(f"No historical market cap data for ticker {ticker}")
+    if not isinstance(data, list):
+        return []
     return data
 
 
