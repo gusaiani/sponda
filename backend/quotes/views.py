@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 import sentry_sdk
 from django.conf import settings
 from django.core.cache import cache
-from django.db.models import Case, F, IntegerField, Q, Value, When
+from django.db.models import Case, F, IntegerField, Max, Q, Value, When
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status
@@ -784,6 +784,42 @@ def _persist_snapshot_from_view(
         logger.warning("Ticker.market_cap persist failed for %s: %s", ticker, error)
 
 
+# A company files four times a year, so rechecking its statements daily
+# spent three provider calls per company per day to confirm that nothing
+# had happened. A week is the normal gap between rechecks.
+STATEMENT_RECHECK_DAYS = 7
+
+# Until the next filing is plausibly late. A quarter is 91 days and the
+# filing lands a few weeks after it closes, so once the newest quarter on
+# file is older than this the next one could arrive any day.
+FILING_OVERDUE_DAYS = 95
+STATEMENT_RECHECK_DAYS_WHEN_FILING_DUE = 1
+
+
+def _statement_recheck_days(ticker: str) -> int:
+    """How long stored statements stay fresh for this company.
+
+    Keyed off the newest quarter on file rather than the clock: a company
+    that reported last month has nothing new to say for another two, while
+    one whose last quarter closed in March is overdue and worth watching
+    daily.
+
+    The income statement stands in for all three series. It is the one that
+    always exists, the three are written together by the same refresh, and
+    a company reports them on one filing date.
+    """
+    newest_quarter_end = QuarterlyEarnings.objects.filter(ticker=ticker).aggregate(
+        Max("end_date")
+    )["end_date__max"]
+    if newest_quarter_end is None:
+        return STATEMENT_RECHECK_DAYS_WHEN_FILING_DUE
+
+    days_since_quarter_end = (timezone.localdate() - newest_quarter_end).days
+    if days_since_quarter_end >= FILING_OVERDUE_DAYS:
+        return STATEMENT_RECHECK_DAYS_WHEN_FILING_DUE
+    return STATEMENT_RECHECK_DAYS
+
+
 def _ensure_fresh_data(ticker: str) -> None:
     """Stale-while-revalidate: keep the request path fast.
 
@@ -792,16 +828,17 @@ def _ensure_fresh_data(ticker: str) -> None:
     * **Cold** — at least one of earnings/cash flows/balance sheets has no
       row yet. The user has nothing to render, so we run the missing
       provider syncs synchronously here.
-    * **Stale** — every series has data but at least one is older than
-      24h. Enqueue a Celery refresh and return immediately. The user sees
-      yesterday's data; tomorrow's request sees today's.
-    * **Fresh** — all three series are younger than 24h. No-op.
+    * **Stale** — every series has data but at least one was fetched
+      before the recheck window (see `_statement_recheck_days`). Enqueue a
+      Celery refresh and return immediately. The user sees the stored data;
+      the next request sees the refreshed data.
+    * **Fresh** — all three series are inside the window. No-op.
 
     The reported_currency backfill nudge stays synchronous: the field
     feeds the very next computation in this request, and is a one-shot
     fix-up rather than a steady-state cost.
     """
-    cutoff = timezone.now() - timedelta(hours=24)
+    cutoff = timezone.now() - timedelta(days=_statement_recheck_days(ticker))
 
     needs_currency_backfill = (
         not is_brazilian_ticker(ticker)

@@ -1,32 +1,48 @@
-"""Weekly full-statement refresh for :class:`IndicatorSnapshot`.
+"""Weekly statement refresh and full snapshot recompute.
 
-For each ticker with a market cap, resyncs quarterly earnings, cash flows,
-and balance sheets, then recomputes the complete indicator set. This is the
-expensive half of the two-cadence refresh strategy — ~4 API calls per ticker,
-so it runs weekly rather than daily.
+Two jobs, with very different costs:
 
-The price-only half (``refresh_snapshot_prices``) runs daily to keep
-valuation multiples fresh without hammering the statement endpoints.
+* **Refetch statements.** Expensive · three provider calls and about
+  400 KB per company. Only companies that could plausibly have filed
+  something get this, which FMP's earnings calendar answers in one call.
+  Refetching all 18,158 every week spent 7.3 GB to discover that almost
+  nobody had reported, and half of every run was rejected by the provider's
+  rate limit on the way.
+* **Recompute snapshots.** Cheap · database reads and arithmetic. Every
+  company gets this on every run, because the inflation indices and the
+  price the multiples are taken against move even when the filings do not.
+
+Quotes are read in batches of a hundred rather than one call per company:
+the same 18,158 market caps for 182 calls instead of 18,158.
 """
 import logging
+from datetime import timedelta
+
+from django.utils import timezone
 
 from config.monitored_command import MonitoredCommand
 from quotes.derived_data import invalidate_statement_caches
+from quotes.fmp import FMPError, fetch_recent_reporters
 from quotes.indicators import compute_company_indicators
 from quotes.models import IndicatorSnapshot, Ticker
 from quotes.providers import (
     ProviderError,
-    fetch_quote,
+    fetch_quotes_batch,
     sync_balance_sheets,
     sync_cash_flows,
     sync_earnings,
 )
+from quotes.statement_refresh import symbols_needing_statement_refresh
 
 logger = logging.getLogger(__name__)
 
+# How far back the earnings calendar is read. The command runs weekly, so a
+# fortnight covers the window plus a missed run, and costs about 100 KB.
+CALENDAR_LOOKBACK_DAYS = 14
+
 
 class Command(MonitoredCommand):
-    help = "Resync quarterly statements and recompute IndicatorSnapshot (weekly cadence)"
+    help = "Refetch statements for companies that reported, recompute every snapshot"
     sentry_monitor_slug = "sponda-refresh-snapshot-fundamentals"
 
     def add_arguments(self, parser):
@@ -42,10 +58,20 @@ class Command(MonitoredCommand):
             default=None,
             help="Maximum number of tickers to refresh (default: no limit)",
         )
+        parser.add_argument(
+            "--all",
+            action="store_true",
+            default=False,
+            help=(
+                "Refetch statements for every ticker, ignoring the earnings "
+                "calendar. The old behaviour, kept for backfills."
+            ),
+        )
 
     def run(self, *args, **options):
         ticker_filter = options.get("ticker")
         batch_limit = options.get("limit")
+        refresh_every_statement = options.get("all", False)
 
         tickers = Ticker.objects.exclude(market_cap__isnull=True).exclude(market_cap=0)
         if ticker_filter:
@@ -54,36 +80,36 @@ class Command(MonitoredCommand):
         if batch_limit is not None:
             tickers = tickers[:batch_limit]
 
-        total = tickers.count()
-        if total == 0:
+        symbols = list(tickers.values_list("symbol", flat=True))
+        if not symbols:
             self.stdout.write("No tickers to refresh.")
             return
 
+        symbols_to_resync = self._select_statement_resyncs(
+            symbols, refresh_every_statement
+        )
         self.stdout.write(
-            f"Refreshing fundamentals + snapshots for {total} ticker(s)..."
+            f"Recomputing snapshots for {len(symbols)} ticker(s); "
+            f"refetching statements for {len(symbols_to_resync)}."
         )
 
+        quotes = self._fetch_quotes(symbols)
         success_count = 0
         failure_count = 0
 
-        for ticker_row in tickers:
-            symbol = ticker_row.symbol
+        for symbol in symbols:
             try:
-                # Resync quarterly statements first. Each sync is independent —
-                # a failure in one shouldn't abort the other two.
-                for sync in (sync_earnings, sync_cash_flows, sync_balance_sheets):
-                    try:
-                        sync(symbol)
-                    except ProviderError as error:
-                        logger.warning(
-                            "%s failed for %s: %s", sync.__name__, symbol, error,
-                        )
+                if symbol in symbols_to_resync:
+                    self._resync_statements(symbol)
 
-                # Then fetch fresh quote + recompute full indicator set.
-                quote = fetch_quote(symbol)
+                quote = quotes.get(symbol)
+                if quote is None:
+                    logger.warning("No quote returned for %s in batch response", symbol)
+                    failure_count += 1
+                    continue
+
                 market_cap = quote.get("marketCap")
                 current_price = quote.get("regularMarketPrice")
-
                 if not market_cap:
                     continue
 
@@ -110,6 +136,45 @@ class Command(MonitoredCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Refreshed {success_count} snapshots, {failure_count} failures "
-                f"(total processed: {total})."
+                f"(total processed: {len(symbols)})."
             )
         )
+
+    def _select_statement_resyncs(
+        self, symbols: list[str], refresh_every_statement: bool
+    ) -> set[str]:
+        """Which companies get their three statements refetched this run."""
+        if refresh_every_statement:
+            return set(symbols)
+
+        today = timezone.localdate()
+        try:
+            recent_reporters = fetch_recent_reporters(
+                today - timedelta(days=CALENDAR_LOOKBACK_DAYS), today
+            )
+        except FMPError as error:
+            # Without the calendar there is no way to tell who reported.
+            # Refetching everything is expensive; refetching nothing would
+            # quietly stop updating the data, which is worse.
+            logger.warning(
+                "Earnings calendar unavailable (%s); refetching every statement",
+                error,
+            )
+            return set(symbols)
+
+        return symbols_needing_statement_refresh(symbols, recent_reporters)
+
+    def _fetch_quotes(self, symbols: list[str]) -> dict[str, dict]:
+        try:
+            return fetch_quotes_batch(symbols)
+        except ProviderError as error:
+            self.stderr.write(f"Batch quote fetch failed: {error}")
+            return {}
+
+    def _resync_statements(self, symbol: str) -> None:
+        """Each sync is independent · one failing must not skip the other two."""
+        for sync in (sync_earnings, sync_cash_flows, sync_balance_sheets):
+            try:
+                sync(symbol)
+            except ProviderError as error:
+                logger.warning("%s failed for %s: %s", sync.__name__, symbol, error)

@@ -8,12 +8,13 @@ rollout never get their currency stamped via the natural flow until the
 weekly fundamentals cron runs. The backfill nudge re-runs `sync_earnings`
 exactly once per such ticker to close that gap on first page visit.
 """
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
+from django.utils import timezone
 
-from quotes.models import QuarterlyEarnings, Ticker
+from quotes.models import BalanceSheet, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from quotes.views import _ensure_fresh_data
 
 
@@ -90,3 +91,81 @@ class TestReportedCurrencyBackfillNudge:
         _ensure_fresh_data("PETR4")
 
         mock_sync_earnings.assert_not_called()
+
+
+class TestStatementFreshnessWindow:
+    """Quarterly statements were treated as stale after 24 hours, which put
+    three provider calls behind every company that anyone looked at twice on
+    consecutive days. A filing lands four times a year, so the window tracks
+    the reporting calendar instead: a week between rechecks normally, back
+    to daily once the next filing is overdue.
+    """
+
+    def _seed_statements(self, ticker: str, newest_quarter_end: date, fetched_days_ago: int):
+        for model, field_values in (
+            (QuarterlyEarnings, {"net_income": 1_000_000}),
+            (QuarterlyCashFlow, {"operating_cash_flow": 1_000_000, "free_cash_flow": 900_000}),
+            (BalanceSheet, {"total_debt": 1_000_000, "stockholders_equity": 5_000_000}),
+        ):
+            model.objects.create(ticker=ticker, end_date=newest_quarter_end, **field_values)
+            model.objects.filter(ticker=ticker).update(
+                fetched_at=timezone.now() - timedelta(days=fetched_days_ago)
+            )
+
+    @patch("quotes.views.refresh_provider_data")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_a_few_days_old_is_fresh_when_no_filing_is_due(
+        self, mock_sync_earnings, mock_sync_cf, mock_sync_bs, mock_refresh, db,
+    ):
+        Ticker.objects.create(symbol="MSFT", name="Microsoft", reported_currency="USD")
+        self._seed_statements("MSFT", timezone.now().date() - timedelta(days=30), fetched_days_ago=3)
+
+        _ensure_fresh_data("MSFT")
+
+        mock_refresh.delay.assert_not_called()
+        mock_sync_earnings.assert_not_called()
+
+    @patch("quotes.views.refresh_provider_data")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_past_the_window_a_refresh_is_enqueued(
+        self, mock_sync_earnings, mock_sync_cf, mock_sync_bs, mock_refresh, db,
+    ):
+        Ticker.objects.create(symbol="MSFT", name="Microsoft", reported_currency="USD")
+        self._seed_statements("MSFT", timezone.now().date() - timedelta(days=30), fetched_days_ago=10)
+
+        _ensure_fresh_data("MSFT")
+
+        mock_refresh.delay.assert_called_once_with("MSFT")
+
+    @patch("quotes.views.refresh_provider_data")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_an_overdue_filing_narrows_the_window_back_to_a_day(
+        self, mock_sync_earnings, mock_sync_cf, mock_sync_bs, mock_refresh, db,
+    ):
+        Ticker.objects.create(symbol="MSFT", name="Microsoft", reported_currency="USD")
+        self._seed_statements("MSFT", timezone.now().date() - timedelta(days=130), fetched_days_ago=3)
+
+        _ensure_fresh_data("MSFT")
+
+        mock_refresh.delay.assert_called_once_with("MSFT")
+
+    @patch("quotes.views.refresh_provider_data")
+    @patch("quotes.views.sync_balance_sheets")
+    @patch("quotes.views.sync_cash_flows")
+    @patch("quotes.views.sync_earnings")
+    def test_a_company_with_no_statements_still_syncs_synchronously(
+        self, mock_sync_earnings, mock_sync_cf, mock_sync_bs, mock_refresh, db,
+    ):
+        Ticker.objects.create(symbol="NEW", name="Newly listed", reported_currency="USD")
+
+        _ensure_fresh_data("NEW")
+
+        mock_sync_earnings.assert_called_once_with("NEW")
+        mock_sync_cf.assert_called_once_with("NEW")
+        mock_sync_bs.assert_called_once_with("NEW")

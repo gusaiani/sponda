@@ -1,5 +1,5 @@
 """FMP (Financial Modeling Prep) API client for fetching US stock data."""
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import requests
@@ -11,6 +11,8 @@ from .statement_quality import (
     normalize_net_income,
 )
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
+from .provider_usage import record_provider_call
+from .rate_limiter import RateLimiter
 from .models import (
     SOURCE_FMP,
     BalanceSheet,
@@ -23,6 +25,9 @@ from .models import (
 
 _HTTP_TIMEOUT = (3, 8)
 _BREAKER = CircuitBreaker(name="fmp", failure_threshold=8, cool_down_seconds=60)
+_RATE_LIMITER = RateLimiter(
+    name="fmp", max_calls_per_minute=settings.FMP_MAX_CALLS_PER_MINUTE
+)
 
 
 class FMPError(Exception):
@@ -35,7 +40,12 @@ def _get(endpoint: str, params: dict | None = None) -> dict | list:
     url = f"{settings.FMP_BASE_URL}{endpoint}"
 
     def _do_request() -> requests.Response:
-        return requests.get(url, params=params, timeout=_HTTP_TIMEOUT)
+        # Pacing happens here rather than around the breaker so a request
+        # the breaker refuses outright never books a slot it will not use.
+        _RATE_LIMITER.acquire()
+        response = requests.get(url, params=params, timeout=_HTTP_TIMEOUT)
+        record_provider_call("fmp", endpoint, len(response.content or b""))
+        return response
 
     try:
         response = _BREAKER.call(_do_request)
@@ -138,17 +148,59 @@ def fetch_balance_sheets(ticker: str) -> list[dict]:
     )
 
 
-def fetch_historical_prices(ticker: str) -> list[dict]:
-    """Fetch historical daily prices for a US ticker.
+DEFAULT_HISTORY_START = date(2000, 1, 1)
 
-    Requests data from 2000-01-01 onward so that historical market cap
-    can be estimated for all years with fundamental data available.
-    Without the 'from' parameter, FMP returns only the last ~5 years.
+
+def fetch_historical_prices(
+    ticker: str, start_date: date | None = None
+) -> list[dict]:
+    """Daily split-adjusted closes for a US ticker, from `start_date` onward.
+
+    Reads the `light` endpoint, which carries symbol, date, close and volume.
+    That is everything the charts and the year-end valuations use, at 45% of
+    the bytes `full` spends on OHLC, VWAP and change columns · 0.49 MB rather
+    than 1.09 MB for a twenty-five year history.
+
+    Defaults to 2000-01-01 so a first fetch covers every year that has
+    fundamentals; without an explicit `from`, FMP returns only the last few
+    years. Callers topping up a stored series pass the day they already have.
+
+    An empty list is returned rather than raised: a top-up legitimately asks
+    for days that do not exist yet. Deciding that a ticker has no history at
+    all belongs to the caller that knows whether anything is stored.
     """
-    data = _get("/stable/historical-price-eod/full", params={"symbol": ticker, "from": "2000-01-01"})
-    if not isinstance(data, list) or not data:
-        raise FMPError(f"No historical price data for ticker {ticker}")
+    params = {
+        "symbol": ticker,
+        "from": (start_date or DEFAULT_HISTORY_START).isoformat(),
+    }
+    data = _get("/stable/historical-price-eod/light", params=params)
+    if not isinstance(data, list):
+        return []
     return data
+
+
+def fetch_recent_reporters(start_date: date, end_date: date) -> set[str]:
+    """Every symbol FMP's earnings calendar shows reporting in the window.
+
+    One call, about 100 KB for a fortnight, that replaces the guesswork in
+    the weekly refresh: a company that did not report cannot have a
+    statement we do not already hold, so it does not need refetching.
+
+    An unusable answer is an empty set rather than an error. The caller
+    falls back on its own staleness rules, which costs a slower refresh
+    rather than a failed run.
+    """
+    rows = _get(
+        "/stable/earnings-calendar",
+        params={"from": start_date.isoformat(), "to": end_date.isoformat()},
+    )
+    if not isinstance(rows, list):
+        return set()
+    return {
+        (row.get("symbol") or "").upper()
+        for row in rows
+        if isinstance(row, dict) and row.get("symbol")
+    }
 
 
 def fetch_historical_market_caps(ticker: str) -> list[dict]:
@@ -174,19 +226,49 @@ def fetch_historical_market_caps(ticker: str) -> list[dict]:
     return data
 
 
-def fetch_historical_fx(currency: str) -> list[dict]:
-    """Fetch daily USD↔<currency> close rates from 2010-01-01 onward.
+FX_HISTORY_START = date(2010, 1, 1)
 
-    FMP exposes FX as a regular EOD price symbol like ``USDDKK``. Without
-    the explicit `from` param, FMP truncates to ~4 years; we request 2010
-    so the multiples-history chart can attach a year-end FX rate to every
-    annual data point.
+# How far back a top-up reaches past the newest stored rate, to cover a
+# weekend plus a holiday without refetching fifteen years.
+FX_TOPUP_OVERLAP_DAYS = 5
+
+
+def fetch_historical_fx(currency: str, start_date: date | None = None) -> list[dict]:
+    """Daily USD↔<currency> close rates from `start_date` onward.
+
+    FMP exposes FX as a regular EOD price symbol like ``USDDKK``, read here
+    through the `light` endpoint · date and close only. Without an explicit
+    `from`, FMP truncates to ~4 years; the multiples-history chart needs a
+    year-end rate for every annual data point, so a first sync asks for
+    2010 and later ones ask only for the days they are missing.
     """
     symbol = f"USD{currency.upper()}"
-    data = _get("/stable/historical-price-eod/full", params={"symbol": symbol, "from": "2010-01-01"})
+    params = {
+        "symbol": symbol,
+        "from": (start_date or FX_HISTORY_START).isoformat(),
+    }
+    data = _get("/stable/historical-price-eod/light", params=params)
     if not isinstance(data, list):
         return []
     return data
+
+
+def _fx_sync_start(currency: str) -> date:
+    """Where this currency's next sync should begin.
+
+    2010 the first time, and a few days before the newest stored rate after
+    that. Refetching fifteen years of daily rates for twenty currencies
+    every morning cost 20 MB a day to add twenty rows.
+    """
+    newest_stored = (
+        FxRate.objects.filter(base_currency="USD", quote_currency=currency.upper())
+        .order_by("-date")
+        .values_list("date", flat=True)
+        .first()
+    )
+    if newest_stored is None:
+        return FX_HISTORY_START
+    return newest_stored - timedelta(days=FX_TOPUP_OVERLAP_DAYS)
 
 
 def sync_fx_rates(currencies: list[str]) -> int:
@@ -198,10 +280,11 @@ def sync_fx_rates(currencies: list[str]) -> int:
     """
     total = 0
     for currency in currencies:
-        rows = fetch_historical_fx(currency)
+        rows = fetch_historical_fx(currency, start_date=_fx_sync_start(currency))
         objects: list[FxRate] = []
         for row in rows:
-            close = row.get("close")
+            # `light` calls the column `price`; `full` called it `close`.
+            close = row.get("price", row.get("close"))
             row_date_string = (row.get("date") or "")[:10]
             if close is None or not row_date_string:
                 continue

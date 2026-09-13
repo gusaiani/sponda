@@ -48,6 +48,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Ingesting quarters from CVM](#ingesting-quarters-from-cvm)
 - [The fourth quarter](#the-fourth-quarter)
 - [Ingesting quarters straight from ENET](#ingesting-quarters-straight-from-enet)
+- [Provider data budget](#provider-data-budget)
 - [Scheduled Tasks](#scheduled-tasks)
 
 **Operations**
@@ -772,7 +773,15 @@ content they have already opened.
 |---|---|---|
 | Anonymous | `SPONDA_ANON_LOOKUPS_PER_DAY` (20) | Client IP (SHA-256 hashed) |
 | Logged in, email **not** verified | `SPONDA_UNVERIFIED_LOOKUPS_PER_DAY` (50) | User |
-| Logged in, email verified | Unlimited | — |
+| Logged in, email verified | No daily cap | n/a |
+
+On top of the daily tiers, one ceiling applies to everyone, verified
+accounts included: `SPONDA_LOOKUPS_PER_HOUR` (120) **new** companies an
+hour. It exists because "no daily cap" was read literally by a scraper
+that signed up, verified its email, and walked 6,653 companies in a
+single day · most of a month of FMP quota spent on prices and statements
+nobody read. A reader opening two new companies a minute for an hour
+stays inside it. Set it to 0 to disable.
 
 **How it works**
 
@@ -2555,6 +2564,134 @@ python manage.py sync_cvm_enet_filings --days 30   # widen the window
 No new environment variables · ENET's search and downloads are public and
 unauthenticated.
 
+## Provider data budget
+
+FMP bills on a rolling 30-day data volume. On 13 September 2026 the
+account was at 92.4% of its plan and the weekly refresh had been losing
+half of every run to rejections for at least a week:
+
+```
+Refreshed 8685 snapshots, 9473 failures (total processed: 18158)
+FMP returned 429: "Limit Reach . Please upgrade your plan"
+```
+
+Two separate ceilings were being hit. A per-minute call allowance, which
+the weekly command overran by roughly 2x, and the rolling data volume,
+which the numbers below explain.
+
+### What a call costs
+
+Measured against the live API, one US company:
+
+| Call | Bytes |
+|---|---|
+| `historical-price-eod/full` (25 years) | 1.09 MB |
+| `historical-price-eod/light` (25 years) | 0.49 MB |
+| income statement + cash flow + balance sheet, 80 quarters each | 0.40 MB |
+| `historical-market-capitalization` (25 years) | 0.44 MB |
+| `earnings-calendar`, a fortnight, every company | 0.10 MB |
+| `quote`, batched 100 symbols | 0.04 MB |
+
+With 18,158 companies in the universe, the weekly statement refresh alone
+was 7.3 GB a run, and a single company page view cost 1.5 MB of prices
+that had not changed since the last view.
+
+### The six mechanisms
+
+**Outbound pacing.** `quotes.rate_limiter.RateLimiter` holds a per-minute
+allowance in the shared cache, so the web workers, the Celery workers and
+the systemd commands pace themselves as one fleet rather than one
+allowance each. A rejected call spends data volume just like a successful
+one, so finding the ceiling by collision is the most expensive way to
+find it.
+
+**Stored price history.** `quotes.price_store` keeps the daily close
+series in Postgres (`DailyClosePrice`) and tops it up with the days it is
+missing, about a kilobyte, behind a six-hour freshness marker so request
+volume cannot drive provider volume. The provider's series is
+split-adjusted, so every top-up refetches a five-day overlap it already
+holds: when a day comes back at a different price the stored series is on
+the pre-split scale and is replaced wholesale. A provider failure with a
+stored series behind it serves the stored series rather than an error.
+
+**The light price endpoint.** Date and close is everything the charts and
+the year-end valuations read. The `full` endpoint spent 55% of its bytes
+on OHLC, VWAP and change columns.
+
+**Statements only for companies that reported.** `quotes.statement_refresh`
+decides who is worth refetching: whoever appears on FMP's earnings
+calendar since the last run, whoever has no statements at all, and
+whoever has gone six months without a new quarter (retried monthly, for
+the thinly traded issuers the calendar misses). Brazilian tickers are
+always included · their statements come from BRAPI and CVM, which is a
+different quota.
+
+**A staleness window that tracks the reporting calendar.** Quarterly
+statements used to go stale after 24 hours, so a company viewed on two
+consecutive days cost three provider calls to confirm nothing had
+changed. `quotes.views._statement_recheck_days` gives them a week,
+narrowing back to a day once the newest quarter on file is more than 95
+days old and the next filing is plausibly due.
+
+**Incremental FX.** Each currency asks for the days since its newest
+stored rate rather than refetching back to 2010 every morning.
+
+### Seeing where the quota goes
+
+Every outbound call records its endpoint, its response size and whether
+it was rejected (a 429 costs an allowance slot, so hiding it would
+understate the fleet). `ProviderUsageDay` holds one row per provider,
+endpoint and day:
+
+```bash
+python manage.py report_provider_usage --days 30
+python manage.py report_provider_usage --days 7 --provider fmp
+```
+
+```
+PROVIDER   ENDPOINT                              CALLS        BYTES     GB
+fmp        /stable/historical-price-eod/light      1,204  598,412,110   0.56
+fmp        /stable/quote                           5,460    2,402,400   0.00
+```
+
+This is the question FMP's 90%-of-plan email does not answer, and the way
+to tell within a day whether a change worked.
+
+### Blocking what should never have been calling
+
+Two Cloudflare custom rules (zone `sponda.capital`, phase
+`http_request_firewall_custom`) sit in front of all of the above:
+
+| Rule | Expression | Why |
+|---|---|---|
+| Block the FundamentalsCheck scraper | `http.user_agent contains "FundamentalsCheck"` | 6,526 requests to `/api/quote/*/fundamentals/` in one day, from one IP, against a verified account |
+| Crawlers out of the company JSON API | `starts_with(http.request.uri.path, "/api/quote/") and (cf.client.bot or http.user_agent contains "meta-externalagent")` | `robots.txt` has always disallowed `/api/`; this enforces it. HTML pages stay open to every crawler, and `/api/mcp/` is untouched |
+
+Both are deliberately narrow. A blanket "block AI bots" setting on this
+zone is what kept Googlebot out for four months, and what broke the MCP
+connector; scope any new rule to a path and verify it against a real
+crawler rather than a spoofed user agent.
+
+### Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `FMP_MAX_CALLS_PER_MINUTE` | `250` | Per-minute outbound allowance shared by every process. 0 disables pacing. |
+| `SPONDA_LOOKUPS_PER_HOUR` | `120` | Distinct companies an hour, every tier including verified accounts. 0 disables. See [Lookup limits](#lookup-limits). |
+
+### Local testing
+
+```bash
+cd backend
+pytest tests/test_provider_rate_limit.py tests/test_provider_usage.py \
+       tests/test_price_store.py tests/test_statement_refresh.py \
+       tests/test_refresh_snapshot_fundamentals.py tests/test_prune_daily_prices.py
+
+# What one company costs on a cold store, then on a warm one
+python manage.py shell -c "from quotes.price_store import get_daily_closes; print(len(get_daily_closes('AAPL')))"
+python manage.py report_provider_usage --days 1
+```
+
 ## Scheduled Tasks
 
 Systemd timers run periodic jobs. Each timer is installed and enabled automatically on deploy. To inspect:
@@ -2568,16 +2705,17 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 |---|---|---|---|
 | `refresh_ipca` + `refresh_tickers` | `sponda-refresh.timer` | Sync IPCA inflation index and the B3 + US ticker lists from BRAPI / FMP | Daily 06:00 UTC |
 | `refresh_snapshot_prices` (+ `check_indicator_alerts` post-run) | `sponda-refresh-snapshots.timer` | Rolling 15-minute refresh while either B3 or NYSE is open. Updates market cap + current price and recomputes PE10 / PFCF10 / PEG / P/FCF PEG against existing fundamentals, then re-evaluates alert thresholds. The command short-circuits with "No exchange open" outside market hours, so off-hours ticks are cheap no-ops. | Every 15 min Mon-Fri |
-| `refresh_snapshot_fundamentals` | `sponda-refresh-fundamentals.timer` | Full refresh: resyncs quarterly earnings, cash flows, balance sheets, then recomputes the entire `IndicatorSnapshot` row. Four API calls per ticker. | Weekly Sun 06:00 UTC |
+| `refresh_snapshot_fundamentals` | `sponda-refresh-fundamentals.timer` | Recomputes the entire `IndicatorSnapshot` row for every company, and refetches quarterly earnings, cash flows and balance sheets for the companies that actually reported (FMP's earnings calendar, one call). Quotes come in batches of 100. `--all` restores the old refetch-everything behaviour. See [Provider data budget](#provider-data-budget). | Weekly Sun 06:00 UTC |
 | `check_indicator_alerts` | `sponda-check-alerts.timer` | Daily safety-net pass over user alerts (the in-market 15-min run already covers weekday hours) | Daily 07:30 UTC |
 | `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
-| `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
+| `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Incremental: each currency asks only for the days since its newest stored rate. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
 | `snapshot_cvm_filings` | `sponda-snapshot-cvm.timer` | Record which quarterly filings the CVM has published and when, to measure how fast a filing can reach the site. Costs one HEAD request when the archive is unchanged. | Hourly |
 | `map_tickers_to_cvm` | `sponda-map-cvm-tickers.timer` | Resolve Brazilian tickers to the CVM codes their filings are keyed by. The recurring pass is how a new listing surfaces rather than silently never being ingested. | Monthly, 1st 04:00 UTC |
 | `sync_cvm_filings` | `sponda-sync-cvm.timer` | Write newly filed quarters that no other source holds. One query when there is nothing to write. | 4x daily |
 | `sync_cvm_fourth_quarters` | `sponda-sync-cvm-q4.timer` | Derive Q4 from the annual DFP for companies lacking it. DFPs arrive across February and March. | Daily 05:40 UTC |
 | `sync_cvm_enet_filings` | `sponda-sync-cvm-enet.timer` | Write ITRs delivered to ENET in the last week, ahead of the weekly archive rebuild. One search request when nothing new was delivered. | Hourly at :35 |
 | `sync_country` | `sponda-sync-country.timer` | Backfill `Ticker.country` from FMP company profiles for tickers still missing it (new listings arrive without a country). One profile call per missing ticker, largest market cap first; a no-op once the universe is labeled. | Daily 05:17 UTC |
+| `prune_daily_prices` | `sponda-prune-daily-prices.timer` | Drop stored daily closes for companies nobody has looked up in 90 days. A full series is ~0.6 MB of rows per company; the next visitor refetches it. | Weekly Sun 04:45 UTC |
 
 #### Which source may delete a ticker
 

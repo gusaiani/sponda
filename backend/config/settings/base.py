@@ -150,23 +150,34 @@ BRAPI_BASE_URL = "https://brapi.dev/api"
 
 FMP_API_KEY = env("FMP_API_KEY", default="")
 FMP_BASE_URL = "https://financialmodelingprep.com"
+# Outbound pacing for FMP. Their plan rejects anything past the per-minute
+# allowance with a 429, and a rejected call still spends data volume, so
+# the fleet paces itself just under the ceiling instead of finding it by
+# collision. Set to 0 to disable throttling.
+FMP_MAX_CALLS_PER_MINUTE = env.int("FMP_MAX_CALLS_PER_MINUTE", default=250)
 
 FRED_API_KEY = env("FRED_API_KEY", default="")
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"
 
-# Daily distinct-company lookup caps. Anonymous is scoped per client IP
-# (see quotes.lookup_quota); unverified accounts per user; verified
-# accounts are unlimited.
 # IndexNow key. Public by design: it is served at
 # https://sponda.capital/<key>.txt and its only power is to submit URLs for a
 # host you already control. It must match that file exactly, which
 # submit_indexnow checks before sending anything.
 INDEXNOW_KEY = env("INDEXNOW_KEY", default="")
 
+# Daily distinct-company lookup caps. Anonymous is scoped per client IP
+# (see quotes.lookup_quota); unverified accounts per user; verified
+# accounts have no daily cap.
 SPONDA_ANON_LOOKUPS_PER_DAY = env.int("SPONDA_ANON_LOOKUPS_PER_DAY", default=20)
 SPONDA_UNVERIFIED_LOOKUPS_PER_DAY = env.int(
     "SPONDA_UNVERIFIED_LOOKUPS_PER_DAY", default=50
 )
+# Anti-enumeration ceiling, applied to every tier including verified
+# accounts, which have no daily cap. One verified account walked 6,653
+# companies in a day and spent most of a month of provider quota on
+# prices and statements nobody read. Distinct companies per hour; 0
+# disables it.
+SPONDA_LOOKUPS_PER_HOUR = env.int("SPONDA_LOOKUPS_PER_HOUR", default=120)
 
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 

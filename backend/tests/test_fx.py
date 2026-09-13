@@ -54,14 +54,41 @@ class TestSyncFxRates:
         assert FxRate.objects.filter(base_currency="USD", quote_currency="DKK").count() == 3
 
     @patch("quotes.fmp._get")
-    def test_passes_from_2010_to_fmp(self, mock_get, db):
+    def test_passes_from_2010_when_nothing_is_stored(self, mock_get, db):
         """Without an explicit `from`, FMP truncates history to ~4 years; the
-        multiples-history chart needs 10+, so the sync must request 2010 onward."""
+        multiples-history chart needs 10+, so a first sync requests 2010."""
         mock_get.return_value = MOCK_USDDKK_HISTORY
         sync_fx_rates(["DKK"])
         # _get was called with the right symbol and `from` param
         assert mock_get.call_args.kwargs["params"]["symbol"] == "USDDKK"
         assert mock_get.call_args.kwargs["params"]["from"] == "2010-01-01"
+
+    @patch("quotes.fmp._get")
+    def test_asks_only_for_the_missing_days_once_history_is_stored(self, mock_get, db):
+        """Fifteen years of daily rates is 1.03 MB per currency, and it was
+        refetched for every currency every morning. Only the days since the
+        newest stored rate are missing."""
+        FxRate.objects.create(
+            base_currency="USD", quote_currency="DKK",
+            date=date(2026, 9, 10), rate=Decimal("6.9"),
+        )
+        mock_get.return_value = [{"symbol": "USDDKK", "date": "2026-09-11", "price": 6.91}]
+
+        sync_fx_rates(["DKK"])
+
+        requested_start = date.fromisoformat(mock_get.call_args.kwargs["params"]["from"])
+        assert date(2026, 9, 1) < requested_start <= date(2026, 9, 10)
+        assert FxRate.objects.filter(quote_currency="DKK").count() == 2
+
+    @patch("quotes.fmp._get")
+    def test_reads_the_light_endpoints_price_column(self, mock_get, db):
+        mock_get.return_value = [{"symbol": "USDDKK", "date": "2025-09-30", "price": 6.85}]
+
+        sync_fx_rates(["DKK"])
+
+        assert FxRate.objects.get(
+            base_currency="USD", quote_currency="DKK", date=date(2025, 9, 30),
+        ).rate == Decimal("6.85")
 
 
 class TestGetFxRate:

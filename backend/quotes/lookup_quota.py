@@ -1,16 +1,24 @@
-"""Single source of truth for the daily company-lookup cap.
+"""Single source of truth for the company-lookup caps.
 
-Tiers (distinct tickers per day, in the active timezone — matching the
-historical QuotaView day boundary):
+Daily tiers (distinct tickers per day, in the active timezone · matching
+the historical QuotaView day boundary):
 
   - anonymous              -> SPONDA_ANON_LOOKUPS_PER_DAY, scoped by IP hash
   - logged in, unverified  -> SPONDA_UNVERIFIED_LOOKUPS_PER_DAY, scoped by user
   - logged in, verified    -> unlimited
 
+On top of that, one cap that applies to every tier: the number of *new*
+companies an hour (SPONDA_LOOKUPS_PER_HOUR). A verified account has no
+daily limit, and one such account walked 6,653 companies in a day, which
+is most of a month's provider quota. Unlimited over a day is the promise;
+instant is not, and no one reading company pages approaches the ceiling.
+
 Both PE10View (enforcement) and QuotaView (reporting) call into here so
 the number a user sees and the number that blocks them can never drift.
 """
 from __future__ import annotations
+
+from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
@@ -25,6 +33,10 @@ SCOPE_VERIFIED = "verified"
 
 def _day_start():
     return timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _hour_start():
+    return timezone.now() - timedelta(hours=1)
 
 
 def _scope(request):
@@ -52,6 +64,27 @@ def _distinct_today(filter_kwargs) -> int:
         .distinct()
         .count()
     )
+
+
+def _distinct_this_hour(filter_kwargs) -> int:
+    return (
+        LookupLog.objects.filter(timestamp__gte=_hour_start(), **filter_kwargs)
+        .values("ticker")
+        .distinct()
+        .count()
+    )
+
+
+def _exceeds_hourly_burst(filter_kwargs) -> bool:
+    """True when this scope has opened too many new companies in an hour.
+
+    Enumeration is the only thing this catches. A reader who opens two
+    companies a minute for an hour is still inside it.
+    """
+    hourly_limit = settings.SPONDA_LOOKUPS_PER_HOUR
+    if hourly_limit <= 0:
+        return False
+    return _distinct_this_hour(filter_kwargs) >= hourly_limit
 
 
 def _ticker_seen_today(filter_kwargs, ticker: str) -> bool:
@@ -83,8 +116,10 @@ def would_exceed_limit(request, ticker: str) -> bool:
     who hit the cap can still revisit what they have seen.
     """
     scope, filter_kwargs, limit = _scope(request)
-    if limit is None:
-        return False
     if _ticker_seen_today(filter_kwargs, ticker):
+        return False
+    if _exceeds_hourly_burst(filter_kwargs):
+        return True
+    if limit is None:
         return False
     return _distinct_today(filter_kwargs) >= limit

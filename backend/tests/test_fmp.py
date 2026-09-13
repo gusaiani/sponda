@@ -19,6 +19,7 @@ from quotes.fmp import (
     fetch_historical_prices,
     fetch_income_statements,
     fetch_quote,
+    fetch_recent_reporters,
     sync_balance_sheets,
     sync_cash_flows,
     sync_earnings,
@@ -142,9 +143,9 @@ MOCK_BALANCE_SHEETS = [
 ]
 
 MOCK_HISTORICAL_PRICES = [
-    {"date": "2025-01-02", "close": 178.5, "volume": 50000000},
-    {"date": "2024-12-31", "close": 175.0, "volume": 45000000},
-    {"date": "2024-11-29", "close": 170.0, "volume": 48000000},
+    {"symbol": "AAPL", "date": "2025-01-02", "price": 178.5, "volume": 50000000},
+    {"symbol": "AAPL", "date": "2024-12-31", "price": 175.0, "volume": 45000000},
+    {"symbol": "AAPL", "date": "2024-11-29", "price": 170.0, "volume": 48000000},
 ]
 
 MOCK_DIVIDENDS = [
@@ -226,27 +227,41 @@ class TestFetchBalanceSheets:
 
 
 class TestFetchHistoricalPrices:
+    """The light endpoint carries date and adjusted close only. That is
+    everything the charts and the year-end valuations read, at 45% of the
+    bytes the full endpoint spends on OHLC, VWAP and change columns."""
+
     @patch("quotes.fmp._get")
     def test_returns_historical_data(self, mock_get):
         mock_get.return_value = MOCK_HISTORICAL_PRICES
         result = fetch_historical_prices("AAPL")
         assert len(result) == 3
-        assert result[0]["close"] == 178.5
+        assert result[0]["price"] == 178.5
 
     @patch("quotes.fmp._get")
-    def test_requests_full_history_from_2000(self, mock_get):
+    def test_requests_full_history_from_2000_by_default(self, mock_get):
         mock_get.return_value = MOCK_HISTORICAL_PRICES
         fetch_historical_prices("AAPL")
         mock_get.assert_called_once_with(
-            "/stable/historical-price-eod/full",
+            "/stable/historical-price-eod/light",
             params={"symbol": "AAPL", "from": "2000-01-01"},
         )
 
     @patch("quotes.fmp._get")
-    def test_raises_on_empty_results(self, mock_get):
+    def test_requests_only_the_missing_days_when_given_a_start_date(self, mock_get):
+        mock_get.return_value = MOCK_HISTORICAL_PRICES
+        fetch_historical_prices("AAPL", start_date=date(2026, 9, 1))
+        mock_get.assert_called_once_with(
+            "/stable/historical-price-eod/light",
+            params={"symbol": "AAPL", "from": "2026-09-01"},
+        )
+
+    @patch("quotes.fmp._get")
+    def test_an_empty_answer_is_not_an_error(self, mock_get):
+        """A top-up asks for days that may not exist yet; an empty list is
+        the honest answer for a weekend, not a failure."""
         mock_get.return_value = []
-        with pytest.raises(FMPError, match="No historical"):
-            fetch_historical_prices("FAKE")
+        assert fetch_historical_prices("FAKE") == []
 
 
 MOCK_HISTORICAL_MARKET_CAPS = [
@@ -735,3 +750,40 @@ class TestFetchQuotesBatch:
         tickers = [f"TIC{i}" for i in range(FMP_BATCH_SIZE + 5)]
         fetch_quotes_batch(tickers)
         assert mock_get.call_count == 2
+
+
+MOCK_EARNINGS_CALENDAR = [
+    {"symbol": "jva", "date": "2026-09-11", "epsActual": 0.35},
+    {"symbol": "IHT", "date": "2026-09-11", "epsActual": None},
+    {"symbol": "", "date": "2026-09-10", "epsActual": 1.0},
+]
+
+
+class TestFetchRecentReporters:
+    """One call answers "who filed this week", which is what decides whether
+    a company's statements are worth refetching at all."""
+
+    @patch("quotes.fmp._get")
+    def test_returns_upper_case_symbols(self, mock_get):
+        mock_get.return_value = MOCK_EARNINGS_CALENDAR
+
+        reporters = fetch_recent_reporters(date(2026, 9, 6), date(2026, 9, 13))
+
+        assert reporters == {"JVA", "IHT"}
+
+    @patch("quotes.fmp._get")
+    def test_asks_for_the_requested_window(self, mock_get):
+        mock_get.return_value = []
+
+        fetch_recent_reporters(date(2026, 9, 6), date(2026, 9, 13))
+
+        mock_get.assert_called_once_with(
+            "/stable/earnings-calendar",
+            params={"from": "2026-09-06", "to": "2026-09-13"},
+        )
+
+    @patch("quotes.fmp._get")
+    def test_an_unusable_answer_is_an_empty_set(self, mock_get):
+        mock_get.return_value = {"Error Message": "Limit Reach"}
+
+        assert fetch_recent_reporters(date(2026, 9, 6), date(2026, 9, 13)) == set()

@@ -668,3 +668,65 @@ class IndexNowSubmission(models.Model):
 
     def __str__(self):
         return f"{self.ticker} @ {self.submitted_at:%Y-%m-%d}"
+
+
+class ProviderUsageDay(models.Model):
+    """One day of calls and bytes spent at one endpoint of one provider.
+
+    FMP's plan is a rolling 30-day data volume, and the only notice of
+    trouble is an email at 90% that names no endpoint. Counting locally
+    turns "which job is spending the quota" into a query, and makes the
+    effect of a fix visible the next day instead of a month later.
+
+    Rejected calls are counted too: a 429 costs an allowance slot, so a
+    report that hid them would understate what the fleet is doing.
+    """
+
+    provider = models.CharField(max_length=20)
+    date = models.DateField()
+    endpoint = models.CharField(max_length=120)
+    call_count = models.BigIntegerField(default=0)
+    bytes_downloaded = models.BigIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("provider", "date", "endpoint")
+        ordering = ["-date", "provider", "endpoint"]
+        indexes = [
+            models.Index(fields=["provider", "-date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.provider} {self.endpoint} {self.date}: {self.call_count} calls"
+
+
+class DailyClosePrice(models.Model):
+    """One split-adjusted closing price for one company on one day.
+
+    The Fundamentos table and the multiples chart both value a fiscal year
+    at the close of the day that year ended, and the chart plots the whole
+    daily line, so the series has to be daily and has to reach back to 2000.
+
+    It used to be refetched from the provider on every cache miss · 1.09 MB
+    per company page view, which is what put the FMP plan over 90% of its
+    rolling 30-day allowance. Stored here, a company that is already known
+    costs the handful of days it is missing, about a kilobyte.
+
+    Rows are written by :mod:`quotes.price_store`, which also owns the one
+    correctness hazard: the provider's series is split-adjusted, so a split
+    rewrites every past close and the stored copy has to be replaced.
+    """
+
+    ticker = models.CharField(max_length=20)
+    date = models.DateField()
+    close = models.DecimalField(max_digits=20, decimal_places=6)
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("ticker", "date")
+        ordering = ["ticker", "date"]
+        indexes = [
+            models.Index(fields=["ticker", "-date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ticker} {self.date}: {self.close}"
