@@ -2614,6 +2614,17 @@ holds: when a day comes back at a different price the stored series is on
 the pre-split scale and is replaced wholesale. A provider failure with a
 stored series behind it serves the stored series rather than an error.
 
+**Stored market cap history.** `quotes.market_cap_store` does the same for
+the market cap the provider observed on each trading day
+(`DailyMarketCap`), which is what lets the multiples chart value 2014 at
+what the company was worth in 2014. It was 0.44 MB per company per day,
+roughly 2.5 GB a month. The one rule it does not share with prices is
+split detection: a split leaves a market cap alone, so a day that comes
+back with a different number is a provider revision to store rather than
+evidence that the history is on the wrong scale. What the two stores do
+share · the freshness marker, the top-up window, the row parsing and the
+chart shape · lives in `quotes.series_store`.
+
 **The light price endpoint.** Date and close is everything the charts and
 the year-end valuations read. The `full` endpoint spent 55% of its bytes
 on OHLC, VWAP and change columns.
@@ -2698,8 +2709,9 @@ crawler rather than a spoofed user agent.
 ```bash
 cd backend
 pytest tests/test_provider_rate_limit.py tests/test_provider_usage.py \
-       tests/test_price_store.py tests/test_statement_refresh.py \
-       tests/test_refresh_snapshot_fundamentals.py tests/test_prune_daily_prices.py
+       tests/test_price_store.py tests/test_market_cap_store.py \
+       tests/test_statement_refresh.py \
+       tests/test_refresh_snapshot_fundamentals.py tests/test_prune_price_history.py
 
 # What one company costs on a cold store, then on a warm one
 python manage.py shell -c "from quotes.price_store import get_daily_closes; print(len(get_daily_closes('AAPL')))"
@@ -2729,7 +2741,7 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `sync_cvm_fourth_quarters` | `sponda-sync-cvm-q4.timer` | Derive Q4 from the annual DFP for companies lacking it. DFPs arrive across February and March. | Daily 05:40 UTC |
 | `sync_cvm_enet_filings` | `sponda-sync-cvm-enet.timer` | Write ITRs delivered to ENET in the last week, ahead of the weekly archive rebuild. One search request when nothing new was delivered. | Hourly at :35 |
 | `sync_country` | `sponda-sync-country.timer` | Backfill `Ticker.country` from FMP company profiles for tickers still missing it (new listings arrive without a country). One profile call per missing ticker, largest market cap first; a no-op once the universe is labeled. | Daily 05:17 UTC |
-| `prune_daily_prices` | `sponda-prune-daily-prices.timer` | Drop stored daily closes for companies nobody has looked up in 90 days. A full series is ~0.6 MB of rows per company; the next visitor refetches it. | Weekly Sun 04:45 UTC |
+| `prune_price_history` | `sponda-prune-price-history.timer` | Drop stored daily closes and market caps for companies nobody has looked up in 90 days. The two series are ~1.2 MB of rows per company; the next visitor refetches them. | Weekly Sun 04:45 UTC |
 
 #### Which source may delete a ticker
 

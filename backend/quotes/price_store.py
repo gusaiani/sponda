@@ -16,41 +16,42 @@ Two rules keep it honest:
   so a 4-for-1 split rewrites every close before it. Each top-up refetches
   a short overlap it already holds; when the overlap comes back at a
   different price, the stored series is on the old scale and is replaced
-  wholesale.
+  wholesale. This is the one thing the market cap store does not need: a
+  split leaves a company's market cap alone.
+
+The machinery both stores share lives in :mod:`quotes.series_store`.
 """
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date
 
-from django.core.cache import cache
 from django.db.models import Max
 
 from . import fmp
 from .fmp import FMPError
 from .models import DailyClosePrice
+from .series_store import (
+    HISTORY_START_DATE,
+    is_fresh,
+    mark_fresh,
+    parse_provider_rows,
+    to_chart_series,
+    topup_start_date,
+)
 
 logger = logging.getLogger(__name__)
 
-HISTORY_START_DATE = date(2000, 1, 1)
+CACHE_NAMESPACE = "price_store"
+VALUE_KEY = "adjustedClose"
 
-# How far back a top-up reaches past the newest stored day. Long enough to
-# cover a long weekend plus a holiday, and to give split detection several
-# days of overlap to compare rather than betting on a single close.
-TOPUP_OVERLAP_DAYS = 5
-
-# How long a successful check keeps a ticker off the provider. Closes move
-# once a day, so four checks a day is already generous; the point is that
-# request volume cannot drive provider volume.
-TOPUP_INTERVAL_SECONDS = 6 * 60 * 60
+# `light` calls the close `price`; `full` called it `close`. Reading both
+# keeps this working if the endpoint is ever switched back.
+PROVIDER_VALUE_KEYS = ("price", "close")
 
 # Two closes for the same day are "the same price" within this relative
 # tolerance. Anything larger is a re-adjustment (a split), not rounding.
 SPLIT_DETECTION_TOLERANCE = 0.001
-
-
-def _freshness_cache_key(ticker: str) -> str:
-    return f"price_store:checked:{ticker.upper()}"
 
 
 def _stored_series(ticker: str) -> list[tuple[date, float]]:
@@ -62,41 +63,6 @@ def _stored_series(ticker: str) -> list[tuple[date, float]]:
     return [(row_date, float(close)) for row_date, close in rows]
 
 
-def _to_chart_series(series: list[tuple[date, float]]) -> list[dict]:
-    """The shape the views and `price_history` read: unix date, adjusted close."""
-    return [
-        {
-            "date": int(
-                datetime(
-                    close_date.year,
-                    close_date.month,
-                    close_date.day,
-                    tzinfo=timezone.utc,
-                ).timestamp()
-            ),
-            "adjustedClose": close,
-        }
-        for close_date, close in series
-    ]
-
-
-def _parse_provider_rows(rows: list[dict]) -> dict[date, float]:
-    """Provider rows as {date: close}, dropping anything incomplete."""
-    parsed: dict[date, float] = {}
-    for row in rows or []:
-        raw_date = row.get("date")
-        # `light` calls the column `price`; `full` called it `close`. Reading
-        # both keeps this working if the endpoint is ever switched back.
-        close = row.get("price", row.get("close"))
-        if not raw_date or close is None:
-            continue
-        try:
-            parsed[date.fromisoformat(str(raw_date)[:10])] = float(close)
-        except (TypeError, ValueError):
-            continue
-    return parsed
-
-
 def _write_closes(ticker: str, closes: dict[date, float]) -> None:
     DailyClosePrice.objects.bulk_create(
         [
@@ -106,6 +72,13 @@ def _write_closes(ticker: str, closes: dict[date, float]) -> None:
         update_conflicts=True,
         update_fields=["close", "fetched_at"],
         unique_fields=["ticker", "date"],
+    )
+
+
+def _fetch(ticker: str, start_date: date) -> dict[date, float]:
+    return parse_provider_rows(
+        fmp.fetch_historical_prices(ticker, start_date=start_date),
+        value_keys=PROVIDER_VALUE_KEYS,
     )
 
 
@@ -131,12 +104,6 @@ def _overlap_disagrees(
     return False
 
 
-def _fetch_full_history(ticker: str) -> dict[date, float]:
-    return _parse_provider_rows(
-        fmp.fetch_historical_prices(ticker, start_date=HISTORY_START_DATE)
-    )
-
-
 def get_daily_closes(ticker: str) -> list[dict]:
     """Daily adjusted closes for `ticker`, oldest first, kept current.
 
@@ -148,46 +115,43 @@ def get_daily_closes(ticker: str) -> list[dict]:
     ticker = ticker.upper()
     stored = _stored_series(ticker)
 
-    if stored and cache.get(_freshness_cache_key(ticker)):
-        return _to_chart_series(stored)
+    if stored and is_fresh(CACHE_NAMESPACE, ticker):
+        return to_chart_series(stored, VALUE_KEY)
 
     if not stored:
-        fetched = _fetch_full_history(ticker)
+        fetched = _fetch(ticker, HISTORY_START_DATE)
         if not fetched:
             raise FMPError(f"No historical price data for ticker {ticker}")
         _write_closes(ticker, fetched)
-        cache.set(_freshness_cache_key(ticker), True, TOPUP_INTERVAL_SECONDS)
-        return _to_chart_series(sorted(fetched.items()))
+        mark_fresh(CACHE_NAMESPACE, ticker)
+        return to_chart_series(sorted(fetched.items()), VALUE_KEY)
 
-    newest_stored_date = (
-        DailyClosePrice.objects.filter(ticker=ticker).aggregate(Max("date"))["date__max"]
-    )
-    topup_start = newest_stored_date - timedelta(days=TOPUP_OVERLAP_DAYS)
+    newest_stored_date = DailyClosePrice.objects.filter(ticker=ticker).aggregate(
+        Max("date")
+    )["date__max"]
 
     try:
-        fetched = _parse_provider_rows(
-            fmp.fetch_historical_prices(ticker, start_date=topup_start)
-        )
+        fetched = _fetch(ticker, topup_start_date(newest_stored_date))
     except FMPError as error:
         # The stored series is the whole point: a provider outage or a spent
         # quota costs freshness, not the page.
         logger.warning("Price top-up failed for %s: %s", ticker, error)
-        return _to_chart_series(stored)
+        return to_chart_series(stored, VALUE_KEY)
 
     if _overlap_disagrees(ticker, stored, fetched):
         try:
-            fetched = _fetch_full_history(ticker)
+            fetched = _fetch(ticker, HISTORY_START_DATE)
         except FMPError as error:
             logger.warning("Price refetch failed for %s: %s", ticker, error)
-            return _to_chart_series(stored)
+            return to_chart_series(stored, VALUE_KEY)
         if fetched:
             DailyClosePrice.objects.filter(ticker=ticker).delete()
             _write_closes(ticker, fetched)
-            cache.set(_freshness_cache_key(ticker), True, TOPUP_INTERVAL_SECONDS)
-            return _to_chart_series(sorted(fetched.items()))
+            mark_fresh(CACHE_NAMESPACE, ticker)
+            return to_chart_series(sorted(fetched.items()), VALUE_KEY)
 
     if fetched:
         _write_closes(ticker, fetched)
 
-    cache.set(_freshness_cache_key(ticker), True, TOPUP_INTERVAL_SECONDS)
-    return _to_chart_series(_stored_series(ticker))
+    mark_fresh(CACHE_NAMESPACE, ticker)
+    return to_chart_series(_stored_series(ticker), VALUE_KEY)

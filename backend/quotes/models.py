@@ -740,3 +740,34 @@ class DailyClosePrice(models.Model):
 
     def __str__(self):
         return f"{self.ticker} {self.date}: {self.close}"
+
+
+class DailyMarketCap(models.Model):
+    """The market cap the provider observed for one company on one day.
+
+    This is what lets the multiples chart value 2014 at what the company
+    was worth in 2014, instead of applying today's share count to an old
+    price. It is a reported figure rather than a derived one, which is
+    also why it is not adjusted backwards the way a split-adjusted price
+    series is: a split leaves the market cap alone.
+
+    Stored for the same reason as :class:`DailyClosePrice` · refetching
+    twenty-five years of it on every company page view cost 0.44 MB a
+    time, roughly 2.5 GB a month. Written by
+    :mod:`quotes.market_cap_store`.
+    """
+
+    ticker = models.CharField(max_length=20)
+    date = models.DateField()
+    market_cap = models.BigIntegerField()
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("ticker", "date")
+        ordering = ["ticker", "date"]
+        indexes = [
+            models.Index(fields=["ticker", "-date"]),
+        ]
+
+    def __str__(self):
+        return f"{self.ticker} {self.date}: {self.market_cap}"

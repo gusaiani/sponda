@@ -284,7 +284,7 @@ class TestFetchHistoricalMarketCaps:
         assert result[0]["marketCap"] == 191347420320
 
     @patch("quotes.fmp._get")
-    def test_requests_full_history_from_2000(self, mock_get):
+    def test_requests_full_history_from_2000_by_default(self, mock_get):
         mock_get.return_value = MOCK_HISTORICAL_MARKET_CAPS
         fetch_historical_market_caps("AAPL")
         mock_get.assert_called_once_with(
@@ -293,13 +293,22 @@ class TestFetchHistoricalMarketCaps:
         )
 
     @patch("quotes.fmp._get")
-    def test_raises_on_empty_results(self, mock_get):
-        """An empty list is how FMP answers for a symbol it does not cover.
-        Raising keeps the circuit breaker and ProviderError mapping identical
-        to every other fetch, instead of caching an empty series for an hour."""
+    def test_requests_only_the_missing_days_when_given_a_start_date(self, mock_get):
+        mock_get.return_value = MOCK_HISTORICAL_MARKET_CAPS
+        fetch_historical_market_caps("AAPL", start_date=date(2026, 9, 1))
+        mock_get.assert_called_once_with(
+            "/stable/historical-market-capitalization",
+            params={"symbol": "AAPL", "from": "2026-09-01", "limit": 100000},
+        )
+
+    @patch("quotes.fmp._get")
+    def test_an_empty_answer_is_not_an_error(self, mock_get):
+        """Empty is both how FMP answers for a symbol it does not cover and
+        how it answers a top-up over a weekend. Which of those it is depends
+        on whether anything is already stored, which the store knows and this
+        function does not."""
         mock_get.return_value = []
-        with pytest.raises(FMPError, match="No historical market cap"):
-            fetch_historical_market_caps("FAKE")
+        assert fetch_historical_market_caps("FAKE") == []
 
 
 class TestFetchDividends:

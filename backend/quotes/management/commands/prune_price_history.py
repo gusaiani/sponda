@@ -1,24 +1,28 @@
-"""Drop stored price history for companies nobody reads.
+"""Drop stored price and market cap history for companies nobody reads.
 
-A daily series back to 2000 is roughly 6,400 rows, about 0.6 MB, per
-company. :mod:`quotes.price_store` fills lazily, so the table only holds
-companies someone has opened · but on a 49 GB droplet, "someone opened it
-once, last year" is still worth reclaiming. Dropping a series costs the
-next visitor one full refetch, which is exactly what they would have paid
-before the store existed.
+Each daily series back to 2000 is roughly 5,000 rows, and two are kept per
+company · closes and reported market caps · so about 1.2 MB together.
+:mod:`quotes.price_store` and :mod:`quotes.market_cap_store` fill lazily,
+so the tables only hold companies someone has opened · but on a 49 GB
+droplet, "someone opened it once, last year" is still worth reclaiming.
+Dropping a series costs the next visitor one full refetch, which is
+exactly what they would have paid before the stores existed.
 """
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from quotes.models import DailyClosePrice, LookupLog
+from quotes.models import DailyClosePrice, DailyMarketCap, LookupLog
 
 DEFAULT_RETENTION_DAYS = 90
 
 
 class Command(BaseCommand):
-    help = "Delete stored daily closes for companies not looked up recently."
+    help = (
+        "Delete stored daily closes and market caps for companies not "
+        "looked up recently."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -49,14 +53,17 @@ class Command(BaseCommand):
         )
         stored_tickers = set(
             DailyClosePrice.objects.values_list("ticker", flat=True).distinct()
-        )
+        ) | set(DailyMarketCap.objects.values_list("ticker", flat=True).distinct())
         prunable = sorted(stored_tickers - recently_read)
 
         if not prunable:
             self.stdout.write("Nothing to prune.")
             return
 
-        row_count = DailyClosePrice.objects.filter(ticker__in=prunable).count()
+        row_count = (
+            DailyClosePrice.objects.filter(ticker__in=prunable).count()
+            + DailyMarketCap.objects.filter(ticker__in=prunable).count()
+        )
         if dry_run:
             self.stdout.write(
                 f"Would delete {row_count} rows across {len(prunable)} companies: "
@@ -66,6 +73,7 @@ class Command(BaseCommand):
             return
 
         DailyClosePrice.objects.filter(ticker__in=prunable).delete()
+        DailyMarketCap.objects.filter(ticker__in=prunable).delete()
         self.stdout.write(
             self.style.SUCCESS(
                 f"Deleted {row_count} rows across {len(prunable)} companies."
