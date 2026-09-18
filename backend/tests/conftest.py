@@ -5,6 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
+from quotes.circuit_breaker import forget_open_readings
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
@@ -75,10 +76,17 @@ def superuser_client(client, superuser):
 
 @pytest.fixture(autouse=True)
 def clear_cache():
-    """Clear Django cache before each test to prevent cross-test pollution."""
+    """Clear Django cache before each test to prevent cross-test pollution.
+
+    The provider circuit breakers keep their last reading of the shared
+    open marker in process memory, which no cache clear can reach, so
+    they are reset alongside it.
+    """
     cache.clear()
+    forget_open_readings()
     yield
     cache.clear()
+    forget_open_readings()
 
 
 @pytest.fixture(scope="session")

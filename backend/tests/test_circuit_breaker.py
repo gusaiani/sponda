@@ -4,14 +4,20 @@ Wraps an outbound provider call. After N consecutive failures the
 breaker opens and short-circuits subsequent calls for ``cool_down``
 seconds, raising ``CircuitOpenError`` instead of executing the call.
 A single successful call closes the breaker again.
+
+The shared open marker is polled, not read before every call: see
+``TestOpenMarkerPolling``.
 """
 
 import pytest
 from django.core.cache import cache
 
+from quotes import circuit_breaker as circuit_breaker_module
 from quotes.circuit_breaker import (
+    OPEN_MARKER_POLL_SECONDS,
     CircuitBreaker,
     CircuitOpenError,
+    forget_open_readings,
 )
 
 
@@ -24,6 +30,35 @@ def clear_cache():
 
 class _BoomError(Exception):
     pass
+
+
+class _FakeClock:
+    """A monotonic clock the test moves by hand."""
+
+    def __init__(self) -> None:
+        self.seconds = 0.0
+
+    def __call__(self) -> float:
+        return self.seconds
+
+    def advance(self, seconds: float) -> None:
+        self.seconds += seconds
+
+
+class _CacheSpy:
+    """Counts reads of one key, delegating every operation to the cache."""
+
+    def __init__(self, watched_key: str) -> None:
+        self.watched_key = watched_key
+        self.read_count = 0
+
+    def get(self, key, *args, **kwargs):
+        if key == self.watched_key:
+            self.read_count += 1
+        return cache.get(key, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(cache, name)
 
 
 class TestCircuitBreaker:
@@ -84,8 +119,11 @@ class TestCircuitBreaker:
         # B is unaffected.
         assert b.call(lambda: "ok") == "ok"
 
-    def test_breaker_recovers_after_cool_down(self, monkeypatch):
-        breaker = CircuitBreaker(name="fmp", failure_threshold=1, cool_down_seconds=1)
+    def test_breaker_recovers_after_cool_down(self):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=1, cool_down_seconds=1, clock=clock
+        )
 
         with pytest.raises(_BoomError):
             breaker.call(lambda: (_raise(_BoomError("x"))))
@@ -95,8 +133,115 @@ class TestCircuitBreaker:
 
         # Simulate cool_down elapsing by deleting the open marker.
         cache.delete(breaker.open_cache_key)
+        clock.advance(OPEN_MARKER_POLL_SECONDS)
         # After cool-down, calls are allowed through again.
         assert breaker.call(lambda: "ok") == "ok"
+
+    def test_honours_a_marker_another_process_left_behind(self):
+        cache.set("circuit_breaker:fmp:open", True, timeout=60)
+        breaker = CircuitBreaker(name="fmp", failure_threshold=3, cool_down_seconds=60)
+
+        with pytest.raises(CircuitOpenError):
+            breaker.call(lambda: "ok")
+
+
+class TestOpenMarkerPolling:
+    """The shared marker is read at most once per poll interval.
+
+    Reading it before every provider call costs a cache round trip per
+    call, which shows up as a repeated span on every trace. The reading
+    is reused between polls instead. Staleness is bounded by the very
+    situation the breaker exists for: a call against a sick provider
+    takes longer than the poll interval, so the next check re-reads the
+    marker anyway.
+    """
+
+    def test_quick_calls_share_one_reading(self, monkeypatch):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        spy = _CacheSpy(breaker.open_cache_key)
+        monkeypatch.setattr(circuit_breaker_module, "cache", spy)
+
+        for _ in range(4):
+            assert breaker.call(lambda: "ok") == "ok"
+
+        assert spy.read_count == 1
+
+    def test_marker_is_read_again_after_the_poll_interval(self, monkeypatch):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        spy = _CacheSpy(breaker.open_cache_key)
+        monkeypatch.setattr(circuit_breaker_module, "cache", spy)
+
+        breaker.call(lambda: "ok")
+        clock.advance(OPEN_MARKER_POLL_SECONDS)
+        breaker.call(lambda: "ok")
+
+        assert spy.read_count == 2
+
+    def test_picks_up_another_process_opening_the_breaker(self):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        breaker.call(lambda: "ok")
+
+        # Another process trips the breaker mid-request.
+        cache.set(breaker.open_cache_key, True, timeout=60)
+        clock.advance(OPEN_MARKER_POLL_SECONDS)
+
+        with pytest.raises(CircuitOpenError):
+            breaker.call(lambda: "ok")
+
+    def test_opening_locally_short_circuits_the_very_next_call(self):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=1, cool_down_seconds=60, clock=clock
+        )
+
+        with pytest.raises(_BoomError):
+            breaker.call(lambda: (_raise(_BoomError("x"))))
+
+        # No time has passed, so only the local reading can know.
+        with pytest.raises(CircuitOpenError):
+            breaker.call(lambda: "ok")
+
+    def test_readings_do_not_leak_once_they_are_dropped(self):
+        """A reading outlives ``cache.clear()``, so tests drop it by hand."""
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=1, cool_down_seconds=60, clock=clock
+        )
+
+        with pytest.raises(_BoomError):
+            breaker.call(lambda: (_raise(_BoomError("x"))))
+
+        cache.clear()
+        forget_open_readings()
+
+        assert breaker.call(lambda: "ok") == "ok"
+
+    def test_a_slow_call_always_costs_a_fresh_reading(self, monkeypatch):
+        """The dangerous case never rides a stale reading."""
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        spy = _CacheSpy(breaker.open_cache_key)
+        monkeypatch.setattr(circuit_breaker_module, "cache", spy)
+
+        def slow_call():
+            clock.advance(OPEN_MARKER_POLL_SECONDS * 2)
+            return "ok"
+
+        breaker.call(slow_call)
+        breaker.call(slow_call)
+
+        assert spy.read_count == 2
 
 
 def _raise(exc):
