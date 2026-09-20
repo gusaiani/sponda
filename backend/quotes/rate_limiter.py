@@ -18,13 +18,66 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Callable, Iterator
 
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
 WINDOW_SECONDS = 60
+
+
+class RateLimitTimeout(Exception):
+    """The allowance could not be had inside the caller's wait budget."""
+
+
+class _WaitBudget:
+    """What is left of one caller's allowance for waiting.
+
+    Mutable and shared for the length of the block, because a single page
+    view makes several provider calls. A budget handed out afresh to each
+    call would let a request wait its ceiling over and over and still
+    outlive the worker timeout it was meant to stay inside.
+    """
+
+    def __init__(self, seconds: float) -> None:
+        self.remaining = seconds
+
+    def spend(self, seconds: float) -> None:
+        self.remaining -= seconds
+
+
+# What is left of the current caller's waiting allowance. None, the
+# default, means "as long as it takes", which is what a Celery task or a
+# management command wants: nothing is timing them.
+_wait_budget: ContextVar[_WaitBudget | None] = ContextVar(
+    "provider_wait_budget", default=None
+)
+
+
+def wait_budget_seconds() -> float | None:
+    """What is left of the caller's budget, or None if it may wait forever."""
+    budget = _wait_budget.get()
+    return None if budget is None else budget.remaining
+
+
+@contextmanager
+def wait_budget(seconds: float | None) -> Iterator[None]:
+    """Cap how long provider pacing may block inside this block.
+
+    A request served by gunicorn is on a clock: the worker is aborted if a
+    request outlives the worker timeout, and the abort takes down every
+    other request that worker was holding. See
+    `config.middleware.provider_wait_budget`.
+    """
+    token = _wait_budget.set(None if seconds is None else _WaitBudget(seconds))
+    try:
+        yield
+    finally:
+        _wait_budget.reset(token)
+
 
 # The window key outlives its window so a clock skew between processes
 # cannot resurrect a counter that another process is still incrementing.
@@ -54,9 +107,18 @@ class RateLimiter:
         return f"rate_limiter:{self.name}:{window_start}"
 
     def acquire(self) -> None:
-        """Return once the caller may issue its request, sleeping if needed."""
+        """Return once the caller may issue its request, sleeping if needed.
+
+        Raises `RateLimitTimeout` when the wait would outlast the caller's
+        budget, if it set one. Refusing at once rather than sleeping for
+        whatever is left of the budget is deliberate: the call is lost
+        either way, and a shorter sleep only spends the worker's time
+        before losing it.
+        """
         if self.max_calls_per_minute <= 0:
             return
+
+        budget = _wait_budget.get()
 
         while True:
             now = self._clock()
@@ -67,6 +129,15 @@ class RateLimiter:
                 return
 
             seconds_until_next_window = max(window_start + WINDOW_SECONDS - now, 0.0)
+
+            # The budget covers the whole of the caller's waiting, across
+            # every provider call it makes, not each sleep in isolation.
+            if budget is not None and seconds_until_next_window > budget.remaining:
+                raise RateLimitTimeout(
+                    f"'{self.name}' needs {seconds_until_next_window:.1f}s, "
+                    f"more than the {budget.remaining:.1f}s the caller has left"
+                )
+
             logger.debug(
                 "Rate limiter '%s' full (%s calls); waiting %.1fs",
                 self.name,
@@ -74,24 +145,47 @@ class RateLimiter:
                 seconds_until_next_window,
             )
             self._sleep(seconds_until_next_window)
+            if budget is not None:
+                budget.spend(seconds_until_next_window)
 
     def _increment(self, cache_key: str) -> int:
         """The number of calls taken in this window, counting this one.
+
+        The increment is tried before the create, not after it. Only the
+        first caller of a minute needs the counter created; every caller
+        after that found a write that could not do anything, and paid a
+        network round trip for it. A cold company page makes several
+        provider calls in one request, which is how Sentry came to see the
+        repeated `SET` as an N+1 on `/api/quote/{ticker}/`.
 
         A cache that is down must not stop the application from talking to
         its providers, so an unusable counter degrades to "allowed".
         """
         try:
-            cache.add(cache_key, 0, timeout=_COUNTER_TTL_SECONDS)
             return cache.incr(cache_key)
         except ValueError:
-            # The key expired between the add and the incr. Whatever the
-            # true count was, the window is about to roll over anyway.
+            pass  # No counter for this window yet; this caller may be first.
+        except Exception:
+            return self._unusable_counter()
+
+        try:
+            if cache.add(cache_key, 1, timeout=_COUNTER_TTL_SECONDS):
+                return 1
+            # Another process created the counter in between. Its call is
+            # already counted, and this one still has to be.
+            return cache.incr(cache_key)
+        except ValueError:
+            # The key expired again between the add and the incr. Whatever
+            # the true count was, the window is about to roll over anyway.
             return 1
         except Exception:
-            logger.warning(
-                "Rate limiter '%s' could not read its counter; allowing the call",
-                self.name,
-                exc_info=True,
-            )
-            return 1
+            return self._unusable_counter()
+
+    def _unusable_counter(self) -> int:
+        """Log a counter we could not reach, and let the call through."""
+        logger.warning(
+            "Rate limiter '%s' could not read its counter; allowing the call",
+            self.name,
+            exc_info=True,
+        )
+        return 1

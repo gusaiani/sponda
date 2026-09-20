@@ -4,10 +4,12 @@ Normalizes FMP responses to match BRAPI field names so views work
 unchanged regardless of data source.
 """
 import re
+from functools import wraps
 
 from django.core.cache import cache
 
 from quotes import brapi, fmp, market_cap_store, price_store
+from quotes.ticker_symbol import is_plausible_ticker_symbol
 
 PROVIDER_QUOTE_CACHE_TTL = 15 * 60  # 15 minutes
 PROVIDER_HISTORICAL_CACHE_TTL = 60 * 60  # 1 hour
@@ -23,8 +25,27 @@ def is_brazilian_ticker(ticker: str) -> bool:
     return bool(re.match(r"^[A-Z]+\d+$", ticker.upper()))
 
 
+def refuses_implausible_symbols(fetch):
+    """Answer "no results" on shape alone, before a provider call is spent.
+
+    The views guard their own entry points, but this is the layer every
+    caller shares: a Celery task, a management command or a future
+    endpoint cannot leak quota on a symbol that could not name a company.
+    """
+
+    @wraps(fetch)
+    def guarded(ticker, *args, **kwargs):
+        if not is_plausible_ticker_symbol(ticker):
+            raise ProviderError(f"No results for ticker {ticker}")
+        return fetch(ticker, *args, **kwargs)
+
+    return guarded
+
+
 def _route(brazilian_function, us_function, ticker, *args, **kwargs):
     """Call the appropriate provider function and wrap errors as ProviderError."""
+    if not is_plausible_ticker_symbol(ticker):
+        raise ProviderError(f"No results for ticker {ticker}")
     if is_brazilian_ticker(ticker):
         try:
             return brazilian_function(ticker, *args, **kwargs)
@@ -73,8 +94,9 @@ def fetch_quotes_batch(tickers: list[str]) -> dict[str, dict]:
     Returns a dict keyed by uppercase symbol. Tickers absent from the
     provider response are simply missing from the returned dict.
     """
-    br_tickers = [t for t in tickers if is_brazilian_ticker(t)]
-    us_tickers = [t for t in tickers if not is_brazilian_ticker(t)]
+    plausible = [t for t in tickers if is_plausible_ticker_symbol(t)]
+    br_tickers = [t for t in plausible if is_brazilian_ticker(t)]
+    us_tickers = [t for t in plausible if not is_brazilian_ticker(t)]
     results: dict[str, dict] = {}
 
     if br_tickers:
@@ -94,6 +116,7 @@ def fetch_quotes_batch(tickers: list[str]) -> dict[str, dict]:
     return results
 
 
+@refuses_implausible_symbols
 def fetch_quote(ticker: str) -> dict:
     cache_key = f"provider:quote:{ticker.upper()}"
     cached = cache.get(cache_key)
@@ -116,6 +139,7 @@ def fetch_quote(ticker: str) -> dict:
     return result
 
 
+@refuses_implausible_symbols
 def fetch_dividends(ticker: str):
     cache_key = f"provider:dividends:{ticker.upper()}"
     cached = cache.get(cache_key)
@@ -138,6 +162,7 @@ def fetch_dividends(ticker: str):
     return result
 
 
+@refuses_implausible_symbols
 def fetch_historical_prices(ticker: str):
     cache_key = f"provider:historical:{ticker.upper()}"
     cached = cache.get(cache_key)
@@ -162,6 +187,7 @@ def fetch_historical_prices(ticker: str):
     return result
 
 
+@refuses_implausible_symbols
 def fetch_historical_market_caps(ticker: str) -> list[dict] | None:
     """The market cap reported on each trading day, or None when unavailable.
 

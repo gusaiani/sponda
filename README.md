@@ -2195,6 +2195,8 @@ Unified error, performance, and cron monitoring through Sentry (free tier) plus 
 - **External uptime.** UptimeRobot (free) hits `https://sponda.capital/` and `https://sponda.capital/api/health/` every 5 minutes. Setup is manual, outside the repo.
 - **Interactive shells are not reported.** `init_sentry` returns early for `manage.py shell`, `shell_plus` and `dbshell` (see `is_interactive_shell_session`). A traceback at a REPL is an operator mistyping a model name, not the service failing, and five such typos were sitting in the inbox looking like production errors. Skipping init also drops the two-second Sentry flush that every shell exit was paying. Gunicorn, Celery, pytest and all timer-driven management commands are untouched, which is the part the tests pin.
 - **Third-party browser noise is dropped.** `src/lib/sentry.ts` ships a default `ignoreErrors` list covering wallet extensions (`Failed to connect to MetaMask`, `window.ethereum`), iOS in-app webviews reaching for Safari-only handlers (`window.webkit.messageHandlers`), and extension bootstraps (`ext:core/`, `<name:bootstrap>`). None of it is code we ship. A caller can pass its own `ignoreErrors` to replace the defaults.
+- **A scanner probing `/wp-admin/install.php` is not a company page.** The Next.js middleware validates the locale segment, but its matcher skips any path containing a dot, so a dotted probe reached `/[locale]/[ticker]` directly with a locale of `wp-admin`. Every locale table in `src/lib/metadata.ts` is keyed by a supported locale, so the lookup returned undefined and indexing it threw: 5,791 crashes in twenty days, the loudest error in the inbox, each one having first spent a Django round trip on the ticker `install.php`. The company layout and tab page now answer 404 for a locale we do not serve, the same answer the locale layout below them already gave, and `generateTickerMetadata` falls back to English rather than throwing, because all three of its call sites cast the raw URL segment without checking it.
+- **Provider pacing has a budget inside a request.** A rate limiter that waits for the outbound allowance to refill will outlive a gunicorn worker timeout and get the worker killed. See [Pacing must not outlive the request](#pacing-must-not-outlive-the-request).
 - **A DFP archive the CVM has not published is not an error.** `download_dfp_archive` raises `DfpArchiveNotPublished` on a 404 and `sync_cvm_fourth_quarters` reports it and stops. Any other HTTP failure still raises. The job necessarily runs for a reporting year before the CVM publishes it, so without this the same page fires every year.
 
 **Environment variables**
@@ -2596,14 +2598,18 @@ With 18,158 companies in the universe, the weekly statement refresh alone
 was 7.3 GB a run, and a single company page view cost 1.5 MB of prices
 that had not changed since the last view.
 
-### The six mechanisms
+### The seven mechanisms
 
 **Outbound pacing.** `quotes.rate_limiter.RateLimiter` holds a per-minute
 allowance in the shared cache, so the web workers, the Celery workers and
 the systemd commands pace themselves as one fleet rather than one
 allowance each. A rejected call spends data volume just like a successful
 one, so finding the ceiling by collision is the most expensive way to
-find it.
+find it. The counter is incremented first and created only if that fails,
+which costs one cache round trip per call instead of two: creating it
+ahead of every increment was a write that could not do anything after the
+first call of the minute, and Sentry had started reporting the repeated
+`SET` as an N+1 on `/api/quote/{ticker}/`.
 
 **Stored price history.** `quotes.price_store` keeps the daily close
 series in Postgres (`DailyClosePrice`) and tops it up with the days it is
@@ -2661,6 +2667,62 @@ days old and the next filing is plausibly due.
 **Incremental FX.** Each currency asks for the days since its newest
 stored rate rather than refetching back to 2010 every morning.
 
+**Symbols that cannot be companies.** A ticker arrives from the URL, so
+it is whatever the caller typed. `$TFCO4`, the cashtag spelling of a B3
+ticker, fails the Brazilian pattern (`^[A-Z]+\d+$`) and was therefore
+routed to FMP, which spent an income-statement, a cash-flow, a
+balance-sheet and a quote call to conclude what the `$` already said.
+Nothing is stored for a company that does not exist, so every repeat
+paid again, and `/pt/$TFCO4` was linked often enough to show up in the
+logs thirty times in a fortnight.
+
+`quotes.ticker_symbol.is_plausible_ticker_symbol` now answers on shape
+alone: uppercase letters and digits, optionally in groups joined by a
+single hyphen or dot for a share class, preferred series or warrant
+(`AKO-A`, `AHT-PD`, `AMPX-WT`, `BRK.B`), at most twelve characters. That
+shape is drawn from the catalogue, whose longest symbol is ten
+characters and five of whose entries are provider fund identifiers
+(`0P00000SXJ`), which is why a leading digit is allowed.
+
+It is a shape test, not a membership test: `EMBR3`, `LVMUY` and `OZON`
+were all looked up in the last fortnight without being in the `Ticker`
+table, so refusing what the catalogue does not hold would refuse real
+companies. The quote, multiples-history and fundamentals endpoints
+answer 404 before the quota gate, and the provider layer
+(`quotes.providers`) repeats the check so a Celery task, a management
+command or a future endpoint cannot leak quota either.
+
+### Pacing must not outlive the request
+
+Waiting for the allowance to refill is right for a Celery task or a
+management command: nothing is timing them, and a wait is cheaper than a
+429 that spends data volume anyway. Inside a request it is wrong. Sentry
+caught the failure mode as `SystemExit: 1` on `/api/quote/{ticker}/`,
+raised from gunicorn's `handle_abort` while `acquire` was 36 seconds into
+a sleep, the FMP window holding 251 calls against an allowance of 250.
+Gunicorn's default worker timeout is 30 seconds, so the worker was killed
+mid-request, taking every other request it was holding with it. Five
+workers on a saturated minute is the whole web tier.
+
+`config.middleware.provider_wait_budget.ProviderWaitBudgetMiddleware`
+gives each request a budget, in a context variable the limiter reads.
+A wait longer than what is left raises `RateLimitTimeout`, which
+`quotes.fmp` turns into an ordinary `FMPError` so the view degrades the
+way it already does for an open circuit. Three details earn their place:
+
+- The budget spans the whole request, not each call. One cold company
+  page makes several provider calls, and a ceiling handed out afresh to
+  each of them would let a request wait its ceiling over and over.
+- A wait that cannot be afforded is refused immediately rather than
+  slept for as long as the budget allows. The call is lost either way,
+  and the shorter sleep only spends the worker's time before losing it.
+- The circuit breaker does not count it. `CircuitBreaker.call` takes a
+  `not_a_provider_failure` tuple, because a call this process declined
+  to make says nothing about FMP's health, and counting it would let a
+  busy minute open the breaker for every caller.
+
+Batch callers set no budget and still wait as long as they need.
+
 ### Seeing where the quota goes
 
 Every outbound call records its endpoint, its response size and whether
@@ -2702,6 +2764,7 @@ crawler rather than a spoofed user agent.
 | Variable | Default | Purpose |
 |---|---|---|
 | `FMP_MAX_CALLS_PER_MINUTE` | `250` | Per-minute outbound allowance shared by every process. 0 disables pacing. |
+| `PROVIDER_WAIT_BUDGET_SECONDS` | `10.0` | Longest a single request may spend waiting for that allowance to refill before it degrades. Kept well under gunicorn's 30-second worker timeout. Batch callers are unaffected. |
 | `SPONDA_LOOKUPS_PER_HOUR` | `120` | Distinct companies an hour, every tier including verified accounts. 0 disables. See [Lookup limits](#lookup-limits). |
 
 ### Local testing
