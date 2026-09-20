@@ -35,6 +35,7 @@ from .company_snapshot import (
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .lookup_enforcement import LookupQuotaEnforcedView
+from .ticker_symbol import is_plausible_ticker_symbol
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_market_caps, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .tasks import refresh_provider_data
 from .indicators import compute_company_indicators
@@ -945,6 +946,25 @@ def _build_ratings_block(quote_result: dict, sector: str | None) -> dict:
     return block
 
 
+TICKER_NOT_FOUND_MESSAGE = (
+    'Ticker "{ticker}" não encontrado. Verifique o código e tente novamente.'
+)
+
+
+def _malformed_ticker_response(ticker: str) -> Response:
+    """The 404 for a symbol whose shape rules it out as a company.
+
+    Returned before the quota gate and before any provider call: a
+    cashtag like ``$TFCO4`` used to cost four FMP calls per request to
+    learn what its shape already said, and stored nothing, so every
+    repeat paid again.
+    """
+    return Response(
+        {"error": TICKER_NOT_FOUND_MESSAGE.format(ticker=ticker)},
+        status=status.HTTP_404_NOT_FOUND,
+    )
+
+
 class _QuoteError(Exception):
     """Internal sentinel: a per-ticker error with HTTP status + message.
 
@@ -969,6 +989,12 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
     Raises ``_QuoteError`` for HTTP-mappable failures (ticker not found,
     market data unavailable, provider down).
     """
+    if not is_plausible_ticker_symbol(ticker):
+        raise _QuoteError(
+            TICKER_NOT_FOUND_MESSAGE.format(ticker=ticker),
+            http_status=status.HTTP_404_NOT_FOUND,
+        )
+
     cache_key = pe10_cache_key(ticker)
     cache_started = time.perf_counter()
     cached_result = cache.get(cache_key)
@@ -1132,6 +1158,9 @@ class PE10View(LookupQuotaEnforcedView, APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        if not is_plausible_ticker_symbol(ticker):
+            return _malformed_ticker_response(ticker)
+
         # Enforce the daily distinct-company cap before doing any work, so
         # a blocked request neither computes a payload nor burns quota.
         # Re-viewing a company already counted today is always allowed.
@@ -1269,6 +1298,9 @@ class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
     def get(self, request, ticker):
         ticker = ticker.upper()
 
+        if not is_plausible_ticker_symbol(ticker):
+            return _malformed_ticker_response(ticker)
+
         # Same daily distinct-company cap as PE10View, enforced before any
         # cache read or provider call, so this sub-endpoint can't be used to
         # enumerate the catalogue around the main quote page's limit.
@@ -1353,6 +1385,9 @@ class FundamentalsView(LookupQuotaEnforcedView, APIView):
 
     def get(self, request, ticker):
         ticker = ticker.upper()
+
+        if not is_plausible_ticker_symbol(ticker):
+            return _malformed_ticker_response(ticker)
 
         # Same daily distinct-company cap as PE10View, enforced before any
         # cache read or provider call, so this sub-endpoint can't be used to

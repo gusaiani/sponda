@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { INDEXABLE_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, type SupportedLocale } from "./i18n-config";
+import { DEFAULT_LOCALE, INDEXABLE_LOCALES, LOCALE_TO_OG_LOCALE, LOCALE_TO_HTML_LANG, isSupportedLocale, type SupportedLocale } from "./i18n-config";
 import { tabSlugForLocale, type TabKey } from "../utils/tabs";
 import { djangoApiBaseUrl } from "./django-api";
 import { markdownUrlFor } from "./markdown-routes";
@@ -223,11 +223,27 @@ const KEYWORDS: Record<string, string[]> = {
   it: ["PE10", "PFCF10", "PEG", "CAGR", "analisi fondamentale", "investimento di valore", "mercato azionario"],
 };
 
+/**
+ * The locale to build copy in, given whatever the URL segment held.
+ *
+ * Every table above is keyed by a supported locale, and all three call
+ * sites cast the raw segment to SupportedLocale without checking it. A
+ * scanner asking for `/wp-admin/install.php` therefore reached
+ * `TAB_DESCRIPTIONS["wp-admin"]`, got undefined, and threw on the next
+ * index. The route answers 404 for such a path now, but a metadata
+ * builder that crashes on an unexpected string is a trap for the next
+ * caller, so an unknown locale degrades to English here.
+ */
+function resolveLocale(locale: string): SupportedLocale {
+  return isSupportedLocale(locale) ? locale : DEFAULT_LOCALE;
+}
+
 export async function generateTickerMetadata(
   ticker: string,
-  locale: SupportedLocale,
+  requestedLocale: SupportedLocale,
   tabSlug?: string,
 ): Promise<Metadata> {
+  const locale = resolveLocale(requestedLocale);
   const info = await fetchTickerInfo(ticker);
   const companyName = info?.name || "";
   const sector = info?.sector || "";

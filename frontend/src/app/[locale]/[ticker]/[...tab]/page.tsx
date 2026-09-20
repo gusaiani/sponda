@@ -4,7 +4,7 @@ import { fetchQuoteServer } from "../fetch-quote-server";
 import { fetchPeersServer } from "../fetch-peers-server";
 import { generateTickerMetadata } from "../../../../lib/metadata";
 import { resolveTab, tabSlugForLocale } from "../../../../utils/tabs";
-import type { SupportedLocale } from "../../../../lib/i18n-config";
+import { isSupportedLocale } from "../../../../lib/i18n-config";
 import type { Metadata } from "next";
 
 interface TabPageProps {
@@ -14,13 +14,23 @@ interface TabPageProps {
 export async function generateMetadata({ params }: TabPageProps): Promise<Metadata> {
   const { locale, ticker, tab } = await params;
   const tabSlug = tab?.[0];
+  // Same reasoning as the layout above: a dotted path skips the
+  // middleware's matcher, so an unsupported locale can only be refused
+  // here.
+  if (!isSupportedLocale(locale)) {
+    notFound();
+  }
   if (!tabSlug) return {};
-  return generateTickerMetadata(ticker.toUpperCase(), locale as SupportedLocale, tabSlug);
+  return generateTickerMetadata(ticker.toUpperCase(), locale, tabSlug);
 }
 
 export default async function TabPage({ params }: TabPageProps) {
   const { locale, ticker, tab } = await params;
   const tabSlug = tab?.[0];
+
+  if (!isSupportedLocale(locale)) {
+    notFound();
+  }
 
   if (!tabSlug) {
     notFound();

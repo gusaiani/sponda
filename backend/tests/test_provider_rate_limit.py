@@ -160,3 +160,82 @@ class TestFMPClientIsPaced:
         _get("/stable/quote", params={"symbol": "AAPL"})
 
         assert call_order == ["acquire", "request"]
+
+
+class TestRateLimiterCostsOneRoundTripPerCall:
+    """Sentry flagged `/api/quote/{ticker}/` as an N+1 on a cache write.
+
+    The offending span was `SET ':1:rate_limiter:fmp:<window>'`, repeated
+    once per outbound call: `acquire` used to run `cache.add` before every
+    `cache.incr`, and after the first call of a window that `add` is a
+    guaranteed no-op. A cold company page makes several provider calls, so
+    the request paid two Redis round trips per call to write a value that
+    was already there.
+
+    Incrementing first inverts it: the ordinary call is one round trip,
+    and only the first caller of a window pays for creating the counter.
+    """
+
+    def test_a_call_in_an_established_window_does_not_rewrite_the_counter(self):
+        clock = FakeClock()
+        limiter = RateLimiter(
+            "test-provider", max_calls_per_minute=100, sleep=clock.sleep, clock=clock.time
+        )
+        limiter.acquire()  # creates the counter for this window
+
+        with patch("quotes.rate_limiter.cache.add") as mock_add:
+            for _ in range(10):
+                limiter.acquire()
+
+        mock_add.assert_not_called()
+
+    def test_the_first_call_of_a_window_still_creates_the_counter(self):
+        clock = FakeClock()
+        limiter = RateLimiter(
+            "test-provider", max_calls_per_minute=2, sleep=clock.sleep, clock=clock.time
+        )
+
+        limiter.acquire()
+
+        assert cache.get(limiter.window_cache_key(0)) == 1
+
+    def test_two_processes_racing_to_create_the_counter_both_get_counted(self):
+        """`add` losing the race must not lose the caller's call.
+
+        Both instances find no counter and both try to create it. The one
+        whose `add` is refused has to fall back to incrementing, or the
+        window would undercount and the allowance would be overspent.
+        """
+        clock = FakeClock()
+        first = RateLimiter(
+            "test-provider", max_calls_per_minute=10, sleep=clock.sleep, clock=clock.time
+        )
+        second = RateLimiter(
+            "test-provider", max_calls_per_minute=10, sleep=clock.sleep, clock=clock.time
+        )
+        real_add = cache.add
+        added_by_the_loser = []
+
+        def add_that_the_second_caller_loses(key, *args, **kwargs):
+            if added_by_the_loser:
+                return False
+            added_by_the_loser.append(key)
+            return real_add(key, *args, **kwargs)
+
+        with patch("quotes.rate_limiter.cache.add", side_effect=add_that_the_second_caller_loses):
+            first.acquire()
+            second.acquire()
+
+        assert cache.get(first.window_cache_key(0)) == 2
+
+    def test_a_cache_that_is_down_still_allows_the_call(self):
+        clock = FakeClock()
+        limiter = RateLimiter(
+            "test-provider", max_calls_per_minute=1, sleep=clock.sleep, clock=clock.time
+        )
+
+        with patch("quotes.rate_limiter.cache.incr", side_effect=ConnectionError("redis is down")), \
+             patch("quotes.rate_limiter.cache.add", side_effect=ConnectionError("redis is down")):
+            limiter.acquire()
+
+        assert clock.sleeps == []

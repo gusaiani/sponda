@@ -292,3 +292,50 @@ describe("generateScreenerMetadata", () => {
     expect(generateScreenerMetadata("de").title).toBe("Aktien-Screener · Sponda");
   });
 });
+
+/**
+ * Scanners probe `/wp-admin/install.php`, `/wp-login.php` and friends all
+ * day. Those paths contain a dot, so the middleware matcher skips them,
+ * and the App Router matches them against `/[locale]/[ticker]` with a
+ * locale of `wp-admin`. Every locale table here is keyed by a supported
+ * locale, so the lookup returned undefined and indexing it threw
+ * "Cannot read properties of undefined (reading 'metrics')" — 5,791 times
+ * in twenty days, the single loudest error in Sentry.
+ *
+ * The route answers 404 for those now (see the ticker layout), but the
+ * builder itself must not be the thing that throws: it is reached from
+ * three call sites, each of which casts the raw URL segment to
+ * SupportedLocale without checking it.
+ */
+describe("a locale that is not one of ours", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ name: "Vulcabras", sector: "Consumer Non-Durables" }),
+    })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("builds metadata instead of throwing", async () => {
+    const metadata = await generateTickerMetadata("INSTALL.PHP", "wp-admin" as never);
+
+    expect(metadata.title).toContain("Sponda");
+    expect(metadata.description).toBeTruthy();
+  });
+
+  it("falls back to the English copy", async () => {
+    const unknown = await generateTickerMetadata("VULC3", "wp-admin" as never);
+    const english = await generateTickerMetadata("VULC3", "en");
+
+    expect(unknown.description).toBe(english.description);
+  });
+
+  it("survives a tab slug too", async () => {
+    const metadata = await generateTickerMetadata("VULC3", "wp-admin" as never, "charts");
+
+    expect(metadata.title).toContain("Sponda");
+  });
+});

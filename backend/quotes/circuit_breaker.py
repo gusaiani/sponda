@@ -107,11 +107,26 @@ class CircuitBreaker:
         self._last_open_reading_at = self._clock()
         return is_open
 
-    def call(self, fn: Callable[[], T]) -> T:
+    def call(
+        self,
+        fn: Callable[[], T],
+        *,
+        not_a_provider_failure: tuple[type[BaseException], ...] = (),
+    ) -> T:
+        """Run `fn`, counting its failures towards opening the breaker.
+
+        `not_a_provider_failure` names the exceptions to pass through
+        uncounted. The breaker exists to notice the provider failing; a
+        call this process chose not to make says nothing about the
+        provider's health, and counting it would let a busy minute open
+        the breaker for every caller.
+        """
         if self.is_open():
             raise CircuitOpenError(f"Circuit '{self.name}' is open")
         try:
             result = fn()
+        except not_a_provider_failure:
+            raise
         except Exception:
             failures = (cache.get(self.failure_cache_key) or 0) + 1
             cache.set(

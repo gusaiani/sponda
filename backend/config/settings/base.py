@@ -38,6 +38,9 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "config.middleware.request_id.RequestIDMiddleware",
     "config.middleware.server_timing.ServerTimingMiddleware",
+    # Sits above everything that can reach a provider, so one budget covers
+    # every outbound call the request makes, wherever it is made from.
+    "config.middleware.provider_wait_budget.ProviderWaitBudgetMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # Serves /static/ (the Django admin's stylesheets) from this process.
     # Every request reaches Django through the Next.js middleware proxy, so
@@ -155,6 +158,13 @@ FMP_BASE_URL = "https://financialmodelingprep.com"
 # the fleet paces itself just under the ceiling instead of finding it by
 # collision. Set to 0 to disable throttling.
 FMP_MAX_CALLS_PER_MINUTE = env.int("FMP_MAX_CALLS_PER_MINUTE", default=250)
+
+# The longest a request may spend waiting for the outbound allowance to
+# refill before it gives up and degrades. Comfortably under gunicorn's
+# 30-second worker timeout, which aborts the worker and every other
+# request it is holding. Batch callers ignore this and wait as long as
+# they need; see `quotes.rate_limiter.wait_budget`.
+PROVIDER_WAIT_BUDGET_SECONDS = env.float("PROVIDER_WAIT_BUDGET_SECONDS", default=10.0)
 
 FRED_API_KEY = env("FRED_API_KEY", default="")
 FRED_BASE_URL = "https://api.stlouisfed.org/fred"

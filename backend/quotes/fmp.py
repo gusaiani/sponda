@@ -12,7 +12,7 @@ from .statement_quality import (
 )
 from .circuit_breaker import CircuitBreaker, CircuitOpenError
 from .provider_usage import record_provider_call
-from .rate_limiter import RateLimiter
+from .rate_limiter import RateLimiter, RateLimitTimeout
 from .models import (
     SOURCE_FMP,
     BalanceSheet,
@@ -48,7 +48,14 @@ def _get(endpoint: str, params: dict | None = None) -> dict | list:
         return response
 
     try:
-        response = _BREAKER.call(_do_request)
+        response = _BREAKER.call(
+            _do_request, not_a_provider_failure=(RateLimitTimeout,)
+        )
+    except RateLimitTimeout as error:
+        # We declined to make this call to stay inside FMP's per-minute
+        # allowance. Surface it the same way as an open breaker, so the
+        # view degrades instead of the worker blocking past its timeout.
+        raise FMPError(f"FMP pacing budget exhausted: {error}") from error
     except CircuitOpenError as error:
         # The breaker is open because FMP has been failing. Surface it as an
         # FMPError so it flows through the normal provider-degradation path
