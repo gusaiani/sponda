@@ -42,7 +42,7 @@ from .indicators import compute_company_indicators
 from .screener import ScreenerError, run_screener
 from .fundamentals import aggregate_proventos_by_year, compute_fundamentals, compute_quarterly_balance_ratios
 from .leverage import calculate_leverage
-from .models import BalanceSheet, CompanyAnalysis, IndicatorSnapshot, IPCAIndex, LookupLog, QuarterlyCashFlow, QuarterlyEarnings, Ticker
+from .models import BalanceSheet, CompanyAnalysis, IndicatorSnapshot, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings, Ticker
 from .multiples_history import compute_multiples_history
 from .pe10 import calculate_pe10
 from .peg import calculate_peg
