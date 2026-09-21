@@ -11,9 +11,17 @@ This mixin centralises the two operations every such view needs:
   * :meth:`enforce_lookup_quota` — short-circuit with a 429 *before* any work
     when the scope is over its cap (re-viewing a ticker already counted today
     is always free).
-  * :meth:`record_lookup` — attribute a successful lookup to the user (when
-    authenticated) or to the hashed client IP + session (when anonymous), so
-    the distinct-company count grows and the cap can take effect.
+  * :meth:`record_lookup` / :meth:`record_lookups` — attribute successful
+    lookups to the user (when authenticated) or to the hashed client IP +
+    session (when anonymous), so the distinct-company count grows and the
+    cap can take effect.
+
+Attribution lives here, in one place, because getting it subtly wrong is
+silent. :mod:`quotes.lookup_quota` scopes an anonymous caller by
+``ip_hash`` alone, so a row written with only a ``session_key`` is
+invisible to the cap. ``BatchQuotesView`` kept its own copy of this and
+wrote exactly that, which left a client able to POST a hundred symbols at
+a time and never trip the limit the single-company endpoints enforce.
 """
 from __future__ import annotations
 
@@ -54,13 +62,31 @@ class LookupQuotaEnforcedView:
 
     def record_lookup(self, request, ticker: str) -> None:
         """Persist a successful lookup so it counts toward the daily cap."""
-        if request.user.is_authenticated:
-            LookupLog.objects.create(user=request.user, ticker=ticker)
+        self.record_lookups(request, [ticker])
+
+    def record_lookups(self, request, tickers: list[str]) -> None:
+        """Persist several successful lookups in a single INSERT.
+
+        A row per ticker in a Python loop is up to ``MAX_BATCH_SIZE``
+        round trips to Postgres on the request's critical path, for rows
+        nothing reads until the next quota check.
+        """
+        if not tickers:
             return
+        LookupLog.objects.bulk_create(self._lookup_rows(request, tickers))
+
+    @staticmethod
+    def _lookup_rows(request, tickers: list[str]) -> list[LookupLog]:
+        """Who each of these lookups belongs to, unsaved."""
+        if request.user.is_authenticated:
+            return [
+                LookupLog(user=request.user, ticker=ticker) for ticker in tickers
+            ]
         if not request.session.session_key:
             request.session.create()
-        LookupLog.objects.create(
-            session_key=request.session.session_key,
-            ip_hash=client_ip_hash(request),
-            ticker=ticker,
-        )
+        session_key = request.session.session_key
+        ip_hash = client_ip_hash(request)
+        return [
+            LookupLog(session_key=session_key, ip_hash=ip_hash, ticker=ticker)
+            for ticker in tickers
+        ]

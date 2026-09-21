@@ -13,6 +13,11 @@ a per-process limiter would let the fleet multiply the allowance by the
 number of processes. A fixed one-minute window is used rather than a
 sliding one because it matches how the provider counts, and because it
 costs a single atomic increment per call.
+
+That increment goes straight to Redis. Django's cache API cannot express
+"increment or create" in one command, and the two or three round trips it
+takes instead were showing up in Sentry as an N+1 on every endpoint that
+paced a provider call. See `_redis_client`.
 """
 from __future__ import annotations
 
@@ -84,6 +89,26 @@ def wait_budget(seconds: float | None) -> Iterator[None]:
 _COUNTER_TTL_SECONDS = WINDOW_SECONDS * 2
 
 
+def _redis_client():
+    """The Redis client behind the default cache, or None if there is none.
+
+    Django's cache API has no atomic increment-or-create: `cache.incr`
+    asks `EXISTS` before `INCRBY` and raises when the key is missing, and
+    `cache.add` is a second `SET NX` on top. Counting one call that way
+    costs two or three round trips, and Sentry reports the repeated
+    command as an N+1 on whatever endpoint paid for it.
+
+    LocMemCache, which development and the tests use, has no client to
+    reach for. Those callers keep the cache API, where the extra round
+    trips are in-process and cost nothing.
+    """
+    backend = getattr(cache, "_cache", None)
+    get_client = getattr(backend, "get_client", None)
+    if get_client is None:
+        return None
+    return get_client(None, write=True)
+
+
 class RateLimiter:
     """Blocks the caller until its call fits inside the current allowance.
 
@@ -151,35 +176,52 @@ class RateLimiter:
     def _increment(self, cache_key: str) -> int:
         """The number of calls taken in this window, counting this one.
 
-        The increment is tried before the create, not after it. Only the
-        first caller of a minute needs the counter created; every caller
-        after that found a write that could not do anything, and paid a
-        network round trip for it. A cold company page makes several
-        provider calls in one request, which is how Sentry came to see the
-        repeated `SET` as an N+1 on `/api/quote/{ticker}/`.
-
         A cache that is down must not stop the application from talking to
         its providers, so an unusable counter degrades to "allowed".
+        """
+        try:
+            client = _redis_client()
+            if client is not None:
+                return self._increment_in_redis(client, cache_key)
+            return self._increment_through_the_cache_api(cache_key)
+        except Exception:
+            return self._unusable_counter()
+
+    def _increment_in_redis(self, client, cache_key: str) -> int:
+        """Count this call with a single command.
+
+        `INCR` on a key Redis does not hold creates it at zero and returns
+        1, so the counter needs no separate create and no existence check.
+        Whoever opens the window is the one that gives the counter its
+        lifetime.
+        """
+        redis_key = cache.make_key(cache_key)
+        count = client.incr(redis_key)
+        if count == 1:
+            client.expire(redis_key, _COUNTER_TTL_SECONDS)
+        return count
+
+    def _increment_through_the_cache_api(self, cache_key: str) -> int:
+        """The same count for a cache with no Redis behind it.
+
+        Two round trips rather than one, which is the right trade for
+        LocMemCache: it is in-process, so they cost nothing.
         """
         try:
             return cache.incr(cache_key)
         except ValueError:
             pass  # No counter for this window yet; this caller may be first.
-        except Exception:
-            return self._unusable_counter()
 
+        if cache.add(cache_key, 1, timeout=_COUNTER_TTL_SECONDS):
+            return 1
         try:
-            if cache.add(cache_key, 1, timeout=_COUNTER_TTL_SECONDS):
-                return 1
             # Another process created the counter in between. Its call is
             # already counted, and this one still has to be.
             return cache.incr(cache_key)
         except ValueError:
-            # The key expired again between the add and the incr. Whatever
-            # the true count was, the window is about to roll over anyway.
+            # The key expired again. Whatever the true count was, the
+            # window is about to roll over anyway.
             return 1
-        except Exception:
-            return self._unusable_counter()
 
     def _unusable_counter(self) -> int:
         """Log a counter we could not reach, and let the call through."""
