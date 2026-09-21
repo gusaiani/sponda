@@ -239,3 +239,122 @@ class TestRateLimiterCostsOneRoundTripPerCall:
             limiter.acquire()
 
         assert clock.sleeps == []
+
+
+class FakeRedisClient:
+    """Enough of redis-py to see which commands the limiter actually sends."""
+
+    def __init__(self) -> None:
+        self.values: dict[str, int] = {}
+        self.expiries: dict[str, int] = {}
+        self.commands: list[tuple[str, str]] = []
+
+    def incr(self, key, amount=1):
+        self.commands.append(("incr", key))
+        self.values[key] = self.values.get(key, 0) + amount
+        return self.values[key]
+
+    def expire(self, key, seconds):
+        self.commands.append(("expire", key))
+        self.expiries[key] = seconds
+        return True
+
+
+class FakeRedisCache:
+    """A cache shaped like Django's RedisCache, over a FakeRedisClient."""
+
+    def __init__(self, client: FakeRedisClient) -> None:
+        self.client = client
+
+        class Backend:
+            def get_client(_self, key=None, write=False):
+                return client
+
+        self._cache = Backend()
+
+    def make_key(self, key, version=None):
+        return f":1:{key}"
+
+
+class TestTheCounterIsOneRoundTripOnRedis:
+    """Django's `cache.incr` is `EXISTS` then `INCRBY`, and `cache.add` is a
+    `SET NX`. Going through the cache API therefore costs two round trips
+    per call at best, and Sentry filed the surviving `EXISTS` as its own
+    N+1 on /api/quote/{ticker}/ once the `SET` was gone.
+
+    Redis `INCR` creates a missing key at zero and returns 1, so the
+    existence check buys nothing. The limiter uses it directly and sets
+    the expiry only for whoever opened the window."""
+
+    def test_an_ordinary_call_sends_one_command(self):
+        client = FakeRedisClient()
+        limiter = RateLimiter("test-provider", max_calls_per_minute=100)
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            limiter._increment("rate_limiter:test-provider:0")  # opens the window
+            client.commands.clear()
+
+            for _ in range(10):
+                limiter._increment("rate_limiter:test-provider:0")
+
+        assert client.commands == [("incr", ":1:rate_limiter:test-provider:0")] * 10
+
+    def test_the_call_that_opens_the_window_also_sets_the_expiry(self):
+        client = FakeRedisClient()
+        limiter = RateLimiter("test-provider", max_calls_per_minute=100)
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            count = limiter._increment("rate_limiter:test-provider:0")
+
+        assert count == 1
+        assert client.commands == [
+            ("incr", ":1:rate_limiter:test-provider:0"),
+            ("expire", ":1:rate_limiter:test-provider:0"),
+        ]
+
+    def test_the_expiry_outlives_the_window(self):
+        client = FakeRedisClient()
+        limiter = RateLimiter("test-provider", max_calls_per_minute=100)
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            limiter._increment("rate_limiter:test-provider:0")
+
+        assert client.expiries[":1:rate_limiter:test-provider:0"] > 60
+
+    def test_it_never_checks_existence(self):
+        """The whole point: no EXISTS span for Sentry to report."""
+        client = FakeRedisClient()
+        limiter = RateLimiter("test-provider", max_calls_per_minute=100)
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            counts = [
+                limiter._increment("rate_limiter:test-provider:0")
+                for _ in range(5)
+            ]
+
+        assert counts == [1, 2, 3, 4, 5]
+        assert not any(command == "exists" for command, _ in client.commands)
+
+    def test_a_redis_that_is_down_still_allows_the_call(self):
+        client = FakeRedisClient()
+        limiter = RateLimiter("test-provider", max_calls_per_minute=1)
+
+        def refuse(*_args, **_kwargs):
+            raise ConnectionError("redis is down")
+
+        client.incr = refuse
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            assert limiter._increment("rate_limiter:test-provider:0") == 1
+
+
+class TestTheCacheApiIsStillUsedWithoutRedis:
+    """LocMemCache in tests and development has no client to reach for."""
+
+    def test_a_cache_with_no_redis_client_still_counts(self):
+        limiter = RateLimiter("test-provider", max_calls_per_minute=100)
+
+        first = limiter._increment("rate_limiter:test-provider:0")
+        second = limiter._increment("rate_limiter:test-provider:0")
+
+        assert (first, second) == (1, 2)

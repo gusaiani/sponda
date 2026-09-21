@@ -1179,7 +1179,7 @@ class PE10View(LookupQuotaEnforcedView, APIView):
         return response
 
 
-class BatchQuotesView(APIView):
+class BatchQuotesView(LookupQuotaEnforcedView, APIView):
     """POST /api/quotes/batch/ — fetch many tickers in one round-trip.
 
     Request body: ``{"tickers": ["PETR4", "VALE3", ...]}``
@@ -1201,9 +1201,13 @@ class BatchQuotesView(APIView):
             return tickers
 
         results = self._fan_out(tickers, request)
-        for ticker in tickers:
-            if ticker in results and results[ticker].get("quote"):
-                self._log_lookup(request, ticker)
+        self.record_lookups(
+            request,
+            [
+                ticker for ticker in tickers
+                if ticker in results and results[ticker].get("quote")
+            ],
+        )
 
         response = Response({"results": results})
         response["Cache-Control"] = f"public, max-age={PE10_CLIENT_CACHE_TTL}"
@@ -1281,15 +1285,6 @@ class BatchQuotesView(APIView):
         finally:
             connections.close_all()
 
-    def _log_lookup(self, request, ticker: str) -> None:
-        if request.user.is_authenticated:
-            LookupLog.objects.create(user=request.user, ticker=ticker)
-        else:
-            if not request.session.session_key:
-                request.session.create()
-            LookupLog.objects.create(
-                session_key=request.session.session_key, ticker=ticker
-            )
 
 
 class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
