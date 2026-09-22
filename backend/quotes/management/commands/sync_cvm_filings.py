@@ -21,8 +21,6 @@ The defaults are conservative for that reason:
 import logging
 from datetime import date
 
-from django.utils import timezone
-
 from config.monitored_command import MonitoredCommand
 from quotes.cvm import (
     QUARTER_END_MONTH_DAYS,
@@ -31,6 +29,7 @@ from quotes.cvm import (
     extract_quarter_statements,
 )
 from quotes.cvm_writer import StatementRejected, is_writable, write_quarter
+from quotes.cvm_years import scheduled_years
 from quotes.models import CvmFiling, Ticker
 
 logger = logging.getLogger(__name__)
@@ -57,7 +56,10 @@ class Command(MonitoredCommand):
         )
 
     def run(self, *args, **options):
-        year = options["year"] or timezone.localdate().year
+        for year in scheduled_years(options["year"]):
+            self._run_year(year, options)
+
+    def _run_year(self, year: int, options: dict) -> None:
         pending = self._pending(year)
 
         if not pending:

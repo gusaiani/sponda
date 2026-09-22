@@ -123,6 +123,34 @@ python manage.py map_tickers_to_cvm --set NEWCO3=<cvm_code>
 
 `sync_cvm_fourth_quarters` runs daily and fills Q4 as DFPs arrive. Check in March that it wrote roughly the number of companies expected, and that refusals are the known pathological cases rather than something new.
 
+### A dead provider series
+
+A scheduled run covers the current archive year and the one before it, so an
+ordinary gap closes itself. What does not close itself is a ticker BRAPI has
+stopped serving altogether: CVM fills the quarters, but every BRAPI-sourced
+row already stored stays on the old basis forever.
+
+That is what happened to Natura. Natura &Co Holding (CD_CVM 024783) was merged
+into Natura Cosméticos (019550) in H2 2025 and the ticker returned to `NATU3`.
+BRAPI kept serving the dissolved holding and its series ends at 2025-06-30.
+
+To find others, compare each Brazilian ticker's newest BRAPI quarter against
+the newest quarter its CD_CVM has filed. A company still filing whose provider
+series stopped more than two quarters ago is the same shape.
+
+Re-seeding a year onto the surviving entity's basis is a deliberate act, not a
+routine one. Mixing two consolidations inside one fiscal year corrupts the Q4
+derivation, which subtracts the stored nine months from the audited annual: for
+Natura's 2025 the mixed basis implied a Q4 profit of +R$97m against a real loss
+of -R$321m. Re-seed the whole year or none of it:
+
+```bash
+for Q in 2025-03-31 2025-06-30 2025-09-30; do
+  python manage.py seed_quarter_from_cvm --quarter $Q --ticker NATU3
+done
+python manage.py sync_cvm_fourth_quarters --year 2025
+```
+
 ---
 
 ## 3. Failure modes and what they mean
@@ -134,6 +162,7 @@ python manage.py map_tickers_to_cvm --set NEWCO3=<cvm_code>
 | Many refusals from the continuity gate | Either a genuine wave of corporate events, or the gate is too tight | Each refusal names the ratio; verify against the filing before using `--force` |
 | `filing to live` reports nothing after a rebuild | Every filing predates the observation window, or no rows were written | Compare `CVM-sourced rows live` against its "not measurable" count |
 | A figure looks wrong on a page | Check `source` on the row first | `cvm` means we derived it; `brapi`/`fmp` means we did not |
+| One company's year shows fewer quarters than the rest | BRAPI stopped serving that ticker · usually a merger that changed the filing entity while the ticker stayed or moved | Compare BRAPI's newest quarter against the CVM ITR index for the company's CD_CVM; see *A dead provider series* in §2 |
 
 ### Using `--force`
 
