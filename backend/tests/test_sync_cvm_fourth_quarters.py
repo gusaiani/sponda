@@ -18,6 +18,7 @@ from quotes.models import (
     SOURCE_BRAPI,
     SOURCE_CVM,
     BalanceSheet,
+    QuarterlyCashFlow,
     QuarterlyEarnings,
     Ticker,
 )
@@ -31,41 +32,71 @@ GERDAU_CODE = "3980"
 YEAR = 2025
 YEAR_END = date(2025, 12, 31)
 
+# The nine months already on file: (quarter end, net income, revenue).
+NINE_MONTHS = (
+    (date(YEAR, 3, 31), 1_300_000_000, 16_000_000_000),
+    (date(YEAR, 6, 30), 1_400_000_000, 17_000_000_000),
+    (date(YEAR, 9, 30), 1_400_000_000, 18_000_000_000),
+)
+FIRST_THREE_QUARTER_ENDS_FOR_TEST = ((3, 31), (6, 30), (9, 30))
+NINE_MONTH_NET_INCOME = 4_100_000_000
+NINE_MONTH_REVENUE = 51_000_000_000
+NINE_MONTH_DIVIDENDS = -1_200_000_000
+
+# What the DFP fixture below reports for the whole year, in reais.
+ANNUAL_NET_INCOME = 5_600_000_000
+ANNUAL_REVENUE = 70_000_000_000
+ANNUAL_DIVIDENDS = -2_000_000_000
+
 INDEX_COLUMNS = (
     "CNPJ_CIA;DT_REFER;VERSAO;DENOM_CIA;CD_CVM;CATEG_DOC;ID_DOC;DT_RECEB;LINK_DOC"
 )
 
 
-def dfp_archive(net_income=5_600_000, filed_at="2026-03-20"):
+def reported_for(year: int) -> dict:
+    """The reporting window every row of a DFP for ``year`` carries."""
+    return {
+        "DT_REFER": f"{year}-12-31",
+        "DT_INI_EXERC": f"{year}-01-01",
+        "DT_FIM_EXERC": f"{year}-12-31",
+    }
+
+
+def dfp_archive(net_income=5_600_000, filed_at="2026-03-20", year=YEAR):
     index = "\n".join([
         INDEX_COLUMNS,
-        f"33.611.500/0001-19;2025-12-31;1;GERDAU S.A.;003980;DFP;9;{filed_at};x",
+        f"33.611.500/0001-19;{year}-12-31;1;GERDAU S.A.;003980;DFP;9;{filed_at};x",
     ]).encode("latin-1")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr(f"dfp_cia_aberta_{YEAR}.csv", index)
-        archive.writestr(f"dfp_cia_aberta_DRE_con_{YEAR}.csv", _csv_bytes(
+        archive.writestr(f"dfp_cia_aberta_{year}.csv", index)
+        archive.writestr(f"dfp_cia_aberta_DRE_con_{year}.csv", _csv_bytes(
             FLOW_COLUMNS, [
-                flow("3.01", "Receita de Venda de Bens e/ou Serviços", 70_000_000),
-                flow("3.11", "Lucro/Prejuízo Consolidado do Período", net_income),
+                flow("3.01", "Receita de Venda de Bens e/ou Serviços", 70_000_000,
+                     **reported_for(year)),
+                flow("3.11", "Lucro/Prejuízo Consolidado do Período", net_income,
+                     **reported_for(year)),
             ]))
-        archive.writestr(f"dfp_cia_aberta_BPA_con_{YEAR}.csv", _csv_bytes(
+        archive.writestr(f"dfp_cia_aberta_BPA_con_{year}.csv", _csv_bytes(
             BALANCE_SHEET_COLUMNS, [
-                balance("1", "Ativo Total", 81_810_298),
-                balance("1.01", "Ativo Circulante", 28_573_526),
+                balance("1", "Ativo Total", 81_810_298, **reported_for(year)),
+                balance("1.01", "Ativo Circulante", 28_573_526, **reported_for(year)),
             ]))
-        archive.writestr(f"dfp_cia_aberta_BPP_con_{YEAR}.csv", _csv_bytes(
+        archive.writestr(f"dfp_cia_aberta_BPP_con_{year}.csv", _csv_bytes(
             BALANCE_SHEET_COLUMNS, [
-                balance("2", "Passivo Total", 81_810_298),
-                balance("2.01", "Passivo Circulante", 10_360_391),
-                balance("2.02", "Passivo Não Circulante", 17_715_159),
-                balance("2.03", "Patrimônio Líquido Consolidado", 53_734_748),
+                balance("2", "Passivo Total", 81_810_298, **reported_for(year)),
+                balance("2.01", "Passivo Circulante", 10_360_391, **reported_for(year)),
+                balance("2.02", "Passivo Não Circulante", 17_715_159, **reported_for(year)),
+                balance("2.03", "Patrimônio Líquido Consolidado", 53_734_748,
+                        **reported_for(year)),
             ]))
-        archive.writestr(f"dfp_cia_aberta_DFC_MI_con_{YEAR}.csv", _csv_bytes(
+        archive.writestr(f"dfp_cia_aberta_DFC_MI_con_{year}.csv", _csv_bytes(
             FLOW_COLUMNS, [
-                flow("6.01", "Caixa Líquido Atividades Operacionais", 9_000_000),
+                flow("6.01", "Caixa Líquido Atividades Operacionais", 9_000_000,
+                     **reported_for(year)),
+                flow("6.03.01", "Dividendos pagos", -2_000_000, **reported_for(year)),
             ]))
-        archive.writestr(f"dfp_cia_aberta_DFC_MD_con_{YEAR}.csv",
+        archive.writestr(f"dfp_cia_aberta_DFC_MD_con_{year}.csv",
                          _csv_bytes(FLOW_COLUMNS, []))
     return buffer.getvalue()
 
@@ -76,12 +107,10 @@ def gerdau_with_three_quarters(db):
         symbol="GGBR3", name="GERDAU S.A.", type="stock",
         market_cap=40_000_000_000, cvm_code=GERDAU_CODE,
     )
-    for month, day, income in ((3, 31, 1_300_000_000),
-                               (6, 30, 1_400_000_000),
-                               (9, 30, 1_400_000_000)):
+    for quarter_end, net_income, revenue in NINE_MONTHS:
         QuarterlyEarnings.objects.create(
-            ticker="GGBR3", end_date=date(YEAR, month, day),
-            net_income=income, source=SOURCE_BRAPI,
+            ticker="GGBR3", end_date=quarter_end, net_income=net_income,
+            revenue=revenue, source=SOURCE_BRAPI,
         )
 
 
@@ -180,3 +209,124 @@ def test_dry_run_writes_nothing(gerdau_with_three_quarters):
 
     assert not QuarterlyEarnings.objects.filter(end_date=YEAR_END).exists()
     assert "GGBR3" in output
+
+
+# --- Flows the year reports and the nine months already carry ---------------
+
+@pytest.mark.django_db
+def test_the_fourth_quarters_revenue_is_the_year_less_the_nine_months(
+    gerdau_with_three_quarters,
+):
+    """Left underived, the year reads complete with three quarters of revenue.
+
+    Nothing downstream marks the gap: the row counts as a quarter whether or
+    not it reports revenue, so the annual figure is short by a quarter and
+    wears no partial-year badge to say so.
+    """
+    run()
+
+    fourth = QuarterlyEarnings.objects.get(ticker="GGBR3", end_date=YEAR_END)
+    assert fourth.revenue == ANNUAL_REVENUE - NINE_MONTH_REVENUE
+
+
+@pytest.mark.django_db
+def test_revenue_stays_unknown_when_a_quarter_never_reported_it(
+    gerdau_with_three_quarters,
+):
+    """Differencing against a partial base would invent the quarter."""
+    QuarterlyEarnings.objects.filter(
+        ticker="GGBR3", end_date=date(YEAR, 6, 30),
+    ).update(revenue=None)
+
+    run()
+
+    fourth = QuarterlyEarnings.objects.get(ticker="GGBR3", end_date=YEAR_END)
+    assert fourth.revenue is None
+    assert fourth.net_income == ANNUAL_NET_INCOME - NINE_MONTH_NET_INCOME
+
+
+@pytest.mark.django_db
+def test_the_fourth_quarters_dividends_are_the_year_less_the_nine_months(
+    gerdau_with_three_quarters,
+):
+    for quarter_end, _, _ in NINE_MONTHS:
+        QuarterlyCashFlow.objects.create(
+            ticker="GGBR3", end_date=quarter_end,
+            operating_cash_flow=2_000_000_000,
+            investment_cash_flow=-1_000_000_000,
+            dividends_paid=-400_000_000,
+            source=SOURCE_BRAPI,
+        )
+
+    run()
+
+    fourth = QuarterlyCashFlow.objects.get(ticker="GGBR3", end_date=YEAR_END)
+    assert fourth.dividends_paid == ANNUAL_DIVIDENDS - NINE_MONTH_DIVIDENDS
+
+
+@pytest.mark.django_db
+def test_dividends_stay_unknown_when_a_quarter_never_reported_them(
+    gerdau_with_three_quarters,
+):
+    for index, (quarter_end, _, _) in enumerate(NINE_MONTHS):
+        QuarterlyCashFlow.objects.create(
+            ticker="GGBR3", end_date=quarter_end,
+            operating_cash_flow=2_000_000_000,
+            investment_cash_flow=-1_000_000_000,
+            dividends_paid=None if index == 1 else -400_000_000,
+            source=SOURCE_BRAPI,
+        )
+
+    run()
+
+    fourth = QuarterlyCashFlow.objects.get(ticker="GGBR3", end_date=YEAR_END)
+    assert fourth.dividends_paid is None
+    assert fourth.operating_cash_flow == 9_000_000_000 - 6_000_000_000
+
+
+# --- How far back a scheduled run looks -------------------------------------
+
+WINDOW_CLOCK = "quotes.cvm_years.timezone.localdate"
+EARLIER_YEAR = 2024
+EARLIER_YEAR_END = date(EARLIER_YEAR, 12, 31)
+
+
+@pytest.mark.django_db
+def test_a_scheduled_run_derives_a_year_whose_quarters_only_completed_late(db):
+    """Q4 becomes derivable whenever its nine months do, not on a schedule.
+
+    Natura's Q3 2025 was not written until September 2026. A run that only
+    ever looks at last year would have passed 2025 by for good.
+    """
+    Ticker.objects.create(
+        symbol="GGBR3", name="GERDAU S.A.", type="stock",
+        market_cap=40_000_000_000, cvm_code=GERDAU_CODE,
+    )
+    for month, day in FIRST_THREE_QUARTER_ENDS_FOR_TEST:
+        QuarterlyEarnings.objects.create(
+            ticker="GGBR3", end_date=date(EARLIER_YEAR, month, day),
+            net_income=1_000_000_000, revenue=10_000_000_000, source=SOURCE_CVM,
+        )
+
+    output = StringIO()
+    with patch(f"{MODULE}.download_dfp_archive",
+               return_value=dfp_archive(year=EARLIER_YEAR)), \
+         patch(WINDOW_CLOCK, return_value=date(2026, 9, 22)):
+        call_command(COMMAND, stdout=output)
+
+    fourth = QuarterlyEarnings.objects.get(
+        ticker="GGBR3", end_date=EARLIER_YEAR_END,
+    )
+    assert fourth.net_income == ANNUAL_NET_INCOME - 3_000_000_000
+    assert fourth.source == SOURCE_CVM
+
+
+@pytest.mark.django_db
+def test_a_scheduled_run_downloads_nothing_for_a_year_with_no_work(db):
+    """The window widens what is looked at, not what is fetched."""
+    output = StringIO()
+    with patch(f"{MODULE}.download_dfp_archive") as download, \
+         patch(WINDOW_CLOCK, return_value=date(2026, 9, 22)):
+        call_command(COMMAND, stdout=output)
+
+    download.assert_not_called()

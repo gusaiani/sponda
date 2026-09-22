@@ -16,36 +16,53 @@ SECOND_QUARTER = "2026-06-30"
 COMMAND_MODULE = "quotes.management.commands.seed_quarter_from_cvm"
 
 
-def gerdau_archive():
-    """A minimal but complete 2Q26 filing for Gerdau S.A. (CD_CVM 003980)."""
+def gerdau_archive(year=2026):
+    """A minimal but complete second-quarter filing for Gerdau S.A. (CD_CVM 003980).
+
+    ``year`` moves the same filing into another archive, for the callers that
+    need a quarter outside the current one.
+    """
+    second_quarter = f"{year}-06-30"
+    first_quarter = f"{year}-03-31"
     return build_archive(
+        year=year,
         income_rows=[
             _flow_row("3.01", "Receita de Venda", 17870632,
-                      start="2026-04-01", end="2026-06-30"),
+                      start=f"{year}-04-01", end=second_quarter,
+                      reference_date=second_quarter),
             _flow_row("3.11", "Lucro/Prejuízo Consolidado do Período", 1466046,
-                      start="2026-04-01", end="2026-06-30"),
+                      start=f"{year}-04-01", end=second_quarter,
+                      reference_date=second_quarter),
         ],
         indirect_cash_flow_rows=[
             _flow_row("6.01", "Caixa Líquido Atividades Operacionais", 1509307,
-                      start="2026-01-01", end="2026-03-31",
-                      reference_date="2026-03-31"),
+                      start=f"{year}-01-01", end=first_quarter,
+                      reference_date=first_quarter),
             _flow_row("6.02", "Caixa Líquido Atividades de Investimento", -1200924,
-                      start="2026-01-01", end="2026-03-31",
-                      reference_date="2026-03-31"),
+                      start=f"{year}-01-01", end=first_quarter,
+                      reference_date=first_quarter),
             _flow_row("6.01", "Caixa Líquido Atividades Operacionais", 3044323,
-                      start="2026-01-01", end="2026-06-30"),
+                      start=f"{year}-01-01", end=second_quarter,
+                      reference_date=second_quarter),
             _flow_row("6.02", "Caixa Líquido Atividades de Investimento", -2298239,
-                      start="2026-01-01", end="2026-06-30"),
+                      start=f"{year}-01-01", end=second_quarter,
+                      reference_date=second_quarter),
         ],
         balance_asset_rows=[
-            _balance_row("1.01", "Ativo Circulante", 29000000),
+            _balance_row("1.01", "Ativo Circulante", 29000000,
+                         reference_date=second_quarter),
         ],
         balance_liability_rows=[
-            _balance_row("2.01", "Passivo Circulante", 10500000),
-            _balance_row("2.01.04", "Empréstimos e Financiamentos", 900000),
-            _balance_row("2.02", "Passivo Não Circulante", 17800000),
-            _balance_row("2.02.01", "Empréstimos e Financiamentos", 13000000),
-            _balance_row("2.03", "Patrimônio Líquido Consolidado", 53000000),
+            _balance_row("2.01", "Passivo Circulante", 10500000,
+                         reference_date=second_quarter),
+            _balance_row("2.01.04", "Empréstimos e Financiamentos", 900000,
+                         reference_date=second_quarter),
+            _balance_row("2.02", "Passivo Não Circulante", 17800000,
+                         reference_date=second_quarter),
+            _balance_row("2.02.01", "Empréstimos e Financiamentos", 13000000,
+                         reference_date=second_quarter),
+            _balance_row("2.03", "Patrimônio Líquido Consolidado", 53000000,
+                         reference_date=second_quarter),
         ],
     )
 

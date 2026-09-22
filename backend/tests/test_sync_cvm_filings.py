@@ -31,6 +31,8 @@ from tests.test_seed_quarter_from_cvm import gerdau_archive
 
 COMMAND = "sync_cvm_filings"
 MODULE = "quotes.management.commands.sync_cvm_filings"
+# The scheduled window reads the clock from its own module, not the command.
+WINDOW_CLOCK = "quotes.cvm_years.timezone.localdate"
 
 GERDAU_CODE = "3980"
 QUARTER = date(2026, 6, 30)
@@ -313,3 +315,45 @@ def test_a_row_with_no_filing_date_is_not_frozen_forever(gerdau):
     row = QuarterlyEarnings.objects.get(ticker="GGBR3")
     assert row.net_income != 1
     assert row.filed_at == date(2026, 8, 4)
+
+
+# --- How far back a scheduled run looks -------------------------------------
+
+@pytest.mark.django_db
+def test_a_scheduled_run_writes_a_quarter_left_behind_in_the_previous_year(db):
+    """The gap BRAPI leaves does not expire on 31 December.
+
+    Natura filed Q3 2025 with CVM in November 2025. BRAPI never published it,
+    and a window of one archive year meant nothing ever went back for it.
+    """
+    Ticker.objects.create(
+        symbol="GGBR3", name="GERDAU S.A.", type="stock",
+        market_cap=40_000_000_000, cvm_code=GERDAU_CODE,
+    )
+    last_year_quarter = date(2025, 6, 30)
+    CvmFiling.objects.create(
+        cvm_code=GERDAU_CODE, company_name="GERDAU S.A.",
+        cnpj="33.611.500/0001-19", reference_date=last_year_quarter,
+        filed_at=date(2025, 8, 11), version=1, document_id="150130",
+    )
+
+    output = StringIO()
+    with patch(f"{MODULE}.download_itr_archive",
+               return_value=gerdau_archive(year=2025)), \
+         patch(WINDOW_CLOCK, return_value=date(2026, 9, 22)):
+        call_command(COMMAND, stdout=output)
+
+    assert QuarterlyEarnings.objects.filter(
+        ticker="GGBR3", end_date=last_year_quarter, source=SOURCE_CVM,
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_a_scheduled_run_downloads_nothing_for_a_year_with_no_work(db):
+    """The window widens what is looked at, not what is fetched."""
+    output = StringIO()
+    with patch(f"{MODULE}.download_itr_archive") as download, \
+         patch(WINDOW_CLOCK, return_value=date(2026, 9, 22)):
+        call_command(COMMAND, stdout=output)
+
+    download.assert_not_called()

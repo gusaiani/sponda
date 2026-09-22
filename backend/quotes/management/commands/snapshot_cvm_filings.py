@@ -14,7 +14,6 @@ that `report_cvm_lag` turns into those two numbers.
 from datetime import datetime
 
 from django.db import transaction
-from django.utils import timezone
 
 from config.monitored_command import MonitoredCommand
 from quotes.cvm import (
@@ -22,6 +21,7 @@ from quotes.cvm import (
     fetch_itr_archive_state,
     parse_itr_index,
 )
+from quotes.cvm_years import scheduled_years
 from quotes.models import CvmArchiveBuild, CvmFiling
 
 
@@ -32,7 +32,7 @@ class Command(MonitoredCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--year", type=int, default=None,
-            help="Archive year to poll (defaults to the current year)",
+            help="Archive year to poll (defaults to the scheduled window)",
         )
         parser.add_argument(
             "--force", action="store_true",
@@ -40,10 +40,13 @@ class Command(MonitoredCommand):
         )
 
     def run(self, *args, **options):
-        year = options["year"] or timezone.localdate().year
+        for year in scheduled_years(options["year"]):
+            self._poll(year, force=options["force"])
+
+    def _poll(self, year: int, *, force: bool) -> None:
         state = fetch_itr_archive_state(year)
 
-        if not options["force"] and self._already_recorded(year, state.last_modified):
+        if not force and self._already_recorded(year, state.last_modified):
             self.stdout.write(
                 f"ITR {year} unchanged since {state.last_modified:%Y-%m-%d %H:%M} "
                 f"· nothing downloaded."

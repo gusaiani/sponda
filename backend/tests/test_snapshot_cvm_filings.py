@@ -17,6 +17,8 @@ from quotes.models import CvmArchiveBuild, CvmFiling
 
 COMMAND = "snapshot_cvm_filings"
 COMMAND_MODULE = "quotes.management.commands.snapshot_cvm_filings"
+# The scheduled window reads the clock from its own module, not the command.
+WINDOW_CLOCK = "quotes.cvm_years.timezone.localdate"
 
 SUNDAY_BUILD = datetime(2026, 8, 9, 10, 39, 17, tzinfo=timezone.utc)
 NEXT_SUNDAY_BUILD = datetime(2026, 8, 16, 10, 41, 3, tzinfo=timezone.utc)
@@ -164,3 +166,53 @@ def test_records_filings_even_when_the_server_reports_no_build_time():
 
     assert CvmArchiveBuild.objects.count() == 0
     assert CvmFiling.objects.get().first_seen_in is None
+
+
+# --- How far back a scheduled run looks -------------------------------------
+
+def run_scheduled(today, state=ArchiveState(last_modified=SUNDAY_BUILD, etag='"a"'),
+                  records=(GERDAU,)):
+    """Invoke the command the way the timer does, with no year named."""
+    output = StringIO()
+    with patch(f"{COMMAND_MODULE}.fetch_itr_archive_state",
+               return_value=state) as fetch, \
+         patch(f"{COMMAND_MODULE}.download_itr_index", return_value=b""), \
+         patch(f"{COMMAND_MODULE}.parse_itr_index", return_value=list(records)), \
+         patch(WINDOW_CLOCK, return_value=today):
+        call_command(COMMAND, stdout=output)
+    return output.getvalue(), fetch
+
+
+@pytest.mark.django_db
+def test_a_scheduled_run_polls_the_previous_year_too():
+    """A gap that outlives 31 December is otherwise never looked at again.
+
+    Natura's Q3 2025 was filed with CVM in November 2025 and sat unread: the
+    only source for it was an archive year the poll had stopped covering.
+    """
+    _, fetch = run_scheduled(today=date(2026, 9, 22))
+
+    polled = sorted(call.args[0] for call in fetch.call_args_list)
+    assert polled == [2025, 2026]
+
+
+@pytest.mark.django_db
+def test_a_named_year_is_the_only_one_polled():
+    """An operator reaching further back asks for one year, not a window."""
+    output = StringIO()
+    with patch(f"{COMMAND_MODULE}.fetch_itr_archive_state",
+               return_value=ArchiveState(last_modified=SUNDAY_BUILD, etag='"a"')) as fetch, \
+         patch(f"{COMMAND_MODULE}.download_itr_index", return_value=b""), \
+         patch(f"{COMMAND_MODULE}.parse_itr_index", return_value=[GERDAU]):
+        call_command(COMMAND, "--year", "2023", stdout=output)
+
+    assert [call.args[0] for call in fetch.call_args_list] == [2023]
+
+
+@pytest.mark.django_db
+def test_each_year_in_the_window_is_recorded_as_its_own_build():
+    run_scheduled(today=date(2026, 9, 22))
+
+    assert sorted(
+        CvmArchiveBuild.objects.values_list("year", flat=True)
+    ) == [2025, 2026]

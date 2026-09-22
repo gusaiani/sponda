@@ -2462,6 +2462,19 @@ Existing rows are deliberately **not** backfilled. Their origin is inferable but
 
 The work list is derived from `CvmFiling` rows the poll already recorded, so deciding there is nothing to write is one query rather than a 12 MB download. That is the normal state between earnings seasons. The archive is fetched once per run and parsed once per company, then written to every ticker sharing that CVM code (ON and PN share one filing).
 
+### How far back a scheduled run looks
+
+A scheduled run covers **the current archive year and the one before it** (`quotes/cvm_years.py`). The poll and the sync share that window, because the sync can only write a quarter the poll has recorded.
+
+One year was not enough. A quarter can go unwritten for reasons that surface long after it was filed, and on 1 January a window of one stops looking at the year holding it:
+
+- Natura &Co Holding was merged into Natura Cosméticos in H2 2025 and the ticker returned to `NATU3`. BRAPI kept serving the dissolved holding's statements and its series stops at 2025-06-30. CVM published Q3 2025 in November 2025 under the surviving entity (CD_CVM 019550) and nothing ever went back for it, so the Fundamentos tab showed 2025 as a two-quarter year for ten months.
+- A restatement filed against a closed year lands in that year's archive, not the current one.
+
+Widening the window costs one HEAD request per extra year per run. The archive is still downloaded only when the poll sees a new build, and the sync still downloads nothing for a year with no pending work, so the steady-state cost between seasons is unchanged.
+
+`--year` overrides the window entirely and is how an operator reaches further back than two years.
+
 ### Written once, not on every run
 
 A quarter is rewritten only when a **later filing** exists for it. Holding a quarter is not a reason to rewrite it: every rewrite re-parses the company, recomputes ten years of indicators and drops three caches to arrive back where it started. Four runs a day over a season is a great deal of work for no change · and it churns the timestamp that answers "when did this go live".
@@ -2507,6 +2520,14 @@ ITR covers Q1 to Q3. **Nobody files Q4 as a standalone period** · the annual DF
 ### The difference lands in Q4
 
 The year is audited and the quarters are not, so any adjustment the auditors made to an earlier quarter is charged wholly to Q4. That is deliberate: the four quarters then sum to the audited year, and the alternative · rewriting Q1 to Q3 from the DFP · would displace BRAPI's series, which the whole ingestion path treats as the baseline. Not a trade worth making for a quarter BRAPI itself publishes within weeks.
+
+### Every differenced flow, not just net income
+
+Revenue, operating cash flow, investing cash flow and dividends are differenced alongside net income. Revenue was omitted from the nine-month sum until September 2026, so every derived Q4 reported none · and because a quarter counts as a quarter whether or not it reports revenue, the year read as complete, wore no partial-year badge, and was short by three months of revenue. For Natura's 2025 that was 15.6bn shown against an audited 21.8bn.
+
+A flow is summed only when **all three** quarters report it. Summing two and calling them nine months charges the absent quarter to Q4, which is the one distortion this derivation exists to avoid. When a quarter is missing the flow, the derived quarter reports `None` rather than a number built on a partial base.
+
+The scheduled window applies here too, offset by a year: the annual DFP for a reporting year is not published until the following March, so a run covers the last two **reporting** years. Q4 becomes derivable whenever its nine months do, which is not necessarily during the year it belongs to · Natura's Q3 2025 was not written until September 2026.
 
 ### What can and cannot be checked
 
@@ -2825,10 +2846,10 @@ journalctl -u sponda-refresh.service     # last run logs for a unit
 | `check_indicator_alerts` | `sponda-check-alerts.timer` | Daily safety-net pass over user alerts (the in-market 15-min run already covers weekday hours) | Daily 07:30 UTC |
 | `send_revisit_reminders` | `sponda-revisit-reminders.timer` | Email users whose scheduled company revisits are due or overdue | Daily 11:00 UTC |
 | `sync_fx_rates` + `sync_country_cpi` | `sponda-refresh-fx.timer` | Pull daily USD↔X FX rates from FMP and per-country CPI from FRED, for every reporting currency in the universe. Incremental: each currency asks only for the days since its newest stored rate. Required by the cross-currency indicator pipeline. | Daily 05:30 UTC |
-| `snapshot_cvm_filings` | `sponda-snapshot-cvm.timer` | Record which quarterly filings the CVM has published and when, to measure how fast a filing can reach the site. Costs one HEAD request when the archive is unchanged. | Hourly |
+| `snapshot_cvm_filings` | `sponda-snapshot-cvm.timer` | Record which quarterly filings the CVM has published and when, to measure how fast a filing can reach the site. Costs one HEAD request per covered year when the archive is unchanged. Covers the current archive year and the one before it. | Hourly |
 | `map_tickers_to_cvm` | `sponda-map-cvm-tickers.timer` | Resolve Brazilian tickers to the CVM codes their filings are keyed by. The recurring pass is how a new listing surfaces rather than silently never being ingested. | Monthly, 1st 04:00 UTC |
-| `sync_cvm_filings` | `sponda-sync-cvm.timer` | Write newly filed quarters that no other source holds. One query when there is nothing to write. | 4x daily |
-| `sync_cvm_fourth_quarters` | `sponda-sync-cvm-q4.timer` | Derive Q4 from the annual DFP for companies lacking it. DFPs arrive across February and March. | Daily 05:40 UTC |
+| `sync_cvm_filings` | `sponda-sync-cvm.timer` | Write newly filed quarters that no other source holds. One query per covered year when there is nothing to write. Covers the current archive year and the one before it. | 4x daily |
+| `sync_cvm_fourth_quarters` | `sponda-sync-cvm-q4.timer` | Derive Q4 from the annual DFP for companies lacking it. DFPs arrive across February and March. Covers the last two reporting years, since a year's quarters can complete late. | Daily 05:40 UTC |
 | `sync_cvm_enet_filings` | `sponda-sync-cvm-enet.timer` | Write ITRs delivered to ENET in the last week, ahead of the weekly archive rebuild. One search request when nothing new was delivered. | Hourly at :35 |
 | `sync_country` | `sponda-sync-country.timer` | Backfill `Ticker.country` from FMP company profiles for tickers still missing it (new listings arrive without a country). One profile call per missing ticker, largest market cap first; a no-op once the universe is labeled. | Daily 05:17 UTC |
 | `prune_price_history` | `sponda-prune-price-history.timer` | Drop stored daily closes and market caps for companies nobody has looked up in 90 days. The two series are ~1.2 MB of rows per company; the next visitor refetches them. | Weekly Sun 04:45 UTC |

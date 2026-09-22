@@ -20,8 +20,6 @@ import logging
 import zipfile
 from datetime import date
 
-from django.utils import timezone
-
 from config.monitored_command import MonitoredCommand
 from quotes.cvm import (
     CvmParseError,
@@ -32,12 +30,23 @@ from quotes.cvm import (
 )
 from quotes.cvm_fourth_quarter import FourthQuarterUnavailable, derive_fourth_quarter
 from quotes.cvm_writer import StatementRejected, is_writable, write_quarter
+from quotes.cvm_years import scheduled_years
 from quotes.models import QuarterlyCashFlow, QuarterlyEarnings, Ticker
 
 logger = logging.getLogger(__name__)
 
 FIRST_THREE_QUARTER_ENDS = ((3, 31), (6, 30), (9, 30))
 REPORTED_ROWS = 40
+
+# A reporting year is not audited and filed until the following March, so
+# the newest year this command can ever derive is last year's.
+YEARS_UNTIL_DFP = 1
+
+# The differenced flows, grouped by the table that stores them. Together
+# with net income these are ``cvm_fourth_quarter.DIFFERENCED_FLOWS``; a
+# flow missing from here is one the derived quarter can never report.
+REVENUE_FLOW = ("revenue",)
+CASH_FLOWS = ("operating_cash_flow", "investment_cash_flow", "dividends_paid")
 
 # The index shares the ITR's columns, so the same reader serves both.
 DFP_INDEX_FILENAME_TEMPLATE = "dfp_cia_aberta_{year}.csv"
@@ -50,12 +59,15 @@ class Command(MonitoredCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--year", type=int, default=None,
-            help="Reporting year (defaults to the year just ended)",
+            help="Reporting year (defaults to the scheduled window)",
         )
         parser.add_argument("--dry-run", action="store_true")
 
     def run(self, *args, **options):
-        year = options["year"] or timezone.localdate().year - 1
+        for year in scheduled_years(options["year"], newest_offset=YEARS_UNTIL_DFP):
+            self._run_year(year, options)
+
+    def _run_year(self, year: int, options: dict) -> None:
         pending = self._pending(year)
 
         if not pending:
@@ -142,25 +154,47 @@ class Command(MonitoredCommand):
     def _nine_months(self, symbol: str, year: int, reported: dict) -> dict:
         """The flows already reported for Q1 to Q3, summed.
 
-        Earnings are known from the pending scan; cash flows are read here so
-        a company with statements but no cash-flow rows still yields a quarter
-        with its other figures rather than none at all.
+        Net income comes from the pending scan, which selected on it. Every
+        other differenced flow is read here, so a company whose rows carry
+        some of them still yields a quarter with the figures it does have
+        rather than none at all.
+
+        Revenue belongs in this sum as much as net income does. Left out, it
+        is never subtracted and the derived quarter reports none · and a
+        quarter without revenue still counts as a quarter, so the year reads
+        complete while its revenue is short by three months and wears no
+        partial-year badge to say so.
         """
         needed = {date(year, month, day) for month, day in FIRST_THREE_QUARTER_ENDS}
-        summed = {"net_income": sum(reported.values())}
+        return {
+            "net_income": sum(reported.values()),
+            **self._summed(QuarterlyEarnings, symbol, needed, REVENUE_FLOW),
+            **self._summed(QuarterlyCashFlow, symbol, needed, CASH_FLOWS),
+        }
 
-        flows = list(
-            QuarterlyCashFlow.objects
-            .filter(ticker=symbol, end_date__in=needed)
-            .values_list("operating_cash_flow", "investment_cash_flow")
+    @staticmethod
+    def _summed(model, symbol: str, quarter_ends: set, fields: tuple) -> dict:
+        """Each field summed across the quarters, or left out when one is missing.
+
+        A flow is summed only when all three quarters report it. Summing two
+        and calling them nine months charges the absent quarter to Q4, which
+        is exactly the silent distortion the derivation exists to avoid · an
+        omitted key and an explicit ``None`` both leave the flow underived.
+        """
+        rows = list(
+            model.objects
+            .filter(ticker=symbol, end_date__in=quarter_ends)
+            .values_list(*fields)
         )
-        if len(flows) == len(needed):
-            for index, field in enumerate(
-                ("operating_cash_flow", "investment_cash_flow")
-            ):
-                values = [row[index] for row in flows]
-                summed[field] = None if any(v is None for v in values) else sum(values)
-        return summed
+        if len(rows) != len(quarter_ends):
+            return {}
+        return {
+            field: (
+                None if any(row[index] is None for row in rows)
+                else sum(row[index] for row in rows)
+            )
+            for index, field in enumerate(fields)
+        }
 
     def _filing_dates(self, archive: bytes, year: int) -> dict[str, date]:
         """When CVM received each annual filing, from the archive's own index."""
