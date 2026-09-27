@@ -107,8 +107,8 @@ export async function GET(
 
   // A ticker the API knows nothing about still gets a card: the symbol and
   // the branding are worth more in a shared link than a broken image.
-  const { name, sector, quote } = await fetchOgCardData(ticker);
-  const model = buildOgCardModel({ ticker, locale, name, sector, quote });
+  const { name, sector, snapshot } = await fetchOgCardData(ticker);
+  const model = buildOgCardModel({ ticker, locale, name, sector, snapshot });
 
   // `ImageResponse` streams; buffering it is what lets the response carry a
   // `Content-Length`, which a HEAD-first crawler needs before it will GET.
