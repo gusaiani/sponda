@@ -2215,7 +2215,7 @@ Unified error, performance, and cron monitoring through Sentry (free tier) plus 
 - **Interactive shells are not reported.** `init_sentry` returns early for `manage.py shell`, `shell_plus` and `dbshell` (see `is_interactive_shell_session`). A traceback at a REPL is an operator mistyping a model name, not the service failing, and five such typos were sitting in the inbox looking like production errors. Skipping init also drops the two-second Sentry flush that every shell exit was paying. Gunicorn, Celery, pytest and all timer-driven management commands are untouched, which is the part the tests pin.
 - **Third-party browser noise is dropped.** `src/lib/sentry.ts` ships a default `ignoreErrors` list covering wallet extensions (`Failed to connect to MetaMask`, `window.ethereum`), iOS in-app webviews reaching for Safari-only handlers (`window.webkit.messageHandlers`), and extension bootstraps (`ext:core/`, `<name:bootstrap>`). None of it is code we ship. A caller can pass its own `ignoreErrors` to replace the defaults.
 - **A scanner probing `/wp-admin/install.php` is not a company page.** The Next.js middleware validates the locale segment, but its matcher skips any path containing a dot, so a dotted probe reached `/[locale]/[ticker]` directly with a locale of `wp-admin`. Every locale table in `src/lib/metadata.ts` is keyed by a supported locale, so the lookup returned undefined and indexing it threw: 5,791 crashes in twenty days, the loudest error in the inbox, each one having first spent a Django round trip on the ticker `install.php`. The company layout and tab page now answer 404 for a locale we do not serve, the same answer the locale layout below them already gave, and `generateTickerMetadata` falls back to English rather than throwing, because all three of its call sites cast the raw URL segment without checking it.
-- **"N+1 Query" here is usually Redis, not Postgres.** Sentry files a repeated cache command under the same heading as a repeated SQL statement, so the reports on `/api/quote/{ticker}/` have so far been `GET ':1:circuit_breaker:fmp:open'`, `SET ':1:rate_limiter:fmp:<window>'` and `EXISTS ':1:rate_limiter:fmp:<window>'` — none of them a database query. Read the offending span before reaching for `select_related`. The one genuine database N+1 was on `/api/quotes/batch/`, where the view wrote a `LookupLog` row per ticker in a Python loop and now `bulk_create`s them in one INSERT.
+- **"N+1 Query" here is usually Redis, not Postgres.** Sentry files a repeated cache command under the same heading as a repeated SQL statement, so the reports on `/api/quote/{ticker}/` have so far been `GET ':1:circuit_breaker:fmp:open'`, `SET ':1:rate_limiter:fmp:<window>'`, `EXISTS ':1:rate_limiter:fmp:<window>'` and finally `INCRBY ':1:rate_limiter:fmp:<window>'` itself, none of them a database query. The last one is why pacing now reserves four calls per round trip instead of counting one; see [Outbound pacing](#the-seven-mechanisms). Read the offending span before reaching for `select_related`. The one genuine database N+1 was on `/api/quotes/batch/`, where the view wrote a `LookupLog` row per ticker in a Python loop and now `bulk_create`s them in one INSERT.
 - **Provider pacing has a budget inside a request.** A rate limiter that waits for the outbound allowance to refill will outlive a gunicorn worker timeout and get the worker killed. See [Pacing must not outlive the request](#pacing-must-not-outlive-the-request).
 - **A DFP archive the CVM has not published is not an error.** `download_dfp_archive` raises `DfpArchiveNotPublished` on a 404 and `sync_cvm_fourth_quarters` reports it and stops. Any other HTTP failure still raises. The job necessarily runs for a reporting year before the CVM publishes it, so without this the same page fires every year.
 
@@ -2646,18 +2646,33 @@ allowance in the shared cache, so the web workers, the Celery workers and
 the systemd commands pace themselves as one fleet rather than one
 allowance each. A rejected call spends data volume just like a successful
 one, so finding the ceiling by collision is the most expensive way to
-find it. The counter is incremented with a single Redis `INCR`, whose
-key Redis creates at zero when it is missing, so whoever opens the window
-is the only caller that also sets an expiry.
+find it. The counter moves with a single Redis `INCRBY`, whose key Redis
+creates at zero when it is missing, so whoever opens the window is the
+only caller that also sets an expiry.
 
 Going through Django's cache API instead costs two or three round trips
 per call, because `cache.incr` asks `EXISTS` before `INCRBY` and raises
 when the key is absent, and `cache.add` is a `SET NX` on top of that.
 Sentry reported each of those commands in turn as an N+1 on
-`/api/quote/{ticker}/`: first the `SET`, and then, once that was gone,
-the `EXISTS` underneath it. `LocMemCache`, which development and the
-tests use, has no client to reach for and keeps the cache API, where the
-extra round trips are in-process and cost nothing.
+`/api/quote/{ticker}/`: first the `SET`, then, once that was gone, the
+`EXISTS` underneath it, and then the `INCRBY` itself, because one command
+per call is still one command per call and a cold company page makes
+four of them. So a process now reserves a page's worth of calls in one
+`INCRBY` (`CALLS_RESERVED_PER_ROUND_TRIP`, which is four) and hands them
+out locally until they run out or the window rolls over. The counter
+comes back at its new total, so the reservation is the last four slots
+of it and only those at or under the allowance are usable: a reservation
+that straddles the ceiling is used up to the ceiling, one entirely past
+it is worth nothing and the caller waits for the next window. Slots
+reserved and never made are the price, bounded by one reservation per
+process per window, which is at most three calls out of 250. A counter
+that cannot be reached still allows the call, but as a reservation of
+one, so Redis coming back is noticed on the very next call. The
+reservation is per process (and per limiter instance, which is how the
+tests stand in for two processes), so a second process cannot use what
+the first booked. `LocMemCache`, which development and the tests use,
+has no client to reach for and keeps the cache API, where the extra
+round trips are in-process and cost nothing.
 
 **Stored price history.** `quotes.price_store` keeps the daily close
 series in Postgres (`DailyClosePrice`) and tops it up with the days it is

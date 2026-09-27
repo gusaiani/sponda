@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 from django.core.cache import cache
 
-from quotes.rate_limiter import RateLimiter
+from quotes.rate_limiter import CALLS_RESERVED_PER_ROUND_TRIP, RateLimiter
 
 
 class FakeClock:
@@ -197,7 +197,7 @@ class TestRateLimiterCostsOneRoundTripPerCall:
 
         limiter.acquire()
 
-        assert cache.get(limiter.window_cache_key(0)) == 1
+        assert cache.get(limiter.window_cache_key(0)) == CALLS_RESERVED_PER_ROUND_TRIP
 
     def test_two_processes_racing_to_create_the_counter_both_get_counted(self):
         """`add` losing the race must not lose the caller's call.
@@ -226,7 +226,7 @@ class TestRateLimiterCostsOneRoundTripPerCall:
             first.acquire()
             second.acquire()
 
-        assert cache.get(first.window_cache_key(0)) == 2
+        assert cache.get(first.window_cache_key(0)) == 2 * CALLS_RESERVED_PER_ROUND_TRIP
 
     def test_a_cache_that_is_down_still_allows_the_call(self):
         clock = FakeClock()
@@ -250,7 +250,7 @@ class FakeRedisClient:
         self.commands: list[tuple[str, str]] = []
 
     def incr(self, key, amount=1):
-        self.commands.append(("incr", key))
+        self.commands.append(("incr", key, amount))
         self.values[key] = self.values.get(key, 0) + amount
         return self.values[key]
 
@@ -291,24 +291,24 @@ class TestTheCounterIsOneRoundTripOnRedis:
         limiter = RateLimiter("test-provider", max_calls_per_minute=100)
 
         with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
-            limiter._increment("rate_limiter:test-provider:0")  # opens the window
+            limiter._increment("rate_limiter:test-provider:0", 1)  # opens the window
             client.commands.clear()
 
             for _ in range(10):
-                limiter._increment("rate_limiter:test-provider:0")
+                limiter._increment("rate_limiter:test-provider:0", 1)
 
-        assert client.commands == [("incr", ":1:rate_limiter:test-provider:0")] * 10
+        assert client.commands == [("incr", ":1:rate_limiter:test-provider:0", 1)] * 10
 
     def test_the_call_that_opens_the_window_also_sets_the_expiry(self):
         client = FakeRedisClient()
         limiter = RateLimiter("test-provider", max_calls_per_minute=100)
 
         with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
-            count = limiter._increment("rate_limiter:test-provider:0")
+            count = limiter._increment("rate_limiter:test-provider:0", 1)
 
         assert count == 1
         assert client.commands == [
-            ("incr", ":1:rate_limiter:test-provider:0"),
+            ("incr", ":1:rate_limiter:test-provider:0", 1),
             ("expire", ":1:rate_limiter:test-provider:0"),
         ]
 
@@ -317,7 +317,7 @@ class TestTheCounterIsOneRoundTripOnRedis:
         limiter = RateLimiter("test-provider", max_calls_per_minute=100)
 
         with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
-            limiter._increment("rate_limiter:test-provider:0")
+            limiter._increment("rate_limiter:test-provider:0", 1)
 
         assert client.expiries[":1:rate_limiter:test-provider:0"] > 60
 
@@ -328,16 +328,19 @@ class TestTheCounterIsOneRoundTripOnRedis:
 
         with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
             counts = [
-                limiter._increment("rate_limiter:test-provider:0")
+                limiter._increment("rate_limiter:test-provider:0", 1)
                 for _ in range(5)
             ]
 
         assert counts == [1, 2, 3, 4, 5]
-        assert not any(command == "exists" for command, _ in client.commands)
+        assert not any(command[0] == "exists" for command in client.commands)
 
     def test_a_redis_that_is_down_still_allows_the_call(self):
         client = FakeRedisClient()
-        limiter = RateLimiter("test-provider", max_calls_per_minute=1)
+        clock = FakeClock()
+        limiter = RateLimiter(
+            "test-provider", max_calls_per_minute=1, sleep=clock.sleep, clock=clock.time
+        )
 
         def refuse(*_args, **_kwargs):
             raise ConnectionError("redis is down")
@@ -345,7 +348,10 @@ class TestTheCounterIsOneRoundTripOnRedis:
         client.incr = refuse
 
         with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
-            assert limiter._increment("rate_limiter:test-provider:0") == 1
+            limiter.acquire()
+            limiter.acquire()
+
+        assert clock.sleeps == []
 
 
 class TestTheCacheApiIsStillUsedWithoutRedis:
@@ -354,7 +360,120 @@ class TestTheCacheApiIsStillUsedWithoutRedis:
     def test_a_cache_with_no_redis_client_still_counts(self):
         limiter = RateLimiter("test-provider", max_calls_per_minute=100)
 
-        first = limiter._increment("rate_limiter:test-provider:0")
-        second = limiter._increment("rate_limiter:test-provider:0")
+        first = limiter._increment("rate_limiter:test-provider:0", 1)
+        second = limiter._increment("rate_limiter:test-provider:0", 3)
 
-        assert (first, second) == (1, 2)
+        assert (first, second) == (1, 4)
+
+
+class TestOneRoundTripCoversAPageOfCalls:
+    """Sentry filed the surviving `INCRBY ':1:rate_limiter:fmp:<window>'` as
+    an N+1 on /api/quote/{ticker}/ under `ensure_fresh_data`, the same
+    heading as every earlier shape of this counter. Counting one call in
+    one command was still one command per call, and a cold company page
+    makes four of them.
+
+    So a process reserves a page's worth of calls in one `INCRBY` and
+    hands them out locally until they run out or the window rolls over.
+    The reservation is what the fleet-wide counter sees; whether the
+    calls are then made is this process's business. Slots reserved and
+    never used are the price, and it is bounded by one reservation per
+    process per window."""
+
+    WINDOW_KEY = ":1:rate_limiter:test-provider:0"
+
+    def paced_limiter(self, clock: FakeClock, allowance: int = 100) -> RateLimiter:
+        return RateLimiter(
+            "test-provider",
+            max_calls_per_minute=allowance,
+            sleep=clock.sleep,
+            clock=clock.time,
+        )
+
+    def test_a_reservation_is_the_size_of_a_cold_company_page(self):
+        """Three statement syncs plus the quote itself."""
+        assert CALLS_RESERVED_PER_ROUND_TRIP == 4
+
+    def test_a_pages_worth_of_calls_costs_one_round_trip(self):
+        client = FakeRedisClient()
+        limiter = self.paced_limiter(FakeClock())
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            for _ in range(CALLS_RESERVED_PER_ROUND_TRIP):
+                limiter.acquire()
+
+        assert client.commands == [
+            ("incr", self.WINDOW_KEY, CALLS_RESERVED_PER_ROUND_TRIP),
+            ("expire", self.WINDOW_KEY),
+        ]
+
+    def test_the_call_after_the_reservation_takes_another(self):
+        client = FakeRedisClient()
+        limiter = self.paced_limiter(FakeClock())
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            for _ in range(CALLS_RESERVED_PER_ROUND_TRIP + 1):
+                limiter.acquire()
+
+        increments = [command for command in client.commands if command[0] == "incr"]
+        assert increments == [("incr", self.WINDOW_KEY, CALLS_RESERVED_PER_ROUND_TRIP)] * 2
+
+    def test_a_reservation_does_not_outlive_its_window(self):
+        client = FakeRedisClient()
+        clock = FakeClock()
+        limiter = self.paced_limiter(clock)
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            limiter.acquire()  # reserves the rest of this window's page
+            clock.now = 61.0
+            limiter.acquire()
+
+        increments = [command for command in client.commands if command[0] == "incr"]
+        assert increments == [
+            ("incr", ":1:rate_limiter:test-provider:0", CALLS_RESERVED_PER_ROUND_TRIP),
+            ("incr", ":1:rate_limiter:test-provider:60", CALLS_RESERVED_PER_ROUND_TRIP),
+        ]
+
+    def test_reserved_slots_past_the_allowance_are_not_handed_out(self):
+        """An allowance of 5 with reservations of 4: the second reservation
+        straddles the ceiling, so only one of its four slots is real."""
+        clock = FakeClock()
+        limiter = self.paced_limiter(clock, allowance=5)
+
+        for _ in range(5):
+            limiter.acquire()
+        assert clock.sleeps == []
+
+        limiter.acquire()
+
+        assert clock.sleeps == [60.0]
+
+    def test_another_process_cannot_use_what_this_one_reserved(self):
+        clock = FakeClock()
+        first = self.paced_limiter(clock, allowance=CALLS_RESERVED_PER_ROUND_TRIP)
+        second = self.paced_limiter(clock, allowance=CALLS_RESERVED_PER_ROUND_TRIP)
+
+        first.acquire()  # holds the whole allowance for this window
+        second.acquire()
+
+        assert clock.sleeps == [60.0]
+
+    def test_a_reservation_the_counter_refused_still_lets_one_call_through(self):
+        """When Redis is down the limiter allows the call rather than block
+        the provider. It must not also hand out a phantom reservation that
+        keeps allowing calls once Redis is back."""
+        client = FakeRedisClient()
+        limiter = self.paced_limiter(FakeClock(), allowance=1)
+
+        def refuse(*_args, **_kwargs):
+            raise ConnectionError("redis is down")
+
+        with patch("quotes.rate_limiter.cache", FakeRedisCache(client)):
+            client.incr = refuse
+            limiter.acquire()
+            del client.incr  # Redis is back
+            limiter.acquire()
+
+        assert [command for command in client.commands if command[0] == "incr"] == [
+            ("incr", self.WINDOW_KEY, CALLS_RESERVED_PER_ROUND_TRIP)
+        ]
