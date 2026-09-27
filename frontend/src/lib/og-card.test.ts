@@ -13,14 +13,15 @@ import {
   siteOgArtworkFromParam,
 } from "./og-card";
 
-const VULCABRAS_QUOTE = {
+/** One row of `/api/tickers/VULC3/indicators/`, trimmed to what the card reads. */
+const VULCABRAS_SNAPSHOT = {
+  symbol: "VULC3",
   name: "Vulcabras",
+  sector: "Consumer Non-Durables",
   pe10: 22.81,
-  pe10Label: "PE15",
   pfcf10: 62.67,
-  pfcf10Label: "PFCF15",
   peg: 0.78,
-  earningsCAGR: 29.17,
+  debt_to_equity: 0.14,
 };
 
 describe("card dimensions", () => {
@@ -74,7 +75,7 @@ describe("buildOgCardModel", () => {
       locale: "pt",
       name: "Vulcabras",
       sector: "Consumer Non-Durables",
-      quote: VULCABRAS_QUOTE,
+      snapshot: VULCABRAS_SNAPSHOT,
     });
 
     expect(model.companyName).toBe("Vulcabras");
@@ -88,7 +89,7 @@ describe("buildOgCardModel", () => {
       locale: "pt",
       name: null,
       sector: null,
-      quote: null,
+      snapshot: null,
     });
 
     expect(model.companyName).toBe("VULC3");
@@ -101,7 +102,7 @@ describe("buildOgCardModel", () => {
       locale: "pt",
       name: "Vulcabras",
       sector: "Consumer Non-Durables",
-      quote: VULCABRAS_QUOTE,
+      snapshot: VULCABRAS_SNAPSHOT,
     });
 
     expect(model.subtitle).toBe("VULC3 · Bens de Consumo Não Duráveis");
@@ -109,7 +110,7 @@ describe("buildOgCardModel", () => {
 
   it("drops the sector from the subtitle when the API has none", () => {
     const model = buildOgCardModel({
-      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, quote: null,
+      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, snapshot: null,
     });
 
     expect(model.subtitle).toBe("VULC3");
@@ -119,7 +120,7 @@ describe("buildOgCardModel", () => {
     // With no company name the headline is already the ticker, so repeating
     // it underneath just prints the same word twice.
     const model = buildOgCardModel({
-      ticker: "NOSUCH", locale: "en", name: null, sector: null, quote: null,
+      ticker: "NOSUCH", locale: "en", name: null, sector: null, snapshot: null,
     });
 
     expect(model.companyName).toBe("NOSUCH");
@@ -128,7 +129,7 @@ describe("buildOgCardModel", () => {
 
   it("still shows the sector when the company name is unknown", () => {
     const model = buildOgCardModel({
-      ticker: "NOSUCH", locale: "en", name: null, sector: "Technology", quote: null,
+      ticker: "NOSUCH", locale: "en", name: null, sector: "Technology", snapshot: null,
     });
 
     expect(model.subtitle).toBe("NOSUCH · Technology");
@@ -141,79 +142,80 @@ describe("buildOgCardModel", () => {
       locale: "en",
       name: longName,
       sector: null,
-      quote: null,
+      snapshot: null,
     });
 
     expect(model.companyName.length).toBeLessThanOrEqual(MAX_COMPANY_NAME_LENGTH + 1);
     expect(model.companyName.endsWith("…")).toBe(true);
   });
 
-  it("renders the four headline indicators with the API's own window labels", () => {
-    const model = buildOgCardModel({
-      ticker: "VULC3",
-      locale: "pt",
-      name: "Vulcabras",
-      sector: "Consumer Non-Durables",
-      quote: VULCABRAS_QUOTE,
-    });
-
-    expect(model.indicators.map((indicator) => indicator.label)).toEqual([
-      "PE15",
-      "PFCF15",
-      "PEG",
-      "CAGR",
-    ]);
-  });
-
-  it("falls back to the 10-year labels when the API omits them", () => {
+  it("renders the four headline indicators the snapshot can always answer", () => {
+    // Earnings CAGR only exists on the live quote payload, which sits behind
+    // the lookup quota. Debt/Equity is on the snapshot for 86% of companies.
     const model = buildOgCardModel({
       ticker: "VULC3",
       locale: "en",
       name: "Vulcabras",
-      sector: null,
-      quote: { ...VULCABRAS_QUOTE, pe10Label: null, pfcf10Label: null },
+      sector: "Consumer Non-Durables",
+      snapshot: VULCABRAS_SNAPSHOT,
     });
 
-    expect(model.indicators[0].label).toBe("PE10");
-    expect(model.indicators[1].label).toBe("PFCF10");
+    expect(model.indicators.map((indicator) => indicator.label)).toEqual([
+      "PE10",
+      "PFCF10",
+      "PEG",
+      "D/E",
+    ]);
+  });
+
+  it("labels the leverage tile in the card's language", () => {
+    const model = buildOgCardModel({
+      ticker: "VULC3",
+      locale: "pt",
+      name: "Vulcabras",
+      sector: null,
+      snapshot: VULCABRAS_SNAPSHOT,
+    });
+
+    expect(model.indicators[3].label).toBe("Dív/PL");
   });
 
   it("formats values with the locale's decimal separator", () => {
     const portuguese = buildOgCardModel({
-      ticker: "VULC3", locale: "pt", name: "Vulcabras", sector: null, quote: VULCABRAS_QUOTE,
+      ticker: "VULC3", locale: "pt", name: "Vulcabras", sector: null, snapshot: VULCABRAS_SNAPSHOT,
     });
     const english = buildOgCardModel({
-      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, quote: VULCABRAS_QUOTE,
+      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, snapshot: VULCABRAS_SNAPSHOT,
     });
 
     expect(portuguese.indicators[0].value).toBe("22,8");
     expect(english.indicators[0].value).toBe("22.8");
   });
 
-  it("renders the earnings CAGR as a percentage", () => {
+  it("renders debt to equity as a two-decimal ratio", () => {
     const model = buildOgCardModel({
-      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, quote: VULCABRAS_QUOTE,
+      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, snapshot: VULCABRAS_SNAPSHOT,
     });
 
-    expect(model.indicators[3].value).toBe("29.2%");
+    expect(model.indicators[3].value).toBe("0.14");
   });
 
-  it("shows the product's missing-value marker for indicators the API could not compute", () => {
+  it("shows the product's missing-value marker for indicators the snapshot lacks", () => {
     const model = buildOgCardModel({
       ticker: "VULC3",
       locale: "en",
       name: "Vulcabras",
       sector: null,
-      quote: { ...VULCABRAS_QUOTE, peg: null, earningsCAGR: null },
+      snapshot: { ...VULCABRAS_SNAPSHOT, peg: null, debt_to_equity: null },
     });
 
     expect(model.indicators[2].value).toBe(MISSING_VALUE);
     expect(model.indicators[3].value).toBe(MISSING_VALUE);
   });
 
-  it("keeps every indicator slot even with no quote at all, so the layout is stable", () => {
+  it("keeps every indicator slot even with no snapshot at all, so the layout is stable", () => {
     const model = buildOgCardModel({
-      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, quote: null,
+      ticker: "VULC3", locale: "en", name: "Vulcabras", sector: null, snapshot: null,
     });
 
     expect(model.indicators).toHaveLength(4);
@@ -222,17 +224,17 @@ describe("buildOgCardModel", () => {
 
   it("uses the locale's tagline", () => {
     expect(buildOgCardModel({
-      ticker: "VULC3", locale: "pt", name: null, sector: null, quote: null,
+      ticker: "VULC3", locale: "pt", name: null, sector: null, snapshot: null,
     }).tagline).toBe("Para investidores em valor");
 
     expect(buildOgCardModel({
-      ticker: "AAPL", locale: "de", name: null, sector: null, quote: null,
+      ticker: "AAPL", locale: "de", name: null, sector: null, snapshot: null,
     }).tagline).toBe("Für Value-Investoren");
   });
 
   it("falls back to the English tagline for zh, whose glyphs the card font lacks", () => {
     const model = buildOgCardModel({
-      ticker: "VULC3", locale: "zh", name: null, sector: null, quote: null,
+      ticker: "VULC3", locale: "zh", name: null, sector: null, snapshot: null,
     });
 
     expect(model.tagline).toBe("For value investors");
@@ -244,30 +246,51 @@ describe("fetchOgCardData", () => {
     vi.unstubAllGlobals();
   });
 
-  it("combines the ticker and quote endpoints", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => ({
+  it("reads the quota-free snapshot endpoint, never /api/quote/", async () => {
+    // /api/quote/ sits behind the daily lookup cap, scoped by client IP. The
+    // Next server is one IP, so every card on the site shared twenty
+    // lookups a day and then rendered N/A in every slot.
+    const fetchMock = vi.fn(async (url: string) => ({
       ok: true,
-      json: async () => (url.includes("/quote/")
-        ? VULCABRAS_QUOTE
+      json: async () => (url.includes("/indicators/")
+        ? VULCABRAS_SNAPSHOT
         : { name: "Vulcabras", sector: "Consumer Non-Durables" }),
-    })));
+    }));
+    vi.stubGlobal("fetch", fetchMock);
 
     const data = await fetchOgCardData("VULC3");
 
+    const requestedUrls = fetchMock.mock.calls.map(([url]) => url);
+    expect(requestedUrls).toContain("http://localhost:8710/api/tickers/VULC3/indicators/");
+    expect(requestedUrls.some((url) => url.includes("/api/quote/"))).toBe(false);
     expect(data.name).toBe("Vulcabras");
     expect(data.sector).toBe("Consumer Non-Durables");
-    expect(data.quote?.pe10).toBe(22.81);
+    expect(data.snapshot?.pe10).toBe(22.81);
   });
 
-  it("still returns the company identity when the quote endpoint fails", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("/quote/")
-      ? { ok: false, json: async () => ({}) }
+  it("still returns the company identity when there is no snapshot row", async () => {
+    // Funds, ETFs and companies with no market cap have a ticker and no
+    // snapshot; the endpoint answers 404 for them.
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("/indicators/")
+      ? { ok: false, status: 404, json: async () => ({}) }
       : { ok: true, json: async () => ({ name: "Vulcabras", sector: "Consumer Non-Durables" }) })));
 
     const data = await fetchOgCardData("VULC3");
 
     expect(data.name).toBe("Vulcabras");
-    expect(data.quote).toBeNull();
+    expect(data.sector).toBe("Consumer Non-Durables");
+    expect(data.snapshot).toBeNull();
+  });
+
+  it("takes the identity from the snapshot when the ticker endpoint fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("/indicators/")
+      ? { ok: true, json: async () => VULCABRAS_SNAPSHOT }
+      : { ok: false, status: 500, json: async () => ({}) })));
+
+    const data = await fetchOgCardData("VULC3");
+
+    expect(data.name).toBe("Vulcabras");
+    expect(data.sector).toBe("Consumer Non-Durables");
   });
 
   it("resolves to empty data rather than throwing when the API is unreachable", async () => {
@@ -277,7 +300,7 @@ describe("fetchOgCardData", () => {
 
     const data = await fetchOgCardData("VULC3");
 
-    expect(data).toEqual({ name: null, sector: null, quote: null });
+    expect(data).toEqual({ name: null, sector: null, snapshot: null });
   });
 });
 

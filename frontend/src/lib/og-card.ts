@@ -1,5 +1,6 @@
 import { formatNumber } from "../utils/format";
 import { translateSector } from "../utils/sectorLabels";
+import { translatorFor } from "../i18n/dictionaries";
 import { djangoApiBaseUrl } from "./django-api";
 import { fetchFromDjango } from "./django-fetch";
 import type { SupportedLocale } from "./i18n-config";
@@ -22,7 +23,12 @@ export const MAX_COMPANY_NAME_LENGTH = 32;
 export const MISSING_VALUE = "N/A";
 
 const INDICATOR_DECIMAL_PLACES = 1;
-const PEG_DECIMAL_PLACES = 2;
+const RATIO_DECIMAL_PLACES = 2;
+
+/** The three multiples are strict ten-year windows on the snapshot, so the labels are fixed. */
+const PE10_LABEL = "PE10";
+const PFCF10_LABEL = "PFCF10";
+const PEG_LABEL = "PEG";
 const MAX_TICKER_LENGTH = 12;
 const IMAGE_EXTENSION = ".png";
 const TICKER_PATTERN = new RegExp(`^[A-Z0-9.-]{1,${MAX_TICKER_LENGTH}}$`);
@@ -92,20 +98,36 @@ export function tickerFromOgImageParam(param: string): string | null {
   return TICKER_PATTERN.test(ticker) ? ticker : null;
 }
 
-export interface OgCardQuote {
+/**
+ * The slice of `/api/tickers/{symbol}/indicators/` the card draws.
+ *
+ * That endpoint serves an `IndicatorSnapshot` row: two indexed reads and no
+ * provider call, which is why it carries no lookup quota. `/api/quote/`
+ * does, and it scopes anonymous callers by client IP. The Next server is
+ * one IP, so when the card read the quote every company on the site shared
+ * twenty lookups a day and then printed N/A in every slot for every
+ * crawler. Same failure as the server-rendered page had, same cure the
+ * markdown pages use; see "Why it is not built on `/api/quote/`" in the
+ * README.
+ *
+ * The price is that earnings CAGR, which only the live quote computes, is
+ * not available. Debt/Equity takes its tile: the snapshot has it for 86%
+ * of companies, against 19% for PEG.
+ */
+export interface OgCardSnapshot {
+  symbol?: string;
   name?: string | null;
+  sector?: string | null;
   pe10?: number | null;
-  pe10Label?: string | null;
   pfcf10?: number | null;
-  pfcf10Label?: string | null;
   peg?: number | null;
-  earningsCAGR?: number | null;
+  debt_to_equity?: number | null;
 }
 
 export interface OgCardData {
   name: string | null;
   sector: string | null;
-  quote: OgCardQuote | null;
+  snapshot: OgCardSnapshot | null;
 }
 
 export interface OgCardIndicator {
@@ -140,7 +162,7 @@ interface OgCardModelInput {
   locale: SupportedLocale;
   name: string | null;
   sector: string | null;
-  quote: OgCardQuote | null;
+  snapshot: OgCardSnapshot | null;
 }
 
 function truncateCompanyName(name: string): string {
@@ -159,25 +181,17 @@ function formatIndicator(
     : MISSING_VALUE;
 }
 
-function formatPercentage(
-  value: number | null | undefined,
-  locale: SupportedLocale,
-): string {
-  return typeof value === "number" && Number.isFinite(value)
-    ? `${formatNumber(value, INDICATOR_DECIMAL_PLACES, locale)}%`
-    : MISSING_VALUE;
-}
-
 /** Everything the card draws, resolved and formatted ahead of rendering. */
 export function buildOgCardModel({
   ticker,
   locale,
   name,
   sector,
-  quote,
+  snapshot,
 }: OgCardModelInput): OgCardModel {
   const textLocale = ogCardTextLocale(locale);
-  const companyName = truncateCompanyName(name || quote?.name || ticker);
+  const translate = translatorFor(textLocale);
+  const companyName = truncateCompanyName(name || snapshot?.name || ticker);
   const localizedSector = sector ? translateSector(sector, textLocale) : "";
 
   return {
@@ -188,30 +202,38 @@ export function buildOgCardModel({
     tagline: TAGLINES[locale],
     indicators: [
       {
-        label: quote?.pe10Label || "PE10",
-        value: formatIndicator(quote?.pe10, textLocale, INDICATOR_DECIMAL_PLACES),
+        label: PE10_LABEL,
+        value: formatIndicator(snapshot?.pe10, textLocale, INDICATOR_DECIMAL_PLACES),
       },
       {
-        label: quote?.pfcf10Label || "PFCF10",
-        value: formatIndicator(quote?.pfcf10, textLocale, INDICATOR_DECIMAL_PLACES),
+        label: PFCF10_LABEL,
+        value: formatIndicator(snapshot?.pfcf10, textLocale, INDICATOR_DECIMAL_PLACES),
       },
       {
-        label: "PEG",
-        value: formatIndicator(quote?.peg, textLocale, PEG_DECIMAL_PLACES),
+        label: PEG_LABEL,
+        value: formatIndicator(snapshot?.peg, textLocale, RATIO_DECIMAL_PLACES),
       },
       {
-        label: "CAGR",
-        value: formatPercentage(quote?.earningsCAGR, textLocale),
+        label: translate("compare.col_debt_to_equity"),
+        value: formatIndicator(snapshot?.debt_to_equity, textLocale, RATIO_DECIMAL_PLACES),
       },
     ],
   };
 }
 
-const QUOTE_REVALIDATE_SECONDS = 3600;
+/** Social networks cache the image for a day at the edge anyway, so an hour is plenty. */
+const CARD_DATA_REVALIDATE_SECONDS = 3600;
+
+interface TickerIdentity {
+  name?: string | null;
+  sector?: string | null;
+}
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    const response = await fetchFromDjango(url, { next: { revalidate: QUOTE_REVALIDATE_SECONDS } });
+    const response = await fetchFromDjango(url, {
+      next: { revalidate: CARD_DATA_REVALIDATE_SECONDS },
+    });
     if (!response || !response.ok) return null;
     return (await response.json()) as T;
   } catch {
@@ -222,19 +244,22 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 /**
  * Company identity plus headline indicators for one ticker.
  *
- * Never rejects: a card with a company name and no numbers still beats no
- * card at all, so each endpoint degrades on its own.
+ * The snapshot endpoint carries the identity too, but it answers 404 for a
+ * fund, an ETF or a company with no market cap, and those still deserve a
+ * card with their name on it. So the ticker endpoint is asked in parallel
+ * and each source degrades on its own: a card with a company name and no
+ * numbers still beats no card at all.
  */
 export async function fetchOgCardData(ticker: string): Promise<OgCardData> {
   const baseUrl = djangoApiBaseUrl();
-  const [tickerInfo, quote] = await Promise.all([
-    fetchJson<{ name?: string; sector?: string }>(`${baseUrl}/api/tickers/${ticker}/`),
-    fetchJson<OgCardQuote>(`${baseUrl}/api/quote/${ticker}/`),
+  const [snapshot, tickerIdentity] = await Promise.all([
+    fetchJson<OgCardSnapshot>(`${baseUrl}/api/tickers/${ticker}/indicators/`),
+    fetchJson<TickerIdentity>(`${baseUrl}/api/tickers/${ticker}/`),
   ]);
 
   return {
-    name: tickerInfo?.name ?? null,
-    sector: tickerInfo?.sector ?? null,
-    quote,
+    name: snapshot?.name || tickerIdentity?.name || null,
+    sector: snapshot?.sector || tickerIdentity?.sector || null,
+    snapshot,
   };
 }
