@@ -334,3 +334,104 @@ class TestGateStepsAreUnconditional:
                     f"{job_name}: step '{step_id}' is gated on its own output, "
                     f"so it can never run and everything downstream silently skips"
                 )
+
+
+ENV_FILE = "/opt/sponda/.env"
+
+
+class TestGunicornPicksUpEnvChanges:
+    """A reloaded gunicorn keeps the environment it was started with.
+
+    `systemctl reload` sends HUP: workers re-fork and import fresh code, but
+    systemd applies `EnvironmentFile` only when the unit starts, so the master
+    and every worker it forks keep the old variables. Found on 2026-09-27:
+    the web app had been up since 2026-08-26 and still carried that day's
+    `SENTRY_RELEASE`, so a month of backend events were tagged with a release
+    twenty-eight merges old. Any secret rotated in `.env` would have gone the
+    same way, silently, while celery and the frontend (restarted) picked it up.
+
+    Two rules follow. The release is read from the checkout, never written to
+    `.env`. And when `.env` is newer than the running master, the deploy
+    restarts gunicorn instead of reloading it, paying the 502 window only on
+    the rare deploy that actually changes the environment.
+    """
+
+    def test_the_deploy_no_longer_writes_the_release_into_env(self):
+        assigning = [
+            line for line in deploy_ssh_commands().splitlines()
+            if "SENTRY_RELEASE=$" in line or "SENTRY_RELEASE=${" in line
+        ]
+        assert not assigning, (
+            "the deploy must not write SENTRY_RELEASE to .env; the value never "
+            f"reaches a reloaded gunicorn: {assigning}"
+        )
+
+    def test_the_deploy_removes_the_stale_release_line_once(self):
+        commands = deploy_ssh_commands()
+        assert "/^SENTRY_RELEASE=/d" in commands, (
+            "the deploy must delete the SENTRY_RELEASE line the old pipeline "
+            "left in .env, or the stale value keeps overriding the checkout"
+        )
+        assert 'grep -q "^SENTRY_RELEASE="' in commands, (
+            "the deletion must be guarded by a grep; `sed -i` rewrites the file "
+            "even when nothing matches, and a touched .env restarts gunicorn "
+            "on every deploy"
+        )
+
+    def test_the_deploy_compares_env_age_to_the_running_master(self):
+        commands = deploy_ssh_commands()
+        assert f"stat -c %Y {ENV_FILE}" in commands, (
+            "the deploy must read the .env modification time"
+        )
+        assert "ActiveEnterTimestamp --value sponda" in commands, (
+            "the deploy must read when the running gunicorn master started"
+        )
+
+    def test_a_newer_env_restarts_gunicorn_and_an_unchanged_one_reloads_it(self):
+        commands = deploy_ssh_commands()
+        restart_branch = commands.index("systemctl restart sponda\n")
+        reload_branch = commands.index("systemctl reload sponda || systemctl restart sponda")
+        assert restart_branch < reload_branch, (
+            "the env-changed branch (restart) must be tested before the "
+            "default branch (reload)"
+        )
+
+
+def parse_restart_policy(contents):
+    """(RestartSec, StartLimitBurst, StartLimitIntervalSec) as integers."""
+    values = {}
+    for line in contents.splitlines():
+        for key in ("RestartSec", "StartLimitBurst", "StartLimitIntervalSec"):
+            if line.startswith(f"{key}="):
+                values[key] = int(line.split("=", 1)[1])
+    return values
+
+
+class TestARestartCeilingIsActuallyReachable:
+    """`StartLimitBurst` starts inside `StartLimitIntervalSec` must be possible.
+
+    A oneshot job that fails and restarts every `RestartSec` seconds spaces
+    its starts that far apart. If `(StartLimitBurst - 1) * RestartSec` is not
+    strictly inside the interval, the burst-th start always falls outside the
+    window, the counter never fills, and the job retries forever instead of
+    giving up until its timer fires again.
+
+    `sponda-indexnow.service` had burst 3 in 600 s with 300 s between starts:
+    three starts span exactly 600 s, the ceiling never tripped, and the unit
+    restarted every five minutes for a month (restart counter 8863 on
+    2026-09-27), each time to print `INDEXNOW_KEY is not set`.
+    """
+
+    @pytest.mark.parametrize("service", repo_services())
+    def test_the_burst_fits_inside_the_interval(self, service):
+        contents = (REPO_ROOT / "systemd" / service).read_text()
+        if "Restart=on-failure" not in contents:
+            return
+        policy = parse_restart_policy(contents)
+        retries_before_ceiling = policy["StartLimitBurst"] - 1
+        span = retries_before_ceiling * policy["RestartSec"]
+        assert span < policy["StartLimitIntervalSec"], (
+            f"{service}: {policy['StartLimitBurst']} starts {policy['RestartSec']}s "
+            f"apart span {span}s, not inside StartLimitIntervalSec="
+            f"{policy['StartLimitIntervalSec']}; the ceiling can never trip"
+        )

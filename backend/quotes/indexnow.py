@@ -15,6 +15,8 @@ not the tab pages, which are detail views of a page already being submitted.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from django.conf import settings
 
 import requests
@@ -102,8 +104,35 @@ def verify_key_is_live() -> None:
         )
 
 
-def submit(urls: list[str]) -> bool:
-    """Submit one batch. True when the endpoint accepted it."""
+# 200 accepted, 202 accepted but the key is still being validated.
+ACCEPTED_STATUS_CODES = frozenset({200, 202})
+REJECTION_BODY_PREVIEW_CHARACTERS = 200
+
+
+@dataclass(frozen=True)
+class SubmissionOutcome:
+    """What the endpoint said to one batch.
+
+    Carries the status and body so a rejection can be reported with its
+    reason: the first production run printed only "rejected", and the same
+    batch went through minutes later, which left nobody able to tell a key
+    still being validated from a rate limit.
+    """
+
+    status_code: int
+    body: str
+
+    @property
+    def accepted(self) -> bool:
+        return self.status_code in ACCEPTED_STATUS_CODES
+
+    def describe_rejection(self) -> str:
+        preview = self.body.strip()[:REJECTION_BODY_PREVIEW_CHARACTERS]
+        return f"HTTP {self.status_code}" + (f": {preview}" if preview else "")
+
+
+def submit(urls: list[str]) -> SubmissionOutcome:
+    """Submit one batch and report how the endpoint answered."""
     response = requests.post(
         INDEXNOW_ENDPOINT,
         json={
@@ -114,8 +143,7 @@ def submit(urls: list[str]) -> bool:
         },
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
-    # 200 accepted, 202 accepted but the key is still being validated.
-    return response.status_code in (200, 202)
+    return SubmissionOutcome(status_code=response.status_code, body=response.text or "")
 
 
 def batched(items: list, size: int):

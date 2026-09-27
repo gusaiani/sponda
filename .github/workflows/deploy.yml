@@ -352,15 +352,17 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            # Tag the backend Sentry release with the deployed SHA. The
-            # frontend's NEXT_PUBLIC_SENTRY_RELEASE is already baked into
-            # the artifact by the build-frontend job, so it is no longer
-            # written here.
-            SENTRY_SHA=$(git rev-parse HEAD)
+            # The backend Sentry release is read from .git/HEAD by
+            # config.observability.resolve_release at settings import, so
+            # it is no longer written to .env: a reloaded gunicorn never
+            # re-reads EnvironmentFile, which is how a month of events got
+            # tagged with a SHA from 2026-08-26. The frontend's release is
+            # baked into the artifact by the build-frontend job. Delete the
+            # line the old pipeline left behind, once; the grep guard matters
+            # because `sed -i` rewrites the file even with nothing to delete,
+            # and a touched .env restarts gunicorn below.
             if grep -q "^SENTRY_RELEASE=" /opt/sponda/.env; then
-              sed -i "s|^SENTRY_RELEASE=.*|SENTRY_RELEASE=${SENTRY_SHA}|" /opt/sponda/.env
-            else
-              echo "SENTRY_RELEASE=${SENTRY_SHA}" >> /opt/sponda/.env
+              sed -i '/^SENTRY_RELEASE=/d' /opt/sponda/.env
             fi
 
             source venv/bin/activate
@@ -493,7 +495,21 @@ jobs:
             # Falls back to restart if the unit on the box predates ExecReload,
             # or if reload fails for any other reason. A brief 502 window is
             # bad; a deploy that aborts halfway is worse.
-            systemctl reload sponda || systemctl restart sponda
+            #
+            # The one thing a reload cannot do is pick up a changed .env:
+            # systemd applies EnvironmentFile at unit start only, so the
+            # master and every worker it forks keep the variables it was
+            # started with. When .env is newer than the running master, pay
+            # the 502 window and restart; that is the rare deploy, not the
+            # usual one.
+            ENV_CHANGED_AT=$(stat -c %Y /opt/sponda/.env)
+            GUNICORN_STARTED_AT=$(date -d "$(systemctl show -p ActiveEnterTimestamp --value sponda)" +%s 2>/dev/null || echo 0)
+            if [ "$ENV_CHANGED_AT" -gt "$GUNICORN_STARTED_AT" ]; then
+              echo ".env changed since gunicorn started; restarting instead of reloading"
+              systemctl restart sponda
+            else
+              systemctl reload sponda || systemctl restart sponda
+            fi
             # The Celery worker is a long-running process: without a restart it
             # keeps executing the code it loaded at boot, so deployed task fixes
             # never take effect (an open-circuit error kept reaching Sentry from

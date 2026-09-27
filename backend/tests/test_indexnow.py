@@ -9,6 +9,7 @@ The failure mode worth guarding is silence. A key file that drifts from the
 configured key means every submission is rejected with a 403 and nothing
 tells you.
 """
+from io import StringIO
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -151,6 +152,21 @@ class TestSubmitCommand:
         stub = self._stub(post_status=403)
         self._run(stub)
         assert IndexNowSubmission.objects.count() == 0
+
+    def test_names_the_status_when_a_batch_is_rejected(self, covered_universe):
+        """A rejection without its status is a dead end for the operator.
+
+        The first production run on 2026-09-27 printed only "A batch of 10000
+        URLs was rejected" and the same batch went through minutes later, so
+        nobody could tell a 202 key-validation wait from a 403 or a 429.
+        """
+        stub = self._stub(post_status=429)
+        stub.post.return_value = self._response(429, "Too Many Requests")
+        output = StringIO()
+        with patch("quotes.indexnow.requests", stub):
+            call_command("submit_indexnow", stdout=output)
+        assert "429" in output.getvalue()
+        assert "Too Many Requests" in output.getvalue()
 
     # --- operator controls -------------------------------------------------
 

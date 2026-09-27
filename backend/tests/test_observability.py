@@ -6,10 +6,11 @@ We do not test that Sentry actually delivers events to the service
   - init_sentry forwards expected options when DSN is set
   - scrub_event redacts Authorization, Cookie, and DATABASE_URL
 """
+from pathlib import Path
 from unittest.mock import patch
 
 
-from config.observability import init_sentry, scrub_event
+from config.observability import init_sentry, resolve_release, scrub_event
 
 
 class TestInitSentry:
@@ -144,3 +145,69 @@ class TestInitSentryIntegration:
             traces_sample_rate=0.0,
         )
         assert result is True
+
+
+class TestResolveRelease:
+    """The release tag comes from the deployed checkout, not the environment.
+
+    Deploys reload gunicorn rather than restart it, and systemd only reads
+    `EnvironmentFile` when a unit starts. So a `SENTRY_RELEASE` written to
+    `.env` on each deploy never reached the running master: on 2026-09-27
+    every backend event was still tagged with the SHA from 2026-08-26, a
+    month and twenty-eight merges earlier. Workers do re-import settings on
+    reload, so reading `.git/HEAD` at import time is always current.
+    """
+
+    def write_head(self, repository_root, contents):
+        git_directory = repository_root / ".git"
+        git_directory.mkdir(exist_ok=True)
+        (git_directory / "HEAD").write_text(contents)
+        return git_directory
+
+    def test_an_explicit_release_wins(self, tmp_path):
+        self.write_head(tmp_path, "deadbeef" * 5 + "\n")
+        assert resolve_release("explicit-tag", tmp_path) == "explicit-tag"
+
+    def test_a_blank_explicit_release_is_treated_as_unset(self, tmp_path):
+        git_directory = self.write_head(tmp_path, "ref: refs/heads/main\n")
+        (git_directory / "refs" / "heads").mkdir(parents=True)
+        (git_directory / "refs" / "heads" / "main").write_text("abc123" * 6 + "\n")
+        assert resolve_release("", tmp_path) == "abc123" * 6
+
+    def test_a_symbolic_head_is_followed_to_its_loose_ref(self, tmp_path):
+        git_directory = self.write_head(tmp_path, "ref: refs/heads/main\n")
+        (git_directory / "refs" / "heads").mkdir(parents=True)
+        (git_directory / "refs" / "heads" / "main").write_text("f" * 40 + "\n")
+        assert resolve_release(None, tmp_path) == "f" * 40
+
+    def test_a_symbolic_head_falls_back_to_packed_refs(self, tmp_path):
+        git_directory = self.write_head(tmp_path, "ref: refs/heads/main\n")
+        (git_directory / "packed-refs").write_text(
+            "# pack-refs with: peeled fully-peeled sorted\n"
+            f"{'a' * 40} refs/heads/feature\n"
+            f"{'b' * 40} refs/heads/main\n"
+            f"{'c' * 40} refs/remotes/origin/main\n"
+        )
+        assert resolve_release(None, tmp_path) == "b" * 40
+
+    def test_a_detached_head_is_the_release_itself(self, tmp_path):
+        self.write_head(tmp_path, "0123456789abcdef0123456789abcdef01234567\n")
+        assert resolve_release(None, tmp_path) == "0123456789abcdef0123456789abcdef01234567"
+
+    def test_no_git_directory_means_no_release(self, tmp_path):
+        assert resolve_release(None, tmp_path) is None
+
+    def test_a_dangling_symbolic_head_means_no_release(self, tmp_path):
+        self.write_head(tmp_path, "ref: refs/heads/nowhere\n")
+        assert resolve_release(None, tmp_path) is None
+
+    def test_settings_derive_the_release_from_the_checkout(self):
+        """Pins the wiring: base.py must go through resolve_release."""
+        from config.settings import base as base_settings
+
+        source = Path(base_settings.__file__).read_text()
+        assert "resolve_release(" in source, (
+            "settings/base.py must resolve the Sentry release via "
+            "resolve_release, or a reloaded gunicorn keeps reporting the SHA "
+            "it was started with"
+        )

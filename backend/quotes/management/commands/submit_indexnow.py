@@ -78,11 +78,13 @@ class Command(BaseCommand):
 
         accepted = 0
         for batch in batched(urls, MAX_URLS_PER_SUBMISSION):
-            if submit(batch):
+            outcome = submit(batch)
+            if outcome.accepted:
                 accepted += len(batch)
             else:
                 self.stdout.write(self.style.ERROR(
-                    f"A batch of {len(batch)} URLs was rejected. Stopping.",
+                    f"A batch of {len(batch)} URLs was rejected with "
+                    f"{outcome.describe_rejection()}. Stopping.",
                 ))
                 break
 

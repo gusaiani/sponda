@@ -6,12 +6,17 @@ so dev and test environments stay quiet unless SENTRY_DSN is set.
 `scrub_event` is registered as Sentry's `before_send` hook. It redacts
 Authorization headers, Cookie headers, and DATABASE_URL from events
 before they leave the process.
+
+`resolve_release` names the release from the deployed checkout's `.git/HEAD`,
+because a value written to `.env` never reaches a gunicorn that is reloaded
+rather than restarted.
 """
 from __future__ import annotations
 
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 import sentry_sdk
@@ -80,6 +85,56 @@ def init_sentry(
         ),
     )
     return True
+
+
+SYMBOLIC_REFERENCE_PREFIX = "ref: "
+
+
+def resolve_release(explicit_release: str | None, repository_root: Path) -> str | None:
+    """The release to tag events with: an explicit value, else the checkout's HEAD.
+
+    Deploys reload gunicorn (HUP) rather than restart it, and systemd applies
+    `EnvironmentFile` only when a unit starts, so a `SENTRY_RELEASE` written
+    to `.env` on each deploy stayed at whatever the master was started with:
+    on 2026-09-27 a month of backend events carried a SHA from 2026-08-26.
+    Workers do re-import settings on reload, so `.git/HEAD` read at import
+    time is always the deployed commit. The environment still wins when set,
+    for the odd process that runs outside a checkout.
+    """
+    if explicit_release:
+        return explicit_release
+    git_directory = repository_root / ".git"
+    try:
+        head = (git_directory / "HEAD").read_text().strip()
+    except OSError:
+        return None
+    if not head.startswith(SYMBOLIC_REFERENCE_PREFIX):
+        return head or None
+    reference = head[len(SYMBOLIC_REFERENCE_PREFIX):]
+    return read_loose_reference(git_directory, reference) or read_packed_reference(
+        git_directory, reference
+    )
+
+
+def read_loose_reference(git_directory: Path, reference: str) -> str | None:
+    try:
+        return (git_directory / reference).read_text().strip() or None
+    except OSError:
+        return None
+
+
+def read_packed_reference(git_directory: Path, reference: str) -> str | None:
+    try:
+        packed_lines = (git_directory / "packed-refs").read_text().splitlines()
+    except OSError:
+        return None
+    for line in packed_lines:
+        if line.startswith("#") or line.startswith("^"):
+            continue
+        commit, _, packed_reference = line.partition(" ")
+        if packed_reference == reference:
+            return commit
+    return None
 
 
 def is_interactive_shell_session() -> bool:
