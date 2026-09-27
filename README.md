@@ -1196,6 +1196,20 @@ CI for free.
 **Rotating the key:** add the new file, deploy, change `INDEXNOW_KEY`, then
 delete the old file. In that order, or the pre-flight check will refuse.
 
+**A rejected batch says why.** `submit` returns a `SubmissionOutcome` with the
+endpoint's status and body, and the command prints them (`rejected with HTTP
+429: ...`) before stopping. The first production run on 2026-09-27 printed
+only "rejected", and the identical batch of 10,000 URLs was accepted minutes
+later, so there was no way to tell a key still being validated from a rate
+limit. The whole backlog, 36,324 URLs for 18,162 companies, went through on
+the second run.
+
+**The key must be in `/opt/sponda/.env`.** It was not, for a month: the unit
+failed at once with `INDEXNOW_KEY is not set`, and because its restart
+ceiling was unreachable (see [Scheduled Tasks](#scheduled-tasks)) it retried every
+five minutes instead of giving up. Nothing was ever submitted until the key
+was added on 2026-09-27.
+
 ### Setup: the Cloudflare Cache Rule
 
 `.md` is **not** in Cloudflare's default cacheable-extension list. `/og/*.png`
@@ -1701,6 +1715,24 @@ flag would silently stop reloads from picking up new code, and the deploy
 would have to go back to `restart`. The deploy falls back to `restart` if
 `reload` fails, because a brief `502` window is bad and a deploy that aborts
 halfway is worse.
+
+**A reload does not re-read `.env`.** systemd applies `EnvironmentFile` when a
+unit starts, and forked workers inherit the master's environment, so a
+variable changed in `/opt/sponda/.env` never reaches a gunicorn that is only
+reloaded. That is how the backend spent a month tagging every Sentry event
+with the SHA from 2026-08-26: the deploy rewrote `SENTRY_RELEASE` in `.env`
+on every run, and the master, up since that day, never saw any of them.
+Celery and the frontend are restarted, so they did. Two things changed on
+2026-09-27:
+
+- The release is no longer written to `.env`. `resolve_release` reads
+  `.git/HEAD` at settings import, which a reload does re-run.
+- The deploy compares the `.env` modification time with the gunicorn master's
+  `ActiveEnterTimestamp`. A newer `.env` restarts the unit and pays the `502`
+  window once; an unchanged one reloads as before. Rotating a secret is
+  therefore a normal `.env` edit followed by a deploy, nothing else.
+
+`tests/test_deploy_config.py` pins both rules.
 
 ### The API no longer traverses Next
 
@@ -2225,7 +2257,7 @@ Unified error, performance, and cron monitoring through Sentry (free tier) plus 
 |---|---|---|
 | `SENTRY_DSN` | backend `.env` | Django + Celery DSN. Unset → Sentry is inactive. |
 | `SENTRY_ENVIRONMENT` | backend | `production` / `development`. Defaults to `development`. |
-| `SENTRY_RELEASE` | backend | Git SHA for release-tagged events. Optional. |
+| `SENTRY_RELEASE` | backend | Optional override of the release tag. Unset in production: `config.observability.resolve_release` reads the deployed commit from `.git/HEAD` at settings import, so a reloaded gunicorn reports the commit it is actually running. |
 | `SENTRY_TRACES_SAMPLE_RATE` | backend | Perf trace sampling. Defaults to `1.0`; lower when traffic grows. |
 | `NEXT_PUBLIC_SENTRY_DSN` | frontend build | Browser DSN. Baked into the client bundle at build time. |
 | `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | frontend | Same semantics as backend, but client-side. |
@@ -2878,6 +2910,8 @@ Getting this wrong is silent rather than loud. `sync_tickers` originally deleted
 The reminder service is `Type=oneshot` with `Restart=on-failure` (up to 3 retries 120s apart) so a transient SMTP error doesn't silently drop a day of notifications. The timer is `Persistent=true`, so a missed run (e.g. server reboot) catches up on next boot. Long-running services (`sponda`, `sponda-frontend`) use `Restart=always`.
 
 `StartLimitIntervalSec` and `StartLimitBurst` must sit in `[Unit]`. systemd parses them nowhere else · under `[Service]` they are ignored with a log warning, leaving `Restart=on-failure` with no ceiling, so a unit whose dependency is down retries forever instead of giving up. That is a silent defeat of the configuration rather than a degradation, so `tests/test_deploy_config.py` asserts the placement for every unit and that anything declaring `Restart=on-failure` still carries a `StartLimitBurst`.
+
+The ceiling also has to be reachable. Restarts are spaced `RestartSec` apart, so `StartLimitBurst` starts span `(StartLimitBurst - 1) * RestartSec` seconds, and if that is not strictly inside `StartLimitIntervalSec` the counter never fills. `sponda-indexnow.service` had burst 3 in 600 s with 300 s between starts: three starts span exactly 600 s, the limit never tripped, and the unit restarted every five minutes for a month (restart counter 8863 on 2026-09-27), each time to print `INDEXNOW_KEY is not set`. The same test file now asserts the arithmetic for every unit that restarts on failure.
 
 ## Deployment
 

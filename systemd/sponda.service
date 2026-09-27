@@ -20,6 +20,10 @@ ExecStart=/opt/sponda/venv/bin/gunicorn config.wsgi:application --bind 127.0.0.1
 # Workers re-import the application on HUP, so deployed code does take effect.
 # That holds only while gunicorn runs without --preload; if --preload is ever
 # added, this stops picking up changes and the deploy must go back to restart.
+#
+# What a reload does not do is re-read EnvironmentFile: systemd applies it at
+# start only, and forked workers inherit the master's environment. The deploy
+# therefore restarts this unit when .env is newer than the running master.
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always
 

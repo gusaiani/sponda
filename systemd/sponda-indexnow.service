@@ -2,7 +2,10 @@
 Description=Sponda IndexNow submission for newly covered companies
 After=network-online.target postgresql.service
 Wants=network-online.target
-StartLimitIntervalSec=600
+# Three starts 300 s apart span 600 s; an interval of 600 s never contained
+# them, so the ceiling never tripped and the unit restarted every five
+# minutes for a month. 1800 s holds the burst with room to spare.
+StartLimitIntervalSec=1800
 StartLimitBurst=3
 
 [Service]

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import environ
 
-from config.observability import init_sentry
+from config.observability import init_sentry, resolve_release
 from config.redis_urls import redis_url_with_database
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -15,7 +15,7 @@ SECRET_KEY = env("DJANGO_SECRET_KEY")
 init_sentry(
     dsn=env("SENTRY_DSN", default=""),
     environment=env("SENTRY_ENVIRONMENT", default="development"),
-    release=env("SENTRY_RELEASE", default=None),
+    release=resolve_release(env("SENTRY_RELEASE", default=None), BASE_DIR.parent),
     traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=1.0),
 )
 
