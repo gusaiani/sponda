@@ -182,6 +182,35 @@ def is_earnings_distribution(label: str | None) -> bool:
     return any(known in normalized for known in EARNINGS_DISTRIBUTION_LABELS)
 
 
+# Where a cash payment's date is read from, best first. BRAPI sends
+# ``"paymentDate": null`` for payments it never dated (MRV's 2013 dividend,
+# among some forty B3 companies on 2026-09-28), and those still carry the
+# last day the share traded with the right, and the day the payment was
+# approved. Either places the payment in the right year far more often than
+# not, where dropping it would understate that year's proventos.
+CASH_PAYMENT_DATE_FIELDS = ("paymentDate", "lastDatePrior", "approvedOn")
+
+ISO_DATE_LENGTH = len("YYYY-MM-DD")
+
+
+def iso_date_of(record: dict, field: str) -> str:
+    """The ``YYYY-MM-DD`` prefix of a BRAPI timestamp, or "" if it is absent.
+
+    BRAPI states a missing date as an explicit null rather than omitting the
+    key, so ``record.get(field, "")`` hands back None and cannot be sliced.
+    """
+    return (record.get(field) or "")[:ISO_DATE_LENGTH]
+
+
+def cash_payment_date(dividend: dict) -> str:
+    """The best date BRAPI gives for a cash payment, or "" if it gives none."""
+    for field in CASH_PAYMENT_DATE_FIELDS:
+        date_str = iso_date_of(dividend, field)
+        if date_str:
+            return date_str
+    return ""
+
+
 def aggregate_proventos_by_year(
     cash_dividends: list[dict],
     stock_dividends: list[dict],
@@ -198,7 +227,8 @@ def aggregate_proventos_by_year(
     out entirely. See ``is_earnings_distribution``.
 
     Args:
-        cash_dividends: list of dicts with paymentDate, rate, label
+        cash_dividends: list of dicts with paymentDate, rate, label, and
+            lastDatePrior / approvedOn as fallbacks for a null paymentDate
         stock_dividends: list of dicts with lastDatePrior, factor, label
         current_shares: current number of shares outstanding
 
@@ -211,7 +241,7 @@ def aggregate_proventos_by_year(
     # Parse and sort splits by date descending (most recent first)
     splits = []
     for split in stock_dividends:
-        date_str = split.get("lastDatePrior", "")[:10]
+        date_str = iso_date_of(split, "lastDatePrior")
         factor = split.get("factor")
         if date_str and factor and factor != 0:
             splits.append((date_str, float(factor)))
@@ -229,7 +259,7 @@ def aggregate_proventos_by_year(
     for dividend in cash_dividends:
         if not is_earnings_distribution(dividend.get("label")):
             continue
-        payment_date = dividend.get("paymentDate", "")[:10]
+        payment_date = cash_payment_date(dividend)
         rate = dividend.get("rate")
         if not payment_date or rate is None:
             continue
