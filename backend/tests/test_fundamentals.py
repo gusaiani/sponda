@@ -509,6 +509,113 @@ class TestProventosExcludeReturnsOfCapital:
         assert result == {}
 
 
+class TestProventosWithoutPaymentDate:
+    """BRAPI sends ``"paymentDate": null`` for payments it never dated.
+
+    MRV's dividend approved on 2013-04-30 came back that way on 2026-09-28,
+    and slicing the null took ``/api/quote/MRVE3/fundamentals/`` down with a
+    TypeError, along with some forty other B3 companies (Sentry
+    WEB-DJANGO-25). The payment is real and carries two other dates, so it is
+    placed by the best one available instead of being dropped.
+    """
+
+    def test_null_payment_date_falls_back_to_the_last_date_prior(self):
+        cash_dividends = [
+            {
+                "paymentDate": None,
+                "lastDatePrior": "2013-05-15T03:00:00.000Z",
+                "approvedOn": "2013-04-30T03:00:00.000Z",
+                "rate": 0.25,
+                "label": "DIVIDENDO",
+            },
+        ]
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=[],
+            current_shares=1_000_000_000,
+        )
+        assert result == {2013: pytest.approx(250_000_000, rel=1e-6)}
+
+    def test_approval_date_is_the_last_resort(self):
+        cash_dividends = [
+            {
+                "paymentDate": None,
+                "lastDatePrior": None,
+                "approvedOn": "2012-12-20T03:00:00.000Z",
+                "rate": 0.25,
+                "label": "JCP",
+            },
+        ]
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=[],
+            current_shares=1_000_000_000,
+        )
+        assert result == {2012: pytest.approx(250_000_000, rel=1e-6)}
+
+    def test_payment_date_wins_when_present(self):
+        cash_dividends = [
+            {
+                "paymentDate": "2014-01-10T03:00:00.000Z",
+                "lastDatePrior": "2013-12-20T03:00:00.000Z",
+                "approvedOn": "2013-12-15T03:00:00.000Z",
+                "rate": 0.25,
+                "label": "DIVIDENDO",
+            },
+        ]
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=[],
+            current_shares=1_000_000_000,
+        )
+        assert result == {2014: pytest.approx(250_000_000, rel=1e-6)}
+
+    def test_fallback_date_still_adjusts_for_a_later_split(self):
+        cash_dividends = [
+            {
+                "paymentDate": None,
+                "lastDatePrior": "2013-05-15T03:00:00.000Z",
+                "rate": 1.00,
+                "label": "DIVIDENDO",
+            },
+        ]
+        stock_dividends = [
+            {"lastDatePrior": "2020-01-15T03:00:00.000Z", "label": "DESDOBRAMENTO", "factor": 2.0},
+        ]
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=stock_dividends,
+            current_shares=4_000_000_000,
+        )
+        assert result == {2013: pytest.approx(2_000_000_000, rel=1e-6)}
+
+    def test_payment_with_no_date_at_all_is_left_out(self):
+        cash_dividends = [
+            {"paymentDate": None, "lastDatePrior": None, "approvedOn": None, "rate": 0.25, "label": "DIVIDENDO"},
+            {"paymentDate": "2023-06-15T03:00:00.000Z", "rate": 1.00, "label": "DIVIDENDO"},
+        ]
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=[],
+            current_shares=1_000_000_000,
+        )
+        assert result == {2023: pytest.approx(1_000_000_000, rel=1e-6)}
+
+    def test_split_with_a_null_date_is_ignored(self):
+        cash_dividends = [
+            {"paymentDate": "2023-06-15T03:00:00.000Z", "rate": 1.00, "label": "DIVIDENDO"},
+        ]
+        stock_dividends = [
+            {"lastDatePrior": None, "label": "DESDOBRAMENTO", "factor": 2.0},
+        ]
+        result = aggregate_proventos_by_year(
+            cash_dividends=cash_dividends,
+            stock_dividends=stock_dividends,
+            current_shares=1_000_000_000,
+        )
+        assert result == {2023: pytest.approx(1_000_000_000, rel=1e-6)}
+
+
 class TestComputeQuarterlyBalanceRatios:
     def test_returns_all_quarters_sorted_ascending(self, multi_year_balance_sheets):
         result = compute_quarterly_balance_ratios("WEGE3")
