@@ -247,6 +247,8 @@ export const zh: TranslationDictionary = {
   "fundamentals.unavailable.insufficient_history": "截至本年度的历史数据不足以覆盖所选窗口",
   "fundamentals.unavailable.negative_earnings": "窗口期平均盈利为负，债务/盈利不适用",
   "fundamentals.unavailable.negative_fcf": "窗口期平均自由现金流为负，债务/FCF不适用",
+  "fundamentals.unavailable.negative_earnings_short": "盈利为负",
+  "fundamentals.unavailable.negative_fcf_short": "FCF为负",
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": "债务 (M)",

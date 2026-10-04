@@ -485,6 +485,19 @@ describe("getTranslatedColumns: explaining a blank cell", () => {
     expect(column("debtToFcf").unavailableTitle!(row)).toBeNull();
   });
 
+  it("shows a tiny label instead of the dash when the average is negative", () => {
+    const earningsRow = blankRow({ debtToEarnings: "negative_average" });
+    const cashFlowRow = blankRow({ debtToFcf: "negative_average" });
+    expect(column("debtToEarnings").unavailableLabel!(earningsRow)).toBe("lucro neg.");
+    expect(column("debtToFcf").unavailableLabel!(cashFlowRow)).toBe("FCL neg.");
+  });
+
+  it("keeps the dash for insufficient history and for the price ratios", () => {
+    const row = blankRow({ pe: "insufficient_history", debtToEarnings: "insufficient_history" });
+    expect(column("debtToEarnings").unavailableLabel!(row)).toBeNull();
+    expect(column("pe").unavailableLabel).toBeUndefined();
+  });
+
   it("only the four trailing-ratio columns carry an explanation", () => {
     const explained = columns.filter((candidate) => candidate.unavailableTitle).map((c) => c.key);
     expect(explained).toEqual(["debtToEarnings", "debtToFcf", "pe", "pfcf"]);

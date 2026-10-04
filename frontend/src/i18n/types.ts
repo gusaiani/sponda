@@ -247,6 +247,8 @@ export interface TranslationDictionary {
   "fundamentals.unavailable.insufficient_history": string;
   "fundamentals.unavailable.negative_earnings": string;
   "fundamentals.unavailable.negative_fcf": string;
+  "fundamentals.unavailable.negative_earnings_short": string;
+  "fundamentals.unavailable.negative_fcf_short": string;
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": string;

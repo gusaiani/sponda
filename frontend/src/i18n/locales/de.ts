@@ -247,6 +247,8 @@ export const de: TranslationDictionary = {
   "fundamentals.unavailable.insufficient_history": "Nicht genug Historie bis zu diesem Jahr für das gewählte Fenster",
   "fundamentals.unavailable.negative_earnings": "Durchschnittsgewinn im Fenster negativ: Schulden/Gewinn nicht anwendbar",
   "fundamentals.unavailable.negative_fcf": "Durchschnittlicher FCF im Fenster negativ: Schulden/FCF nicht anwendbar",
+  "fundamentals.unavailable.negative_earnings_short": "neg. Gewinn",
+  "fundamentals.unavailable.negative_fcf_short": "neg. FCF",
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": "Schulden (Mio.)",
