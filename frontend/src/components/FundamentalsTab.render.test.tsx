@@ -84,7 +84,8 @@ describe("FundamentalsTab blank ratio cells", () => {
 
     const earningsCell = screen.getByTitle("Lucro médio negativo na janela: dívida/lucro não se aplica");
     const cashFlowCell = screen.getByTitle("FCL médio negativo na janela: dívida/FCL não se aplica");
-    expect(earningsCell.textContent).toBe("—");
-    expect(cashFlowCell.textContent).toBe("—");
+    expect(earningsCell.textContent).toBe("lucro neg.");
+    expect(cashFlowCell.textContent).toBe("FCL neg.");
+    expect(earningsCell.className).toBe("fundamentals-null fundamentals-null-reason");
   });
 });

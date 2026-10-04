@@ -220,6 +220,9 @@ interface ColumnDef {
   /** Hover text for a blank cell, when the row knows why it is blank.
    *  Only the trailing-ratio columns have one. */
   unavailableTitle?: (row: AugmentedFundamentalsYear) => string | null;
+  /** A tiny label shown in place of the dash, when the reason deserves
+   *  to be visible without hovering (a negative window average). */
+  unavailableLabel?: (row: AugmentedFundamentalsYear) => string | null;
 }
 
 function millions(value: number | null, locale: string): string | null {
@@ -246,6 +249,13 @@ const NEGATIVE_AVERAGE_EXPLANATION: Record<TrailingRatioKey, TranslationKey | nu
   debtToFcf: "fundamentals.unavailable.negative_fcf",
 };
 
+const NEGATIVE_AVERAGE_SHORT_LABEL: Record<TrailingRatioKey, TranslationKey | null> = {
+  pe: null,
+  pfcf: null,
+  debtToEarnings: "fundamentals.unavailable.negative_earnings_short",
+  debtToFcf: "fundamentals.unavailable.negative_fcf_short",
+};
+
 /** Builds the hover text for one trailing-ratio column from the reason
  *  computeTrailingRatios recorded for that cell. */
 function unavailableTitleFor(
@@ -262,6 +272,20 @@ function unavailableTitleFor(
       return explanationKey === null ? null : t(explanationKey);
     }
     return null;
+  };
+}
+
+/** Builds the in-cell label for one trailing-ratio column: only a
+ *  negative window average earns a visible label; everything else keeps
+ *  the dash. */
+function unavailableLabelFor(
+  t: (key: TranslationKey) => string,
+  ratioKey: TrailingRatioKey,
+): (row: AugmentedFundamentalsYear) => string | null {
+  return (row) => {
+    if (row.unavailableReasons[ratioKey] !== "negative_average") return null;
+    const labelKey = NEGATIVE_AVERAGE_SHORT_LABEL[ratioKey];
+    return labelKey === null ? null : t(labelKey);
   };
 }
 
@@ -300,11 +324,13 @@ export function getTranslatedColumns(
       key: "debtToEarnings", label: `${t("fundamentals.col.debt_earnings")}${windowYears}`, group: "balanco",
       format: (row) => ratio(row.debtToEarnings, locale),
       unavailableTitle: unavailableTitleFor(t, "debtToEarnings"),
+      unavailableLabel: unavailableLabelFor(t, "debtToEarnings"),
     },
     {
       key: "debtToFcf", label: `${t("fundamentals.col.debt_fcf")}${windowYears}`, group: "balanco",
       format: (row) => ratio(row.debtToFcf, locale),
       unavailableTitle: unavailableTitleFor(t, "debtToFcf"),
+      unavailableLabel: unavailableLabelFor(t, "debtToFcf"),
     },
     // Resultado
     {
@@ -444,12 +470,13 @@ export function FundamentalsTab({ ticker, years, valueMode, quote }: Props) {
                   const separatorClass = GROUP_START_INDICES.has(index) ? "fundamentals-group-separator" : "";
                   if (formatted === null) {
                     const explanation = col.unavailableTitle?.(row) ?? null;
-                    const nullClass = explanation === null
+                    const label = col.unavailableLabel?.(row) ?? null;
+                    const nullClass = label === null
                       ? "fundamentals-null"
-                      : "fundamentals-null fundamentals-null-explained";
+                      : "fundamentals-null fundamentals-null-reason";
                     return (
                       <td key={col.key} className={separatorClass || undefined}>
-                        <span className={nullClass} title={explanation ?? undefined}>—</span>
+                        <span className={nullClass} title={explanation ?? undefined}>{label ?? "—"}</span>
                       </td>
                     );
                   }

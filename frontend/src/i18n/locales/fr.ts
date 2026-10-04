@@ -247,6 +247,8 @@ export const fr: TranslationDictionary = {
   "fundamentals.unavailable.insufficient_history": "Historique insuffisant jusqu'à cette année pour la fenêtre choisie",
   "fundamentals.unavailable.negative_earnings": "Bénéfice moyen négatif sur la fenêtre : dette/bénéfice ne s'applique pas",
   "fundamentals.unavailable.negative_fcf": "FCF moyen négatif sur la fenêtre : dette/FCF ne s'applique pas",
+  "fundamentals.unavailable.negative_earnings_short": "bénéf. nég.",
+  "fundamentals.unavailable.negative_fcf_short": "FCF nég.",
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": "Dette (M)",
