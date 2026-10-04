@@ -244,6 +244,9 @@ export const en: TranslationDictionary = {
   "fundamentals.returns": "Returns",
   "fundamentals.year": "Year",
   "fundamentals.no_data": "No fundamental data available.",
+  "fundamentals.unavailable.insufficient_history": "Not enough filing history through this year for the chosen window",
+  "fundamentals.unavailable.negative_earnings": "Average earnings over the window are negative, so debt/earnings does not apply",
+  "fundamentals.unavailable.negative_fcf": "Average free cash flow over the window is negative, so debt/FCF does not apply",
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": "Debt (M)",

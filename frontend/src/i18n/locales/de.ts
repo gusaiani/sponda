@@ -244,6 +244,9 @@ export const de: TranslationDictionary = {
   "fundamentals.returns": "Renditen",
   "fundamentals.year": "Jahr",
   "fundamentals.no_data": "Keine Fundamentaldaten verfügbar.",
+  "fundamentals.unavailable.insufficient_history": "Nicht genug Historie bis zu diesem Jahr für das gewählte Fenster",
+  "fundamentals.unavailable.negative_earnings": "Durchschnittsgewinn im Fenster negativ: Schulden/Gewinn nicht anwendbar",
+  "fundamentals.unavailable.negative_fcf": "Durchschnittlicher FCF im Fenster negativ: Schulden/FCF nicht anwendbar",
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": "Schulden (Mio.)",

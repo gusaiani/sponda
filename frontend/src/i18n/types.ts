@@ -244,6 +244,9 @@ export interface TranslationDictionary {
   "fundamentals.returns": string;
   "fundamentals.year": string;
   "fundamentals.no_data": string;
+  "fundamentals.unavailable.insufficient_history": string;
+  "fundamentals.unavailable.negative_earnings": string;
+  "fundamentals.unavailable.negative_fcf": string;
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": string;

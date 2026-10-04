@@ -244,6 +244,9 @@ export const pt: TranslationDictionary = {
   "fundamentals.returns": "Retorno",
   "fundamentals.year": "Ano",
   "fundamentals.no_data": "Sem dados fundamentais dispon\u00edveis.",
+  "fundamentals.unavailable.insufficient_history": "Sem histórico suficiente até este ano para a janela escolhida",
+  "fundamentals.unavailable.negative_earnings": "Lucro médio negativo na janela: dívida/lucro não se aplica",
+  "fundamentals.unavailable.negative_fcf": "FCL médio negativo na janela: dívida/FCL não se aplica",
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": "D\u00edvida (M)",
