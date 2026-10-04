@@ -4,6 +4,7 @@ import {
   augmentWithTrailingRatios,
   getTranslatedColumns,
   type TrailingRatioSource,
+  type TrailingRatioUnavailableReasons,
 } from "./FundamentalsTab";
 import { formatNumber } from "../utils/format";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
@@ -13,6 +14,13 @@ import type { TranslationKey } from "../i18n";
 
 const translateEn = (key: TranslationKey) => en[key];
 const translatePt = (key: TranslationKey) => pt[key];
+
+const NO_UNAVAILABLE_REASONS: TrailingRatioUnavailableReasons = {
+  pe: null,
+  pfcf: null,
+  debtToEarnings: null,
+  debtToFcf: null,
+};
 
 function makeYear(
   year: number,
@@ -170,6 +178,7 @@ describe("computeTrailingRatios", () => {
       pfcf: null,
       debtToEarnings: null,
       debtToFcf: null,
+      unavailableReasons: NO_UNAVAILABLE_REASONS,
     });
   });
 
@@ -181,6 +190,7 @@ describe("computeTrailingRatios", () => {
       pfcf: null,
       debtToEarnings: null,
       debtToFcf: null,
+      unavailableReasons: NO_UNAVAILABLE_REASONS,
     });
   });
 
@@ -363,6 +373,7 @@ describe("getTranslatedColumns", () => {
       pfcf: null,
       debtToEarnings: 3.5,
       debtToFcf: null,
+      unavailableReasons: NO_UNAVAILABLE_REASONS,
     };
     expect(debtToEarningsColumn.format(row, "nominal")).toBe("3.50");
     expect(debtToFcfColumn.format(row, "nominal")).toBeNull();
@@ -380,5 +391,102 @@ describe("formatNumber formatting", () => {
     const formatted = formatNumber(1234.56, 2, "pt");
     expect(formatted).not.toContain("–");
     expect(formatted).not.toContain("-");
+  });
+});
+
+describe("computeTrailingRatios: why a ratio is blank", () => {
+  it("names a negative window average as the reason debt coverage is blank", () => {
+    const negativeSource = makeSource({ 2024: [-25, -25, -25, -25] });
+    const rows = [makeYear(2024, { debtExLeaseAdjusted: 100, marketCapAdjusted: 500 })];
+    const result = computeTrailingRatios(rows, negativeSource, 1);
+    // The price ratios still compute (negative P/L is shown), so only the
+    // two debt-coverage cells need an explanation.
+    expect(result.get(2024)!.unavailableReasons).toEqual({
+      pe: null,
+      pfcf: null,
+      debtToEarnings: "negative_average",
+      debtToFcf: "negative_average",
+    });
+  });
+
+  it("names insufficient history as the reason every ratio is blank", () => {
+    const source = makeSource({ 2024: [25, 25, 25, 25] });
+    const rows = [makeYear(2024, { debtExLeaseAdjusted: 100, marketCapAdjusted: 500 })];
+    const result = computeTrailingRatios(rows, source, 3);
+    expect(result.get(2024)!.unavailableReasons).toEqual({
+      pe: "insufficient_history",
+      pfcf: "insufficient_history",
+      debtToEarnings: "insufficient_history",
+      debtToFcf: "insufficient_history",
+    });
+  });
+
+  it("gives no reason while the quote payload has not loaded", () => {
+    const rows = [makeYear(2024, { marketCapAdjusted: 500, debtExLeaseAdjusted: 100 })];
+    const result = computeTrailingRatios(rows, null, 3);
+    expect(result.get(2024)!.unavailableReasons).toEqual(NO_UNAVAILABLE_REASONS);
+  });
+
+  it("gives no reason when the year merely lacks the numerator", () => {
+    const source = makeSource({ 2024: [25, 25, 25, 25] });
+    const withoutMarketCap = [
+      makeYear(2024, { marketCap: null, marketCapAdjusted: null, debtExLeaseAdjusted: 100 }),
+    ];
+    const withoutDebt = [makeYear(2024, { marketCapAdjusted: 500 })];
+    expect(computeTrailingRatios(withoutMarketCap, source, 1).get(2024)!.unavailableReasons)
+      .toEqual(NO_UNAVAILABLE_REASONS);
+    expect(computeTrailingRatios(withoutDebt, source, 1).get(2024)!.unavailableReasons)
+      .toEqual(NO_UNAVAILABLE_REASONS);
+  });
+});
+
+describe("getTranslatedColumns: explaining a blank cell", () => {
+  const columns = getTranslatedColumns(translatePt, 7, "pt");
+  const blankRow = (reasons: Partial<TrailingRatioUnavailableReasons>) => ({
+    ...makeYear(2024),
+    pe: null,
+    pfcf: null,
+    debtToEarnings: null,
+    debtToFcf: null,
+    unavailableReasons: { ...NO_UNAVAILABLE_REASONS, ...reasons },
+  });
+  const column = (key: string) => columns.find((candidate) => candidate.key === key)!;
+
+  it("explains a debt/earnings blank caused by a negative average", () => {
+    const row = blankRow({ debtToEarnings: "negative_average" });
+    expect(column("debtToEarnings").unavailableTitle!(row)).toBe(
+      "Lucro médio negativo na janela: dívida/lucro não se aplica",
+    );
+  });
+
+  it("explains a debt/FCF blank caused by a negative average", () => {
+    const row = blankRow({ debtToFcf: "negative_average" });
+    expect(column("debtToFcf").unavailableTitle!(row)).toBe(
+      "FCL médio negativo na janela: dívida/FCL não se aplica",
+    );
+  });
+
+  it("explains insufficient history on all four ratio columns", () => {
+    const row = blankRow({
+      pe: "insufficient_history",
+      pfcf: "insufficient_history",
+      debtToEarnings: "insufficient_history",
+      debtToFcf: "insufficient_history",
+    });
+    const expected = "Sem histórico suficiente até este ano para a janela escolhida";
+    for (const key of ["pe", "pfcf", "debtToEarnings", "debtToFcf"]) {
+      expect(column(key).unavailableTitle!(row)).toBe(expected);
+    }
+  });
+
+  it("has nothing to explain when the ratio is blank for another reason", () => {
+    const row = blankRow({});
+    expect(column("pe").unavailableTitle!(row)).toBeNull();
+    expect(column("debtToFcf").unavailableTitle!(row)).toBeNull();
+  });
+
+  it("only the four trailing-ratio columns carry an explanation", () => {
+    const explained = columns.filter((candidate) => candidate.unavailableTitle).map((c) => c.key);
+    expect(explained).toEqual(["debtToEarnings", "debtToFcf", "pe", "pfcf"]);
   });
 });

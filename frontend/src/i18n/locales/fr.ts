@@ -244,6 +244,9 @@ export const fr: TranslationDictionary = {
   "fundamentals.returns": "Rendements",
   "fundamentals.year": "Ann\u00e9e",
   "fundamentals.no_data": "Aucune donn\u00e9e fondamentale disponible.",
+  "fundamentals.unavailable.insufficient_history": "Historique insuffisant jusqu'à cette année pour la fenêtre choisie",
+  "fundamentals.unavailable.negative_earnings": "Bénéfice moyen négatif sur la fenêtre : dette/bénéfice ne s'applique pas",
+  "fundamentals.unavailable.negative_fcf": "FCF moyen négatif sur la fenêtre : dette/FCF ne s'applique pas",
 
   /* ── Fundamentals Column Labels ── */
   "fundamentals.col.debt": "Dette (M)",

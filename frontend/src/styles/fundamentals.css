@@ -119,6 +119,12 @@
   font-size: 11.2px;
 }
 
+.fundamentals-null-explained {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
 /* Negative values */
 .fundamentals-negative {
   color: #dc2626;

@@ -9,11 +9,20 @@ import "../styles/fundamentals.css";
 
 /* ── Augmented row with trailing-window PE ratios ── */
 
-interface AugmentedFundamentalsYear extends FundamentalsYear {
-  pe: number | null;
-  pfcf: number | null;
-  debtToEarnings: number | null;
-  debtToFcf: number | null;
+/** Why a trailing ratio has no value, when the table can say so:
+ *  - insufficient_history: fewer than N × periodsPerYear filings end at
+ *    or before this year, so no honest N-year window exists.
+ *  - negative_average: the window average is not positive, so debt
+ *    divided by it is not a repayment horizon (debt coverage only).
+ *  A ratio can also be blank for a reason the row already shows (no
+ *  market cap or no debt figure that year); those carry no reason. */
+export type RatioUnavailableReason = "insufficient_history" | "negative_average";
+
+export interface TrailingRatioUnavailableReasons {
+  pe: RatioUnavailableReason | null;
+  pfcf: RatioUnavailableReason | null;
+  debtToEarnings: RatioUnavailableReason | null;
+  debtToFcf: RatioUnavailableReason | null;
 }
 
 interface TrailingRatios {
@@ -21,14 +30,39 @@ interface TrailingRatios {
   pfcf: number | null;
   debtToEarnings: number | null;
   debtToFcf: number | null;
+  unavailableReasons: TrailingRatioUnavailableReasons;
 }
+
+interface AugmentedFundamentalsYear extends FundamentalsYear, TrailingRatios {}
+
+const NO_UNAVAILABLE_REASONS: TrailingRatioUnavailableReasons = {
+  pe: null,
+  pfcf: null,
+  debtToEarnings: null,
+  debtToFcf: null,
+};
 
 const NULL_TRAILING_RATIOS: TrailingRatios = {
   pe: null,
   pfcf: null,
   debtToEarnings: null,
   debtToFcf: null,
+  unavailableReasons: NO_UNAVAILABLE_REASONS,
 };
+
+/** One ratio cell: its value, or why there is none. */
+interface RatioOutcome {
+  value: number | null;
+  unavailableReason: RatioUnavailableReason | null;
+}
+
+function available(value: number): RatioOutcome {
+  return { value: Math.round(value * 100) / 100, unavailableReason: null };
+}
+
+function unavailable(reason: RatioUnavailableReason | null): RatioOutcome {
+  return { value: null, unavailableReason: reason };
+}
 
 interface EarningsQuarterDetail {
   end_date: string;
@@ -96,12 +130,18 @@ export function computeTrailingRatios(
   windowYears: number,
 ): Map<number, TrailingRatios> {
   const result = new Map<number, TrailingRatios>();
-  const earningsDetails = source?.pe10CalculationDetails ?? [];
-  const cashFlowDetails = source?.pfcf10CalculationDetails ?? [];
+  if (source === null) {
+    // The quote payload has not loaded: nothing is computable yet, and
+    // "insufficient history" would be a false explanation.
+    for (const row of data) result.set(row.year, NULL_TRAILING_RATIOS);
+    return result;
+  }
+  const earningsDetails = source.pe10CalculationDetails;
+  const cashFlowDetails = source.pfcf10CalculationDetails;
   const earningsPeriodsPerYear =
-    source?.pe10PeriodsPerYear ?? inferPeriodsPerYear(earningsDetails);
+    source.pe10PeriodsPerYear ?? inferPeriodsPerYear(earningsDetails);
   const cashFlowPeriodsPerYear =
-    source?.pfcf10PeriodsPerYear ?? inferPeriodsPerYear(cashFlowDetails);
+    source.pfcf10PeriodsPerYear ?? inferPeriodsPerYear(cashFlowDetails);
 
   for (const row of data) {
     const marketCap = row.marketCapAdjusted ?? row.marketCap;
@@ -120,20 +160,34 @@ export function computeTrailingRatios(
       (quarter) => quarter.fcf,
     );
 
-    const priceRatio = (average: number | null): number | null =>
-      marketCap !== null && average !== null && average !== 0
-        ? Math.round((marketCap / average) * 100) / 100
-        : null;
-    const debtCoverageRatio = (average: number | null): number | null =>
-      debt !== null && average !== null && average > 0
-        ? Math.round((debt / average) * 100) / 100
-        : null;
+    const priceRatio = (average: number | null): RatioOutcome => {
+      if (average === null) return unavailable("insufficient_history");
+      if (marketCap === null || average === 0) return unavailable(null);
+      return available(marketCap / average);
+    };
+    const debtCoverageRatio = (average: number | null): RatioOutcome => {
+      if (average === null) return unavailable("insufficient_history");
+      if (debt === null) return unavailable(null);
+      if (average <= 0) return unavailable("negative_average");
+      return available(debt / average);
+    };
+
+    const pe = priceRatio(averageEarnings);
+    const pfcf = priceRatio(averageFcf);
+    const debtToEarnings = debtCoverageRatio(averageEarnings);
+    const debtToFcf = debtCoverageRatio(averageFcf);
 
     result.set(row.year, {
-      pe: priceRatio(averageEarnings),
-      pfcf: priceRatio(averageFcf),
-      debtToEarnings: debtCoverageRatio(averageEarnings),
-      debtToFcf: debtCoverageRatio(averageFcf),
+      pe: pe.value,
+      pfcf: pfcf.value,
+      debtToEarnings: debtToEarnings.value,
+      debtToFcf: debtToFcf.value,
+      unavailableReasons: {
+        pe: pe.unavailableReason,
+        pfcf: pfcf.unavailableReason,
+        debtToEarnings: debtToEarnings.unavailableReason,
+        debtToFcf: debtToFcf.unavailableReason,
+      },
     });
   }
 
@@ -163,6 +217,9 @@ interface ColumnDef {
   label: string;
   group: "balanco" | "resultado" | "caixa" | "retorno";
   format: (row: AugmentedFundamentalsYear, mode: ValueMode) => string | null;
+  /** Hover text for a blank cell, when the row knows why it is blank.
+   *  Only the trailing-ratio columns have one. */
+  unavailableTitle?: (row: AugmentedFundamentalsYear) => string | null;
 }
 
 function millions(value: number | null, locale: string): string | null {
@@ -178,6 +235,34 @@ function millionsWithSign(value: number | null, locale: string): string | null {
 function ratio(value: number | null, locale: string): string | null {
   if (value === null) return null;
   return formatNumber(value, 2, locale);
+}
+
+type TrailingRatioKey = keyof TrailingRatioUnavailableReasons;
+
+const NEGATIVE_AVERAGE_EXPLANATION: Record<TrailingRatioKey, TranslationKey | null> = {
+  pe: null,
+  pfcf: null,
+  debtToEarnings: "fundamentals.unavailable.negative_earnings",
+  debtToFcf: "fundamentals.unavailable.negative_fcf",
+};
+
+/** Builds the hover text for one trailing-ratio column from the reason
+ *  computeTrailingRatios recorded for that cell. */
+function unavailableTitleFor(
+  t: (key: TranslationKey) => string,
+  ratioKey: TrailingRatioKey,
+): (row: AugmentedFundamentalsYear) => string | null {
+  return (row) => {
+    const reason = row.unavailableReasons[ratioKey];
+    if (reason === "insufficient_history") {
+      return t("fundamentals.unavailable.insufficient_history");
+    }
+    if (reason === "negative_average") {
+      const explanationKey = NEGATIVE_AVERAGE_EXPLANATION[ratioKey];
+      return explanationKey === null ? null : t(explanationKey);
+    }
+    return null;
+  };
 }
 
 export function getTranslatedColumns(
@@ -214,10 +299,12 @@ export function getTranslatedColumns(
     {
       key: "debtToEarnings", label: `${t("fundamentals.col.debt_earnings")}${windowYears}`, group: "balanco",
       format: (row) => ratio(row.debtToEarnings, locale),
+      unavailableTitle: unavailableTitleFor(t, "debtToEarnings"),
     },
     {
       key: "debtToFcf", label: `${t("fundamentals.col.debt_fcf")}${windowYears}`, group: "balanco",
       format: (row) => ratio(row.debtToFcf, locale),
+      unavailableTitle: unavailableTitleFor(t, "debtToFcf"),
     },
     // Resultado
     {
@@ -231,6 +318,7 @@ export function getTranslatedColumns(
     {
       key: "pe", label: `${t("fundamentals.col.pe")}${windowYears}`, group: "resultado",
       format: (row) => ratio(row.pe, locale),
+      unavailableTitle: unavailableTitleFor(t, "pe"),
     },
     // Caixa
     {
@@ -240,6 +328,7 @@ export function getTranslatedColumns(
     {
       key: "pfcf", label: `${t("fundamentals.col.pfcf")}${windowYears}`, group: "caixa",
       format: (row) => ratio(row.pfcf, locale),
+      unavailableTitle: unavailableTitleFor(t, "pfcf"),
     },
     {
       key: "operatingCF", label: t("fundamentals.col.operating_cf"), group: "caixa",
@@ -354,9 +443,13 @@ export function FundamentalsTab({ ticker, years, valueMode, quote }: Props) {
                   const formatted = col.format(row, valueMode);
                   const separatorClass = GROUP_START_INDICES.has(index) ? "fundamentals-group-separator" : "";
                   if (formatted === null) {
+                    const explanation = col.unavailableTitle?.(row) ?? null;
+                    const nullClass = explanation === null
+                      ? "fundamentals-null"
+                      : "fundamentals-null fundamentals-null-explained";
                     return (
                       <td key={col.key} className={separatorClass || undefined}>
-                        <span className="fundamentals-null">—</span>
+                        <span className={nullClass} title={explanation ?? undefined}>—</span>
                       </td>
                     );
                   }
