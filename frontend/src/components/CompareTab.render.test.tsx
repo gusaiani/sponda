@@ -6,6 +6,7 @@ import type { CompareEntry } from "../hooks/useCompareData";
 import type { QuoteResult } from "../hooks/usePE10";
 import { en } from "../i18n/locales/en";
 import type { TranslationKey } from "../i18n";
+import { NO_UNAVAILABLE_REASONS } from "../utils/trailingRatios";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
@@ -24,6 +25,9 @@ function makeEntry(ticker: string, overrides: Partial<CompareEntry> = {}): Compa
     recent: null,
     pe: null,
     pfcf: null,
+    debtToEarnings: null,
+    debtToFcf: null,
+    unavailableReasons: NO_UNAVAILABLE_REASONS,
     isLoading: false,
     error: null,
     ...overrides,
@@ -93,5 +97,59 @@ describe("CompareRow remove column", () => {
   it("keeps the sticky remove cell on the loading row", () => {
     const { container } = renderRow(makeEntry("LOAD", { data: null, isLoading: true }), false);
     expect(container.querySelector("td.compare-remove-col")).not.toBeNull();
+  });
+});
+
+describe("CompareRow debt coverage cells", () => {
+  const DEBT_TO_EARNINGS_COLUMN = getColumns(7, translateEn).findIndex(
+    (column) => column.key === "debtToEarnings",
+  );
+  // Two cells precede the data columns: the drag handle and the company.
+  const LEADING_CELLS = 2;
+
+  function debtToEarningsCell(container: HTMLElement) {
+    return container.querySelectorAll("td")[LEADING_CELLS + DEBT_TO_EARNINGS_COLUMN];
+  }
+
+  it("shows the ratio when there is one", () => {
+    const { container } = renderRow(makeEntry("NVDA", { debtToEarnings: 2.5 }), false);
+
+    expect(debtToEarningsCell(container).textContent).toBe("2.50");
+  });
+
+  it("names a negative average in the cell instead of leaving a bare dash", () => {
+    const { container } = renderRow(
+      makeEntry("NVDA", {
+        unavailableReasons: { ...NO_UNAVAILABLE_REASONS, debtToEarnings: "negative_average" },
+      }),
+      false,
+    );
+
+    const reason = debtToEarningsCell(container).querySelector("span.compare-null-reason");
+    expect(reason).not.toBeNull();
+    expect(reason!.textContent).toBe(en["fundamentals.unavailable.negative_earnings_short"]);
+    expect(reason!.getAttribute("title")).toBe(en["fundamentals.unavailable.negative_earnings"]);
+  });
+
+  it("keeps the dash, with the reason on hover, when the history is too short", () => {
+    const { container } = renderRow(
+      makeEntry("NVDA", {
+        unavailableReasons: { ...NO_UNAVAILABLE_REASONS, debtToEarnings: "insufficient_history" },
+      }),
+      false,
+    );
+
+    const blank = debtToEarningsCell(container).querySelector("span.compare-null");
+    expect(blank).not.toBeNull();
+    expect(blank!.classList.contains("compare-null-reason")).toBe(false);
+    expect(blank!.getAttribute("title")).toBe(en["fundamentals.unavailable.insufficient_history"]);
+  });
+
+  it("leaves an ordinary blank cell without a hover text", () => {
+    const { container } = renderRow(makeEntry("NVDA"), false);
+
+    const blank = debtToEarningsCell(container).querySelector("span.compare-null");
+    expect(blank).not.toBeNull();
+    expect(blank!.hasAttribute("title")).toBe(false);
   });
 });

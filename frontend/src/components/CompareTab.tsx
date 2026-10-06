@@ -14,6 +14,12 @@ import { formatNumber, logoUrl } from "../utils/format";
 import { buildOwnerSwapUrl, buildTabPath } from "../utils/tabs";
 import type { QuoteResult } from "../hooks/usePE10";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
+import {
+  unavailableExplanationKey,
+  unavailableShortLabelKey,
+  type TrailingRatioKey,
+  type TrailingRatioUnavailableReasons,
+} from "../utils/trailingRatios";
 import "../styles/compare.css";
 
 /* ── Column definitions ── */
@@ -23,6 +29,9 @@ export interface CompareRowData {
   recent: FundamentalsYear | null;
   pe: number | null;
   pfcf: number | null;
+  debtToEarnings: number | null;
+  debtToFcf: number | null;
+  unavailableReasons: TrailingRatioUnavailableReasons;
 }
 
 interface ColumnDef {
@@ -31,6 +40,27 @@ interface ColumnDef {
   group: "balanco" | "resultado" | "caixa" | "retorno";
   format: (d: CompareRowData) => string | null;
   value: (d: CompareRowData) => number | null;
+  /** Hover text for a blank cell, when the row knows why it is blank.
+   *  Only the debt coverage columns have one. */
+  unavailableTitle?: (d: CompareRowData) => string | null;
+  /** A tiny label shown in place of the dash, when the reason deserves
+   *  to be visible without hovering (a negative window average). */
+  unavailableLabel?: (d: CompareRowData) => string | null;
+}
+
+/** The row a column reads from, built from what the data hook resolved
+ *  for one company. Null while the company has no quote to show. */
+function rowDataFor(entry: CompareEntry): CompareRowData | null {
+  if (!entry.data) return null;
+  return {
+    quote: entry.data,
+    recent: entry.recent,
+    pe: entry.pe,
+    pfcf: entry.pfcf,
+    debtToEarnings: entry.debtToEarnings,
+    debtToFcf: entry.debtToFcf,
+    unavailableReasons: entry.unavailableReasons,
+  };
 }
 
 type SortDir = "asc" | "desc";
@@ -52,6 +82,21 @@ function ratio(value: number | null, locale: string): string | null {
 function ratio1(value: number | null, locale: string): string | null {
   if (value === null) return null;
   return formatNumber(value, 1, locale);
+}
+
+/** Hover text and in-cell label for one debt coverage column, worded as
+ *  the Fundamentos tab words them. */
+function unavailableTextsFor(
+  t: (key: TranslationKey) => string,
+  ratioKey: TrailingRatioKey,
+): Pick<ColumnDef, "unavailableTitle" | "unavailableLabel"> {
+  const translated = (key: TranslationKey | null) => (key === null ? null : t(key));
+  return {
+    unavailableTitle: (d) =>
+      translated(unavailableExplanationKey(ratioKey, d.unavailableReasons[ratioKey])),
+    unavailableLabel: (d) =>
+      translated(unavailableShortLabelKey(ratioKey, d.unavailableReasons[ratioKey])),
+  };
 }
 
 export function getColumns(
@@ -84,6 +129,16 @@ export function getColumns(
     { key: "currentRatio", label: t("fundamentals.col.current_ratio"), group: "balanco",
       format: (d) => ratio(d.recent?.currentRatio ?? null, locale),
       value: (d) => d.recent?.currentRatio ?? null,
+    },
+    { key: "debtToEarnings", label: `${t("fundamentals.col.debt_earnings")}${years}`, group: "balanco",
+      format: (d) => ratio(d.debtToEarnings, locale),
+      value: (d) => d.debtToEarnings,
+      ...unavailableTextsFor(t, "debtToEarnings"),
+    },
+    { key: "debtToFcf", label: `${t("fundamentals.col.debt_fcf")}${years}`, group: "balanco",
+      format: (d) => ratio(d.debtToFcf, locale),
+      value: (d) => d.debtToFcf,
+      ...unavailableTextsFor(t, "debtToFcf"),
     },
     // Resultado
     { key: "revenue", label: t("fundamentals.col.revenue"), group: "resultado",
@@ -123,7 +178,7 @@ export function getColumns(
   ];
 }
 
-const BALANCE_COUNT = 6;
+const BALANCE_COUNT = 8;
 const RESULTADO_COUNT = 3;
 const CAIXA_COUNT = 3;
 const RETORNO_COUNT = 2;
@@ -267,8 +322,10 @@ export function CompareTab({ tickers, years, onTickersChange, pinnedTicker, save
     if (!col) return entries;
 
     return [...entries].sort((a, b) => {
-      const va = a.data ? col.value({ quote: a.data, recent: a.recent, pe: a.pe, pfcf: a.pfcf }) : null;
-      const vb = b.data ? col.value({ quote: b.data, recent: b.recent, pe: b.pe, pfcf: b.pfcf }) : null;
+      const rowDataA = rowDataFor(a);
+      const rowDataB = rowDataFor(b);
+      const va = rowDataA ? col.value(rowDataA) : null;
+      const vb = rowDataB ? col.value(rowDataB) : null;
       // nulls always go to the bottom
       if (va === null && vb === null) return 0;
       if (va === null) return 1;
@@ -573,6 +630,19 @@ export function CompareTab({ tickers, years, onTickersChange, pinnedTicker, save
   );
 }
 
+/* ── Blank cell ── */
+
+/** A cell with no value: a dash, or a tiny label when the column can name
+ *  the reason, with the full explanation on hover either way. */
+function BlankCell({ column, rowData }: { column: ColumnDef; rowData: CompareRowData }) {
+  const explanation = column.unavailableTitle?.(rowData) ?? null;
+  const label = column.unavailableLabel?.(rowData) ?? null;
+  const className = label === null ? "compare-null" : "compare-null compare-null-reason";
+  return (
+    <span className={className} title={explanation ?? undefined}>{label ?? "—"}</span>
+  );
+}
+
 /* ── Row component ── */
 
 export function CompareRow({
@@ -603,7 +673,8 @@ export function CompareRow({
   onRequireAuth: () => void;
 }) {
   const { t } = useTranslation();
-  const { ticker, data, recent, pe, pfcf, isLoading, error } = entry;
+  const { ticker, data, isLoading, error } = entry;
+  const rowData = rowDataFor(entry);
 
   function handleDragStart(e: React.DragEvent) {
     dragIndexRef.current = index;
@@ -701,7 +772,7 @@ export function CompareRow({
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !rowData) {
     return (
       <tr {...dragProps}>
         {dragHandle}
@@ -748,12 +819,11 @@ export function CompareRow({
         </div>
       </td>
       {columns.map((col, index) => {
-        const rowData: CompareRowData = { quote: data, recent, pe, pfcf };
         const formatted = col.format(rowData);
         const className = GROUP_START_INDICES.has(index) ? "compare-group-separator" : undefined;
         return (
           <td key={col.key} className={className}>
-            {formatted !== null ? formatted : <span className="compare-null">—</span>}
+            {formatted !== null ? formatted : <BlankCell column={col} rowData={rowData} />}
           </td>
         );
       })}

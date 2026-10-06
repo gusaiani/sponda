@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getColumns, resolveReorder, type CompareRowData } from "./CompareTab";
+import { getTranslatedColumns } from "./FundamentalsTab";
+import { NO_UNAVAILABLE_REASONS } from "../utils/trailingRatios";
 import type { QuoteResult } from "../hooks/usePE10";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
 import { pt } from "../i18n/locales/pt";
@@ -103,17 +105,26 @@ function makeRowData(
     recent: recentOverrides === null ? null : makeFundamentalsYear(recentOverrides),
     pe: null,
     pfcf: null,
+    debtToEarnings: null,
+    debtToFcf: null,
+    unavailableReasons: NO_UNAVAILABLE_REASONS,
   };
 }
 
 describe("getColumns", () => {
-  it("returns 14 columns mirroring fundamentals", () => {
-    expect(getColumns(5, t)).toHaveLength(14);
+  it("returns 16 columns mirroring fundamentals", () => {
+    expect(getColumns(5, t)).toHaveLength(16);
   });
 
-  it("groups columns into balance (6), income (3), cash flow (3), returns (2)", () => {
+  it("has the same columns in the same order as the Fundamentos tab", () => {
+    const compareKeys = getColumns(5, t).map((column) => column.key);
+    const fundamentalsKeys = getTranslatedColumns(t, 5, "pt").map((column) => column.key);
+    expect(compareKeys).toEqual(fundamentalsKeys);
+  });
+
+  it("groups columns into balance (8), income (3), cash flow (3), returns (2)", () => {
     const columns = getColumns(5, t);
-    expect(columns.filter((c) => c.group === "balanco")).toHaveLength(6);
+    expect(columns.filter((c) => c.group === "balanco")).toHaveLength(8);
     expect(columns.filter((c) => c.group === "resultado")).toHaveLength(3);
     expect(columns.filter((c) => c.group === "caixa")).toHaveLength(3);
     expect(columns.filter((c) => c.group === "retorno")).toHaveLength(2);
@@ -131,6 +142,28 @@ describe("getColumns", () => {
     const labels = columns.map((c) => c.label);
     expect(labels).toContain("PE7");
     expect(labels).toContain("PFCF7");
+  });
+
+  it("includes the year suffix in the debt coverage labels (PT)", () => {
+    const labels = getColumns(7, t).map((column) => column.label);
+    expect(labels).toContain("Dív/Lucro7");
+    expect(labels).toContain("Dív/FCL7");
+  });
+
+  it("includes the year suffix in the debt coverage labels (EN)", () => {
+    const labels = getColumns(7, tEn).map((column) => column.label);
+    expect(labels).toContain("Debt/Earn7");
+    expect(labels).toContain("Debt/FCF7");
+  });
+
+  it("labels the debt coverage columns exactly as the Fundamentos tab does", () => {
+    const fundamentalsLabels = new Map(
+      getTranslatedColumns(t, 7, "pt").map((column) => [column.key, column.label]),
+    );
+    for (const column of getColumns(7, t)) {
+      if (column.key !== "debtToEarnings" && column.key !== "debtToFcf") continue;
+      expect(column.label).toBe(fundamentalsLabels.get(column.key));
+    }
   });
 
   it("uses fundamentals i18n keys for fixed labels", () => {
@@ -239,6 +272,61 @@ describe("getColumns", () => {
       if (column.key === "marketCap") continue; // sourced from quote
       expect(column.value(rowData)).toBeNull();
     }
+  });
+});
+
+describe("debt coverage columns", () => {
+  const debtToEarnings = () => getColumns(5, t, "pt").find((column) => column.key === "debtToEarnings")!;
+  const debtToFcf = () => getColumns(5, t, "pt").find((column) => column.key === "debtToFcf")!;
+
+  it("shows debt over the window's average earnings and free cash flow", () => {
+    const rowData = makeRowData();
+    rowData.debtToEarnings = 3.456;
+    rowData.debtToFcf = 12;
+
+    expect(debtToEarnings().value(rowData)).toBe(3.456);
+    expect(debtToEarnings().format(rowData)).toBe("3,46");
+    expect(debtToFcf().value(rowData)).toBe(12);
+    expect(debtToFcf().format(rowData)).toBe("12,00");
+  });
+
+  it("says in the cell that the window's average is negative", () => {
+    const rowData = makeRowData();
+    rowData.unavailableReasons = {
+      ...NO_UNAVAILABLE_REASONS,
+      debtToEarnings: "negative_average",
+      debtToFcf: "negative_average",
+    };
+
+    expect(debtToEarnings().format(rowData)).toBeNull();
+    expect(debtToEarnings().unavailableLabel?.(rowData)).toBe("lucro neg.");
+    expect(debtToFcf().unavailableLabel?.(rowData)).toBe("FCL neg.");
+    expect(debtToEarnings().unavailableTitle?.(rowData)).toBe(
+      pt["fundamentals.unavailable.negative_earnings"],
+    );
+    expect(debtToFcf().unavailableTitle?.(rowData)).toBe(
+      pt["fundamentals.unavailable.negative_fcf"],
+    );
+  });
+
+  it("keeps the dash and explains on hover when the history is too short", () => {
+    const rowData = makeRowData();
+    rowData.unavailableReasons = {
+      ...NO_UNAVAILABLE_REASONS,
+      debtToEarnings: "insufficient_history",
+    };
+
+    expect(debtToEarnings().unavailableLabel?.(rowData)).toBeNull();
+    expect(debtToEarnings().unavailableTitle?.(rowData)).toBe(
+      pt["fundamentals.unavailable.insufficient_history"],
+    );
+  });
+
+  it("says nothing when the cell is blank for a reason the row already shows", () => {
+    const rowData = makeRowData();
+
+    expect(debtToEarnings().unavailableLabel?.(rowData)).toBeNull();
+    expect(debtToEarnings().unavailableTitle?.(rowData)).toBeNull();
   });
 });
 

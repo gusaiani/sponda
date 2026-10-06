@@ -1,11 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { augmentWithTrailingRatios, getTranslatedColumns } from "./FundamentalsTab";
 import {
   computeTrailingRatios,
-  augmentWithTrailingRatios,
-  getTranslatedColumns,
   type TrailingRatioSource,
   type TrailingRatioUnavailableReasons,
-} from "./FundamentalsTab";
+} from "../utils/trailingRatios";
 import { formatNumber } from "../utils/format";
 import type { FundamentalsYear } from "../hooks/useFundamentals";
 import { en } from "../i18n/locales/en";

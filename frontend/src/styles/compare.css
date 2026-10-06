@@ -122,6 +122,13 @@
   font-size: 11.2px;
 }
 
+/* A blank cell that names its reason (a negative window average), sized
+ * as the same label is in the Fundamentos table. */
+.compare-null-reason {
+  font-size: 9.6px;
+  white-space: nowrap;
+}
+
 /* Remove button — lives in a right-pinned sticky column so it stays
    visible while the table scrolls horizontally. */
 .compare-remove-col {
