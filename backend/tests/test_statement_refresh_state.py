@@ -7,8 +7,6 @@ claim the refresh, lets every other caller see that one is in flight, and
 keeps a company whose refresh just failed from being retried on every
 request.
 """
-import pytest
-
 from quotes.statement_refresh_state import (
     claim_statement_refresh,
     is_statement_refresh_pending,
