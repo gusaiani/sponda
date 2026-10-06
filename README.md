@@ -1420,6 +1420,36 @@ Snapshot first, caches second. A request arriving in the gap either hits a cache
 Company metadata (`ticker_detail_<T>`) and peer lists (`ticker_peers_<T>`) are deliberately **not** invalidated · they hold names, sectors and logos, none of which a filing changes.
 
 ### Edge cache TTL for statement-derived endpoints
+### Swapping refreshed statements into an open page
+
+A stale company is answered from stored statements while `refresh_provider_data` refetches them, which takes one to three seconds. The visitor used to keep the stored numbers until a reload. Now the page shows what is stored, waits for the refresh, and swaps the refreshed numbers in.
+
+How it works:
+
+1. **One refresh per company.** `quotes/statement_refresh_state.py` keeps one cache key per company: absent, `pending` while a refresh is in flight, `attempted` for an hour after one finished. `_ensure_fresh_data` enqueues only when it can claim the key (`cache.add`, so it is safe across gunicorn workers). Quote, fundamentals and chart used to enqueue one refresh each for the same page view · nine provider calls for three statements.
+2. **The payload says so.** `/api/quote/<T>/`, `/api/quote/<T>/fundamentals/` and `/api/quote/<T>/multiples-history/` carry `refreshPending`. It is `true` when the payload was computed during a refresh, or served from cache while one is in flight.
+3. **A payload built during a refresh is cached nowhere.** Not in Redis for 24 hours, and not in the browser for five minutes (`Cache-Control: no-store`). The task drops the caches when it lands, and a payload written after that would have outlived the data it was built from. Fundamentals and chart make three provider calls of their own after enqueueing, so the task finishing first was the likely order, not the rare one.
+4. **The page polls.** `useStatementRefresh` (frontend) polls `GET /api/quote/<T>/refresh-status/` every 1.5 seconds, at most 20 times. The endpoint reads one cache key, is never cached, and sits outside the lookup quota.
+5. **The page refetches.** When the status reports `false` the hook invalidates the `pe10`, `fundamentals` and `multiples-history` queries for that company. The task records its attempt *after* dropping the caches, so the refetch always finds them gone. While this runs the company header shows `header.updatingData`.
+
+| State of the key | Meaning | `_ensure_fresh_data` on a stale company |
+|---|---|---|
+| absent | nothing happened lately | claims it, enqueues the refresh, reports in flight |
+| `pending` (2 min TTL) | a refresh is in flight | enqueues nothing, reports in flight |
+| `attempted` (1 h TTL) | a refresh just finished | enqueues nothing, reports nothing in flight |
+
+The `attempted` state exists for the company whose provider keeps failing. It is still stale after its refresh, and without the cool-down every request for it enqueued another three failing provider calls.
+
+Limits worth knowing:
+
+- A cold company (no statements at all) still syncs inside the request. There is nothing stored to show first.
+- One polling cycle per company per page mount. If the worker is down the page stops after 30 seconds and does not start again.
+- The home page batch endpoint does not carry the flag. Its payloads are still left out of the cache while a refresh is in flight.
+
+No new environment variables.
+
+Local testing: development runs Celery eagerly (`CELERY_TASK_ALWAYS_EAGER`), so the refresh finishes inside the request and the flag is never `true` there. The behaviour is pinned by `backend/tests/test_statement_refresh_state.py`, `backend/tests/test_refresh_pending_responses.py`, `frontend/src/hooks/useStatementRefresh.test.tsx` and `frontend/src/app/[locale]/[ticker]/ticker-client.refresh-indicator.test.tsx`. Against a deployment, `curl -s https://sponda.capital/api/quote/PETR4/refresh-status/` returns `{"refreshPending": false}` for a company at rest.
+
 
 With the server-side caches dropped on write, the `Cache-Control` header became the only remaining staleness between a filing and the page. It was `max-age=3600`, which put a one hour floor under how fresh the site could ever be no matter how fast ingestion got. `/api/quote/<T>/`, `/api/quote/<T>/fundamentals/` and `/api/quote/<T>/multiples-history/` now send `public, max-age=300`.
 
@@ -1484,7 +1514,7 @@ The current architecture, in the order each layer fires:
 
 1. **Server-rendered shell** — `app/[locale]/page.tsx` is an async Server Component (`force-dynamic`). It forwards the user's session cookie to Django, prefetches favorites + saved lists + the batch quote endpoint, and dehydrates the React Query cache into a `<HydrationBoundary>`. The browser receives populated cards in the first byte; no spinner.
 2. **`POST /api/quotes/batch/`** — one request returns every ticker the home page needs. Server fans out internally over a `ThreadPoolExecutor`. Replaces the 30-way client-side fanout. Capped at 100 tickers per request. Defined in `quotes/views.py::BatchQuotesView`; consumed via `useQuotesBatch`.
-3. **Stale-while-revalidate refresh** — `_ensure_fresh_data` returns immediately when stale data exists and enqueues `quotes.tasks.refresh_provider_data` (Celery) to re-pull from BRAPI/FMP in the background. Only outright cold tickers pay the synchronous provider cost.
+3. **Stale-while-revalidate refresh** · `_ensure_fresh_data` returns immediately when stale data exists and enqueues `quotes.tasks.refresh_provider_data` (Celery) to re-pull from BRAPI/FMP in the background. Only outright cold tickers pay the synchronous provider cost. On a company page the refreshed data is then swapped in without a reload · see [Swapping refreshed statements into an open page](#swapping-refreshed-statements-into-an-open-page).
 4. **Persisted React Query cache** — `@tanstack/react-query-persist-client` mirrors the cache to `localStorage` with a 24h `maxAge`. Returning visitors paint from disk instantly while a soft revalidation runs in the background.
 5. **Cache warming, favorites-aware** — `python manage.py warm_cache` now sources tickers from every active user's favorites + saved lists (in addition to LookupLog popularity), runs across 8 worker threads, and skips tickers whose `pe10:<T>` cache is already warm. The 0.5s `time.sleep` per ticker is gone.
 6. **Provider circuit breakers + tight timeouts** — every BRAPI/FMP/FRED call goes through `quotes.circuit_breaker.CircuitBreaker` with `(connect, read) = (3, 8)` timeouts. After N consecutive failures the breaker opens for ~60s, short-circuiting subsequent calls instead of pinning a worker for 30s on each one. The open marker lives in Redis so every process shares one breaker, but a process reads it at most once a second (`OPEN_MARKER_POLL_SECONDS`) instead of before every call: a cold company page makes four FMP calls, and the four identical `GET circuit_breaker:fmp:open` round trips bought nothing (Sentry flagged them as an N+1). The staleness is self-limiting: a healthy provider answers in tens of milliseconds so a whole request rides one reading, while a sick one takes seconds to fail, which outlives the interval and forces a fresh read. Tests reset those in-process readings through `forget_open_readings()`, since `cache.clear()` cannot reach them.
@@ -1513,7 +1543,7 @@ Backend custom spans (`sentry_sdk.start_span(op="db.calc", description=...)`) no
 
 1. **Server-rendered home page** — `make backend && make frontend`, then visit `http://localhost:5174/`. View source: cards should be present in the initial HTML, not just a `<div id="__next">` placeholder.
 2. **Batch endpoint** — `curl -sX POST http://localhost:8710/api/quotes/batch/ -H 'Content-Type: application/json' -d '{"tickers": ["PETR4", "VALE3"]}' | jq '.results | keys'`. Server-Timing header on the response shows `app;dur=...`, `cache;dur=...;desc="hit|miss"`, and `calc;dur=...`.
-3. **Async refresh** — start a Celery worker (`celery -A config worker -l info`) and re-hit `/api/quote/PETR4/` after manually backdating its `QuarterlyEarnings.fetched_at` by 48h. The view returns immediately; the worker logs `refresh_provider_data` running.
+3. **Async refresh** · start a Celery worker (`celery -A config worker -l info`) and re-hit `/api/quote/PETR4/` after manually backdating its `QuarterlyEarnings.fetched_at` by 48h. The view returns immediately; the worker logs `refresh_provider_data` running. With `CELERY_TASK_ALWAYS_EAGER` off, the response carries `"refreshPending": true` and `/api/quote/PETR4/refresh-status/` flips to `false` when the task finishes.
 4. **Warm cache** — `python manage.py warm_cache --limit=50 --workers=8`. Output reports cached / failed / skipped-already-warm counts.
 
 ### Frontend

@@ -51,6 +51,9 @@ export interface FundamentalsResponse {
   listingCurrency?: string;
   /** ISO 4217 of the reporting (statement) currency. */
   reportedCurrency?: string;
+  /** True while a background refresh of the stored statements is in flight,
+   * so these figures may be superseded within seconds. */
+  refreshPending?: boolean;
 }
 
 export async function fetchFundamentals(ticker: string): Promise<FundamentalsResponse> {

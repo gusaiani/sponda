@@ -69,6 +69,7 @@ import { useMultiplesHistory, fetchMultiplesHistory } from "../../../hooks/useMu
 import { deriveForYears } from "../../../hooks/deriveForYears";
 import { useSetAssistantWindow } from "../../../components/assistant/AssistantWindowContext";
 import { fetchFundamentals, useFundamentals } from "../../../hooks/useFundamentals";
+import { useStatementRefresh } from "../../../hooks/useStatementRefresh";
 import { useSavedLists } from "../../../hooks/useSavedLists";
 import { logoUrl, currencyCode } from "../../../utils/format";
 import { useTranslation } from "../../../i18n";
@@ -225,6 +226,14 @@ export function TickerPageClient({ initialData, initialPeers }: TickerPageClient
     true,
   );
 
+  // Any of the three payloads may be the one the server flagged: they are
+  // cached and refetched independently.
+  const isRefreshPending =
+    fullData?.refreshPending === true ||
+    fundamentalsData?.refreshPending === true ||
+    historyData?.refreshPending === true;
+  const { isRefreshing } = useStatementRefresh(upperTicker, isRefreshPending);
+
   const companyMaxYears = fullData?.maxYearsAvailable ?? DEFAULT_YEARS;
   const maxYears = activeList ? LIST_MAX_YEARS : companyMaxYears;
   const effectiveYears = Math.min(years, maxYears);
@@ -335,6 +344,11 @@ export function TickerPageClient({ initialData, initialPeers }: TickerPageClient
                 ? `${company.listingCurrency} (${t("header.reportsIn")} ${company.reportedCurrency})`
                 : currencyCode(upperTicker, company.reportedCurrency)
             }{learningModeEnabled && derivedData?.ratings?.overall != null ? " · " : ""}</span><CompanyGradeCard ratings={derivedData?.ratings ?? null} years={effectiveYears} /></h1>
+            {isRefreshing && (
+              <span className="company-header-refresh-status" role="status">
+                {t("header.updatingData")}
+              </span>
+            )}
           </div>
           <div className="company-header-actions">
             <VisitedButton ticker={upperTicker} />

@@ -35,6 +35,11 @@ from .company_snapshot import (
 from .fmp import FMPError, fetch_profile
 from .logo_overrides import LOGO_OVERRIDE_URLS, is_placeholder_logo_url
 from .lookup_enforcement import LookupQuotaEnforcedView
+from .statement_refresh_state import (
+    claim_statement_refresh,
+    is_statement_refresh_pending,
+    release_statement_refresh_claim,
+)
 from .ticker_symbol import is_plausible_ticker_symbol
 from .providers import ProviderError, is_brazilian_ticker, fetch_dividends, fetch_historical_market_caps, fetch_historical_prices, fetch_quote, sync_balance_sheets, sync_cash_flows, sync_earnings
 from .tasks import refresh_provider_data
@@ -821,23 +826,45 @@ def _statement_recheck_days(ticker: str) -> int:
     return STATEMENT_RECHECK_DAYS
 
 
-def _ensure_fresh_data(ticker: str) -> None:
+def _enqueue_statement_refresh_once(ticker: str) -> None:
+    """Enqueue the background refresh unless one is in flight or just ran.
+
+    Quote, fundamentals and chart all pass through here for the same company
+    within the same second, and each used to enqueue its own refresh.
+    """
+    if not claim_statement_refresh(ticker):
+        return
+    try:
+        refresh_provider_data.delay(ticker)
+    except Exception:
+        # A claim with no task behind it would tell the page to wait for a
+        # refresh that is never coming.
+        release_statement_refresh_claim(ticker)
+        raise
+
+
+def _ensure_fresh_data(ticker: str) -> bool:
     """Stale-while-revalidate: keep the request path fast.
 
     Three regimes:
 
-    * **Cold** — at least one of earnings/cash flows/balance sheets has no
+    * **Cold**: at least one of earnings/cash flows/balance sheets has no
       row yet. The user has nothing to render, so we run the missing
       provider syncs synchronously here.
-    * **Stale** — every series has data but at least one was fetched
+    * **Stale**: every series has data but at least one was fetched
       before the recheck window (see `_statement_recheck_days`). Enqueue a
-      Celery refresh and return immediately. The user sees the stored data;
-      the next request sees the refreshed data.
-    * **Fresh** — all three series are inside the window. No-op.
+      Celery refresh and return immediately. The user sees the stored data
+      now, and the page swaps the refreshed data in when the task lands.
+    * **Fresh**: all three series are inside the window. No-op.
 
     The reported_currency backfill nudge stays synchronous: the field
     feeds the very next computation in this request, and is a one-shot
     fix-up rather than a steady-state cost.
+
+    Returns whether a background refresh is in flight for this company,
+    enqueued here or by an earlier request. The caller is then computing
+    from statements that are about to be replaced, and must say so and
+    must not cache what it computes.
     """
     cutoff = timezone.now() - timedelta(days=_statement_recheck_days(ticker))
 
@@ -886,11 +913,50 @@ def _ensure_fresh_data(ticker: str) -> None:
         # that has already paid for three provider calls. The background
         # task and the weekly command own snapshot freshness.
         invalidate_statement_caches(ticker)
-        return
+        return False
 
     if not (has_fresh_earnings and has_fresh_cf and has_fresh_bs):
         # Stale-while-revalidate: refresh in the background.
-        refresh_provider_data.delay(ticker)
+        _enqueue_statement_refresh_once(ticker)
+
+    return is_statement_refresh_pending(ticker)
+
+
+# The field under which a statement-derived payload says that a background
+# refresh is replacing the statements it was built from. The page polls
+# StatementRefreshStatusView while it is true and refetches when it clears.
+REFRESH_PENDING_FIELD = "refreshPending"
+
+# For a payload that is about to be superseded. The five minutes that
+# STATEMENT_DERIVED_CACHE_CONTROL allows would have the browser answer the
+# page's refetch from its own cache, with the very payload being replaced.
+SUPERSEDED_SOON_CACHE_CONTROL = "no-store"
+
+
+def _built_during_refresh(payload: dict) -> dict:
+    """Mark a payload computed while its statements were being refetched.
+
+    The mark travels with the payload rather than being read back from the
+    refresh state when the response is built: a fast task can finish while
+    the request is still computing, and the page must still be told that
+    what it received is already out of date.
+    """
+    return {**payload, REFRESH_PENDING_FIELD: True}
+
+
+def _statement_derived_response(ticker: str, payload: dict) -> Response:
+    """Answer with a statement-derived payload and whether it is about to change.
+
+    A payload read from the cache carries no mark of its own, so the refresh
+    state is asked too: one endpoint's cache can outlive another's, and a
+    cached payload may be seconds from being dropped.
+    """
+    refresh_pending = bool(payload.get(REFRESH_PENDING_FIELD)) or is_statement_refresh_pending(ticker)
+    response = Response({**payload, REFRESH_PENDING_FIELD: refresh_pending})
+    response["Cache-Control"] = (
+        SUPERSEDED_SOON_CACHE_CONTROL if refresh_pending else STATEMENT_DERIVED_CACHE_CONTROL
+    )
+    return response
 
 
 # Maps internal snake_case indicator names (rate_company) to the camelCase
@@ -1005,7 +1071,7 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
     record_server_timing(request, "cache", cache_lookup_ms, description="miss")
 
     with sentry_sdk.start_span(op="quote.refresh", description="ensure_fresh_data"):
-        _ensure_fresh_data(ticker)
+        refresh_in_flight = _ensure_fresh_data(ticker)
 
     try:
         with sentry_sdk.start_span(op="provider.quote", description="fetch_quote"):
@@ -1150,6 +1216,11 @@ def _compute_quote_payload(ticker: str, request=None) -> dict:
     except Exception as error:
         logger.warning("persist_snapshot_from_view failed for %s: %s", ticker, error)
 
+    if refresh_in_flight:
+        # Right to show, wrong to keep: the task drops this cache when it
+        # lands, and a payload written after that would sit here for a day.
+        return _built_during_refresh(result)
+
     cache.set(cache_key, result, PE10_CACHE_TTL)
     return result
 
@@ -1174,9 +1245,7 @@ class PE10View(LookupQuotaEnforcedView, APIView):
             return Response({"error": error.message}, status=error.http_status)
 
         self.record_lookup(request, ticker)
-        response = Response(result)
-        response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
-        return response
+        return _statement_derived_response(ticker, result)
 
 
 class BatchQuotesView(LookupQuotaEnforcedView, APIView):
@@ -1307,11 +1376,9 @@ class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
         cached_result = cache.get(cache_key)
         if cached_result is not None:
             self.record_lookup(request, ticker)
-            response = Response(cached_result)
-            response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
-            return response
+            return _statement_derived_response(ticker, cached_result)
 
-        _ensure_fresh_data(ticker)
+        refresh_in_flight = _ensure_fresh_data(ticker)
 
         try:
             quote = fetch_quote(ticker)
@@ -1368,11 +1435,11 @@ class MultiplesHistoryView(LookupQuotaEnforcedView, APIView):
             historical_market_caps=historical_market_caps,
         )
 
-        cache.set(cache_key, result, MULTIPLES_HISTORY_CACHE_TTL)
         self.record_lookup(request, ticker)
-        response = Response(result)
-        response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
-        return response
+        if refresh_in_flight:
+            return _statement_derived_response(ticker, _built_during_refresh(result))
+        cache.set(cache_key, result, MULTIPLES_HISTORY_CACHE_TTL)
+        return _statement_derived_response(ticker, result)
 
 
 class FundamentalsView(LookupQuotaEnforcedView, APIView):
@@ -1395,11 +1462,9 @@ class FundamentalsView(LookupQuotaEnforcedView, APIView):
         cached_result = cache.get(cache_key)
         if cached_result is not None:
             self.record_lookup(request, ticker)
-            response = Response(cached_result)
-            response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
-            return response
+            return _statement_derived_response(ticker, cached_result)
 
-        _ensure_fresh_data(ticker)
+        refresh_in_flight = _ensure_fresh_data(ticker)
 
         try:
             quote = fetch_quote(ticker)
@@ -1466,10 +1531,30 @@ class FundamentalsView(LookupQuotaEnforcedView, APIView):
             "listingCurrency": listing_currency,
             "reportedCurrency": reported_currency or listing_currency,
         }
-        cache.set(cache_key, result, FUNDAMENTALS_CACHE_TTL)
         self.record_lookup(request, ticker)
-        response = Response(result)
-        response["Cache-Control"] = STATEMENT_DERIVED_CACHE_CONTROL
+        if refresh_in_flight:
+            return _statement_derived_response(ticker, _built_during_refresh(result))
+        cache.set(cache_key, result, FUNDAMENTALS_CACHE_TTL)
+        return _statement_derived_response(ticker, result)
+
+
+class StatementRefreshStatusView(APIView):
+    """Whether a background statement refresh is still running for a company.
+
+    The page polls this after receiving a payload flagged as about to change,
+    and refetches once it reports false. It reads one cache key and nothing
+    else, so it sits outside the lookup quota: the visitor is already looking
+    at the company, and the answer says nothing about it.
+    """
+
+    def get(self, request, ticker):
+        ticker = ticker.upper()
+
+        if not is_plausible_ticker_symbol(ticker):
+            return _malformed_ticker_response(ticker)
+
+        response = Response({REFRESH_PENDING_FIELD: is_statement_refresh_pending(ticker)})
+        response["Cache-Control"] = SUPERSEDED_SOON_CACHE_CONTROL
         return response
 
 

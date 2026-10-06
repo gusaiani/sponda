@@ -30,6 +30,7 @@ export const es: TranslationDictionary = {
   "header.menu": "Menú",
   "header.currency": "Moneda",
   "header.reportsIn": "informa en",
+  "header.updatingData": "actualizando datos",
   "fundamentals.fxWarning": "Los múltiplos históricos en este gráfico usan el tipo de cambio actual. Aún no tenemos histórico de tipo de cambio año a año para todos los puntos mostrados, por lo que los años más antiguos son una aproximación.",
   "fundamentals.shareCountWarning": "Los puntos más antiguos de este gráfico valoran el año con el número de acciones actual. No tenemos histórico de capitalización de mercado reportada para este valor, así que las recompras y emisiones posteriores no están reflejadas.",
 

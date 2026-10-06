@@ -298,6 +298,17 @@
   top: -1px;
 }
 
+/* Sits beside the name, never inside the h1, so it stays out of the page
+ * title. Single line and no growth: it cannot change the header's height. */
+.company-header-refresh-status {
+  flex-shrink: 0;
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
 /* Homepage header (favicon + headline + years slider) — mirrors company-header layout */
 .homepage-header {
   display: flex;

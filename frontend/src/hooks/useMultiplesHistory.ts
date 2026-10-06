@@ -26,6 +26,9 @@ interface MultiplesHistoryResult {
    * true for B3 tickers, for which no source publishes the series, and for
    * years older than the series reaches. */
   share_count_approximated?: boolean;
+  /** True while a background refresh of the stored statements is in flight,
+   * so these multiples may be superseded within seconds. */
+  refreshPending?: boolean;
 }
 
 export async function fetchMultiplesHistory(

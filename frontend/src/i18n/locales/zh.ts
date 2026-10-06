@@ -30,6 +30,7 @@ export const zh: TranslationDictionary = {
   "header.menu": "菜单",
   "header.currency": "货币",
   "header.reportsIn": "财报币种",
+  "header.updatingData": "正在更新数据",
   "fundamentals.fxWarning": "本图中的历史倍数使用当前汇率。我们尚无所有年份的逐年汇率数据，因此较早年份为近似值。",
   "fundamentals.shareCountWarning": "本图中较早的点使用当前股数来计算该年度的市值。我们没有该证券的历史市值数据，因此其后的回购与增发未反映在内。",
 

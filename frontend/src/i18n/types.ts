@@ -30,6 +30,7 @@ export interface TranslationDictionary {
   "header.menu": string;
   "header.currency": string;
   "header.reportsIn": string;
+  "header.updatingData": string;
   "fundamentals.fxWarning": string;
   "fundamentals.shareCountWarning": string;
 
