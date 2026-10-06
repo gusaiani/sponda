@@ -16,6 +16,7 @@ from celery import shared_task
 
 from .derived_data import refresh_derived_data
 from .providers import ProviderError, sync_balance_sheets, sync_cash_flows, sync_earnings
+from .statement_refresh_state import record_statement_refresh_attempt
 
 logger = logging.getLogger(__name__)
 
@@ -37,18 +38,26 @@ def refresh_provider_data(ticker: str) -> None:
     actually revalidate: without it the freshly synced quarter would sit
     behind a 24h cached payload, so "tomorrow's request sees today's data"
     would not hold.
-    """
-    for label, fn in (
-        ("earnings", sync_earnings),
-        ("cash_flows", sync_cash_flows),
-        ("balance_sheets", sync_balance_sheets),
-    ):
-        try:
-            fn(ticker)
-        except ProviderError as error:
-            logger.warning(
-                "refresh_provider_data: %s sync_%s failed: %s",
-                ticker, label, error,
-            )
 
-    refresh_derived_data(ticker)
+    The attempt is recorded last and unconditionally. Last, because the page
+    refetches the moment the refresh stops being pending and must find the
+    caches already dropped. Unconditionally, because a refresh that failed
+    is over too, and the page should stop waiting for it.
+    """
+    try:
+        for label, sync_statements in (
+            ("earnings", sync_earnings),
+            ("cash_flows", sync_cash_flows),
+            ("balance_sheets", sync_balance_sheets),
+        ):
+            try:
+                sync_statements(ticker)
+            except ProviderError as error:
+                logger.warning(
+                    "refresh_provider_data: %s sync_%s failed: %s",
+                    ticker, label, error,
+                )
+
+        refresh_derived_data(ticker)
+    finally:
+        record_statement_refresh_attempt(ticker)

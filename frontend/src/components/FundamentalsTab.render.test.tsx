@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
-import { FundamentalsTab, type TrailingRatioSource } from "./FundamentalsTab";
+import { FundamentalsTab } from "./FundamentalsTab";
+import type { TrailingRatioSource } from "../utils/trailingRatios";
 import { useFundamentals, type FundamentalsYear } from "../hooks/useFundamentals";
 
 afterEach(cleanup);

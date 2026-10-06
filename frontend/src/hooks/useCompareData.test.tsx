@@ -5,6 +5,8 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useCompareData } from "./useCompareData";
 import type { QuoteResult } from "./usePE10";
+import type { FundamentalsYear } from "./useFundamentals";
+import { computeTrailingRatios } from "../utils/trailingRatios";
 
 /**
  * Compare-tab regression: P/L and P/FCL must be the same window-aware
@@ -98,7 +100,14 @@ function makeQuote(): QuoteResult {
   };
 }
 
-function makeFundamentalsYear(year: number, netIncome: number, quarters: number) {
+const MOST_RECENT_YEAR_DEBT = 120;
+
+function makeFundamentalsYear(
+  year: number,
+  netIncome: number,
+  quarters: number,
+  debtExLease: number | null = null,
+) {
   return {
     year,
     quarters,
@@ -106,7 +115,7 @@ function makeFundamentalsYear(year: number, netIncome: number, quarters: number)
     netIncome, netIncomeAdjusted: netIncome,
     fcf: netIncome, fcfAdjusted: netIncome,
     operatingCashFlow: null, operatingCashFlowAdjusted: null,
-    debtExLease: null, debtExLeaseAdjusted: null,
+    debtExLease, debtExLeaseAdjusted: debtExLease,
     totalLiabilities: null, totalLiabilitiesAdjusted: null,
     stockholdersEquity: null, stockholdersEquityAdjusted: null,
     debtToEquity: null, liabilitiesToEquity: null, currentRatio: null,
@@ -126,7 +135,7 @@ vi.mock("./useQuotesBatch", () => ({
 vi.mock("./useFundamentals", () => ({
   fetchFundamentals: vi.fn(async () => ({
     years: [
-      makeFundamentalsYear(2026, 10, 1),
+      makeFundamentalsYear(2026, 10, 1, MOST_RECENT_YEAR_DEBT),
       makeFundamentalsYear(2025, 40, 4),
       makeFundamentalsYear(2024, 40, 4),
       makeFundamentalsYear(2023, 40, 4),
@@ -163,5 +172,57 @@ describe("useCompareData ratios", () => {
     await waitFor(() => expect(result.current[0].isLoading).toBe(false));
 
     expect(result.current[0].recent?.year).toBe(2026);
+  });
+});
+
+describe("useCompareData debt coverage", () => {
+  it("divides the most recent year's debt by the window's average earnings and free cash flow", async () => {
+    const { result } = renderHook(() => useCompareData(["TEST4"], 3), { wrapper });
+
+    await waitFor(() => expect(result.current[0].isLoading).toBe(false));
+
+    const entry = result.current[0];
+    // Debt of $120 over the same $40 trailing average the P/L uses.
+    expect(entry.debtToEarnings).toBe(3);
+    expect(entry.debtToFcf).toBe(3);
+    expect(entry.unavailableReasons.debtToEarnings).toBeNull();
+    expect(entry.unavailableReasons.debtToFcf).toBeNull();
+  });
+
+  it("matches the top row of the Fundamentos tab for the same window", async () => {
+    const { result } = renderHook(() => useCompareData(["TEST4"], 3), { wrapper });
+
+    await waitFor(() => expect(result.current[0].isLoading).toBe(false));
+
+    const entry = result.current[0];
+    const fundamentalsTopRow = computeTrailingRatios(
+      [entry.recent as FundamentalsYear], makeQuote(), 3,
+    ).get(2026)!;
+    expect(entry.debtToEarnings).toBe(fundamentalsTopRow.debtToEarnings);
+    expect(entry.debtToFcf).toBe(fundamentalsTopRow.debtToFcf);
+  });
+
+  it("says the history is too short when the window does not fit", async () => {
+    const { result } = renderHook(() => useCompareData(["TEST4"], 10), { wrapper });
+
+    await waitFor(() => expect(result.current[0].isLoading).toBe(false));
+
+    const entry = result.current[0];
+    expect(entry.debtToEarnings).toBeNull();
+    expect(entry.unavailableReasons.debtToEarnings).toBe("insufficient_history");
+  });
+
+  it("leaves the columns blank, with no reason, when fundamentals are not fetched", async () => {
+    const { result } = renderHook(
+      () => useCompareData(["TEST4"], 3, { withFundamentals: false }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current[0].isLoading).toBe(false));
+
+    const entry = result.current[0];
+    expect(entry.debtToEarnings).toBeNull();
+    expect(entry.debtToFcf).toBeNull();
+    expect(entry.unavailableReasons.debtToEarnings).toBeNull();
   });
 });

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import BatchQuotesView, CompanyAnalysisView, FundamentalsView, FxSeriesView, HealthView, LogoProxyView, MultiplesHistoryView, PE10View, ScreenerCountriesView, ScreenerSectorsView, ScreenerView, SitemapView, TickerDetailView, TickerIndicatorsView, TickerListView, TickerPeersView, TickerSearchView, TickerSymbolsView
+from .views import BatchQuotesView, CompanyAnalysisView, FundamentalsView, FxSeriesView, HealthView, LogoProxyView, MultiplesHistoryView, PE10View, ScreenerCountriesView, ScreenerSectorsView, ScreenerView, SitemapView, StatementRefreshStatusView, TickerDetailView, TickerIndicatorsView, TickerListView, TickerPeersView, TickerSearchView, TickerSymbolsView
 
 urlpatterns = [
     path("health/", HealthView.as_view(), name="health"),
@@ -16,6 +16,7 @@ urlpatterns = [
     path("quote/<str:ticker>/", PE10View.as_view(), name="pe10"),
     path("quote/<str:ticker>/multiples-history/", MultiplesHistoryView.as_view(), name="multiples-history"),
     path("quote/<str:ticker>/fundamentals/", FundamentalsView.as_view(), name="fundamentals"),
+    path("quote/<str:ticker>/refresh-status/", StatementRefreshStatusView.as_view(), name="statement-refresh-status"),
     path("quote/<str:ticker>/analysis/", CompanyAnalysisView.as_view(), name="company-analysis"),
     path("screener/", ScreenerView.as_view(), name="screener"),
     path("screener/sectors/", ScreenerSectorsView.as_view(), name="screener-sectors"),

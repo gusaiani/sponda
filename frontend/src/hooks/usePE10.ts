@@ -102,6 +102,10 @@ interface QuoteResult {
   // Learning Mode tiers (1 = worst, 5 = best). Null when an indicator
   // could not be rated (missing source data) or for non-graded fields.
   ratings?: QuoteRatings;
+  /** True while a background refresh of the stored statements is in flight.
+   * This payload was computed from the stored data and may be superseded
+   * within seconds. Optional because cached payloads predate the field. */
+  refreshPending?: boolean;
 }
 
 export interface QuoteRatings {

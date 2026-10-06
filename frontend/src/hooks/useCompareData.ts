@@ -4,6 +4,11 @@ import { type QuoteResult } from "./usePE10";
 import { fetchFundamentals, type FundamentalsYear } from "./useFundamentals";
 import { deriveForYears, effectiveYearsForCompany } from "./deriveForYears";
 import { useQuotesBatch } from "./useQuotesBatch";
+import {
+  NULL_TRAILING_RATIOS,
+  computeTrailingRatios,
+  type TrailingRatioUnavailableReasons,
+} from "../utils/trailingRatios";
 
 export interface CompareEntry {
   ticker: string;
@@ -15,6 +20,14 @@ export interface CompareEntry {
   pe: number | null;
   /** Same for P/FCL. */
   pfcf: number | null;
+  /** The most recent year's debt over the window's average earnings:
+   *  the top row of the Fundamentos tab for the same window. */
+  debtToEarnings: number | null;
+  /** Same over the window's average free cash flow. */
+  debtToFcf: number | null;
+  /** Why a ratio of the most recent year is blank, when the table can
+   *  say so. */
+  unavailableReasons: TrailingRatioUnavailableReasons;
   isLoading: boolean;
   error: Error | null;
 }
@@ -76,6 +89,15 @@ export function useCompareData(
         const pe = data?.pe10 ?? null;
         const pfcf = data?.pfcf10 ?? null;
 
+        // Debt coverage comes from the function that fills the Fundamentos
+        // table, fed the same year and the same window, so the two tables
+        // show one number.
+        const recentYearRatios = recentYear && quote
+          ? computeTrailingRatios([recentYear], quote, yearsForQuote).get(recentYear.year)
+          : undefined;
+        const { debtToEarnings, debtToFcf, unavailableReasons } =
+          recentYearRatios ?? NULL_TRAILING_RATIOS;
+
         const isLoading =
           batchQuery.isLoading || (withFundamentals && (fundamentals?.isLoading ?? false));
         const errorMessage = entry?.error;
@@ -90,6 +112,9 @@ export function useCompareData(
           recent: recentYear,
           pe,
           pfcf,
+          debtToEarnings,
+          debtToFcf,
+          unavailableReasons,
           isLoading,
           error,
         };
