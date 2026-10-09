@@ -18,6 +18,10 @@
  * new sidebars.) */
 
 .screener-header {
+  /* The "more filters" popover is position: absolute; top: 100%, so the
+   * header must be its containing block. Without this the popover anchors
+   * to the viewport and opens one screen height below the top of the page. */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -206,11 +210,11 @@
   border-radius: 9999px;
 }
 
-/* Popover is anchored to .screener-header (which is position: relative,
- * full-bleed 100vw) so its left/right pin to the page padding. The
- * header's body padding is 16px (default) / 32px (>=640px); match here
- * so the popover stretches from the start of the inline strip area all
- * the way to the end of the layout, respecting the page gutter. */
+/* Popover is anchored to .screener-header (position: relative, full
+ * .app-main width) so its left/right pin to the header's padding. The
+ * header's padding is 16px (default) / 32px (>=640px); match here so the
+ * popover stretches from the start of the inline strip area all the way
+ * to the end of the layout, respecting the page gutter. */
 .screener-filter-popover {
   position: absolute;
   top: 100%;
