@@ -1,6 +1,16 @@
-import { ResponsiveContainer, LineChart, Line, XAxis, Tooltip } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
 import { useTranslation } from "../i18n";
 import { formatNumber } from "../utils/format";
+import {
+  computeSparklineValueDomain,
+  findYearBoundaryTicks,
+  hasVisibleYearBoundary,
+} from "../utils/sparklineScale";
+
+/** Room for the stroke and the hover dot (radius 3 + 1.5 border). */
+const LINE_EDGE_INSET = 5;
+/** Tall enough for the 9px year labels and nothing more. */
+const YEAR_AXIS_HEIGHT = 14;
 
 interface DataPoint {
   label: string;
@@ -51,28 +61,12 @@ export function MiniChart({
   const effectiveFormatValue = formatValue ?? makeDefaultFormat(locale);
   if (data.length < 2) return null;
 
-  // Add numeric index for x-axis positioning
-  const indexed = data.map((d, i) => ({ ...d, idx: i }));
+  const indexedPoints = data.map((point, index) => ({ ...point, index }));
+  const valueDomain = computeSparklineValueDomain(data.map((point) => point.value));
 
-  // Build year boundary ticks from yearTick field
   const hasYearTicks = data[0]?.yearTick !== undefined;
-  let ticks: number[] = [];
-
-  if (hasYearTicks) {
-    let lastTick = "";
-    for (let i = 0; i < data.length; i++) {
-      const tick = data[i].yearTick ?? "";
-      if (tick !== lastTick) {
-        ticks.push(i);
-        lastTick = tick;
-      }
-    }
-    // Thin out if too many
-    if (ticks.length > 8) {
-      const step = Math.ceil(ticks.length / 6);
-      ticks = ticks.filter((_, i) => i % step === 0);
-    }
-  }
+  const yearTicks = hasYearTicks ? findYearBoundaryTicks(data) : [];
+  const showTimeAxis = !hasYearTicks || hasVisibleYearBoundary(yearTicks);
 
   const simpleMode = !hasYearTicks;
   const tickInterval = simpleMode && data.length > 6 ? 1 : 0;
@@ -80,18 +74,28 @@ export function MiniChart({
   return (
     <div className="mini-chart">
       <ResponsiveContainer width="100%" height={height ?? "100%"}>
-        <LineChart data={indexed} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+        <LineChart
+          data={indexedPoints}
+          margin={{ top: 0, right: 4, left: 4, bottom: 0 }}
+        >
+          <YAxis
+            hide
+            domain={valueDomain}
+            padding={{ top: LINE_EDGE_INSET, bottom: LINE_EDGE_INSET }}
+          />
           <XAxis
-            dataKey="idx"
+            dataKey="index"
+            hide={!showTimeAxis}
+            height={YEAR_AXIS_HEIGHT}
             type="number"
             domain={[0, data.length - 1]}
             tickLine={false}
             axisLine={false}
             tick={{ fontSize: 9, fill: "#5570a0" }}
-            ticks={hasYearTicks ? ticks : undefined}
+            ticks={hasYearTicks ? yearTicks : undefined}
             interval={simpleMode ? tickInterval : undefined}
-            tickFormatter={(idx: number) => {
-              const point = data[idx];
+            tickFormatter={(pointIndex: number) => {
+              const point = data[pointIndex];
               if (!point) return "";
               if (hasYearTicks) return point.yearTick ?? "";
               return String(point.label).slice(2);
