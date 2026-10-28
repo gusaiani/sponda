@@ -25,10 +25,11 @@ logger = logging.getLogger(__name__)
 
 FUNDAMENTALS_CACHE_KEY_TEMPLATE = "fundamentals:{ticker}"
 PE10_CACHE_KEY_TEMPLATE = "pe10:{ticker}"
-# v2: the chart now values each year at its reported market cap instead of
-# today's share count. The view caches for 24 hours, so without a new key
-# every company viewed before the deploy would keep serving the old numbers.
-MULTIPLES_HISTORY_CACHE_KEY_TEMPLATE = "multiples_history:v2:{ticker}"
+# The view caches for 24 hours, so a change to the payload needs a new key or
+# every company viewed before the deploy keeps serving the old one.
+# v2: each year valued at its reported market cap, not today's share count.
+# v3: B3 prices are daily bars instead of monthly ones.
+MULTIPLES_HISTORY_CACHE_KEY_TEMPLATE = "multiples_history:v3:{ticker}"
 
 STATEMENT_DERIVED_CACHE_KEY_TEMPLATES = (
     FUNDAMENTALS_CACHE_KEY_TEMPLATE,

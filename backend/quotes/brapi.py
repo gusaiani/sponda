@@ -107,16 +107,21 @@ def fetch_dividends(ticker: str) -> dict:
 
 
 def fetch_historical_prices(ticker: str) -> list[dict]:
-    """Fetch monthly historical prices (max range) for a ticker.
+    """Fetch daily historical prices (max range) for a ticker.
 
-    Returns the historicalDataPrice list from BRAPI with fields like
-    date (unix timestamp), adjustedClose, etc.
+    Daily bars, like the US series, so a one-year chart has a point per
+    trading day instead of one per month. Only the date (unix timestamp) and
+    adjustedClose are kept: the series reaches back to 2000, about 6,600 bars
+    for PETR4, and nothing downstream reads open, high, low or volume.
     """
-    data = _get(f"/quote/{ticker}", params={"range": "max", "interval": "1mo"})
+    data = _get(f"/quote/{ticker}", params={"range": "max", "interval": "1d"})
     results = data.get("results", [])
     if not results:
         raise BRAPIError(f"No results for ticker {ticker}")
-    return results[0].get("historicalDataPrice", [])
+    return [
+        {"date": bar.get("date"), "adjustedClose": bar.get("adjustedClose")}
+        for bar in results[0].get("historicalDataPrice", [])
+    ]
 
 
 BOTH_INCOME_MODULES = "incomeStatementHistoryQuarterly,incomeStatementHistory"

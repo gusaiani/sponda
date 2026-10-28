@@ -125,8 +125,29 @@ class TestFetchHistoricalPrices:
         assert len(result) == 2
         assert result[0]["adjustedClose"] == 30.0
         mock_get.assert_called_once_with(
-            "/quote/PETR4", params={"range": "max", "interval": "1mo"}
+            "/quote/PETR4", params={"range": "max", "interval": "1d"}
         )
+
+    @patch("quotes.brapi._get")
+    def test_keeps_only_the_fields_the_charts_read(self, mock_get):
+        """A daily series reaches back to 2000, about 6,600 bars for PETR4.
+        Open, high, low and volume would only bloat the cached copy."""
+        mock_get.return_value = {
+            "results": [
+                {
+                    "historicalDataPrice": [
+                        {
+                            "date": 1793070000, "open": 53.6, "high": 53.7,
+                            "low": 52.66, "close": 52.86, "volume": 70499700,
+                            "adjustedClose": 52.86,
+                        },
+                    ]
+                }
+            ]
+        }
+        assert fetch_historical_prices("PETR4") == [
+            {"date": 1793070000, "adjustedClose": 52.86},
+        ]
 
     @patch("quotes.brapi._get")
     def test_raises_on_empty_results(self, mock_get):

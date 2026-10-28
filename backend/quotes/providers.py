@@ -164,7 +164,8 @@ def fetch_dividends(ticker: str):
 
 @refuses_implausible_symbols
 def fetch_historical_prices(ticker: str):
-    cache_key = f"provider:historical:{ticker.upper()}"
+    # v2: BRAPI history went from monthly to daily bars.
+    cache_key = f"provider:historical:v2:{ticker.upper()}"
     cached = cache.get(cache_key)
     if cached is not None:
         return cached

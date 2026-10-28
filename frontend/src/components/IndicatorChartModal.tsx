@@ -26,6 +26,7 @@ import {
 } from "../utils/normalizeSeries";
 import { useComparisonSeries } from "../hooks/useComparisonSeries";
 import { useFxSeriesMany } from "../hooks/useFxSeries";
+import { buildTimeAxisTicks, formatTimeAxisTick } from "../utils/timeAxisTicks";
 
 const DEFAULT_CHART_COLOR = "#1e40af";
 const MIN_POINTS_FOR_CHART = 2;
@@ -232,20 +233,7 @@ function ComparisonChart({ series, rebase, logScale, formatValue }: ComparisonCh
     colors[entry.ticker] = entry.color;
   }
 
-  // One tick per calendar-year boundary, thinned to a sane maximum.
-  let yearTicks: number[] = [];
-  let lastYear = "";
-  for (const row of rows) {
-    const year = String(new Date(row.t).getUTCFullYear());
-    if (year !== lastYear) {
-      yearTicks.push(row.t);
-      lastYear = year;
-    }
-  }
-  if (yearTicks.length > MAX_X_AXIS_TICKS) {
-    const step = Math.ceil(yearTicks.length / MAX_X_AXIS_TICKS);
-    yearTicks = yearTicks.filter((_, index) => index % step === 0);
-  }
+  const timeAxis = buildTimeAxisTicks(rows.map((row) => row.t), MAX_X_AXIS_TICKS);
 
   return (
     <div className="detailed-chart">
@@ -259,8 +247,10 @@ function ComparisonChart({ series, rebase, logScale, formatValue }: ComparisonCh
             tickLine={false}
             axisLine={{ stroke: "#d0daea" }}
             tick={{ fontSize: 12, fill: "#5570a0" }}
-            ticks={yearTicks}
-            tickFormatter={(t: number) => String(new Date(t).getUTCFullYear()).slice(2)}
+            ticks={timeAxis.ticks}
+            tickFormatter={(timestamp: number) =>
+              formatTimeAxisTick(timestamp, timeAxis.granularity, locale)
+            }
           />
           <YAxis
             tickLine={false}
@@ -268,7 +258,9 @@ function ComparisonChart({ series, rebase, logScale, formatValue }: ComparisonCh
             tick={{ fontSize: 12, fill: "#5570a0" }}
             width={56}
             scale={logScale ? "log" : "auto"}
-            domain={logScale ? ["auto", "auto"] : undefined}
+            // Fitted to the data, not anchored at zero: on short windows a
+            // price moves a few percent, which a zero-based axis flattens.
+            domain={["auto", "auto"]}
             allowDataOverflow={logScale}
             tickFormatter={(value: number) => (rebase ? formatNumber(value, 0, locale) : formatValue(value))}
           />
