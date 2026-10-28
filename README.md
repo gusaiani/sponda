@@ -556,6 +556,8 @@ For currency indicators with two or more companies, a scale toggle offers **Abso
 
 The common-currency mode reads a historical FX path from a new endpoint. Dates without an FX anchor fall back to the latest rate, and the chart shows a note when that happens.
 
+**Axes.** The value axis is fitted to the plotted series (Recharts `domain={["auto", "auto"]}`), not anchored at zero, because on a one-year window a price moves a few percent and a zero-based axis flattens it into a line along the top. Windows up to two years long get a tick per month (`jan/26`, `fev/26`, ...), longer ones a tick per year, thinned to at most 12 labels (`frontend/src/utils/timeAxisTicks.ts`). Price-derived series (price, market cap, P/L10, P/FCL10, PEG) carry one point per trading day on short windows for both B3 and US tickers; longer windows are thinned by a step of `floor(points / 150)`, which leaves between 150 and 300 points. On the company card, a one-year window keeps every trading day.
+
 **API:** `GET /api/fx/series/?from=<ISO>&to=<ISO>[&start=YYYY-MM-DD]` → `{ from, to, rates: [{ date, rate }] }`, where `rate` is units of `to` per 1 unit of `from`, computed via the USD pivot (see [Cross-currency indicators](#cross-currency-indicators)). Public and currency-only — no ticker, no quota.
 
 No new environment variables. To test locally: open a company page, expand any indicator, drag the term slider, and add a peer (for a cross-currency check, overlay a US ticker on a Brazilian one and switch to Base 100 · common currency).
@@ -2756,6 +2758,8 @@ split-adjusted, so every top-up refetches a five-day overlap it already
 holds: when a day comes back at a different price the stored series is on
 the pre-split scale and is replaced wholesale. A provider failure with a
 stored series behind it serves the stored series rather than an error.
+
+**B3 price history.** BRAPI serves daily bars back to 2000 in one call (`range=max&interval=1d`, about 6,600 bars and 750 KB for PETR4). `brapi.fetch_historical_prices` keeps only `date` and `adjustedClose`, and the result is cached for an hour under `provider:historical:v2:<ticker>`. A cold fetch pulls about 750 KB from BRAPI. The trimmed cached copy is much smaller, but it is still kept per ticker in Redis. It is not stored in Postgres like the US series. The series used to be monthly, which left a one-year chart with about ten points; the cache keys for it and for `multiples_history` were bumped (`v2`, `v3`) so the monthly copies stop being served on deploy.
 
 **Stored market cap history.** `quotes.market_cap_store` does the same for
 the market cap the provider observed on each trading day

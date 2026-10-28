@@ -2,6 +2,7 @@
 from unittest.mock import patch
 
 import pytest
+from django.core.cache import cache
 
 from quotes.providers import (
     ProviderError,
@@ -168,6 +169,15 @@ class TestProviderLayerCaching:
         result_2 = fetch_quote("VALE3")
         assert result_1 == result_2
         mock_brapi.fetch_quote.assert_called_once()
+
+    @patch("quotes.providers.brapi")
+    def test_monthly_series_cached_before_daily_bars_is_not_served(self, mock_brapi):
+        """BRAPI history used to be monthly. A copy cached under the old key
+        would keep the 1-year chart at a dozen points after the deploy."""
+        cache.set("provider:historical:PETR4", [{"date": 1000, "adjustedClose": 9.0}], 3600)
+        daily_series = [{"date": 2000, "adjustedClose": 10.0}]
+        mock_brapi.fetch_historical_prices.return_value = daily_series
+        assert fetch_historical_prices("PETR4") == daily_series
 
     @patch("quotes.providers.brapi")
     def test_fetch_historical_prices_caches_result(self, mock_brapi):
