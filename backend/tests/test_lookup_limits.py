@@ -59,6 +59,26 @@ def unverified_user(db):
     )
 
 
+@pytest.fixture
+def offline_provider(monkeypatch):
+    """Answer the quote view's provider calls locally.
+
+    Only a successful lookup is logged, so tests that count lookups need
+    the view to finish. Left to the live provider, an unreachable or
+    rate-limited network (as on CI runners) turns the response into a 502
+    and nothing is recorded.
+    """
+    from quotes import views
+
+    monkeypatch.setattr(views, "_ensure_fresh_data", lambda ticker: False)
+    monkeypatch.setattr(views, "fetch_quote", lambda ticker: {
+        "symbol": ticker,
+        "longName": "Petroleo Brasileiro SA Pfd",
+        "regularMarketPrice": 45.0,
+        "marketCap": 585_000_000_000,
+    })
+
+
 class TestLookupLogIpHash:
     def test_can_persist_ip_hash(self, db):
         entry = LookupLog.objects.create(ticker="PETR4", ip_hash="abc123")
@@ -243,11 +263,14 @@ class TestPE10ViewEnforcement:
 
     def test_anon_lookup_records_ip_hash(
         self, api_client, db, sample_ipca, sample_cash_flows,
-        sample_balance_sheet,
+        sample_balance_sheet, offline_provider,
     ):
         from quotes.client_ip import client_ip_hash
         from django.test import RequestFactory
-        api_client.get("/api/quote/PETR4/", HTTP_CF_CONNECTING_IP="203.0.113.23")
+        response = api_client.get(
+            "/api/quote/PETR4/", HTTP_CF_CONNECTING_IP="203.0.113.23"
+        )
+        assert response.status_code == 200
         r = RequestFactory().get("/")
         r.META["HTTP_CF_CONNECTING_IP"] = "203.0.113.23"
         assert LookupLog.objects.filter(
@@ -420,7 +443,7 @@ class TestQuotaViewEndpoint:
 
     def test_anon_used_reflects_distinct_lookups(
         self, api_client, db, sample_ipca, sample_cash_flows,
-        sample_balance_sheet,
+        sample_balance_sheet, offline_provider,
     ):
         ip = "203.0.113.31"
         api_client.get("/api/quote/PETR4/", HTTP_CF_CONNECTING_IP=ip)
