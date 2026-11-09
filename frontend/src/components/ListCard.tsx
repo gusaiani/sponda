@@ -93,7 +93,14 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
   const entries = useCompareData(tickers, years, { withFundamentals: false });
   const columns = getListCardColumns(years, t, locale);
   const compareUrl = `/${locale}/${tickers[0]}/comparar?listId=${listId}`;
-  const isLoading = entries.length > 0 && entries.every((entry) => entry.isLoading);
+  // Gate the dimmed look on the data, never on `isLoading`. While the
+  // persisted cache restores, React Query reports a pending query as idle
+  // (not loading) in the browser, but the server renders it as loading.
+  // React does not patch a className that differs during hydration, so an
+  // `isLoading` gate left the card at half opacity after its numbers had
+  // arrived. "No quote and no error yet" reads the same on both sides.
+  const isAwaitingQuotes =
+    entries.length > 0 && entries.every((entry) => entry.data === null && entry.error === null);
 
   const cardRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
@@ -136,7 +143,7 @@ export function ListCard({ listId, name, tickers, years }: ListCardProps) {
   const hiddenCount = tickers.length - effectiveVisibleCount;
 
   return (
-    <div ref={cardRef} className={`list-card ${isLoading ? "list-card-loading" : ""}`}>
+    <div ref={cardRef} className={`list-card ${isAwaitingQuotes ? "list-card-loading" : ""}`}>
       <div className="list-card-header">
         <span className="list-card-name" title={name}>{name}</span>
       </div>
