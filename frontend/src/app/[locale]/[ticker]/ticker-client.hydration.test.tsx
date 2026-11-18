@@ -60,10 +60,9 @@ vi.mock("../../../components/assistant/AssistantWindowContext", () => ({
 vi.mock("../../../components/FavoriteButton", () => ({
   FavoriteButton: () => <button type="button">favorite</button>,
 }));
-vi.mock("../../../components/VisitedButton", () => ({
-  VisitedButton: () => <button type="button">visited</button>,
+vi.mock("../../../components/VisitControl", () => ({
+  VisitControl: () => <button type="button">visited</button>,
 }));
-vi.mock("../../../components/VisitHistory", () => ({ VisitHistory: () => null }));
 vi.mock("../../../components/RevisitBanner", () => ({
   RevisitBanner: () => <div className="revisit-banner" />,
 }));

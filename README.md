@@ -643,23 +643,32 @@ Signed-in users mark a company as visited from its page, add a note, and schedul
 
 ### Company page
 
-- **Mark as visited** (`VisitedButton`) records today's visit and opens a dialog for a note, a revisit date and a recurrence.
-- **Last visit** (`VisitHistory`) sits under the company header once the company has a visit: "Última visita em 03/11/2026". Dates go through `formatCalendarDate` in `frontend/src/utils/format.ts`, which uses the active locale's numeric order (03/11/2026 in pt, 11/03/2026 in en, 03.11.2026 in de) and reads the ISO date as UTC so the day never shifts. "Ver todas as visitas (n)" is always there, even for a single visit, and expands every visit and its note in place, newest first; it never leaves the page. The revisit banner's overdue date uses the same formatter.
+Everything about visits lives in one control beside the favorite star (`VisitControl` in `frontend/src/components/VisitControl.tsx`), not in a row of its own. It is a capsule with three states:
+
+| State | Capsule | Click |
+|-------|---------|-------|
+| Never visited, or signed out | Outline check, "Marcar como visitada", accent blue | Records today's visit (or opens the login modal) and opens the panel |
+| Visited today | Filled green check, "Visitada hoje" | Opens the panel on the note and revisit fields |
+| Visited before | Outline check, "Última visita em 03/11/2026", muted | Opens the panel; nothing is recorded until "Marcar como visitada hoje" |
+
+The panel is a popover anchored to the capsule: the next scheduled revisit, then the action (mark today, or note, revisit date and recurrence once visited today), then "Histórico de visitas" with every visit and its note, newest first, scrolling inside the panel. Escape or a click outside closes it. Below 550px the capsule collapses to a round icon button; the panel carries the text.
+
+Dates go through `formatCalendarDate` in `frontend/src/utils/format.ts`, which uses the active locale's numeric order (03/11/2026 in pt, 11/03/2026 in en, 03.11.2026 in de) and reads the ISO date as UTC so the day never shifts. The revisit banner's overdue date uses the same formatter.
 
 ### Login without losing the page
 
-A signed-out visitor who clicks **Mark as visited** gets the `AuthModal`. Email login happens inside the modal, so the page stays put: on success the visit is recorded and the dialog opens.
+A signed-out visitor who clicks **Mark as visited** gets the `AuthModal`. Email login happens inside the modal, so the page stays put: on success the visit is recorded and the panel opens.
 
 Google login leaves the page, so the modal hands `frontend/src/utils/postLoginReturn.ts` two things before redirecting to Google, both in `sessionStorage` (same tab, never sent anywhere):
 
 | Key | Holds | Read by |
 |-----|-------|---------|
 | `sponda.postLoginReturn` | Current path and query | `GoogleCallbackContent`, which sends the visitor back there instead of `/<locale>`. Only same-origin paths (`/x`, never `//host` or `/\host`) are honoured. |
-| `sponda.pendingAuthAction` | `{ kind: "mark-visited", ticker }` | `VisitedButton` on that company's page, once the session is authenticated: it marks the visit and opens the dialog. Read once; expires after 15 minutes; an action for another ticker is left alone. |
+| `sponda.pendingAuthAction` | `{ kind: "mark-visited", ticker }` | `VisitControl` on that company's page, once the session is authenticated: it marks the visit and opens the panel. Read once; expires after 15 minutes; an action for another ticker is left alone. |
 
 Every `AuthModal` now returns the visitor to the page that opened it after a Google login (favorites, alerts, sponds), not just visits. Only visits resume an action.
 
-To test locally: sign out, open a company, click **Mark as visited**, log in with Google. You land back on the company with the dialog open and the visit recorded.
+To test locally: sign out, open a company, click **Mark as visited**, log in with Google. You land back on the company with the panel open and the visit recorded.
 
 ## Indicator Alerts
 

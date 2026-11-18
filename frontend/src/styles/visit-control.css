@@ -1,0 +1,283 @@
+/* Visit control in the company header: a capsule beside the favorite star
+ * and the panel it opens. Quiet by default; color only carries state
+ * (accent = an invitation, green = done today, muted = history). */
+
+.visit-control {
+  position: relative;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.visit-control-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: #ffffff;
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.visit-control-capsule:hover {
+  background: #f5f7fb;
+  border-color: #b9c7de;
+}
+
+.visit-control-capsule:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.visit-control-capsule--unvisited {
+  color: var(--color-accent);
+  border-color: #c5d2ee;
+}
+
+.visit-control-capsule--unvisited:hover {
+  background: #eff4ff;
+  border-color: #a9bce6;
+}
+
+.visit-control-capsule--today {
+  color: #15803d;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.visit-control-capsule--today:hover {
+  background: #e3f9eb;
+  border-color: #9de9b8;
+}
+
+.visit-control-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.visit-control-icon {
+  flex-shrink: 0;
+}
+
+.visit-control-chevron {
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: transform 150ms ease;
+}
+
+.visit-control-capsule[aria-expanded="true"] .visit-control-chevron {
+  transform: rotate(180deg);
+}
+
+/* Small screens: the header has no room for a sentence. The capsule turns
+ * into a round icon button; the panel still says everything. */
+@media (max-width: 550px) {
+  .visit-control-capsule {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .visit-control-label,
+  .visit-control-chevron {
+    display: none;
+  }
+}
+
+/* Panel */
+.visit-control-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 100;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  box-sizing: border-box;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.06);
+  animation: visit-control-appear 140ms ease-out;
+  transform-origin: top right;
+}
+
+@keyframes visit-control-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visit-control-popover {
+    animation: none;
+  }
+}
+
+.visit-control-schedule {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.visit-control-schedule strong {
+  font-weight: 600;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.visit-control-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.visit-control-note,
+.visit-control-input {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--color-ink);
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.visit-control-note {
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.visit-control-note::placeholder {
+  color: var(--color-muted);
+}
+
+.visit-control-input {
+  height: 34px;
+  padding: 0 10px;
+}
+
+/* Custom chevron with room on the right: the native arrow hugs the border. */
+.visit-control-recurrence {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+
+.visit-control-note:focus,
+.visit-control-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.12);
+}
+
+.visit-control-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.visit-control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+.visit-control-primary {
+  width: 100%;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.visit-control-primary:hover {
+  background: #1b347e;
+}
+
+.visit-control-primary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* History */
+.visit-control-history {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.visit-control-history-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.visit-control-history-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.visit-control-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 208px;
+  overflow-y: auto;
+}
+
+.visit-control-history-item {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  column-gap: 12px;
+  padding: 8px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #eef2f8;
+}
+
+.visit-control-history-item:last-child {
+  border-bottom: none;
+}
+
+.visit-control-history-date {
+  grid-column: 1;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.visit-control-history-note {
+  grid-column: 2;
+  color: var(--color-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
