@@ -505,6 +505,9 @@ export interface TranslationDictionary {
   "visits.banner_change_settings": string;
   "visits.banner_cancel_recurrence": string;
   "visits.banner_cancel_confirm": string;
+  "visits.last_visit": string;
+  "visits.show_all": string;
+  "visits.hide_all": string;
   "notifications.title": string;
   "notifications.no_pending": string;
   "notifications.mark_all_seen": string;

@@ -51,6 +51,7 @@ const CompanyAnalysis = dynamic(
 );
 import { FavoriteButton } from "../../../components/FavoriteButton";
 import { VisitedButton } from "../../../components/VisitedButton";
+import { VisitHistory } from "../../../components/VisitHistory";
 import { RevisitBanner } from "../../../components/RevisitBanner";
 import { ShareButtons } from "../../../components/ShareButtons";
 import { CompanyGradeCard } from "../../../components/CompanyGradeCard";
@@ -356,6 +357,8 @@ export function TickerPageClient({ initialData, initialPeers }: TickerPageClient
           </div>
         </div>
       )}
+
+      {company && !activeList && <VisitHistory ticker={upperTicker} />}
 
       {company && !activeList && <RevisitBanner ticker={upperTicker} />}
 

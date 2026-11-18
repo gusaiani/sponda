@@ -63,6 +63,7 @@ vi.mock("../../../components/FavoriteButton", () => ({
 vi.mock("../../../components/VisitedButton", () => ({
   VisitedButton: () => <button type="button">visited</button>,
 }));
+vi.mock("../../../components/VisitHistory", () => ({ VisitHistory: () => null }));
 vi.mock("../../../components/RevisitBanner", () => ({
   RevisitBanner: () => <div className="revisit-banner" />,
 }));

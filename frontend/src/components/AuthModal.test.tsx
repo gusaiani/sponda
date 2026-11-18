@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { AuthModal } from "./AuthModal";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllEnvs();
+  window.sessionStorage.clear();
+});
 
 const { setEmailVerificationPromptVisible } = vi.hoisted(() => ({
   setEmailVerificationPromptVisible: vi.fn(),
@@ -75,5 +79,40 @@ describe("AuthModal", () => {
 
     const closeButton = screen.getByLabelText("Close");
     expect(closeButton).toBeTruthy();
+  });
+
+  describe("Google sign-in", () => {
+    function stubLocation(pathname: string, search = "") {
+      Object.defineProperty(window, "location", {
+        value: { ...window.location, href: "", origin: "http://localhost:3000", pathname, search },
+        writable: true,
+      });
+    }
+
+    it("remembers the current page so the callback can return to it", () => {
+      vi.stubEnv("NEXT_PUBLIC_GOOGLE_CLIENT_ID", "client-id");
+      stubLocation("/pt/VALE3", "?tab=charts");
+
+      render(<AuthModal {...defaultProps} />);
+      fireEvent.click(screen.getByText("Continue with Google"));
+
+      const stored = JSON.parse(window.sessionStorage.getItem("sponda.postLoginReturn")!);
+      expect(stored.path).toBe("/pt/VALE3?tab=charts");
+      expect(window.location.href).toContain("accounts.google.com");
+    });
+
+    it("remembers the pending action so the page can resume it after login", () => {
+      vi.stubEnv("NEXT_PUBLIC_GOOGLE_CLIENT_ID", "client-id");
+      stubLocation("/pt/VALE3");
+
+      render(
+        <AuthModal {...defaultProps} pendingAction={{ kind: "mark-visited", ticker: "VALE3" }} />,
+      );
+      fireEvent.click(screen.getByText("Continue with Google"));
+
+      const stored = JSON.parse(window.sessionStorage.getItem("sponda.pendingAuthAction")!);
+      expect(stored.kind).toBe("mark-visited");
+      expect(stored.ticker).toBe("VALE3");
+    });
   });
 });
