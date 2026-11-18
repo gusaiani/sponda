@@ -507,6 +507,10 @@ export interface TranslationDictionary {
   "visits.banner_cancel_confirm": string;
   "visits.last_visit": string;
   "visits.mark_visited_today": string;
+  "dates.day_placeholder": string;
+  "dates.month_placeholder": string;
+  "dates.year_placeholder": string;
+  "dates.open_calendar": string;
   "notifications.title": string;
   "notifications.no_pending": string;
   "notifications.mark_all_seen": string;

@@ -95,17 +95,21 @@ def browser_context_args(browser_context_args):
     return {**browser_context_args, "locale": "pt-BR"}
 
 
-@pytest.fixture
-def context(context):
-    """Start every page with the MCP announcement already dismissed.
+def dismiss_mcp_announcement(browser_context):
+    """Start every page of the context with the MCP announcement dismissed.
 
     The announcement modal auto-opens on first load and its overlay would
     intercept every click in suites that test other flows. Its own behavior
     is covered by the frontend unit tests.
     """
-    context.add_init_script(
+    browser_context.add_init_script(
         "window.localStorage.setItem('sponda-mcp-announcement-dismissed', 'true');"
     )
+
+
+@pytest.fixture
+def context(context):
+    dismiss_mcp_announcement(context)
     return context
 
 

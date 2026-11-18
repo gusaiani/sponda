@@ -1,0 +1,59 @@
+/* Text field with a calendar button inside its right edge. The native date
+ * input only hosts the browser's calendar: it sits under the button,
+ * invisible, so the picker opens anchored to the field. */
+.localized-date-input {
+  position: relative;
+  display: block;
+}
+
+.localized-date-input-text {
+  padding-right: 36px;
+  font-variant-numeric: tabular-nums;
+}
+
+.localized-date-input-text[aria-invalid="true"],
+.localized-date-input-text[aria-invalid="true"]:focus {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+}
+
+.localized-date-input-calendar {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.localized-date-input-calendar:hover {
+  background: #eff4ff;
+  color: var(--color-accent);
+}
+
+.localized-date-input-calendar:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.localized-date-input-picker {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  border: 0;
+  padding: 0;
+}

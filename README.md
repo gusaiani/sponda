@@ -655,6 +655,8 @@ The panel is a popover anchored to the capsule: the next scheduled revisit, then
 
 Dates go through `formatCalendarDate` in `frontend/src/utils/format.ts`, which uses the active locale's numeric order (03/11/2026 in pt, 11/03/2026 in en, 03.11.2026 in de) and reads the ISO date as UTC so the day never shifts. The revisit banner's overdue date uses the same formatter.
 
+**Typed dates follow the site language, not the browser's.** A native `<input type="date">` draws its placeholder from the browser locale, so a French browser showed "jj/mm/aaaa" on the Portuguese site. "Próxima revisita" uses `LocalizedDateInput` (`frontend/src/components/LocalizedDateInput.tsx`) instead: a text field whose placeholder and digit order come from the active locale (dd/mm/aaaa in pt and es, mm/dd/yyyy in en, jj/mm/aaaa in fr, TT.MM.JJJJ in de, gg/mm/aaaa in it, 年/月/日 in zh). The order and separator come from Intl (`frontend/src/utils/localizedDate.ts`), the letters from the `dates.*_placeholder` translation keys. Typing digits inserts the separators; an impossible date or one before the minimum turns the field red and reports no date. A calendar button opens the browser's own picker through a hidden native input, whose month names still follow the browser. Use `LocalizedDateInput` for any new date field.
+
 ### Login without losing the page
 
 A signed-out visitor who clicks **Mark as visited** gets the `AuthModal`. Email login happens inside the modal, so the page stays put: on success the visit is recorded and the panel opens.

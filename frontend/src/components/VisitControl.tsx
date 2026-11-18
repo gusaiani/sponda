@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useVisits, useRevisitSchedules, type VisitEntry } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
 import { AuthModal } from "./AuthModal";
+import { LocalizedDateInput } from "./LocalizedDateInput";
 import { formatCalendarDate, localToday } from "../utils/format";
 import { consumePendingAuthAction, type PendingAuthAction } from "../utils/postLoginReturn";
 import "../styles/visit-control.css";
@@ -184,11 +185,10 @@ export function VisitControl({ ticker }: VisitControlProps) {
               <div className="visit-control-fields">
                 <label className="visit-control-field">
                   {t("visits.next_revisit")}
-                  <input
-                    type="date"
+                  <LocalizedDateInput
                     className="visit-control-input visit-control-date"
                     value={nextRevisit}
-                    onChange={(event) => setNextRevisit(event.target.value)}
+                    onChange={setNextRevisit}
                     min={localToday()}
                   />
                 </label>
