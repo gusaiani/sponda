@@ -644,7 +644,7 @@ Signed-in users mark a company as visited from its page, add a note, and schedul
 ### Company page
 
 - **Mark as visited** (`VisitedButton`) records today's visit and opens a dialog for a note, a revisit date and a recurrence.
-- **Last visit** (`VisitHistory`) sits under the company header once the company has a visit: "Última visita em 03/11/2026". Dates go through `formatCalendarDate` in `frontend/src/utils/format.ts`, which uses the active locale's numeric order (03/11/2026 in pt, 11/03/2026 in en, 03.11.2026 in de) and reads the ISO date as UTC so the day never shifts. "Ver todas as visitas (n)" expands every visit and its note in place, newest first; it never leaves the page. The revisit banner's overdue date uses the same formatter.
+- **Last visit** (`VisitHistory`) sits under the company header once the company has a visit: "Última visita em 03/11/2026". Dates go through `formatCalendarDate` in `frontend/src/utils/format.ts`, which uses the active locale's numeric order (03/11/2026 in pt, 11/03/2026 in en, 03.11.2026 in de) and reads the ISO date as UTC so the day never shifts. "Ver todas as visitas (n)" is always there, even for a single visit, and expands every visit and its note in place, newest first; it never leaves the page. The revisit banner's overdue date uses the same formatter.
 
 ### Login without losing the page
 

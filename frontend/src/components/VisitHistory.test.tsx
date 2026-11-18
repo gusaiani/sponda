@@ -116,4 +116,15 @@ describe("VisitHistory", () => {
 
     expect(document.querySelector(".visit-history-list")).toBeNull();
   });
+
+  it("offers the full list even when the only visit has no note", () => {
+    mockUseVisits.mockReturnValue({ visits: [makeVisit(1, "2026-11-18")] });
+
+    renderInLocale("pt", <VisitHistory ticker="ETER3" />);
+    fireEvent.click(screen.getByRole("button", { name: "Ver todas as visitas (1)" }));
+
+    const items = document.querySelectorAll(".visit-history-item");
+    expect(items).toHaveLength(1);
+    expect(items[0].textContent).toContain("18/11/2026");
+  });
 });
