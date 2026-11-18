@@ -50,6 +50,7 @@ vi.mock("../../../components/assistant/AssistantWindowContext", () => ({
 
 vi.mock("../../../components/FavoriteButton", () => ({ FavoriteButton: () => null }));
 vi.mock("../../../components/VisitedButton", () => ({ VisitedButton: () => null }));
+vi.mock("../../../components/VisitHistory", () => ({ VisitHistory: () => null }));
 vi.mock("../../../components/RevisitBanner", () => ({ RevisitBanner: () => null }));
 vi.mock("../../../components/ShareButtons", () => ({ ShareButtons: () => null }));
 vi.mock("../../../components/CompanyGradeCard", () => ({ CompanyGradeCard: () => null }));

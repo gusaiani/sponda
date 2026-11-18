@@ -101,4 +101,44 @@ describe("GoogleCallbackContent", () => {
       expect(window.location.href).toBe("/en");
     });
   });
+
+  it("returns to the page that opened the login instead of the home page", async () => {
+    mockSearchParams.set("code", "test-auth-code");
+    mockSearchParams.set("state", "pt");
+    window.sessionStorage.setItem(
+      "sponda.postLoginReturn",
+      JSON.stringify({ path: "/pt/VALE3", savedAt: Date.now() }),
+    );
+
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, href: "", origin: "http://localhost:3000" },
+      writable: true,
+    });
+
+    render(<GoogleCallbackContent />);
+
+    await vi.waitFor(() => {
+      expect(window.location.href).toBe("/pt/VALE3");
+    });
+  });
+
+  it("ignores an off-site return path and goes to the locale home", async () => {
+    mockSearchParams.set("code", "test-auth-code");
+    mockSearchParams.set("state", "pt");
+    window.sessionStorage.setItem(
+      "sponda.postLoginReturn",
+      JSON.stringify({ path: "//evil.example.com", savedAt: Date.now() }),
+    );
+
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, href: "", origin: "http://localhost:3000" },
+      writable: true,
+    });
+
+    render(<GoogleCallbackContent />);
+
+    await vi.waitFor(() => {
+      expect(window.location.href).toBe("/pt");
+    });
+  });
 });

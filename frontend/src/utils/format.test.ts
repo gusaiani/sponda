@@ -9,6 +9,7 @@ import {
   currencySymbolForCode,
   localToday,
   formatNumberUpTo,
+  formatCalendarDate,
 } from "./format";
 
 describe("currencyCode", () => {
@@ -281,5 +282,23 @@ describe("formatNumberUpTo", () => {
 
   it("rounds beyond the allowed decimals", () => {
     expect(formatNumberUpTo(1.256, 2, "en")).toBe("1.26");
+  });
+});
+
+describe("formatCalendarDate", () => {
+  it("formats as dd/mm/yyyy in Portuguese", () => {
+    expect(formatCalendarDate("2026-11-03", "pt")).toBe("03/11/2026");
+  });
+
+  it("formats as mm/dd/yyyy in English", () => {
+    expect(formatCalendarDate("2026-11-03", "en")).toBe("11/03/2026");
+  });
+
+  it("uses the German dotted format", () => {
+    expect(formatCalendarDate("2026-11-03", "de")).toBe("03.11.2026");
+  });
+
+  it("does not shift the day in timezones west of UTC", () => {
+    expect(formatCalendarDate("2026-01-01", "pt")).toBe("01/01/2026");
   });
 });

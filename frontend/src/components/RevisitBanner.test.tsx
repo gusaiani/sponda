@@ -20,7 +20,9 @@ vi.mock("../hooks/useVisits", () => ({
 
 vi.mock("../i18n", () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, params?: Record<string, string | number>) =>
+      params ? `${key} ${JSON.stringify(params)}` : key,
+    locale: "pt",
   }),
 }));
 
@@ -266,5 +268,18 @@ describe("RevisitBanner", () => {
     render(<RevisitBanner ticker="VALE3" />);
     const banner = document.querySelector(".revisit-banner");
     expect(banner?.classList.contains("revisit-banner-overdue")).toBe(true);
+  });
+
+  it("shows the overdue date in the active locale's format", () => {
+    mockUseRevisitSchedules.mockReturnValue({
+      getScheduleForTicker: () => makeSchedule({ next_revisit: "2020-11-17" }),
+      updateSchedule: { mutate: vi.fn() },
+      deleteSchedule: { mutate: vi.fn() },
+    });
+
+    render(<RevisitBanner ticker="VALE3" />);
+
+    const text = document.querySelector(".revisit-banner-text")?.textContent ?? "";
+    expect(text).toContain('"date":"17/11/2020"');
   });
 });

@@ -27,6 +27,7 @@ Financial indicators and analytics for global public companies. Over 23,000 comp
 - [Peer comparison](#peer-comparison)
 - [Saved lists](#saved-lists)
 - [Learning Mode](#learning-mode)
+- [Company Visits](#company-visits)
 - [Indicator Alerts](#indicator-alerts)
 - [Favorites](#favorites)
 - [Social (Sponds)](#social-sponds)
@@ -635,6 +636,30 @@ The shipped thresholds are placeholders. Edit `RATING_THRESHOLDS` in `backend/qu
 2. Click it. Each rated indicator gains a colored numeral chip; the company header gains an `Avaliação: [N] Tier` summary. Hover any chip to read the criteria for tiers 1–5.
 3. Open the screener — every rated cell shows a chip too.
 4. Reload the page. Logged-in users persist via `/api/auth/preferences/`; guests persist via the `sponda-learning-mode` localStorage key.
+
+## Company Visits
+
+Signed-in users mark a company as visited from its page, add a note, and schedule revisits. Visits live in `CompanyVisit` (one per user, ticker and day); revisits in `RevisitSchedule` (`backend/accounts/models.py`), served under `/api/auth/visits/`.
+
+### Company page
+
+- **Mark as visited** (`VisitedButton`) records today's visit and opens a dialog for a note, a revisit date and a recurrence.
+- **Last visit** (`VisitHistory`) sits under the company header once the company has a visit: "Última visita em 03/11/2026". Dates go through `formatCalendarDate` in `frontend/src/utils/format.ts`, which uses the active locale's numeric order (03/11/2026 in pt, 11/03/2026 in en, 03.11.2026 in de) and reads the ISO date as UTC so the day never shifts. "Ver todas as visitas (n)" expands every visit and its note in place, newest first; it never leaves the page. The revisit banner's overdue date uses the same formatter.
+
+### Login without losing the page
+
+A signed-out visitor who clicks **Mark as visited** gets the `AuthModal`. Email login happens inside the modal, so the page stays put: on success the visit is recorded and the dialog opens.
+
+Google login leaves the page, so the modal hands `frontend/src/utils/postLoginReturn.ts` two things before redirecting to Google, both in `sessionStorage` (same tab, never sent anywhere):
+
+| Key | Holds | Read by |
+|-----|-------|---------|
+| `sponda.postLoginReturn` | Current path and query | `GoogleCallbackContent`, which sends the visitor back there instead of `/<locale>`. Only same-origin paths (`/x`, never `//host` or `/\host`) are honoured. |
+| `sponda.pendingAuthAction` | `{ kind: "mark-visited", ticker }` | `VisitedButton` on that company's page, once the session is authenticated: it marks the visit and opens the dialog. Read once; expires after 15 minutes; an action for another ticker is left alone. |
+
+Every `AuthModal` now returns the visitor to the page that opened it after a Google login (favorites, alerts, sponds), not just visits. Only visits resume an action.
+
+To test locally: sign out, open a company, click **Mark as visited**, log in with Google. You land back on the company with the dialog open and the visit recorded.
 
 ## Indicator Alerts
 

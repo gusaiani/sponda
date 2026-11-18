@@ -131,3 +131,18 @@ export function localToday(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
+
+/**
+ * Format a calendar date ("YYYY-MM-DD") with the locale's numeric date
+ * order: 03/11/2026 in Portuguese, 11/03/2026 in English, 03.11.2026 in
+ * German. Read as UTC so the day never shifts with the viewer's timezone.
+ */
+export function formatCalendarDate(isoDate: string, locale: string): string {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}

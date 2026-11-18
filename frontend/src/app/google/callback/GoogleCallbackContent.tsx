@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { isSupportedLocale, DEFAULT_LOCALE } from "../../../lib/i18n-config";
+import { consumePostLoginReturnPath } from "../../../utils/postLoginReturn";
 
 export function GoogleCallbackContent() {
   const searchParams = useSearchParams();
@@ -39,7 +40,7 @@ export function GoogleCallbackContent() {
         return response.json();
       })
       .then(() => {
-        window.location.href = `/${locale}`;
+        window.location.href = consumePostLoginReturnPath() ?? `/${locale}`;
       })
       .catch((fetchError) => {
         setError(fetchError.message);

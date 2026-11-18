@@ -7,6 +7,7 @@ import { useVisits, useRevisitSchedules } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
 import { AuthModal } from "./AuthModal";
 import { localToday } from "../utils/format";
+import { consumePendingAuthAction, type PendingAuthAction } from "../utils/postLoginReturn";
 import "../styles/visited-button.css";
 
 interface VisitedButtonProps {
@@ -36,7 +37,25 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
 
   const visited = isAuthenticated && isVisitedToday(ticker);
   const visitCount = visits.filter((visit) => visit.ticker === ticker.toUpperCase()).length;
-  const showProminent = !visited && (!isAuthenticated || visitCount < 3);
+  // An open dialog always renders in the compact layout, which hosts it, even
+  // before the refetched visit list says the company was visited today.
+  const showProminent = !expanded && !visited && (!isAuthenticated || visitCount < 3);
+  const markVisitedAction: PendingAuthAction = { kind: "mark-visited", ticker };
+
+  function markVisitedAndOpenDialog() {
+    markVisited.mutate({ ticker });
+    setExpanded(true);
+  }
+
+  // Resume a "mark as visited" that sent the visitor through Google login.
+  // sessionStorage is outside React, so the effect is the sync point.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (!consumePendingAuthAction({ kind: "mark-visited", ticker })) return;
+    markVisited.mutate({ ticker });
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpanded(true);
+  }, [isAuthenticated, ticker, markVisited]);
 
   // Close on click outside
   useEffect(() => {
@@ -85,9 +104,8 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
 
   function handleAuthSuccess() {
     setShowAuthModal(false);
-    queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(() => {
-      markVisited.mutate({ ticker });
-    });
+    consumePendingAuthAction(markVisitedAction);
+    queryClient.invalidateQueries({ queryKey: ["auth-user"] }).then(markVisitedAndOpenDialog);
   }
 
   if (showProminent) {
@@ -111,6 +129,7 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
             onSuccess={handleAuthSuccess}
             onClose={() => setShowAuthModal(false)}
             message={t("visits.must_login")}
+            pendingAction={markVisitedAction}
           />
         )}
       </>
@@ -198,6 +217,7 @@ export function VisitedButton({ ticker }: VisitedButtonProps) {
           onSuccess={handleAuthSuccess}
           onClose={() => setShowAuthModal(false)}
           message={t("visits.must_login")}
+          pendingAction={markVisitedAction}
         />
       )}
     </>

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { useRevisitSchedules, useVisits } from "../hooks/useVisits";
 import { useTranslation } from "../i18n";
-import { localToday } from "../utils/format";
+import { formatCalendarDate, localToday } from "../utils/format";
 import "../styles/revisit-banner.css";
 
 interface RevisitBannerProps {
@@ -20,7 +20,7 @@ const RECURRENCE_OPTIONS = [
 ];
 
 export function RevisitBanner({ ticker }: RevisitBannerProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { isAuthenticated } = useAuth();
   const { getScheduleForTicker, updateSchedule, deleteSchedule } = useRevisitSchedules();
   const { markVisited, isVisitedToday } = useVisits(ticker);
@@ -64,7 +64,7 @@ export function RevisitBanner({ ticker }: RevisitBannerProps) {
 
   const isOverdue = schedule.next_revisit < today;
   const message = isOverdue
-    ? t("visits.banner_overdue", { date: schedule.next_revisit })
+    ? t("visits.banner_overdue", { date: formatCalendarDate(schedule.next_revisit, locale) })
     : t("visits.banner_due");
 
   function handleMarkVisited() {

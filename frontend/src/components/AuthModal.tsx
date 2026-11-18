@@ -1,6 +1,7 @@
 import { useState, FormEvent } from "react";
 import { useTranslation } from "../i18n";
 import { setEmailVerificationPromptVisible } from "../utils/emailVerificationPrompt";
+import { rememberPostLoginReturn, type PendingAuthAction } from "../utils/postLoginReturn";
 import "../styles/auth.css";
 import "../styles/feedback.css";
 
@@ -10,9 +11,11 @@ interface AuthModalProps {
   onSuccess: () => void;
   onClose: () => void;
   message?: string;
+  /** What the visitor was doing, resumed on this page after a Google login. */
+  pendingAction?: PendingAuthAction;
 }
 
-export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
+export function AuthModal({ onSuccess, onClose, message, pendingAction }: AuthModalProps) {
   const { t, locale } = useTranslation();
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -165,18 +168,20 @@ export function AuthModal({ onSuccess, onClose, message }: AuthModalProps) {
         <div className="auth-divider">
           <span className="auth-divider-text">{t("common.or")}</span>
         </div>
-        <GoogleSignInButton />
+        <GoogleSignInButton pendingAction={pendingAction} />
       </div>
     </div>
   );
 }
 
-function GoogleSignInButton() {
+function GoogleSignInButton({ pendingAction }: { pendingAction?: PendingAuthAction }) {
   const { t, locale } = useTranslation();
 
   function handleGoogleAuth() {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
     if (!clientId) return;
+
+    rememberPostLoginReturn(window.location.pathname + window.location.search, pendingAction);
 
     const redirectUri = `${window.location.origin}/google/callback`;
     const scope = "openid email profile";
