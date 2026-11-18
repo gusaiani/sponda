@@ -242,7 +242,7 @@ describe("VisitControl returning visit", () => {
     renderControl();
     fireEvent.click(capsule());
     fireEvent.change(document.querySelector(".visit-control-note")!, { target: { value: " revisitar " } });
-    fireEvent.change(document.querySelector(".visit-control-date")!, { target: { value: "2027-01-10" } });
+    fireEvent.change(document.querySelector("input.visit-control-date")!, { target: { value: "10012027" } });
     fireEvent.change(document.querySelector(".visit-control-recurrence")!, { target: { value: "90" } });
     fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
 

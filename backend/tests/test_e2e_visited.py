@@ -16,7 +16,7 @@ import responses
 from django.contrib.auth import get_user_model
 from playwright.sync_api import Page, expect
 
-from tests.conftest import seed_e2e_baseline
+from tests.conftest import dismiss_mcp_announcement, seed_e2e_baseline
 from tests.nextjs_server import kill_port_listeners, terminate_process_group
 
 os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
@@ -117,9 +117,9 @@ def test_user(db):
     )
 
 
-def login_via_ui(page: Page, base_url: str, email: str, password: str):
+def login_via_ui(page: Page, base_url: str, email: str, password: str, login_path: str = "/login"):
     """Log in via the unified login page."""
-    page.goto(f"{base_url}/login")
+    page.goto(f"{base_url}{login_path}")
     page.wait_for_load_state("networkidle")
     page.fill("input#email", email)
     page.fill("input#password", password)
@@ -242,3 +242,42 @@ class TestVisitControl:
         expect(items.nth(1)).to_contain_text("parece barata")
         expect(page.get_by_role("button", name="Marcar como visitada hoje")).to_be_visible()
         assert CompanyVisit.objects.filter(user=test_user, ticker="PETR4").count() == 2
+
+    def _open_today_panel_in_french_browser(self, browser, url, test_user) -> Page:
+        """Portuguese site in a French browser: the case that showed jj/mm/aaaa."""
+        from accounts.models import CompanyVisit
+
+        CompanyVisit.objects.create(user=test_user, ticker="PETR4")
+        context = browser.new_context(locale="fr-FR")
+        dismiss_mcp_announcement(context)
+        french_page = context.new_page()
+        # The French browser would be routed to /fr; the visitor chose Portuguese.
+        login_via_ui(french_page, url, "test@example.com", "testpass123", login_path="/pt/login")
+        french_page.goto(f"{url}/pt/PETR4")
+        french_page.locator(".visit-control-capsule--today").click(timeout=10000)
+        return french_page
+
+    def test_revisit_date_follows_the_site_language_not_the_browser(
+        self, browser, url, test_user
+    ):
+        french_page = self._open_today_panel_in_french_browser(browser, url, test_user)
+
+        date_field = french_page.locator("input.visit-control-date")
+        expect(date_field).to_have_attribute("placeholder", "dd/mm/aaaa")
+
+        date_field.press_sequentially("10012030")
+        expect(date_field).to_have_value("10/01/2030")
+
+    def test_typed_revisit_date_is_saved(self, browser, url, test_user):
+        from accounts.models import RevisitSchedule
+
+        french_page = self._open_today_panel_in_french_browser(browser, url, test_user)
+        french_page.locator("input.visit-control-date").press_sequentially("10012030")
+
+        with french_page.expect_response("**/api/auth/visits/mark/") as response_info:
+            french_page.get_by_role("button", name="Salvar").click()
+
+        assert response_info.value.status in (200, 201)
+        schedule = RevisitSchedule.objects.get(user=test_user, ticker="PETR4")
+        assert schedule.next_revisit == date(2030, 1, 10)
+
