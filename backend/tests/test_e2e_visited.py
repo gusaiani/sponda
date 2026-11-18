@@ -1,14 +1,15 @@
 """E2E tests for the 'Marcar como visitada' (Mark as visited) feature.
 
-Tests cover: clicking the visited button when logged in, verifying it
-transitions from prominent to compact active state, auth modal flow,
-and the expanded panel for notes/scheduling.
+Tests cover the header capsule (VisitControl): its three states, the
+one-click first visit, the auth modal flow that stays on the company page,
+and the panel with the visit history.
 """
 import json
 import os
 import re
 import subprocess
 import time
+from datetime import date
 import urllib.request
 import pytest
 import responses
@@ -136,7 +137,7 @@ def login_via_ui(page: Page, base_url: str, email: str, password: str):
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("_build_frontend")
-class TestVisitedButton:
+class TestVisitControl:
     @pytest.fixture(autouse=True)
     def _setup(self, seed_data, mock_brapi):
         pass
@@ -145,81 +146,99 @@ class TestVisitedButton:
     def url(self, _nextjs):
         return _nextjs
 
-    def test_visited_button_appears_for_logged_in_user(
+    def test_capsule_invites_a_first_visit_for_logged_in_user(
         self, page: Page, url, test_user
     ):
-        """Prominent visited button should be visible when logged in with < 3 visits."""
         login_via_ui(page, url, "test@example.com", "testpass123")
 
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        visited_button = page.locator(".visited-button-prominent")
-        expect(visited_button).to_be_visible()
-        expect(visited_button).to_contain_text("Marcar como visitada")
+        capsule = page.locator(".company-header-actions .visit-control-capsule--unvisited")
+        expect(capsule).to_be_visible()
+        expect(capsule).to_contain_text("Marcar como visitada")
 
-    def test_visited_button_visible_when_logged_out(self, page: Page, url):
-        """Prominent visited button should be visible when not logged in."""
+    def test_capsule_visible_when_logged_out(self, page: Page, url):
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        visited_button = page.locator(".visited-button-prominent")
-        expect(visited_button).to_be_visible()
-        expect(visited_button).to_contain_text("Marcar como visitada")
+        capsule = page.locator(".visit-control-capsule--unvisited")
+        expect(capsule).to_be_visible()
+        expect(capsule).to_contain_text("Marcar como visitada")
 
     def test_click_when_logged_out_shows_auth_modal(self, page: Page, url):
-        """Clicking visited button when not logged in should show the auth modal."""
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        page.locator(".visited-button-prominent").click()
+        page.locator(".visit-control-capsule").click()
 
         expect(page.locator(".auth-mode-toggle")).to_be_visible(timeout=5000)
         expect(page.locator(".auth-mode-toggle >> text=Entrar")).to_be_visible()
         expect(page.locator(".auth-mode-toggle >> text=Criar conta")).to_be_visible()
 
-    def test_clicking_visited_button_marks_company(
+    def test_first_click_marks_company_and_opens_panel(
         self, page: Page, url, test_user
     ):
-        """Clicking the prominent visited button should mark the company as visited."""
         login_via_ui(page, url, "test@example.com", "testpass123")
 
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
         page.wait_for_load_state("networkidle")
 
-        # User has 0 visits, so the prominent button is shown
-        visited_button = page.locator(".visited-button-prominent")
-        expect(visited_button).to_be_visible()
-
-        # Click it and expect the API call to succeed
         with page.expect_response("**/api/auth/visits/mark/") as response_info:
-            visited_button.click()
+            page.locator(".visit-control-capsule--unvisited").click()
 
         mark_response = response_info.value
         assert mark_response.status == 201, (
             f"Mark visited failed: {mark_response.status} {mark_response.text()}"
         )
 
-        # After marking, the button should switch to compact active state
-        compact_active = page.locator(".visited-button-active")
-        expect(compact_active).to_be_visible(timeout=10000)
+        expect(page.locator(".visit-control-capsule--today")).to_contain_text(
+            "Visitada hoje", timeout=10000
+        )
+        expect(page.locator(".visit-control-popover .visit-control-note")).to_be_visible()
 
     def test_auth_modal_login_then_marks_visited(
         self, page: Page, url, test_user
     ):
-        """Login via auth modal should complete the visited action."""
         page.goto(f"{url}/PETR4")
         expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
 
-        # Click visited button while logged out
-        page.locator(".visited-button-prominent").click()
+        page.locator(".visit-control-capsule").click()
         expect(page.locator(".auth-mode-toggle")).to_be_visible(timeout=5000)
 
-        # Login in the modal
         page.fill("input#modal-email", "test@example.com")
         page.fill("input#modal-password", "testpass123")
         page.locator(".feedback-panel button[type='submit']").click()
 
-        # After login, the button should become active (visited)
-        expect(page.locator(".visited-button-active")).to_be_visible(timeout=10000)
+        expect(page.locator(".visit-control-capsule--today")).to_be_visible(timeout=10000)
+        expect(page.locator(".visit-control-popover")).to_be_visible()
+        assert "/PETR4" in page.url
+
+    def test_earlier_visit_shows_date_and_history_without_marking(
+        self, page: Page, url, test_user
+    ):
+        from accounts.models import CompanyVisit
+
+        CompanyVisit.objects.create(
+            user=test_user, ticker="PETR4", visited_at=date(2026, 9, 12), note="parece barata"
+        )
+        CompanyVisit.objects.create(user=test_user, ticker="PETR4", visited_at=date(2026, 10, 18))
+        login_via_ui(page, url, "test@example.com", "testpass123")
+
+        page.goto(f"{url}/PETR4")
+        expect(page.locator(".company-header-name")).to_be_visible(timeout=10000)
+
+        capsule = page.locator(".company-header-actions .visit-control-capsule--earlier")
+        expect(capsule).to_contain_text("Última visita em 18/10/2026", timeout=10000)
+        expect(page.locator(".visit-history")).to_have_count(0)
+
+        capsule.click()
+
+        items = page.locator(".visit-control-history-item")
+        expect(items).to_have_count(2)
+        expect(items.nth(0)).to_contain_text("18/10/2026")
+        expect(items.nth(1)).to_contain_text("12/09/2026")
+        expect(items.nth(1)).to_contain_text("parece barata")
+        expect(page.get_by_role("button", name="Marcar como visitada hoje")).to_be_visible()
+        assert CompanyVisit.objects.filter(user=test_user, ticker="PETR4").count() == 2
