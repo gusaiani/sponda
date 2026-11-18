@@ -124,8 +124,8 @@
   color: var(--color-accent);
 }
 
-/* Pill link next to the search bar — same height + radius as
- * .search-input, green to mirror .visited-button-prominent. */
+/* Pill link next to the search bar: same height and radius as
+ * .search-input, in the brand green. */
 .app-header-filter-link {
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 16px;
