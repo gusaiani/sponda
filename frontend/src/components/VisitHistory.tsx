@@ -30,7 +30,6 @@ export function VisitHistory({ ticker }: VisitHistoryProps) {
 
   const sortedVisits = newestFirst(visits);
   const latestVisit = sortedVisits[0];
-  const hasMoreToShow = sortedVisits.length > 1 || latestVisit.note.trim() !== "";
 
   return (
     <div className="visit-history">
@@ -38,17 +37,15 @@ export function VisitHistory({ ticker }: VisitHistoryProps) {
         <span className="visit-history-latest">
           {t("visits.last_visit", { date: formatCalendarDate(latestVisit.visited_at, locale) })}
         </span>
-        {hasMoreToShow && (
-          <button
-            type="button"
-            className="visit-history-toggle"
-            aria-expanded={expanded}
-            aria-controls={listId}
-            onClick={() => setExpanded(!expanded)}
-          >
-            {expanded ? t("visits.hide_all") : t("visits.show_all", { count: sortedVisits.length })}
-          </button>
-        )}
+        <button
+          type="button"
+          className="visit-history-toggle"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? t("visits.hide_all") : t("visits.show_all", { count: sortedVisits.length })}
+        </button>
       </div>
 
       {expanded && (
