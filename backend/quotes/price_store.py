@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from django.db.models import Max
+from django.db import transaction
 
 from . import fmp
 from .fmp import FMPError
@@ -126,9 +126,10 @@ def get_daily_closes(ticker: str) -> list[dict]:
         mark_fresh(CACHE_NAMESPACE, ticker)
         return to_chart_series(sorted(fetched.items()), VALUE_KEY)
 
-    newest_stored_date = DailyClosePrice.objects.filter(ticker=ticker).aggregate(
-        Max("date")
-    )["date__max"]
+    # The newest day comes from the rows already read. Asking the database
+    # again races a concurrent refetch, which can empty the table between
+    # the two reads and hand back None.
+    newest_stored_date = stored[-1][0]
 
     try:
         fetched = _fetch(ticker, topup_start_date(newest_stored_date))
@@ -145,8 +146,11 @@ def get_daily_closes(ticker: str) -> list[dict]:
             logger.warning("Price refetch failed for %s: %s", ticker, error)
             return to_chart_series(stored, VALUE_KEY)
         if fetched:
-            DailyClosePrice.objects.filter(ticker=ticker).delete()
-            _write_closes(ticker, fetched)
+            # One transaction, so a concurrent reader sees the old series or
+            # the new one and never the empty table in between.
+            with transaction.atomic():
+                DailyClosePrice.objects.filter(ticker=ticker).delete()
+                _write_closes(ticker, fetched)
             mark_fresh(CACHE_NAMESPACE, ticker)
             return to_chart_series(sorted(fetched.items()), VALUE_KEY)
 

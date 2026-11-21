@@ -16,7 +16,6 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from django.db.models import Max
 
 from . import fmp
 from .fmp import FMPError
@@ -85,9 +84,9 @@ def get_daily_market_caps(ticker: str) -> list[dict]:
         mark_fresh(CACHE_NAMESPACE, ticker)
         return to_chart_series(sorted(fetched.items()), VALUE_KEY)
 
-    newest_stored_date = DailyMarketCap.objects.filter(ticker=ticker).aggregate(
-        Max("date")
-    )["date__max"]
+    # From the rows already read, not a second query that a concurrent
+    # rewrite could answer with None.
+    newest_stored_date = stored[-1][0]
 
     try:
         fetched = _fetch(ticker, topup_start_date(newest_stored_date))

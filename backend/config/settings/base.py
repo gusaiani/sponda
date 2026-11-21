@@ -41,6 +41,9 @@ MIDDLEWARE = [
     # Sits above everything that can reach a provider, so one budget covers
     # every outbound call the request makes, wherever it is made from.
     "config.middleware.provider_wait_budget.ProviderWaitBudgetMiddleware",
+    # Same reach as the wait budget: every provider call the request makes
+    # is counted here and written once when the response is ready.
+    "config.middleware.provider_usage_batch.ProviderUsageBatchMiddleware",
     "django.middleware.security.SecurityMiddleware",
     # Serves /static/ (the Django admin's stylesheets) from this process.
     # Every request reaches Django through the Next.js middleware proxy, so

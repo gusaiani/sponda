@@ -5,7 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 
-from quotes.circuit_breaker import forget_open_readings
+from quotes.circuit_breaker import forget_local_breaker_state
 from quotes.models import BalanceSheet, IPCAIndex, QuarterlyCashFlow, QuarterlyEarnings
 
 
@@ -83,10 +83,10 @@ def clear_cache():
     they are reset alongside it.
     """
     cache.clear()
-    forget_open_readings()
+    forget_local_breaker_state()
     yield
     cache.clear()
-    forget_open_readings()
+    forget_local_breaker_state()
 
 
 @pytest.fixture(scope="session")

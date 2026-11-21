@@ -158,6 +158,16 @@ def build_search_payload(start: date, end: date) -> dict:
     }
 
 
+class EnetUnavailable(CvmParseError):
+    """ENET's own backend failed and said so in the response body.
+
+    The search endpoint answers 200 with ``temErro`` set when the service
+    behind it is down ("The HTTP service ... is unavailable"). That is
+    CVM's outage, not a filing we failed to read, so the hourly command
+    retries it instead of reporting it.
+    """
+
+
 def open_enet_session() -> requests.Session:
     """A session ENET will answer: page cookies plus a browser User-Agent.
 
@@ -188,7 +198,7 @@ def search_itr_filings(
     response.raise_for_status()
     body = response.json()["d"]
     if body.get("temErro"):
-        raise CvmParseError(f"ENET search failed: {body.get('msgErro')}")
+        raise EnetUnavailable(f"ENET search failed: {body.get('msgErro')}")
     return parse_search_results(body.get("dados") or "")
 
 

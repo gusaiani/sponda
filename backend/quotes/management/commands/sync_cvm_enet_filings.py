@@ -32,6 +32,7 @@ from quotes.cvm import (
 )
 from quotes.cvm_enet import (
     EnetFiling,
+    EnetUnavailable,
     download_filing_package,
     extract_quarter_statements_from_package,
     latest_filings,
@@ -63,6 +64,13 @@ REPORTED_ROWS = 40
 class Command(MonitoredCommand):
     help = "Write ITR quarters straight from ENET, ahead of the weekly archive"
     sentry_monitor_slug = "sponda-sync-cvm-enet-filings"
+    # CVM's server goes down for hours at a time, and the next hourly run
+    # picks up whatever the failed one missed: the window spans a week.
+    transient_errors = (
+        EnetUnavailable,
+        requests.ConnectionError,
+        requests.Timeout,
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
