@@ -11,9 +11,12 @@ from unittest.mock import Mock, patch
 
 import pytest
 from django.core.management import call_command
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 
+from config.middleware.provider_usage_batch import ProviderUsageBatchMiddleware
 from quotes.models import ProviderUsageDay
-from quotes.provider_usage import record_provider_call
+from quotes.provider_usage import batched_provider_usage, record_provider_call
 
 pytestmark = pytest.mark.django_db
 
@@ -48,10 +51,115 @@ class TestRecordProviderCall:
     def test_accounting_never_breaks_the_caller(self):
         """A metering failure must not take down a working data fetch."""
         with patch(
-            "quotes.provider_usage.ProviderUsageDay.objects"
-        ) as mock_manager:
-            mock_manager.filter.side_effect = RuntimeError("database is down")
+            "quotes.provider_usage._write_usage",
+            side_effect=RuntimeError("database is down"),
+        ):
             record_provider_call("fmp", "/stable/quote", response_bytes=440)
+
+
+    def test_a_call_outside_a_batch_is_one_statement(self):
+        """Insert-or-increment in one round trip, which also closes the
+        race two processes had over creating the same row."""
+        record_provider_call("fmp", "/stable/quote", response_bytes=10)
+
+        with CaptureQueriesContext(connection) as queries:
+            record_provider_call("fmp", "/stable/quote", response_bytes=10)
+            record_provider_call("fmp", "/stable/profile", response_bytes=10)
+
+        assert len(queries) == 2
+
+
+class TestBatchedProviderUsage:
+    """One write per request instead of one per outbound call.
+
+    Sentry filed `UPDATE quotes_providerusageday` as an N+1 on
+    `/api/quote/{ticker}/`, `/fundamentals/` and `/multiples-history/`: a
+    cold page makes one FMP call per statement, and each call wrote its
+    own row. Inside a batch the calls are summed in memory and written in
+    a single statement when the block ends, however it ends.
+    """
+
+    def test_calls_in_a_batch_are_written_in_one_statement(self):
+        with CaptureQueriesContext(connection) as queries:
+            with batched_provider_usage():
+                record_provider_call("fmp", "/stable/income-statement", response_bytes=100)
+                record_provider_call("fmp", "/stable/cash-flow-statement", response_bytes=200)
+                record_provider_call("fmp", "/stable/balance-sheet-statement", response_bytes=300)
+                assert ProviderUsageDay.objects.count() == 0
+
+        writes = [q for q in queries if "providerusageday" in q["sql"].lower()
+                  and not q["sql"].lstrip().upper().startswith("SELECT")]
+        assert len(writes) == 1
+        assert {
+            usage.endpoint: (usage.call_count, usage.bytes_downloaded)
+            for usage in ProviderUsageDay.objects.all()
+        } == {
+            "/stable/income-statement": (1, 100),
+            "/stable/cash-flow-statement": (1, 200),
+            "/stable/balance-sheet-statement": (1, 300),
+        }
+
+    def test_repeated_calls_to_one_endpoint_are_summed(self):
+        with batched_provider_usage():
+            record_provider_call("fmp", "/stable/quote", response_bytes=40)
+            record_provider_call("fmp", "/stable/quote", response_bytes=60)
+
+        usage = ProviderUsageDay.objects.get()
+        assert (usage.call_count, usage.bytes_downloaded) == (2, 100)
+
+    def test_a_batch_adds_to_what_today_already_counted(self):
+        record_provider_call("fmp", "/stable/quote", response_bytes=40)
+
+        with batched_provider_usage():
+            record_provider_call("fmp", "/stable/quote", response_bytes=60)
+
+        usage = ProviderUsageDay.objects.get()
+        assert (usage.call_count, usage.bytes_downloaded) == (2, 100)
+
+    @pytest.mark.parametrize("abort", [RuntimeError("view crashed"), SystemExit(1)])
+    def test_the_batch_is_written_however_the_block_ends(self, abort):
+        """SystemExit is what gunicorn raises in a worker it times out."""
+        with pytest.raises(type(abort)):
+            with batched_provider_usage():
+                record_provider_call("fmp", "/stable/quote", response_bytes=40)
+                raise abort
+
+        assert ProviderUsageDay.objects.get().call_count == 1
+
+    def test_a_failed_write_never_breaks_the_caller(self):
+        with patch(
+            "quotes.provider_usage._write_usage",
+            side_effect=RuntimeError("database is down"),
+        ):
+            with batched_provider_usage():
+                record_provider_call("fmp", "/stable/quote", response_bytes=40)
+
+    def test_an_empty_batch_writes_nothing(self):
+        with CaptureQueriesContext(connection) as queries:
+            with batched_provider_usage():
+                pass
+
+        assert len(queries) == 0
+
+
+class TestProviderUsageBatchMiddleware:
+    def test_a_request_writes_its_calls_once(self):
+        def view(request):
+            record_provider_call("fmp", "/stable/income-statement", response_bytes=100)
+            record_provider_call("fmp", "/stable/cash-flow-statement", response_bytes=200)
+            assert ProviderUsageDay.objects.count() == 0
+            return "response"
+
+        response = ProviderUsageBatchMiddleware(view)(request=Mock())
+
+        assert response == "response"
+        assert ProviderUsageDay.objects.count() == 2
+
+    def test_is_installed(self, settings):
+        assert (
+            "config.middleware.provider_usage_batch.ProviderUsageBatchMiddleware"
+            in settings.MIDDLEWARE
+        )
 
 
 class TestFMPClientRecordsUsage:

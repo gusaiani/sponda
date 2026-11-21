@@ -11,7 +11,9 @@ Behaviour:
 - After ``failure_threshold`` consecutive failures the breaker opens.
   Subsequent calls raise ``CircuitOpenError`` immediately for
   ``cool_down_seconds`` instead of executing the underlying function.
-- A single success closes the breaker (resets the counter).
+- A single success closes the breaker (resets the counter). The reset
+  is limited to once per poll interval unless this process has failed
+  since the last one; see ``_reset_failures_after_success``.
 
 Two callers must use the same ``name`` to share a breaker. Names are
 free-form, but in practice they match the provider key (``fmp``,
@@ -53,10 +55,14 @@ OPEN_MARKER_POLL_SECONDS = 1.0
 _LIVE_BREAKERS: weakref.WeakSet = weakref.WeakSet()
 
 
-def forget_open_readings() -> None:
-    """Make every breaker in this process re-read its shared marker."""
+def forget_local_breaker_state() -> None:
+    """Drop what every breaker in this process remembers between calls.
+
+    That is the last reading of the open marker and the time of the last
+    failure-counter clear. Both outlive ``cache.clear()``.
+    """
     for breaker in _LIVE_BREAKERS:
-        breaker.forget_open_reading()
+        breaker.forget_local_state()
 
 
 class CircuitOpenError(Exception):
@@ -77,6 +83,8 @@ class CircuitBreaker:
         self._clock = clock
         self._last_open_reading: bool | None = None
         self._last_open_reading_at = 0.0
+        self._last_failure_reset_at: float | None = None
+        self._failed_since_reset = False
         _LIVE_BREAKERS.add(self)
 
     @property
@@ -98,9 +106,10 @@ class CircuitBreaker:
             return self._last_open_reading
         return self._remember_open_reading(bool(cache.get(self.open_cache_key)))
 
-    def forget_open_reading(self) -> None:
-        """Discard the last reading so the next call re-reads the marker."""
+    def forget_local_state(self) -> None:
+        """Re-read the marker and clear the counter on the next call."""
         self._last_open_reading = None
+        self._last_failure_reset_at = None
 
     def _remember_open_reading(self, is_open: bool) -> bool:
         self._last_open_reading = is_open
@@ -128,6 +137,7 @@ class CircuitBreaker:
         except not_a_provider_failure:
             raise
         except Exception:
+            self._failed_since_reset = True
             failures = (cache.get(self.failure_cache_key) or 0) + 1
             cache.set(
                 self.failure_cache_key, failures, timeout=self.cool_down_seconds
@@ -141,5 +151,26 @@ class CircuitBreaker:
                 self._remember_open_reading(True)
             raise
         else:
-            cache.delete(self.failure_cache_key)
+            self._reset_failures_after_success()
             return result
+
+    def _reset_failures_after_success(self) -> None:
+        """Clear the shared failure counter, at most once per poll interval.
+
+        A cold company page makes several provider calls, and a `DEL` after
+        each one put a row of identical spans on the trace. The clear is
+        skipped while this process has seen no failure and cleared the
+        counter less than a poll interval ago. A failure another process
+        counted is still forgiven within that interval, and it takes
+        ``failure_threshold`` consecutive failures to open the breaker.
+        """
+        now = self._clock()
+        cleared_recently = (
+            self._last_failure_reset_at is not None
+            and now - self._last_failure_reset_at < OPEN_MARKER_POLL_SECONDS
+        )
+        if cleared_recently and not self._failed_since_reset:
+            return
+        cache.delete(self.failure_cache_key)
+        self._last_failure_reset_at = now
+        self._failed_since_reset = False

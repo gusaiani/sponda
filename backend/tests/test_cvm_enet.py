@@ -15,6 +15,8 @@ import pytest
 
 from quotes.cvm import CvmParseError
 from quotes.cvm_enet import (
+    EnetUnavailable,
+    search_itr_filings,
     EnetFiling,
     build_download_url,
     build_search_payload,
@@ -481,3 +483,38 @@ def test_a_filing_with_only_individual_statements_yields_an_empty_quarter():
     )
 
     assert statements.is_empty
+
+
+class _FakeSearchResponse:
+    def __init__(self, body: dict) -> None:
+        self._body = body
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return {"d": self._body}
+
+
+class _FakeSession:
+    def __init__(self, body: dict) -> None:
+        self._body = body
+
+    def post(self, *args, **kwargs) -> _FakeSearchResponse:
+        return _FakeSearchResponse(self._body)
+
+
+def test_a_search_error_reported_by_enet_is_an_outage():
+    """CVM's own backend failing is reported in the body, not the status.
+
+    Sentry caught "Erro ao selecionar os documentos: The HTTP service ...
+    is unavailable" eight times in a week. It is CVM's outage, and the
+    command treats it as one instead of as a parsing bug.
+    """
+    session = _FakeSession({
+        "temErro": True,
+        "msgErro": "Erro ao selecionar os documentos: The HTTP service is unavailable.",
+    })
+
+    with pytest.raises(EnetUnavailable, match="unavailable"):
+        search_itr_filings(date(2026, 11, 9), date(2026, 11, 16), session)

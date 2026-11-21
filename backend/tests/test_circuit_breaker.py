@@ -17,7 +17,7 @@ from quotes.circuit_breaker import (
     OPEN_MARKER_POLL_SECONDS,
     CircuitBreaker,
     CircuitOpenError,
-    forget_open_readings,
+    forget_local_breaker_state,
 )
 
 
@@ -221,7 +221,7 @@ class TestOpenMarkerPolling:
             breaker.call(lambda: (_raise(_BoomError("x"))))
 
         cache.clear()
-        forget_open_readings()
+        forget_local_breaker_state()
 
         assert breaker.call(lambda: "ok") == "ok"
 
@@ -246,3 +246,85 @@ class TestOpenMarkerPolling:
 
 def _raise(exc):
     raise exc
+
+
+class _DeleteSpy:
+    """Counts deletes of one key, delegating every operation to the cache."""
+
+    def __init__(self, watched_key: str) -> None:
+        self.watched_key = watched_key
+        self.delete_count = 0
+
+    def delete(self, key, *args, **kwargs):
+        if key == self.watched_key:
+            self.delete_count += 1
+        return cache.delete(key, *args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(cache, name)
+
+
+class TestFailureCounterReset:
+    """A success clears the shared failure counter, but not on every call.
+
+    Clearing it after every successful call cost one `DEL` per provider
+    call, and a cold company page makes several: Sentry's trace showed
+    three identical `DEL circuit_breaker:fmp:failures` in one request. A
+    success now clears the counter when this process has seen a failure
+    since its last clear, or when the last clear is older than the poll
+    interval, so a failure another process counted is still forgiven
+    within a second.
+    """
+
+    def test_quick_successes_clear_the_counter_once(self, monkeypatch):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        spy = _DeleteSpy(breaker.failure_cache_key)
+        monkeypatch.setattr(circuit_breaker_module, "cache", spy)
+
+        for _ in range(4):
+            breaker.call(lambda: "ok")
+
+        assert spy.delete_count == 1
+
+    def test_a_local_failure_is_always_cleared_by_the_next_success(self):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        breaker.call(lambda: "ok")
+
+        with pytest.raises(_BoomError):
+            breaker.call(lambda: _raise(_BoomError("x")))
+        breaker.call(lambda: "ok")
+
+        assert cache.get(breaker.failure_cache_key) is None
+
+    def test_another_process_failures_are_cleared_after_the_interval(self):
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        breaker.call(lambda: "ok")
+
+        cache.set(breaker.failure_cache_key, 2, timeout=60)
+        clock.advance(OPEN_MARKER_POLL_SECONDS)
+        breaker.call(lambda: "ok")
+
+        assert cache.get(breaker.failure_cache_key) is None
+
+    def test_dropped_state_clears_the_counter_on_the_next_success(self):
+        """`forget_local_breaker_state` must not let one test's clear skip the next."""
+        clock = _FakeClock()
+        breaker = CircuitBreaker(
+            name="fmp", failure_threshold=3, cool_down_seconds=60, clock=clock
+        )
+        breaker.call(lambda: "ok")
+
+        cache.set(breaker.failure_cache_key, 2, timeout=60)
+        forget_local_breaker_state()
+        breaker.call(lambda: "ok")
+
+        assert cache.get(breaker.failure_cache_key) is None

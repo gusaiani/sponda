@@ -17,9 +17,10 @@ import pytest
 from django.core.cache import cache
 
 from quotes.fmp import FMPError
+from quotes import market_cap_store as market_cap_store_module
 from quotes.market_cap_store import get_daily_market_caps
 from quotes.models import DailyMarketCap
-from quotes.series_store import HISTORY_START_DATE
+from quotes.series_store import HISTORY_START_DATE, TOPUP_OVERLAP_DAYS
 
 pytestmark = pytest.mark.django_db
 
@@ -139,3 +140,35 @@ class TestIncrementalTopUp:
 
         assert mock_fetch.call_count == 1
         assert [point["marketCap"] for point in series] == [500_000, 1_050_000]
+
+
+class TestConcurrentRewrite:
+    """Another request can empty the series between this one's two reads.
+
+    The top-up used to ask the database for `MAX(date)` after reading the
+    rows, and got None when the rows had gone in between. The date now
+    comes from the rows already in hand.
+    """
+
+    @patch("quotes.market_cap_store.fmp.fetch_historical_market_caps")
+    def test_tops_up_from_the_rows_it_already_read(self, mock_fetch):
+        last_stored = date.today() - timedelta(days=30)
+        store_market_caps("AAPL", {last_stored: 1_000_000})
+        mock_fetch.return_value = [fmp_row(last_stored, 1_000_000)]
+
+        real_stored_series = market_cap_store_module._stored_series
+
+        def read_then_lose_the_rows(ticker):
+            series = real_stored_series(ticker)
+            DailyMarketCap.objects.filter(ticker=ticker).delete()
+            return series
+
+        with patch(
+            "quotes.market_cap_store._stored_series",
+            side_effect=read_then_lose_the_rows,
+        ):
+            get_daily_market_caps("AAPL")
+
+        assert mock_fetch.call_args.kwargs["start_date"] == last_stored - timedelta(
+            days=TOPUP_OVERLAP_DAYS
+        )

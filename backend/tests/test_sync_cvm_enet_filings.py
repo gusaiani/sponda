@@ -262,3 +262,17 @@ def test_the_filing_date_is_recorded_on_the_row(allied):
     run()
 
     assert QuarterlyEarnings.objects.get(ticker="ALLD3").filed_at == date(2026, 8, 12)
+
+
+@pytest.mark.parametrize("outage", [
+    "EnetUnavailable", "ConnectionError", "Timeout",
+])
+def test_an_enet_outage_is_transient(outage):
+    """CVM's server being down is retried, not paged; see MonitoredCommand."""
+    import requests
+
+    from quotes import cvm_enet
+    from quotes.management.commands.sync_cvm_enet_filings import Command
+
+    error_type = getattr(cvm_enet, outage, None) or getattr(requests, outage)
+    assert issubclass(error_type, Command.transient_errors)

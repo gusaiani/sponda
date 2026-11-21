@@ -5,6 +5,7 @@ bypass Django middleware and would otherwise lose exception context).
 from unittest.mock import patch
 
 import pytest
+from django.core.cache import cache
 
 from config.monitored_command import MonitoredCommand
 
@@ -84,3 +85,83 @@ class TestSentryCronsCheckIn:
             with pytest.raises(RuntimeError):
                 command.handle()
         mocked_monitor.assert_called_once_with(monitor_slug="sponda-test-monitor-fail")
+
+
+class _ProviderDown(Exception):
+    pass
+
+
+class FlakyProviderCommand(MonitoredCommand):
+    """A command whose provider has outages it recovers from on its own."""
+
+    sentry_monitor_slug = None
+    transient_errors = (_ProviderDown,)
+
+    def __init__(self, *args, outcome=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.outcome = outcome
+
+    def run(self, *args, **options):
+        if self.outcome is not None:
+            raise self.outcome
+        self.stdout.write("ok")
+
+
+class TestTransientErrors:
+    """A provider outage the next run recovers from is not an incident.
+
+    The hourly ENET sync paged Sentry for every run CVM's server was down,
+    ten events in a week, each fixed by the next run with no change on our
+    side. A transient error is now logged and re-raised (systemd still
+    retries it), and reaches Sentry only once the outage has lasted
+    `TRANSIENT_OUTAGE_ALERT_AFTER`.
+    """
+
+    @pytest.fixture(autouse=True)
+    def clear_outage_state(self):
+        cache.clear()
+        yield
+        cache.clear()
+
+    def test_a_fresh_outage_is_logged_not_captured(self, caplog):
+        command = FlakyProviderCommand(outcome=_ProviderDown("CVM is down"))
+        with patch("config.monitored_command.sentry_sdk.capture_exception") as mocked_capture:
+            with pytest.raises(_ProviderDown):
+                command.handle()
+
+        mocked_capture.assert_not_called()
+        assert "CVM is down" in caplog.text
+
+    def test_an_outage_that_lasts_is_captured(self):
+        clock = [1_000_000.0]
+        command = FlakyProviderCommand(outcome=_ProviderDown("CVM is down"))
+        with patch("config.monitored_command.time.time", side_effect=lambda: clock[0]), \
+             patch("config.monitored_command.sentry_sdk.capture_exception") as mocked_capture:
+            with pytest.raises(_ProviderDown):
+                command.handle()
+            clock[0] += MonitoredCommand.TRANSIENT_OUTAGE_ALERT_AFTER.total_seconds()
+            with pytest.raises(_ProviderDown):
+                command.handle()
+
+        mocked_capture.assert_called_once()
+
+    def test_a_successful_run_ends_the_outage(self):
+        clock = [1_000_000.0]
+        with patch("config.monitored_command.time.time", side_effect=lambda: clock[0]), \
+             patch("config.monitored_command.sentry_sdk.capture_exception") as mocked_capture:
+            with pytest.raises(_ProviderDown):
+                FlakyProviderCommand(outcome=_ProviderDown("down")).handle()
+            FlakyProviderCommand().handle()
+            clock[0] += MonitoredCommand.TRANSIENT_OUTAGE_ALERT_AFTER.total_seconds()
+            with pytest.raises(_ProviderDown):
+                FlakyProviderCommand(outcome=_ProviderDown("down again")).handle()
+
+        mocked_capture.assert_not_called()
+
+    def test_any_other_error_is_still_captured_at_once(self):
+        command = FlakyProviderCommand(outcome=RuntimeError("a bug"))
+        with patch("config.monitored_command.sentry_sdk.capture_exception") as mocked_capture:
+            with pytest.raises(RuntimeError):
+                command.handle()
+
+        mocked_capture.assert_called_once()

@@ -14,7 +14,9 @@ from django.core.cache import cache
 
 from quotes.fmp import FMPError
 from quotes.models import DailyClosePrice
+from quotes import price_store as price_store_module
 from quotes.price_store import HISTORY_START_DATE, get_daily_closes
+from quotes.series_store import TOPUP_OVERLAP_DAYS
 
 pytestmark = pytest.mark.django_db
 
@@ -167,3 +169,53 @@ class TestPruning:
 
         assert DailyClosePrice.objects.filter(ticker="AAPL").count() == 1
         assert DailyClosePrice.objects.filter(ticker="MSFT").count() == 1
+
+
+class TestConcurrentRefetch:
+    """A split refetch replaces the whole series while other requests read it.
+
+    Sentry caught `/api/quote/ABBNY/multiples-history/` crashing with
+    `NoneType - timedelta`: the request had read the stored rows, another
+    request deleted them to rewrite the series, and the follow-up
+    `MAX(date)` query found nothing.
+    """
+
+    @patch("quotes.price_store.fmp.fetch_historical_prices")
+    def test_tops_up_from_the_rows_it_already_read(self, mock_fetch):
+        last_stored = date.today() - timedelta(days=30)
+        store_closes("AAPL", {last_stored: 100.0})
+        mock_fetch.return_value = [fmp_row(last_stored, 100.0)]
+
+        real_stored_series = price_store_module._stored_series
+
+        def read_then_lose_the_rows(ticker):
+            series = real_stored_series(ticker)
+            DailyClosePrice.objects.filter(ticker=ticker).delete()
+            return series
+
+        with patch(
+            "quotes.price_store._stored_series", side_effect=read_then_lose_the_rows
+        ):
+            get_daily_closes("AAPL")
+
+        assert mock_fetch.call_args.kwargs["start_date"] == last_stored - timedelta(
+            days=TOPUP_OVERLAP_DAYS
+        )
+
+    @patch("quotes.price_store.fmp.fetch_historical_prices")
+    def test_a_failed_rewrite_keeps_the_old_series(self, mock_fetch):
+        """The delete and the rewrite commit together or not at all."""
+        last_stored = date.today() - timedelta(days=2)
+        store_closes("AAPL", {date(2015, 6, 1): 400.0, last_stored: 400.0})
+        mock_fetch.side_effect = [
+            [fmp_row(last_stored, 100.0)],
+            [fmp_row(date(2015, 6, 1), 100.0), fmp_row(last_stored, 100.0)],
+        ]
+
+        with patch(
+            "quotes.price_store._write_closes", side_effect=RuntimeError("disk full")
+        ):
+            with pytest.raises(RuntimeError):
+                get_daily_closes("AAPL")
+
+        assert DailyClosePrice.objects.filter(ticker="AAPL").count() == 2

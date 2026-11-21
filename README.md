@@ -2319,7 +2319,7 @@ Unified error, performance, and cron monitoring through Sentry (free tier) plus 
 **How it works**
 
 - **Django + Celery.** `config.observability.init_sentry` runs from `settings/base.py`. It is a no-op when `SENTRY_DSN` is unset, so dev and tests stay quiet. `before_send` scrubs `Authorization`, `Cookie`, `Set-Cookie`, `DATABASE_URL`, and `SECRET_KEY` from events. Integrations: `DjangoIntegration`, `CeleryIntegration`, `LoggingIntegration` (INFO breadcrumbs, ERROR-level events).
-- **Systemd-timer commands.** Subclass `config.monitored_command.MonitoredCommand` and implement `run()` instead of `handle()`. The base class captures any unhandled exception to Sentry and re-raises (so systemd still marks the unit as failed). Setting `sentry_monitor_slug` wraps execution in `sentry_sdk.crons.monitor`, so Sentry Crons alerts you when a timer misses or fails. All six timer-invoked commands (`refresh_ipca`, `refresh_tickers`, `refresh_snapshot_prices`, `refresh_snapshot_fundamentals`, `check_indicator_alerts`, `send_revisit_reminders`) use this base.
+- **Systemd-timer commands.** Subclass `config.monitored_command.MonitoredCommand` and implement `run()` instead of `handle()`. The base class captures any unhandled exception to Sentry and re-raises (so systemd still marks the unit as failed). Setting `sentry_monitor_slug` wraps execution in `sentry_sdk.crons.monitor`, so Sentry Crons alerts you when a timer misses or fails. Setting `transient_errors` names provider outages the next run recovers from: they are logged and re-raised, and reach Sentry only after `TRANSIENT_OUTAGE_ALERT_AFTER` (six hours) of consecutive failures. All six timer-invoked commands (`refresh_ipca`, `refresh_tickers`, `refresh_snapshot_prices`, `refresh_snapshot_fundamentals`, `check_indicator_alerts`, `send_revisit_reminders`) use this base.
 - **Next.js.** `@sentry/nextjs` is wired up via `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`, all delegating to `src/lib/sentry.ts`. `withSentryConfig` in `next.config.ts` handles source-map upload at build time. Session Replay: 10% of sessions + 100% of error sessions (within free-tier quota).
 - **Request IDs.** `config.middleware.request_id.RequestIDMiddleware` attaches a UUID to every request (or honors an inbound `X-Request-ID`, capped at 128 chars). The ID is echoed back in the `X-Request-ID` response header, tagged on the Sentry scope, and included in every JSON log line emitted during the request.
 - **Structured logging.** `config.logging_formatter.JSONLogFormatter` emits one JSON object per log record (`timestamp`, `level`, `logger`, `message`, `request_id`, `exception`). Writes to stderr → captured by journald on production. No external log shipping yet; when we want it, point Promtail/Vector at the journal.
@@ -2327,7 +2327,7 @@ Unified error, performance, and cron monitoring through Sentry (free tier) plus 
 - **Interactive shells are not reported.** `init_sentry` returns early for `manage.py shell`, `shell_plus` and `dbshell` (see `is_interactive_shell_session`). A traceback at a REPL is an operator mistyping a model name, not the service failing, and five such typos were sitting in the inbox looking like production errors. Skipping init also drops the two-second Sentry flush that every shell exit was paying. Gunicorn, Celery, pytest and all timer-driven management commands are untouched, which is the part the tests pin.
 - **Third-party browser noise is dropped.** `src/lib/sentry.ts` ships a default `ignoreErrors` list covering wallet extensions (`Failed to connect to MetaMask`, `window.ethereum`), iOS in-app webviews reaching for Safari-only handlers (`window.webkit.messageHandlers`), and extension bootstraps (`ext:core/`, `<name:bootstrap>`). None of it is code we ship. A caller can pass its own `ignoreErrors` to replace the defaults.
 - **A scanner probing `/wp-admin/install.php` is not a company page.** The Next.js middleware validates the locale segment, but its matcher skips any path containing a dot, so a dotted probe reached `/[locale]/[ticker]` directly with a locale of `wp-admin`. Every locale table in `src/lib/metadata.ts` is keyed by a supported locale, so the lookup returned undefined and indexing it threw: 5,791 crashes in twenty days, the loudest error in the inbox, each one having first spent a Django round trip on the ticker `install.php`. The company layout and tab page now answer 404 for a locale we do not serve, the same answer the locale layout below them already gave, and `generateTickerMetadata` falls back to English rather than throwing, because all three of its call sites cast the raw URL segment without checking it.
-- **"N+1 Query" here is usually Redis, not Postgres.** Sentry files a repeated cache command under the same heading as a repeated SQL statement, so the reports on `/api/quote/{ticker}/` have so far been `GET ':1:circuit_breaker:fmp:open'`, `SET ':1:rate_limiter:fmp:<window>'`, `EXISTS ':1:rate_limiter:fmp:<window>'` and finally `INCRBY ':1:rate_limiter:fmp:<window>'` itself, none of them a database query. The last one is why pacing now reserves four calls per round trip instead of counting one; see [Outbound pacing](#the-seven-mechanisms). Read the offending span before reaching for `select_related`. The one genuine database N+1 was on `/api/quotes/batch/`, where the view wrote a `LookupLog` row per ticker in a Python loop and now `bulk_create`s them in one INSERT. One report is archived rather than fixed: `UPDATE quotes_providerusageday` repeating on `/api/quote/{ticker}/` (WEB-DJANGO-24). `record_provider_call` writes once per outbound FMP call, each to a different `(provider, date, endpoint)` row, and the three writes cost about 9 ms of a 213 ms refresh that also makes three HTTP calls. Batching them would mean buffering the accounting in memory and losing it when a worker dies, which is the wrong trade for a quota ledger.
+- **"N+1 Query" here is usually Redis, not Postgres.** Sentry files a repeated cache command under the same heading as a repeated SQL statement, so the reports on `/api/quote/{ticker}/` have so far been `GET ':1:circuit_breaker:fmp:open'`, `SET ':1:rate_limiter:fmp:<window>'`, `EXISTS ':1:rate_limiter:fmp:<window>'` and finally `INCRBY ':1:rate_limiter:fmp:<window>'` itself, none of them a database query. The last one is why pacing now reserves four calls per round trip instead of counting one; see [Outbound pacing](#the-seven-mechanisms). Read the offending span before reaching for `select_related`. The one genuine database N+1 was on `/api/quotes/batch/`, where the view wrote a `LookupLog` row per ticker in a Python loop and now `bulk_create`s them in one INSERT. The second was `UPDATE quotes_providerusageday` repeating on `/api/quote/{ticker}/`, `/fundamentals/` and `/multiples-history/` (WEB-DJANGO-24, -27, -2D): `record_provider_call` wrote once per outbound FMP call. It was first archived on the theory that batching would lose the accounting when a worker dies. That theory was wrong: gunicorn aborts a timed-out worker by raising `SystemExit` inside it, which runs `finally` blocks. `ProviderUsageBatchMiddleware` now sums a request's calls in memory and writes them in one insert-or-increment statement from a `finally`. Only a SIGKILL loses a request's counts. The same trace showed `DEL ':1:circuit_breaker:fmp:failures'` once per successful call; a success now clears the failure counter at most once per poll interval unless this process failed since the last clear (`CircuitBreaker._reset_failures_after_success`).
 - **Provider pacing has a budget inside a request.** A rate limiter that waits for the outbound allowance to refill will outlive a gunicorn worker timeout and get the worker killed. See [Pacing must not outlive the request](#pacing-must-not-outlive-the-request).
 - **A DFP archive the CVM has not published is not an error.** `download_dfp_archive` raises `DfpArchiveNotPublished` on a 404 and `sync_cvm_fourth_quarters` reports it and stops. Any other HTTP failure still raises. The job necessarily runs for a reporting year before the CVM publishes it, so without this the same page fires every year.
 
@@ -2716,6 +2716,17 @@ python manage.py sync_cvm_enet_filings             # ingest the last 7 days
 python manage.py sync_cvm_enet_filings --days 30   # widen the window
 ```
 
+**CVM's outages are not incidents.** ENET goes down for hours at a time,
+either refusing connections or answering 200 with `temErro` set ("The HTTP
+service ... is unavailable"). The search raises `EnetUnavailable` for the
+second case, and the command lists it with `requests.ConnectionError` and
+`requests.Timeout` as `transient_errors`. `MonitoredCommand` logs those and
+re-raises them, so systemd still retries the unit, but captures them to
+Sentry only once the outage has lasted six hours
+(`TRANSIENT_OUTAGE_ALERT_AFTER`). The outage start is kept in the cache and
+cleared by the next successful run. The seven-day window means a run that
+failed loses nothing: the next one finds the same filings.
+
 No new environment variables · ENET's search and downloads are public and
 unauthenticated.
 
@@ -2792,8 +2803,13 @@ missing, about a kilobyte, behind a six-hour freshness marker so request
 volume cannot drive provider volume. The provider's series is
 split-adjusted, so every top-up refetches a five-day overlap it already
 holds: when a day comes back at a different price the stored series is on
-the pre-split scale and is replaced wholesale. A provider failure with a
-stored series behind it serves the stored series rather than an error.
+the pre-split scale and is replaced wholesale, inside one transaction so a
+concurrent reader sees the old series or the new one and never an empty
+table. The top-up's start date comes from the rows the request already
+read, not a second `MAX(date)` query: that query raced the wholesale
+replacement and returned None, which crashed `/multiples-history/`
+(WEB-DJANGO-28). A provider failure with a stored series behind it serves
+the stored series rather than an error.
 
 **B3 price history.** BRAPI serves daily bars back to 2000 in one call (`range=max&interval=1d`, about 6,600 bars and 750 KB for PETR4). `brapi.fetch_historical_prices` keeps only `date` and `adjustedClose`, and the result is cached for an hour under `provider:historical:v2:<ticker>`. A cold fetch pulls about 750 KB from BRAPI. The trimmed cached copy is much smaller, but it is still kept per ticker in Redis. It is not stored in Postgres like the US series. The series used to be monthly, which left a one-year chart with about ten points; the cache keys for it and for `multiples_history` were bumped (`v2`, `v3`) so the monthly copies stop being served on deploy.
 
@@ -2905,7 +2921,14 @@ Batch callers set no budget and still wait as long as they need.
 Every outbound call records its endpoint, its response size and whether
 it was rejected (a 429 costs an allowance slot, so hiding it would
 understate the fleet). `ProviderUsageDay` holds one row per provider,
-endpoint and day:
+endpoint and day.
+
+Inside a web request the calls are summed in memory and written once when
+the response is ready (`ProviderUsageBatchMiddleware`), as a single
+`INSERT ... ON CONFLICT DO UPDATE` that adds to the day's counters. Celery
+tasks, management commands and the batch endpoint's worker threads write
+each call as it happens, with the same one-statement upsert.
+
 
 ```bash
 python manage.py report_provider_usage --days 30
